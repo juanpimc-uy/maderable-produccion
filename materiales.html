@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maderable · Materiales</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Sora:wght@400;500;600;700&display=swap');
+  :root {
+    --bg:#0E0F14;--panel:#14161D;--card:#1A1D27;--border:#252836;
+    --text:#E8EAF2;--muted:#5A5F78;--faint:#20243A;
+    --amber:#F5A623;--green:#3DD68C;--red:#F05C5C;
+    --blue:#5B8DEF;--purple:#9B6DFF;--teal:#2EC4B6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100vh;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 24px;height:54px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:50;}
+  .logo{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
+  .page{max-width:1000px;margin:0 auto;padding:24px 20px 80px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
+  .btn{padding:8px 18px;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.5px;transition:opacity .15s;}
+  .btn:hover{opacity:.82;}
+  .btn-primary{background:var(--amber);color:#0E0F14;}
+  .btn-ghost{background:var(--faint);color:var(--muted);border:1px solid var(--border);}
+  .btn-success{background:var(--green);color:#0E0F14;}
+  .btn-sm{padding:4px 11px;font-size:10px;}
+  .pill{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.8px;padding:2px 8px;border-radius:3px;text-transform:uppercase;white-space:nowrap;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+  .field input,.field select,.field textarea{background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 11px;color:var(--text);font-family:'Sora',sans-serif;font-size:14px;outline:none;width:100%;transition:border-color .2s;}
+  .field input:focus{border-color:var(--amber);}
+  .field textarea{height:70px;resize:vertical;}
+  select option{background:var(--faint);}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  .divider{height:1px;background:var(--border);margin:14px 0;}
+  .sec{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;}
+  .info-box{background:rgba(91,141,239,.06);border:1px solid rgba(91,141,239,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--blue);margin-bottom:14px;line-height:1.5;}
+  .warn-box{background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--amber);margin-bottom:10px;}
+  .ok-box{background:rgba(61,214,140,.06);border:1px solid rgba(61,214,140,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--green);margin-bottom:10px;}
+  .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100;align-items:center;justify-content:center;}
+  .overlay.open{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:26px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+  .modal-title{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;}
+
+  /* tabs */
+  .tabs{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:4px;margin-bottom:24px;}
+  .tab{flex:1;padding:8px 12px;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;background:transparent;color:var(--muted);transition:all .2s;text-align:center;}
+  .tab.active{background:var(--amber);color:#0E0F14;}
+
+  /* OC card */
+  .oc-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;transition:border-color .2s;}
+  .oc-card:hover{border-color:rgba(245,166,35,.35);}
+  .oc-card.completa{border-color:rgba(61,214,140,.25);opacity:.7;}
+  .oc-header{display:flex;align-items:center;gap:12px;margin-bottom:10px;}
+  .oc-num{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);}
+
+  /* mat row en OC */
+  .mat-oc-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);}
+  .mat-oc-row:last-child{border-bottom:none;}
+  .mat-nombre{flex:1;font-size:13px;}
+  .mat-cant{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);white-space:nowrap;}
+  .bar-track{height:5px;background:var(--faint);border-radius:99px;overflow:hidden;width:80px;flex-shrink:0;}
+  .bar-fill{height:100%;border-radius:99px;transition:width .5s;}
+
+  /* mueble estado */
+  .mueble-estado{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:7px;background:var(--faint);margin-bottom:6px;}
+  .semaforo{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+
+  /* spinner */
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(245,166,35,.3);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .proc-msg{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--amber);padding:8px 0;display:none;}
+  .proc-msg.show{display:flex;align-items:center;gap:6px;}
+
+  /* dropzone */
+  .dropzone{border:2px dashed var(--border);border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:all .2s;position:relative;}
+  .dropzone:hover,.dropzone.drag{border-color:var(--amber);background:rgba(245,166,35,.04);}
+  .dropzone.done{border-color:rgba(61,214,140,.4);background:rgba(61,214,140,.03);}
+  .dropzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .fu{animation:fadeUp .25s ease both;}
+  @keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.06)}100%{transform:scale(1)}}
+  .pop{animation:pop .3s ease;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo">⬡ MADERABLE</span>
+  <span class="mono" style="font-size:11px;color:var(--muted);">/ MATERIALES</span>
+  <div style="margin-left:auto;display:flex;gap:10px;align-items:center;">
+    <a href="admin.html" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-decoration:none;">← Admin</a>
+  </div>
+</div>
+
+<div class="page">
+
+  <div class="tabs">
+    <button class="tab active" id="tab-recepcion" onclick="switchTab('recepcion')">📥 Recepción</button>
+    <button class="tab" id="tab-ocs" onclick="switchTab('ocs')">📋 Órdenes OC</button>
+    <button class="tab" id="tab-estado" onclick="switchTab('estado')">🟢 Estado por Mueble</button>
+  </div>
+
+  <!-- ══ RECEPCIÓN ══════════════════════════════════════════════════════════ -->
+  <div id="pane-recepcion">
+
+    <div class="g4" style="margin-bottom:20px;" id="kpi-mat"></div>
+
+    <!-- importar remito proveedor -->
+    <div class="card">
+      <div class="sec">Registrar Llegada de Materiales</div>
+      <div class="info-box">
+        Escaneá el remito del proveedor para identificar automáticamente qué materiales llegaron y en qué cantidad, o cargá manualmente ítem por ítem.
+      </div>
+
+      <div class="dropzone" id="dz-remito" ondragover="drag(event,1)" ondragleave="drag(event,0)" ondrop="onDrop(event)">
+        <input type="file" accept=".pdf" onchange="onFile(event)">
+        <div style="font-size:28px;margin-bottom:6px;">📄</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Remito del Proveedor</div>
+        <div style="font-size:11px;color:var(--muted);">Arrastrá o hacé clic · PDF</div>
+      </div>
+      <div class="proc-msg" id="proc-remito"><span class="spinner"></span>Analizando con IA...</div>
+      <div id="err-remito" style="color:var(--red);font-size:12px;margin-top:6px;display:none;"></div>
+    </div>
+
+    <!-- o carga manual -->
+    <div class="card">
+      <div class="sec">
+        Carga Manual de Recepción
+        <button class="btn btn-primary btn-sm" onclick="abrirModalRecepcion()">+ Nueva recepción</button>
+      </div>
+      <div id="recepciones-pendientes"></div>
+    </div>
+
+    <!-- impacto en muebles -->
+    <div class="card" id="card-impacto" style="display:none;">
+      <div class="sec">Impacto en Muebles</div>
+      <div id="impacto-contenido"></div>
+    </div>
+
+  </div>
+
+  <!-- ══ ÓRDENES OC ══════════════════════════════════════════════════════════ -->
+  <div id="pane-ocs" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="sec" style="margin:0;">Órdenes de Compra</div>
+      <button class="btn btn-primary btn-sm" onclick="abrirModalNuevaOC()">+ Nueva OC</button>
+    </div>
+    <div id="lista-ocs"></div>
+  </div>
+
+  <!-- ══ ESTADO POR MUEBLE ══════════════════════════════════════════════════ -->
+  <div id="pane-estado" style="display:none;">
+    <div class="field" style="margin-bottom:14px;">
+      <select id="sel-pr-estado" onchange="renderEstadoMuebles()">
+        <option value="">— Todos los proyectos —</option>
+      </select>
+    </div>
+    <div id="estado-muebles"></div>
+  </div>
+
+</div><!-- /page -->
+
+<!-- modal recepción manual -->
+<div class="overlay" id="overlay-recv" onclick="cerrarModal('recv')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Registrar Recepción de Materiales</div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="g2">
+        <div class="field"><label>Número OC (si aplica)</label><input id="recv-oc" placeholder="OC-001"/></div>
+        <div class="field"><label>Fecha de recepción</label><input type="date" id="recv-fecha"/></div>
+      </div>
+      <div class="field"><label>Proveedor</label><input id="recv-prov" placeholder="Nombre del proveedor"/></div>
+
+      <div>
+        <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">MATERIALES RECIBIDOS</div>
+        <div id="recv-items"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="addRecvItem()">+ Agregar ítem</button>
+      </div>
+
+      <div class="field"><label>Observaciones</label><textarea id="recv-obs" placeholder="Estado, observaciones..."></textarea></div>
+
+      <div id="recv-preview" style="display:none;background:var(--faint);border-radius:8px;padding:14px;"></div>
+
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-success" onclick="confirmarRecepcion()">✓ Confirmar Recepción</button>
+        <button class="btn btn-ghost" onclick="cerrarModal('recv')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- modal nueva OC -->
+<div class="overlay" id="overlay-oc" onclick="cerrarModal('oc')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Nueva Orden de Compra</div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="g2">
+        <div class="field"><label>Número OC</label><input id="oc-num" placeholder="OC-001"/></div>
+        <div class="field"><label>Proveedor</label><input id="oc-prov" placeholder="Proveedor"/></div>
+      </div>
+      <div class="field">
+        <label>Proyecto</label>
+        <select id="oc-pr"><option value="">— Seleccionar —</option></select>
+      </div>
+      <div id="oc-mueble-wrap" style="display:none;">
+        <div class="field"><label>Mueble (opcional)</label>
+          <select id="oc-mueble"><option value="">Todo el proyecto</option></select>
+        </div>
+      </div>
+      <div>
+        <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">ÍTEMS DE LA OC</div>
+        <div id="oc-items"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="addOcItem()">+ Agregar ítem</button>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-primary" onclick="guardarOC()">Guardar OC</button>
+        <button class="btn btn-ghost" onclick="cerrarModal('oc')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+// DATOS
+// ══════════════════════════════════════════════════════════════════════════
+let PROYECTOS   = JSON.parse(localStorage.getItem('proyectos')   || '[]');
+let OCS         = JSON.parse(localStorage.getItem('ocs')         || '[]');
+let RECEPCIONES = JSON.parse(localStorage.getItem('recepciones') || '[]');
+
+// demo
+if (!PROYECTOS.length) {
+  PROYECTOS = [
+    { id:'pr1', numero:'ODF-2385', obra:'MON BRAVA 301', clienteNombre:'Estudio JCE',
+      muebles:[
+        {id:'mf1',codigo:'MF01',nombre:'Banco Central Salón',  materialesOk:false},
+        {id:'mf2',codigo:'MF02',nombre:'Banco Corrido Salón',  materialesOk:false},
+        {id:'mf3',codigo:'MF03',nombre:'Equipamiento Barra',   materialesOk:true },
+      ],
+      materiales:[
+        {id:'ma1',muebleId:'mf1',nombre:'MDF 18mm',        unidad:'planchas',requerido:12,recibido:6 },
+        {id:'ma2',muebleId:'mf1',nombre:'Melamina Premium', unidad:'planchas',requerido:4, recibido:4 },
+        {id:'ma3',muebleId:'mf2',nombre:'MDF 18mm',         unidad:'planchas',requerido:8, recibido:8 },
+        {id:'ma4',muebleId:'mf2',nombre:'Canto ABS',        unidad:'metros',  requerido:30, recibido:15},
+        {id:'ma5',muebleId:'mf3',nombre:'MDF 18mm',         unidad:'planchas',requerido:6, recibido:6 },
+      ]
+    },
+    { id:'pr2', numero:'SO-01879', obra:'HUGO BOSS', clienteNombre:'LGD Arquitectos',
+      muebles:[{id:'mf6',codigo:'C01',nombre:'Puerta Depósito',materialesOk:false}],
+      materiales:[
+        {id:'ma6',muebleId:'mf6',nombre:'MDF 18mm',    unidad:'planchas',requerido:2,recibido:0},
+        {id:'ma7',muebleId:'mf6',nombre:'Bisagra Flap', unidad:'pares',   requerido:2,recibido:0},
+      ]
+    }
+  ];
+}
+
+if (!OCS.length) {
+  OCS = [
+    { id:'oc1', numero:'OC-001', proveedor:'FibroFácil', proyectoId:'pr1', muebleId:'mf1',
+      estado:'pendiente', fecha:'2026-03-28',
+      items:[{nombre:'MDF 18mm',unidad:'planchas',cantidad:12},{nombre:'Melamina Premium',unidad:'planchas',cantidad:4}]
+    },
+    { id:'oc2', numero:'OC-002', proveedor:'Pablo Montans', proyectoId:'pr2', muebleId:'mf6',
+      estado:'pendiente', fecha:'2026-03-30',
+      items:[{nombre:'MDF 18mm',unidad:'planchas',cantidad:2},{nombre:'Bisagra Flap',unidad:'pares',cantidad:2}]
+    },
+  ];
+  localStorage.setItem('ocs', JSON.stringify(OCS));
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════════════════════════════════
+function switchTab(t) {
+  ['recepcion','ocs','estado'].forEach(x=>{
+    document.getElementById('pane-'+x).style.display   = x===t?'block':'none';
+    document.getElementById('tab-'+x).classList.toggle('active', x===t);
+  });
+  if(t==='ocs')    renderOCs();
+  if(t==='estado') initEstado();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════════
+function init() {
+  renderKpis();
+  renderRecepciones();
+}
+
+function renderKpis() {
+  const totalMats  = PROYECTOS.reduce((a,p)=>(a+(p.materiales||[]).length),0);
+  const recibidos  = PROYECTOS.reduce((a,p)=>(a+(p.materiales||[]).filter(m=>m.recibido>=m.requerido).length),0);
+  const parciales  = PROYECTOS.reduce((a,p)=>(a+(p.materiales||[]).filter(m=>m.recibido>0&&m.recibido<m.requerido).length),0);
+  const pendientes = totalMats - recibidos - parciales;
+  const ocsPend    = OCS.filter(o=>o.estado==='pendiente').length;
+
+  document.getElementById('kpi-mat').innerHTML=[
+    {l:'OCs Pendientes',   v:ocsPend,   c:'var(--amber)'},
+    {l:'Materiales OK',    v:recibidos, c:'var(--green)'},
+    {l:'Parciales',        v:parciales, c:'var(--blue)' },
+    {l:'Sin recibir',      v:pendientes,c:'var(--red)'  },
+  ].map(k=>`
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px 18px;">
+      <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">${k.l.toUpperCase()}</div>
+      <div class="mono" style="font-size:30px;font-weight:700;color:${k.c};">${k.v}</div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PDF REMITO PROVEEDOR
+// ══════════════════════════════════════════════════════════════════════════
+function drag(e,on){e.preventDefault();document.getElementById('dz-remito').classList.toggle('drag',!!on);}
+function onDrop(e){e.preventDefault();document.getElementById('dz-remito').classList.remove('drag');const f=e.dataTransfer.files[0];if(f)procRemito(f);}
+function onFile(e){const f=e.target.files[0];if(f)procRemito(f);}
+
+async function procRemito(file) {
+  if(!file.name.toLowerCase().endsWith('.pdf')){showErr('Solo PDF.');return;}
+  showErr('',0);
+  document.getElementById('proc-remito').classList.add('show');
+
+  const b64 = await toB64(file);
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,
+        messages:[{role:'user',content:[
+          {type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},
+          {type:'text',text:`Analizá este remito/albarán del proveedor. SOLO JSON sin markdown:
+{"proveedor":"","numero_remito":"","items":[{"nombre":"","unidad":"unidades","cantidad":1}]}
+- Cada línea del remito es un ítem
+- unidad: planchas, unidades, pares, metros, ml, kg, litros, m²
+- cantidad: el número que figura en el documento`}
+        ]}]})
+    });
+    const data=await res.json();
+    const parsed=parseJ(data.content?.[0]?.text||'');
+    document.getElementById('proc-remito').classList.remove('show');
+    document.getElementById('dz-remito').classList.add('done');
+    // abrir modal con datos pre-llenados
+    abrirModalRecepcion(parsed);
+  } catch(err) {
+    document.getElementById('proc-remito').classList.remove('show');
+    showErr('Error al procesar: '+err.message+'. Cargá manualmente.');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// MODAL RECEPCIÓN
+// ══════════════════════════════════════════════════════════════════════════
+let recvItems = [];
+
+function abrirModalRecepcion(parsed) {
+  document.getElementById('recv-fecha').value = hoy();
+  document.getElementById('recv-oc').value    = '';
+  document.getElementById('recv-prov').value  = parsed?.proveedor || '';
+  document.getElementById('recv-obs').value   = '';
+
+  recvItems = parsed?.items?.map(i=>({nombre:i.nombre,unidad:i.unidad||'unidades',cantidad:i.cantidad||1}))
+    || [{nombre:'',unidad:'planchas',cantidad:1}];
+
+  renderRecvItems();
+  document.getElementById('recv-preview').style.display = 'none';
+  document.getElementById('overlay-recv').classList.add('open');
+}
+
+function renderRecvItems() {
+  const UNIDS=['planchas','unidades','pares','metros','ml','kg','litros','m²'];
+  document.getElementById('recv-items').innerHTML = recvItems.map((it,i)=>`
+    <div style="display:grid;grid-template-columns:1fr 100px 80px 30px;gap:8px;align-items:center;margin-bottom:7px;">
+      <input style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--text);font-family:'Sora',sans-serif;font-size:13px;outline:none;"
+        value="${it.nombre}" placeholder="Material" onchange="recvItems[${i}].nombre=this.value;previewImpacto()"/>
+      <select style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--text);font-family:'Sora',sans-serif;font-size:13px;outline:none;"
+        onchange="recvItems[${i}].unidad=this.value">
+        ${UNIDS.map(u=>`<option value="${u}" ${it.unidad===u?'selected':''}>${u}</option>`).join('')}
+      </select>
+      <input type="number" min="0" step="0.5" style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;text-align:center;outline:none;"
+        value="${it.cantidad}" onchange="recvItems[${i}].cantidad=+this.value;previewImpacto()"/>
+      <button onclick="recvItems.splice(${i},1);renderRecvItems();"
+        style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:6px;cursor:pointer;color:var(--red);font-weight:700;font-size:13px;">×</button>
+    </div>`).join('');
+  previewImpacto();
+}
+
+function addRecvItem() { recvItems.push({nombre:'',unidad:'planchas',cantidad:1}); renderRecvItems(); }
+
+function previewImpacto() {
+  // buscar qué materiales de proyectos coinciden con lo recibido
+  const impactos = [];
+  recvItems.forEach(it => {
+    if (!it.nombre) return;
+    PROYECTOS.forEach(pr => {
+      (pr.materiales||[]).forEach(mat => {
+        const coincide = mat.nombre.toLowerCase().includes(it.nombre.toLowerCase()) ||
+                         it.nombre.toLowerCase().includes(mat.nombre.toLowerCase());
+        if (coincide) {
+          const mueble = (pr.muebles||[]).find(m=>m.id===mat.muebleId);
+          const nuevoRecibido = Math.min(mat.requerido, mat.recibido + it.cantidad);
+          const delta = nuevoRecibido - mat.recibido;
+          if (delta > 0) {
+            impactos.push({ pr, mat, mueble, delta, nuevoRecibido, completo: nuevoRecibido >= mat.requerido });
+          }
+        }
+      });
+    });
+  });
+
+  const prev = document.getElementById('recv-preview');
+  if (!impactos.length) { prev.style.display='none'; return; }
+
+  prev.style.display = 'block';
+  prev.innerHTML = `
+    <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">IMPACTO AUTOMÁTICO EN PROYECTOS</div>
+    ${impactos.map(imp=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);">
+        <span style="width:10px;height:10px;border-radius:50%;background:${imp.completo?'var(--green)':'var(--amber)'};display:inline-block;flex-shrink:0;"></span>
+        <div style="flex:1;">
+          <div style="font-size:12px;font-weight:600;">${imp.mat.nombre}</div>
+          <div style="font-size:11px;color:var(--muted);">${imp.pr.numero} · ${imp.mueble?.codigo||''} ${imp.mueble?.nombre||''}</div>
+        </div>
+        <div style="text-align:right;">
+          <span class="mono" style="font-size:12px;color:var(--muted);">${imp.mat.recibido}</span>
+          <span style="color:var(--muted);margin:0 4px;">→</span>
+          <span class="mono" style="font-size:12px;color:${imp.completo?'var(--green)':'var(--amber)'};">${imp.nuevoRecibido}</span>
+          <span class="mono" style="font-size:10px;color:var(--muted);">/${imp.mat.requerido}</span>
+        </div>
+        ${imp.completo?`<span class="pill" style="color:var(--green);background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.3);">✓ Completo</span>`:''}
+      </div>`).join('')}`;
+}
+
+function confirmarRecepcion() {
+  const fecha = document.getElementById('recv-fecha').value || hoy();
+  const prov  = document.getElementById('recv-prov').value;
+  const ocNum = document.getElementById('recv-oc').value;
+  const obs   = document.getElementById('recv-obs').value;
+
+  // aplicar impacto en materiales
+  const impactados = [];
+  recvItems.forEach(it => {
+    if (!it.nombre || !it.cantidad) return;
+    PROYECTOS.forEach(pr => {
+      (pr.materiales||[]).forEach(mat => {
+        const coincide = mat.nombre.toLowerCase().includes(it.nombre.toLowerCase()) ||
+                         it.nombre.toLowerCase().includes(mat.nombre.toLowerCase());
+        if (coincide) {
+          const antes = mat.recibido;
+          mat.recibido = Math.min(mat.requerido, mat.recibido + it.cantidad);
+          if (mat.recibido > antes) {
+            impactados.push({prNum:pr.numero, mat:mat.nombre, de:antes, a:mat.recibido, req:mat.requerido});
+          }
+        }
+      });
+      // actualizar materialesOk de cada mueble
+      (pr.muebles||[]).forEach(mueble => {
+        const matsMueble = (pr.materiales||[]).filter(m=>m.muebleId===mueble.id);
+        mueble.materialesOk = matsMueble.length > 0 && matsMueble.every(m=>m.recibido>=m.requerido);
+      });
+    });
+  });
+
+  // marcar OC como recibida si hay número
+  if (ocNum) {
+    const oc = OCS.find(o=>o.numero===ocNum);
+    if (oc) oc.estado = 'recibida';
+  }
+
+  // guardar recepción
+  const recv = { id:'recv_'+Date.now(), fecha, proveedor:prov, ocNum, obs, items:recvItems, impactados };
+  RECEPCIONES.push(recv);
+
+  // persistir todo
+  localStorage.setItem('proyectos',  JSON.stringify(PROYECTOS));
+  localStorage.setItem('ocs',         JSON.stringify(OCS));
+  localStorage.setItem('recepciones', JSON.stringify(RECEPCIONES));
+
+  cerrarModal('recv');
+  renderKpis();
+  renderRecepciones();
+
+  // mostrar impacto
+  if (impactados.length) {
+    const card = document.getElementById('card-impacto');
+    card.style.display='block';
+    document.getElementById('impacto-contenido').innerHTML=`
+      <div class="ok-box" style="margin-bottom:12px;">✓ Recepción registrada. ${impactados.length} material${impactados.length>1?'es':''} actualizado${impactados.length>1?'s':''}.</div>
+      ${impactados.map(imp=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--faint);border-radius:6px;margin-bottom:5px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:${imp.a>=imp.req?'var(--green)':'var(--amber)'};flex-shrink:0;"></span>
+          <span style="font-size:13px;flex:1;">${imp.mat}</span>
+          <span class="mono" style="font-size:12px;color:var(--muted);">${imp.prNum}</span>
+          <span class="mono" style="font-size:12px;">${imp.de} → <span style="color:${imp.a>=imp.req?'var(--green)':'var(--amber)'};">${imp.a}</span>/${imp.req}</span>
+          ${imp.a>=imp.req?`<span class="pill" style="color:var(--green);background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.3);">✓</span>`:''}
+        </div>`).join('')}`;
+
+    // flash animación en muebles habilitados
+    const mueblesBloqueados = [];
+    PROYECTOS.forEach(pr=>(pr.muebles||[]).forEach(m=>{ if(m.materialesOk) mueblesBloqueados.push(`${pr.numero} · ${m.codigo} ${m.nombre}`); }));
+    if (mueblesBloqueados.length) {
+      document.getElementById('impacto-contenido').insertAdjacentHTML('beforeend',`
+        <div class="ok-box" style="margin-top:10px;">
+          🟢 <strong>Muebles habilitados para producción:</strong><br>
+          ${mueblesBloqueados.map(m=>`<span style="display:block;font-family:'JetBrains Mono',monospace;font-size:11px;margin-top:4px;">${m}</span>`).join('')}
+        </div>`);
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// RECEPCIONES RECIENTES
+// ══════════════════════════════════════════════════════════════════════════
+function renderRecepciones() {
+  const el = document.getElementById('recepciones-pendientes');
+  if (!RECEPCIONES.length) {
+    el.innerHTML='<div style="text-align:center;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:12px;padding:16px;">Sin recepciones registradas.</div>';
+    return;
+  }
+  el.innerHTML = RECEPCIONES.slice().reverse().slice(0,10).map(r=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:7px;background:var(--faint);margin-bottom:5px;">
+      <span style="font-size:14px;">📥</span>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;">${r.proveedor||'—'}</div>
+        <div class="mono" style="font-size:10px;color:var(--muted);">${fmtFecha(r.fecha)} · ${r.items.length} ítems${r.ocNum?` · OC: ${r.ocNum}`:''}</div>
+      </div>
+      <span class="pill" style="color:var(--green);background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.3);">Recibido</span>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// OCs
+// ══════════════════════════════════════════════════════════════════════════
+function renderOCs() {
+  const el = document.getElementById('lista-ocs');
+  if (!OCS.length) { el.innerHTML='<div style="text-align:center;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:12px;padding:20px;">Sin órdenes de compra.</div>'; return; }
+
+  el.innerHTML = OCS.map(oc => {
+    const pr = PROYECTOS.find(p=>p.id===oc.proyectoId);
+    const mueble = pr?.muebles?.find(m=>m.id===oc.muebleId);
+    const completa = oc.estado==='recibida';
+    return `
+      <div class="oc-card ${completa?'completa':''}">
+        <div class="oc-header">
+          <span class="oc-num">${oc.numero}</span>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;">${oc.proveedor}</div>
+            <div style="font-size:11px;color:var(--muted);">${pr?.numero||'—'} · ${pr?.obra||'—'}${mueble?` · ${mueble.codigo} ${mueble.nombre}`:''}</div>
+          </div>
+          <span class="pill" style="color:${completa?'var(--green)':'var(--amber)'};background:${completa?'rgba(61,214,140,.1)':'rgba(245,166,35,.1)'};border:1px solid ${completa?'rgba(61,214,140,.3)':'rgba(245,166,35,.3)'};">
+            ${completa?'✓ Recibida':'Pendiente'}
+          </span>
+        </div>
+        ${oc.items.map(it=>`
+          <div class="mat-oc-row">
+            <span class="mat-nombre">${it.nombre}</span>
+            <span class="mat-cant">${it.cantidad} ${it.unidad}</span>
+          </div>`).join('')}
+        ${!completa?`<button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="recibirOC('${oc.id}')">→ Registrar recepción</button>`:''}
+      </div>`;
+  }).join('');
+}
+
+function recibirOC(ocId) {
+  const oc = OCS.find(o=>o.id===ocId); if(!oc) return;
+  recvItems = oc.items.map(i=>({nombre:i.nombre,unidad:i.unidad,cantidad:i.cantidad}));
+  document.getElementById('recv-oc').value   = oc.numero;
+  document.getElementById('recv-prov').value = oc.proveedor;
+  document.getElementById('recv-fecha').value= hoy();
+  document.getElementById('recv-obs').value  = '';
+  renderRecvItems();
+  switchTab('recepcion');
+  document.getElementById('overlay-recv').classList.add('open');
+}
+
+// ── modal nueva OC ────────────────────────────────────────────────────────
+let ocItems = [];
+
+function abrirModalNuevaOC() {
+  ocItems = [{nombre:'',unidad:'planchas',cantidad:1}];
+  document.getElementById('oc-num').value  = 'OC-'+(OCS.length+1).toString().padStart(3,'0');
+  document.getElementById('oc-prov').value = '';
+  const selPr = document.getElementById('oc-pr');
+  selPr.innerHTML='<option value="">— Seleccionar —</option>'+PROYECTOS.map(p=>`<option value="${p.id}">${p.numero} · ${p.obra}</option>`).join('');
+  selPr.onchange = () => {
+    const pr=PROYECTOS.find(x=>x.id===selPr.value);
+    const wrap=document.getElementById('oc-mueble-wrap');
+    const selM=document.getElementById('oc-mueble');
+    wrap.style.display=pr?'block':'none';
+    if(pr){selM.innerHTML='<option value="">Todo el proyecto</option>'+(pr.muebles||[]).map(m=>`<option value="${m.id}">${m.codigo} ${m.nombre}</option>`).join('');}
+  };
+  renderOcItems();
+  document.getElementById('overlay-oc').classList.add('open');
+}
+
+function renderOcItems() {
+  const UNIDS=['planchas','unidades','pares','metros','ml','kg','litros','m²'];
+  document.getElementById('oc-items').innerHTML=ocItems.map((it,i)=>`
+    <div style="display:grid;grid-template-columns:1fr 100px 80px 30px;gap:8px;align-items:center;margin-bottom:7px;">
+      <input style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--text);font-family:'Sora',sans-serif;font-size:13px;outline:none;"
+        value="${it.nombre}" placeholder="Material" onchange="ocItems[${i}].nombre=this.value"/>
+      <select style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--text);font-family:'Sora',sans-serif;font-size:13px;outline:none;"
+        onchange="ocItems[${i}].unidad=this.value">
+        ${UNIDS.map(u=>`<option value="${u}" ${it.unidad===u?'selected':''}>${u}</option>`).join('')}
+      </select>
+      <input type="number" min="0" style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;text-align:center;outline:none;"
+        value="${it.cantidad}" onchange="ocItems[${i}].cantidad=+this.value"/>
+      <button onclick="ocItems.splice(${i},1);renderOcItems();"
+        style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:6px;cursor:pointer;color:var(--red);font-weight:700;font-size:13px;">×</button>
+    </div>`).join('');
+}
+
+function addOcItem(){ ocItems.push({nombre:'',unidad:'planchas',cantidad:1}); renderOcItems(); }
+
+function guardarOC() {
+  const num   = document.getElementById('oc-num').value;
+  const prov  = document.getElementById('oc-prov').value;
+  const prId  = document.getElementById('oc-pr').value;
+  const mId   = document.getElementById('oc-mueble').value;
+  if (!num||!prov) return;
+  OCS.push({id:'oc_'+Date.now(),numero:num,proveedor:prov,proyectoId:prId,muebleId:mId,estado:'pendiente',fecha:hoy(),items:ocItems});
+  localStorage.setItem('ocs',JSON.stringify(OCS));
+  cerrarModal('oc');
+  renderOCs();
+  renderKpis();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ESTADO POR MUEBLE
+// ══════════════════════════════════════════════════════════════════════════
+function initEstado() {
+  const sel=document.getElementById('sel-pr-estado');
+  sel.innerHTML='<option value="">— Todos los proyectos —</option>'+
+    PROYECTOS.map(p=>`<option value="${p.id}">${p.numero} · ${p.obra}</option>`).join('');
+  renderEstadoMuebles();
+}
+
+function renderEstadoMuebles() {
+  const prId=document.getElementById('sel-pr-estado').value;
+  const prs=prId?PROYECTOS.filter(p=>p.id===prId):PROYECTOS;
+  const el=document.getElementById('estado-muebles');
+  let html='';
+
+  prs.forEach(pr=>{
+    html+=`<div class="card" style="margin-bottom:12px;">
+      <div class="sec">${pr.numero} · ${pr.obra}</div>`;
+    (pr.muebles||[]).forEach(mueble=>{
+      const mats=(pr.materiales||[]).filter(m=>m.muebleId===mueble.id);
+      const allOk=mats.length>0&&mats.every(m=>m.recibido>=m.requerido);
+      const ninguno=mats.every(m=>m.recibido===0);
+      const semColor=allOk?'var(--green)':ninguno?'var(--red)':'var(--amber)';
+      const statusLabel=allOk?'Listo para producción':ninguno?'Sin materiales':'Materiales parciales';
+
+      html+=`<div class="mueble-estado">
+        <span class="semaforo" style="background:${semColor};"></span>
+        <span class="mono" style="font-size:11px;color:var(--amber);min-width:52px;">${mueble.codigo}</span>
+        <span style="font-size:13px;font-weight:600;flex:1;">${mueble.nombre}</span>
+        <span style="font-size:11px;color:${semColor};">${statusLabel}</span>
+      </div>`;
+
+      if(mats.length){
+        mats.forEach(mat=>{
+          const pctMat=mat.requerido?Math.min(100,Math.round(mat.recibido/mat.requerido*100)):0;
+          const cMat=pctMat===100?'var(--green)':pctMat>0?'var(--amber)':'var(--red)';
+          html+=`<div style="display:flex;align-items:center;gap:10px;padding:5px 14px 5px 36px;font-size:12px;">
+            <span style="flex:1;color:var(--muted);">${mat.nombre}</span>
+            <span class="mono" style="font-size:11px;color:var(--muted);">${mat.recibido}/${mat.requerido} ${mat.unidad}</span>
+            <div class="bar-track"><div class="bar-fill" style="width:${pctMat}%;background:${cMat};"></div></div>
+            <span class="mono" style="font-size:10px;color:${cMat};min-width:30px;text-align:right;">${pctMat}%</span>
+          </div>`;
+        });
+      }
+    });
+    html+=`</div>`;
+  });
+
+  el.innerHTML=html||'<div style="text-align:center;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:12px;padding:20px;">Sin proyectos.</div>';
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════════════════════
+function cerrarModal(id){document.getElementById('overlay-'+id)?.classList.remove('open');}
+function hoy(){return new Date().toISOString().split('T')[0];}
+function fmtFecha(s){if(!s)return'—';const[y,m,d]=s.split('-');return`${d}/${m}/${y}`;}
+function showErr(msg,show=1){const el=document.getElementById('err-remito');el.textContent=msg;el.style.display=show?'block':'none';}
+function toB64(f){return new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f);});}
+function parseJ(raw){try{return JSON.parse(raw.trim());}catch{const m=raw.match(/\{[\s\S]*\}/);if(m)return JSON.parse(m[0]);throw new Error('JSON inválido');}}
+
+init();
+</script>
+</body>
+</html>

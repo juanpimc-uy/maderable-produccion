@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Maderable · Planta</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Sora:wght@400;600;700&display=swap');
+  :root {
+    --bg:#0E0F14; --panel:#14161D; --card:#1A1D27; --border:#252836;
+    --text:#E8EAF2; --muted:#5A5F78; --faint:#20243A;
+    --amber:#F5A623; --green:#3DD68C; --red:#F05C5C;
+    --blue:#5B8DEF; --purple:#9B6DFF; --teal:#2EC4B6;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  body { background:var(--bg); color:var(--text); font-family:'Sora',sans-serif; min-height:100vh; overflow-x:hidden; }
+  .mono { font-family:'JetBrains Mono',monospace; }
+  .screen { display:none; padding:20px; min-height:100vh; }
+  .screen.active { display:flex; flex-direction:column; gap:18px; }
+  /* header */
+  .topbar { background:var(--panel); border-bottom:1px solid var(--border); padding:0 20px; height:52px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
+  .logo { font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; color:var(--amber); letter-spacing:2px; }
+  .live-dot { width:8px; height:8px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; display:inline-block; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  /* cards */
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px; }
+  .card.amber-border { border-color:rgba(245,166,35,.5); }
+  /* pills */
+  .pill { display:inline-block; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.8px; padding:3px 9px; border-radius:3px; text-transform:uppercase; white-space:nowrap; }
+  /* operarios grid */
+  .op-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:14px; }
+  .op-card { background:var(--card); border:2px solid var(--border); border-radius:12px; padding:22px 16px; cursor:pointer; text-align:center; transition:all .2s; user-select:none; }
+  .op-card:active { transform:scale(.96); }
+  .op-card.busy { border-color:var(--amber); }
+  .avatar { width:56px; height:56px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-weight:700; font-size:18px; margin:0 auto 12px; transition:all .3s; }
+  .avatar.idle { background:var(--faint); border:2px solid var(--border); color:var(--muted); }
+  .avatar.active { background:linear-gradient(135deg,var(--amber),#C4841A); border:2px solid var(--amber); color:#0E0F14; box-shadow:0 0 16px rgba(245,166,35,.4); }
+  /* centros */
+  .centro-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .centro-btn { padding:16px 12px; border:2px solid var(--border); border-radius:10px; background:var(--faint); color:var(--muted); cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; text-align:left; display:flex; align-items:center; gap:10px; transition:all .2s; user-select:none; }
+  .centro-btn:active { transform:scale(.97); }
+  .centro-btn.selected { border-color:currentColor; }
+  /* timer */
+  .timer-display { font-family:'JetBrains Mono',monospace; font-size:48px; font-weight:700; color:var(--amber); text-align:center; letter-spacing:2px; }
+  /* piezas */
+  .pieza-card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:10px; }
+  .pieza-card.activa { border-color:rgba(245,166,35,.4); }
+  /* btn principal */
+  .btn-main { width:100%; padding:18px; border:none; border-radius:10px; font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:700; letter-spacing:1px; cursor:pointer; transition:all .2s; }
+  .btn-main:active { transform:scale(.98); }
+  .btn-primary { background:var(--amber); color:#0E0F14; }
+  .btn-danger  { background:var(--red);   color:#fff; }
+  .btn-ghost   { background:var(--faint); color:var(--muted); border:1px solid var(--border); }
+  /* select / input */
+  .field { display:flex; flex-direction:column; gap:6px; }
+  .field label { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; }
+  .field select, .field textarea { background:var(--faint); border:1px solid var(--border); border-radius:8px; padding:12px; color:var(--text); font-family:'Sora',sans-serif; font-size:15px; outline:none; width:100%; }
+  .field textarea { height:80px; resize:none; }
+  select option { background:var(--faint); }
+  /* nota box */
+  .nota-box { background:rgba(91,141,239,.08); border:1px solid rgba(91,141,239,.3); border-radius:8px; padding:14px; font-size:13px; color:var(--blue); line-height:1.5; }
+  /* back btn */
+  .back-btn { background:var(--faint); border:none; color:var(--muted); border-radius:8px; padding:10px 18px; cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:8px; }
+  /* section label */
+  .sec-label { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:14px; }
+  /* centro selector top */
+  .centro-top { display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; }
+  .centro-chip { padding:7px 14px; border:1px solid var(--border); border-radius:20px; background:var(--faint); color:var(--muted); cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; white-space:nowrap; transition:all .2s; }
+  .centro-chip.sel { background:rgba(245,166,35,.15); border-color:var(--amber); color:var(--amber); }
+</style>
+</head>
+<body>
+
+<!-- ═══ TOPBAR ═══════════════════════════════════════════════════════════ -->
+<div class="topbar">
+  <span class="logo">⬡ MADERABLE</span>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span class="live-dot"></span>
+    <span class="mono" style="font-size:11px;color:var(--muted)" id="reloj"></span>
+    <span id="centro-label" style="font-size:11px;color:var(--amber);font-family:'JetBrains Mono',monospace;display:none;"></span>
+  </div>
+</div>
+
+<!-- ═══ PANTALLA 0: ELEGIR CENTRO ════════════════════════════════════════ -->
+<div class="screen active" id="s-centro" style="justify-content:center;align-items:center;min-height:calc(100vh - 52px);">
+  <div style="width:100%;max-width:460px;margin:0 auto;">
+    <div style="text-align:center;margin-bottom:32px;">
+      <div class="mono" style="font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:8px;">SELECCIONÁ TU CENTRO</div>
+      <div style="font-size:22px;font-weight:700;">¿En qué estación estás?</div>
+    </div>
+    <div class="centro-grid">
+      <button class="centro-btn" style="color:var(--amber)"   onclick="elegirCentro('corte','Corte')">          <span style="font-size:22px">⬡</span> Corte</button>
+      <button class="centro-btn" style="color:#5B8DEF"        onclick="elegirCentro('enchapado','Enchapado/Perforado')"><span style="font-size:22px">◈</span> Enchapado/<br>Perforado</button>
+      <button class="centro-btn" style="color:var(--purple)"  onclick="elegirCentro('armado','Armado')">        <span style="font-size:22px">⬗</span> Armado</button>
+      <button class="centro-btn" style="color:var(--teal)"    onclick="elegirCentro('revision','Revisión')">    <span style="font-size:22px">◎</span> Revisión</button>
+      <button class="centro-btn" style="color:var(--green); grid-column:span 2" onclick="elegirCentro('empaquetado','Empaquetado / Colocación')"><span style="font-size:22px">▣</span> Empaquetado / Colocación</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PANTALLA 1: ELEGIR OPERARIO ══════════════════════════════════════ -->
+<div class="screen" id="s-operario">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <button class="back-btn" onclick="goBack('s-centro')">← Centro</button>
+    <div>
+      <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;">CENTRO ACTUAL</div>
+      <div style="font-size:15px;font-weight:600;" id="centro-nombre-op"></div>
+    </div>
+  </div>
+  <div class="sec-label">¿Quién sos?</div>
+  <div class="op-grid" id="op-grid"></div>
+</div>
+
+<!-- ═══ PANTALLA 2: TAREA ACTIVA / INICIAR ═══════════════════════════════ -->
+<div class="screen" id="s-tarea">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <button class="back-btn" onclick="goBack('s-operario')">← Operarios</button>
+    <div style="display:flex;align-items:center;gap:12px;flex:1;">
+      <div id="op-avatar-tarea" class="avatar active" style="width:40px;height:40px;font-size:14px;margin:0;flex-shrink:0;"></div>
+      <div>
+        <div style="font-size:15px;font-weight:700;" id="op-nombre-tarea"></div>
+        <div class="mono" style="font-size:10px;color:var(--muted);" id="centro-nombre-tarea"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- tarea en curso -->
+  <div id="bloque-activo" class="card amber-border" style="display:none;">
+    <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:12px;">▶ EN CURSO</div>
+    <div class="timer-display" id="timer-display">0h 0m 0s</div>
+    <div style="text-align:center;margin:14px 0 6px;">
+      <div style="font-size:17px;font-weight:700;" id="tarea-item-nombre"></div>
+      <div class="mono" style="font-size:11px;color:var(--muted);margin-top:4px;" id="tarea-proyecto-nombre"></div>
+    </div>
+    <button class="btn-main btn-danger" style="margin-top:16px;" onclick="finalizarTarea()">⏹ Finalizar Tarea</button>
+  </div>
+
+  <!-- iniciar nueva -->
+  <div id="bloque-nueva" class="card">
+    <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:18px;" id="label-nueva-tarea">INICIAR TAREA</div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="field">
+        <label>Proyecto</label>
+        <select id="sel-proyecto" onchange="onProyectoChange()">
+          <option value="">Seleccionar...</option>
+        </select>
+      </div>
+      <div class="field" id="campo-item" style="display:none;">
+        <label>Ítem</label>
+        <select id="sel-item" onchange="onItemChange()">
+          <option value="">Seleccionar...</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Nota (opcional)</label>
+        <textarea id="campo-nota" placeholder="Instrucciones o comentario para esta tarea..."></textarea>
+      </div>
+      <button class="btn-main btn-primary" onclick="iniciarTarea()">▶ Iniciar</button>
+    </div>
+  </div>
+
+  <!-- piezas pendientes en este centro -->
+  <div id="bloque-piezas">
+    <div class="sec-label">Piezas pendientes en este centro</div>
+    <div id="lista-piezas"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// DATOS (en producción esto viene de API/backend)
+// ═══════════════════════════════════════════════════════════════════════════
+const OPERARIOS = [
+  { id:'op1', nombre:'Carlos Méndez',  avatar:'CM' },
+  { id:'op2', nombre:'Diego Suárez',   avatar:'DS' },
+  { id:'op3', nombre:'Martín Pérez',   avatar:'MP' },
+  { id:'op4', nombre:'Ariel Fontana',  avatar:'AF' },
+  { id:'op5', nombre:'Roberto Vega',   avatar:'RV' },
+];
+
+const PROYECTOS = [
+  {
+    id:'pr1', nombre:'MON BRAVA 301',
+    items:[
+      { id:'it1', nombre:'Closet Dormitorio Principal', centros:['corte','enchapado','armado','revision','empaquetado'], nota:'Verificar medidas con plano v3. Tolerancia ±1mm en paneles laterales.' },
+      { id:'it2', nombre:'Cocina Integral',             centros:['corte','armado','revision'],                          nota:'Módulos altos primero. Consultar con Diego el tema de las bisagras.' },
+      { id:'it3', nombre:'Puerta Principal',            centros:['corte','enchapado','revision','empaquetado'],         nota:'Enchapado en dirección horizontal. Revisar muestra de color aprobada.' },
+    ]
+  },
+  {
+    id:'pr2', nombre:'MELI COSMOS',
+    items:[
+      { id:'it4', nombre:'Banco Corrido Lobby',  centros:['corte','armado','empaquetado'], nota:'Largo total 4.2m. Se corta en 3 tramos y se ensambla en obra.' },
+      { id:'it5', nombre:'Revestimiento Pared',  centros:['corte','enchapado','revision'],  nota:'Listones de 12cm de ancho. Junta de 3mm entre piezas.' },
+    ]
+  },
+];
+
+// Estado en memoria (en producción: localStorage o API)
+let SESIONES = JSON.parse(localStorage.getItem('sesiones') || '[]');
+
+// Estado de navegación
+let centroActual  = null;
+let centroNombre  = null;
+let opActual      = null;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RELOJ
+// ═══════════════════════════════════════════════════════════════════════════
+function actualizarReloj() {
+  document.getElementById('reloj').textContent =
+    new Date().toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+setInterval(actualizarReloj, 1000);
+actualizarReloj();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NAVEGACIÓN
+// ═══════════════════════════════════════════════════════════════════════════
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0,0);
+}
+function goBack(screenId) { show(screenId); }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PANTALLA 0 → 1: elegir centro
+// ═══════════════════════════════════════════════════════════════════════════
+function elegirCentro(id, nombre) {
+  centroActual = id;
+  centroNombre = nombre;
+  document.getElementById('centro-label').textContent = nombre;
+  document.getElementById('centro-label').style.display = 'inline';
+  document.getElementById('centro-nombre-op').textContent = nombre;
+  renderOperarios();
+  show('s-operario');
+}
+
+function renderOperarios() {
+  const grid = document.getElementById('op-grid');
+  grid.innerHTML = '';
+  OPERARIOS.forEach(op => {
+    const ses = SESIONES.find(s => s.operarioId === op.id);
+    const busy = !!ses;
+    const div = document.createElement('div');
+    div.className = 'op-card' + (busy ? ' busy' : '');
+    div.innerHTML = `
+      <div class="avatar ${busy ? 'active' : 'idle'}">${op.avatar}</div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:6px;">${op.nombre}</div>
+      <span class="pill" style="background:${busy?'rgba(245,166,35,.15)':'rgba(61,214,140,.1)'};color:${busy?'var(--amber)':'var(--green)'};border:1px solid ${busy?'rgba(245,166,35,.4)':'rgba(61,214,140,.3)'}">
+        ${busy ? 'EN TAREA' : 'LIBRE'}
+      </span>`;
+    div.onclick = () => elegirOperario(op);
+    grid.appendChild(div);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PANTALLA 1 → 2: elegir operario
+// ═══════════════════════════════════════════════════════════════════════════
+function elegirOperario(op) {
+  opActual = op;
+  document.getElementById('op-avatar-tarea').textContent = op.avatar;
+  document.getElementById('op-nombre-tarea').textContent = op.nombre;
+  document.getElementById('centro-nombre-tarea').textContent = centroNombre;
+  cargarSelectProyectos();
+  renderPantallaTarea();
+  show('s-tarea');
+}
+
+function renderPantallaTarea() {
+  const ses = SESIONES.find(s => s.operarioId === opActual.id);
+  const bloqAct  = document.getElementById('bloque-activo');
+  const bloqNuev = document.getElementById('bloque-nueva');
+  const lblNueva = document.getElementById('label-nueva-tarea');
+
+  if (ses) {
+    // mostrar tarea activa
+    bloqAct.style.display = 'block';
+    const pr = PROYECTOS.find(p => p.id === ses.proyectoId);
+    const it = pr?.items.find(i => i.id === ses.itemId);
+    document.getElementById('tarea-item-nombre').textContent    = it?.nombre || '';
+    document.getElementById('tarea-proyecto-nombre').textContent = pr?.nombre || '';
+    iniciarTimer(ses.inicio);
+    lblNueva.textContent = 'CAMBIAR A NUEVA TAREA';
+  } else {
+    bloqAct.style.display = 'none';
+    lblNueva.textContent  = 'INICIAR TAREA';
+    pararTimer();
+  }
+  renderPiezasPendientes();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TIMER
+// ═══════════════════════════════════════════════════════════════════════════
+let timerInterval = null;
+function iniciarTimer(startMs) {
+  pararTimer();
+  timerInterval = setInterval(() => {
+    const el = Date.now() - startMs;
+    const s  = Math.floor(el/1000);
+    const m  = Math.floor(s/60);
+    const h  = Math.floor(m/60);
+    document.getElementById('timer-display').textContent =
+      h > 0 ? `${h}h ${m%60}m ${s%60}s` : `${m}m ${s%60}s`;
+  }, 1000);
+}
+function pararTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SELECTS proyecto / ítem
+// ═══════════════════════════════════════════════════════════════════════════
+function cargarSelectProyectos() {
+  const sel = document.getElementById('sel-proyecto');
+  sel.innerHTML = '<option value="">Seleccionar...</option>';
+  PROYECTOS.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id; opt.textContent = p.nombre;
+    sel.appendChild(opt);
+  });
+  document.getElementById('campo-item').style.display = 'none';
+  document.getElementById('campo-nota').value = '';
+}
+
+function onProyectoChange() {
+  const prId = document.getElementById('sel-proyecto').value;
+  const sel  = document.getElementById('sel-item');
+  const campo = document.getElementById('campo-item');
+  sel.innerHTML = '<option value="">Seleccionar ítem...</option>';
+  document.getElementById('campo-nota').value = '';
+  if (!prId) { campo.style.display='none'; return; }
+  const pr = PROYECTOS.find(p => p.id === prId);
+  // filtrar ítems que pasen por este centro
+  const items = pr.items.filter(i => i.centros.includes(centroActual));
+  if (items.length === 0) {
+    sel.innerHTML = '<option value="">Sin ítems para este centro</option>';
+  } else {
+    items.forEach(i => {
+      const opt = document.createElement('option');
+      opt.value = i.id; opt.textContent = i.nombre;
+      sel.appendChild(opt);
+    });
+  }
+  campo.style.display = 'flex';
+}
+
+function onItemChange() {
+  const prId = document.getElementById('sel-proyecto').value;
+  const itId = document.getElementById('sel-item').value;
+  if (!prId || !itId) { document.getElementById('campo-nota').value=''; return; }
+  const pr = PROYECTOS.find(p => p.id === prId);
+  const it = pr?.items.find(i => i.id === itId);
+  if (it?.nota) document.getElementById('campo-nota').value = it.nota;
+  else document.getElementById('campo-nota').value = '';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INICIAR / FINALIZAR TAREA
+// ═══════════════════════════════════════════════════════════════════════════
+function iniciarTarea() {
+  const prId = document.getElementById('sel-proyecto').value;
+  const itId = document.getElementById('sel-item').value;
+  if (!prId || !itId) { alert('Seleccioná proyecto e ítem'); return; }
+
+  // cerrar sesión previa del operario si existe
+  SESIONES = SESIONES.filter(s => {
+    if (s.operarioId === opActual.id) {
+      // guardar en historial (simplificado)
+      guardarHistorial({ ...s, fin: Date.now() });
+      return false;
+    }
+    return true;
+  });
+
+  const nueva = {
+    id: Math.random().toString(36).slice(2,8),
+    operarioId: opActual.id,
+    proyectoId: prId,
+    itemId: itId,
+    centroId: centroActual,
+    nota: document.getElementById('campo-nota').value,
+    inicio: Date.now(),
+  };
+  SESIONES.push(nueva);
+  guardarEstado();
+  renderPantallaTarea();
+}
+
+function finalizarTarea() {
+  SESIONES = SESIONES.filter(s => {
+    if (s.operarioId === opActual.id) {
+      guardarHistorial({ ...s, fin: Date.now() });
+      return false;
+    }
+    return true;
+  });
+  guardarEstado();
+  pararTimer();
+  document.getElementById('bloque-activo').style.display = 'none';
+  document.getElementById('label-nueva-tarea').textContent = 'INICIAR TAREA';
+  renderPiezasPendientes();
+}
+
+function guardarEstado() {
+  localStorage.setItem('sesiones', JSON.stringify(SESIONES));
+}
+function guardarHistorial(ses) {
+  const h = JSON.parse(localStorage.getItem('historial') || '[]');
+  h.push(ses);
+  localStorage.setItem('historial', JSON.stringify(h));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PIEZAS PENDIENTES EN ESTE CENTRO
+// ═══════════════════════════════════════════════════════════════════════════
+function renderPiezasPendientes() {
+  const lista = document.getElementById('lista-piezas');
+  lista.innerHTML = '';
+  let count = 0;
+  PROYECTOS.forEach(pr => {
+    pr.items.forEach(it => {
+      if (!it.centros.includes(centroActual)) return;
+      const sesActiva = SESIONES.find(s => s.proyectoId === pr.id && s.itemId === it.id && s.centroId === centroActual);
+      const opAsig = sesActiva ? OPERARIOS.find(o => o.id === sesActiva.operarioId) : null;
+      count++;
+      const div = document.createElement('div');
+      div.className = 'pieza-card' + (sesActiva ? ' activa' : '');
+      div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+          <div>
+            <div style="font-size:14px;font-weight:700;margin-bottom:3px;">${it.nombre}</div>
+            <div class="mono" style="font-size:10px;color:var(--muted);">${pr.nombre}</div>
+          </div>
+          <span class="pill" style="background:${sesActiva?'rgba(245,166,35,.12)':'rgba(32,36,58,.8)'};color:${sesActiva?'var(--amber)':'var(--muted)'};border:1px solid ${sesActiva?'rgba(245,166,35,.4)':'var(--border)'}">
+            ${sesActiva ? '▶ ' + (opAsig?.nombre.split(' ')[0] || 'Activo') : 'Pendiente'}
+          </span>
+        </div>
+        ${it.nota ? `<div class="nota-box">${it.nota}</div>` : ''}`;
+      lista.appendChild(div);
+    });
+  });
+  if (count === 0) {
+    lista.innerHTML = '<div class="mono" style="font-size:12px;color:var(--muted);text-align:center;padding:20px;">Sin piezas asignadas a este centro</div>';
+  }
+}
+</script>
+</body>
+</html>

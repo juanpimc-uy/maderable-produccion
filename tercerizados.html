@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maderable · Tercerizados</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Sora:wght@400;500;600;700&display=swap');
+  :root {
+    --bg:#0E0F14;--panel:#14161D;--card:#1A1D27;--border:#252836;
+    --text:#E8EAF2;--muted:#5A5F78;--faint:#20243A;
+    --amber:#F5A623;--green:#3DD68C;--red:#F05C5C;
+    --blue:#5B8DEF;--purple:#9B6DFF;--teal:#2EC4B6;
+    --tap:var(--purple);--lus:var(--teal);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100vh;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 24px;height:54px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:50;}
+  .logo{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
+  .page{max-width:1000px;margin:0 auto;padding:24px 20px 80px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
+  .sec{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;}
+  .pill{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.8px;padding:2px 8px;border-radius:3px;text-transform:uppercase;white-space:nowrap;}
+  .btn{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;transition:opacity .15s;}
+  .btn:hover{opacity:.82;}
+  .btn-primary{background:var(--amber);color:#0E0F14;}
+  .btn-ghost{background:var(--faint);color:var(--muted);border:1px solid var(--border);}
+  .btn-success{background:var(--green);color:#0E0F14;}
+  .btn-sm{padding:4px 10px;font-size:10px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+  .field input,.field select,.field textarea{background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:'Sora',sans-serif;font-size:13px;outline:none;width:100%;}
+  .field input:focus,.field select:focus{border-color:var(--amber);}
+  .field textarea{height:60px;resize:vertical;}
+  select option{background:var(--faint);}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+  .divider{height:1px;background:var(--border);margin:14px 0;}
+  .info-box{background:rgba(91,141,239,.06);border:1px solid rgba(91,141,239,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--blue);margin-bottom:14px;}
+
+  /* tabs */
+  .tabs{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:4px;margin-bottom:24px;}
+  .tab{flex:1;padding:8px 12px;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;background:transparent;color:var(--muted);transition:all .2s;text-align:center;}
+  .tab.active{color:#0E0F14;}
+  .tab.tap.active{background:var(--purple);}
+  .tab.lus.active{background:var(--teal);}
+
+  /* proveedor banner */
+  .prov-banner{border-radius:8px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:14px;}
+  .prov-banner.tap{background:rgba(155,109,255,.06);border:1px solid rgba(155,109,255,.25);}
+  .prov-banner.lus{background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.25);}
+  .prov-icon{font-size:28px;}
+  .prov-name{font-size:16px;font-weight:700;}
+  .prov-sub{font-size:12px;color:var(--muted);}
+
+  /* partida card */
+  .partida{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;transition:border-color .2s;}
+  .partida.en_taller{border-color:rgba(245,166,35,.3);}
+  .partida.despachada{border-color:rgba(91,141,239,.3);}
+  .partida.recibida{border-color:rgba(61,214,140,.3);}
+  .partida-header{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;}
+  .partida-codigo{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--amber);min-width:60px;}
+  .partida-nombre{font-size:14px;font-weight:600;flex:1;}
+  .partida-body{display:flex;flex-direction:column;gap:10px;}
+
+  /* timeline */
+  .timeline{display:flex;gap:0;margin-bottom:10px;}
+  .tl-step{flex:1;position:relative;}
+  .tl-dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-family:'JetBrains Mono',monospace;font-weight:700;border:2px solid var(--border);background:var(--faint);color:var(--muted);margin:0 auto 4px;}
+  .tl-dot.done{border-color:var(--green);background:var(--green);color:#0E0F14;}
+  .tl-dot.active{border-color:var(--amber);background:var(--amber);color:#0E0F14;}
+  .tl-label{text-align:center;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;}
+  .tl-line{position:absolute;top:10px;left:50%;right:-50%;height:2px;background:var(--border);z-index:0;}
+  .tl-line.done{background:var(--green);}
+  .tl-step:last-child .tl-line{display:none;}
+
+  /* modal */
+  .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;}
+  .overlay.open{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:26px;width:440px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+  .modal-title{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;}
+
+  /* config proveedores */
+  .prov-config{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:14px;}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .fu{animation:fadeUp .25s ease both;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo">⬡ MADERABLE</span>
+  <span class="mono" style="font-size:11px;color:var(--muted);">/ TERCERIZADOS</span>
+  <div style="margin-left:auto;display:flex;gap:10px;align-items:center;">
+    <a href="admin.html" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-decoration:none;">← Admin</a>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- config proveedores -->
+  <div class="card fu" id="config-prov">
+    <div class="sec">Proveedores Fijos <button class="btn btn-ghost btn-sm" onclick="toggleConfig()">⚙ Editar</button></div>
+    <div class="g2">
+      <div class="prov-config">
+        <div style="font-size:10px;color:var(--purple);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:6px;">TAPICERÍA</div>
+        <div id="prov-tap-display" style="font-size:14px;font-weight:600;"></div>
+      </div>
+      <div class="prov-config">
+        <div style="font-size:10px;color:var(--teal);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:6px;">LUSTRE</div>
+        <div id="prov-lus-display" style="font-size:14px;font-weight:600;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- tabs -->
+  <div class="tabs">
+    <button class="tab tap active" id="tab-tap" onclick="switchTab('tap')">🧵 Tapicería</button>
+    <button class="tab lus" id="tab-lus" onclick="switchTab('lus')">✨ Lustre</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="g3" style="margin-bottom:20px;" id="kpi-bar"></div>
+
+  <!-- contenido -->
+  <div id="content-tap"></div>
+  <div id="content-lus" style="display:none;"></div>
+
+</div>
+
+<!-- modal despacho -->
+<div class="overlay" id="overlay-desp" onclick="cerrarModal('desp')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Despachar Partes al Proveedor</div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+
+      <!-- parcial / total -->
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Tipo de despacho</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <button id="desp-btn-total" onclick="setTipoDesp('total')"
+            style="padding:12px;border:2px solid var(--amber);border-radius:8px;background:rgba(245,166,35,.1);cursor:pointer;text-align:center;">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--amber);">Todo</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Sale completo</div>
+          </button>
+          <button id="desp-btn-parcial" onclick="setTipoDesp('parcial')"
+            style="padding:12px;border:2px solid var(--border);border-radius:8px;background:transparent;cursor:pointer;text-align:center;">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--muted);">Parcial</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Quedan partes</div>
+          </button>
+        </div>
+      </div>
+
+      <div class="field"><label>Partes que salen</label><textarea id="desp-partes" placeholder="Ej: Asiento izq., asiento der., respaldo..."></textarea></div>
+      <div class="field"><label>Fecha salida</label><input type="date" id="desp-fecha"/></div>
+      <div class="field"><label>Nota</label><input id="desp-nota" placeholder="Observaciones..."/></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-primary" onclick="confirmarDespacho()">Despachar →</button>
+        <button class="btn btn-ghost" onclick="cerrarModal('desp')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- modal recepción -->
+<div class="overlay" id="overlay-recv" onclick="cerrarModal('recv')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Recibir Partes del Proveedor</div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="field"><label>Fecha de recepción</label><input type="date" id="recv-fecha"/></div>
+      <div class="field"><label>Estado al recibir</label>
+        <select id="recv-estado">
+          <option value="ok">✓ Conforme — en condiciones</option>
+          <option value="obs">⚠ Con observaciones</option>
+          <option value="rehacer">✗ A rehacer</option>
+        </select>
+      </div>
+      <div class="field"><label>Observaciones</label><textarea id="recv-obs" placeholder="Detalles del estado al recibir..."></textarea></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-success" onclick="confirmarRecepcion()">✓ Confirmar Recepción</button>
+        <button class="btn btn-ghost" onclick="cerrarModal('recv')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- modal config proveedores -->
+<div class="overlay" id="overlay-cfg" onclick="cerrarModal('cfg')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Configurar Proveedores</div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="field"><label style="color:var(--purple);">Proveedor Tapicería</label><input id="cfg-tap" placeholder="Nombre del tapicero"/></div>
+      <div class="field"><label style="color:var(--teal);">Proveedor Lustre</label><input id="cfg-lus" placeholder="Nombre del lustrador"/></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-primary" onclick="guardarProveedores()">Guardar</button>
+        <button class="btn btn-ghost" onclick="cerrarModal('cfg')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+// PROVEEDORES
+// ══════════════════════════════════════════════════════════════════════════
+let PROVS = JSON.parse(localStorage.getItem('proveedores') || '{"tap":"Tapicero","lus":"Lustrador"}');
+
+function loadProvs() {
+  document.getElementById('prov-tap-display').textContent = PROVS.tap;
+  document.getElementById('prov-lus-display').textContent = PROVS.lus;
+}
+
+function toggleConfig() {
+  document.getElementById('cfg-tap').value = PROVS.tap;
+  document.getElementById('cfg-lus').value = PROVS.lus;
+  abrirModal('cfg');
+}
+
+function guardarProveedores() {
+  PROVS.tap = document.getElementById('cfg-tap').value || PROVS.tap;
+  PROVS.lus = document.getElementById('cfg-lus').value || PROVS.lus;
+  localStorage.setItem('proveedores', JSON.stringify(PROVS));
+  loadProvs(); cerrarModal('cfg'); render();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// DATOS — partidas (partes que salen a proveedor)
+// ══════════════════════════════════════════════════════════════════════════
+// Estructura: { id, tipo:'tap'|'lus', proyectoNum, obra, muebleCodigo, muebleNombre,
+//               estado:'en_taller'|'despachada'|'recibida',
+//               partes, fechaDespacho, fechaRecepcion, estadoRecep, obs, nota }
+let PARTIDAS = JSON.parse(localStorage.getItem('partidas') || '[]');
+
+// datos demo si no hay nada
+if (!PARTIDAS.length) {
+  PARTIDAS = [
+    { id:'p1', tipo:'tap', proyectoNum:'ODF-2385', obra:'MON BRAVA 301',
+      muebleCodigo:'MF01', muebleNombre:'Banco Central Salón',
+      estado:'en_taller', partes:'', fechaDespacho:'', fechaRecepcion:'', estadoRecep:'', obs:'', nota:'' },
+    { id:'p2', tipo:'tap', proyectoNum:'ODF-2385', obra:'MON BRAVA 301',
+      muebleCodigo:'MF02', muebleNombre:'Banco Corrido Salón',
+      estado:'despachada', partes:'Asiento corrido (4 tramos)', fechaDespacho:'28/03/2026', fechaRecepcion:'', estadoRecep:'', obs:'', nota:'Llevar con la tela' },
+    { id:'p3', tipo:'lus', proyectoNum:'ODF-2385', obra:'MON BRAVA 301',
+      muebleCodigo:'MF07', muebleNombre:'Reja Oficina',
+      estado:'recibida', partes:'2 rejas completas', fechaDespacho:'20/03/2026', fechaRecepcion:'25/03/2026', estadoRecep:'ok', obs:'', nota:'' },
+  ];
+  guardarPartidas();
+}
+
+function guardarPartidas() { localStorage.setItem('partidas', JSON.stringify(PARTIDAS)); }
+
+// ══════════════════════════════════════════════════════════════════════════
+// NAVEGACIÓN TABS
+// ══════════════════════════════════════════════════════════════════════════
+let tabActual = 'tap';
+
+function switchTab(t) {
+  tabActual = t;
+  document.getElementById('tab-tap').classList.toggle('active', t==='tap');
+  document.getElementById('tab-lus').classList.toggle('active', t==='lus');
+  document.getElementById('content-tap').style.display = t==='tap' ? 'block' : 'none';
+  document.getElementById('content-lus').style.display = t==='lus' ? 'block' : 'none';
+  render();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════════════════════════════════
+function render() {
+  renderKpis();
+  renderTab('tap');
+  renderTab('lus');
+}
+
+function renderKpis() {
+  const tap = PARTIDAS.filter(p=>p.tipo==='tap');
+  const lus = PARTIDAS.filter(p=>p.tipo==='lus');
+  const kpis = [
+    { l:'En Taller (tap.)',   v:tap.filter(p=>p.estado==='en_taller').length,   c:'var(--purple)' },
+    { l:'Despachadas (tap.)', v:tap.filter(p=>p.estado==='despachada').length,  c:'var(--blue)'   },
+    { l:'En Taller (lus.)',   v:lus.filter(p=>p.estado==='en_taller').length,   c:'var(--teal)'   },
+    { l:'Despachadas (lus.)', v:lus.filter(p=>p.estado==='despachada').length,  c:'var(--amber)'  },
+    { l:'Recibidas Hoy',      v:PARTIDAS.filter(p=>p.fechaRecepcion===hoy()).length, c:'var(--green)' },
+    { l:'Total Pendientes',   v:PARTIDAS.filter(p=>p.estado!=='recibida').length,'c':'var(--red)'  },
+  ];
+  document.getElementById('kpi-bar').innerHTML = kpis.slice(0,3).map(k=>`
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px 18px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">${k.l.toUpperCase()}</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:700;color:${k.c};">${k.v}</div>
+    </div>`).join('');
+}
+
+function renderTab(tipo) {
+  const contenedor = document.getElementById('content-'+tipo);
+  const lista = PARTIDAS.filter(p=>p.tipo===tipo);
+  const prov  = tipo==='tap' ? PROVS.tap : PROVS.lus;
+  const color = tipo==='tap' ? 'var(--purple)' : 'var(--teal)';
+  const icon  = tipo==='tap' ? '🧵' : '✨';
+
+  const grupos = { en_taller:[], despachada:[], recibida:[] };
+  lista.forEach(p => grupos[p.estado]?.push(p));
+
+  let html = `
+    <div class="prov-banner ${tipo}">
+      <span class="prov-icon">${icon}</span>
+      <div>
+        <div class="prov-name" style="color:${color};">${prov}</div>
+        <div class="prov-sub">${lista.length} muebles · ${grupos.despachada.length} en camino · ${grupos.recibida.length} recibidos</div>
+      </div>
+      <div style="margin-left:auto;">
+        <button class="btn btn-primary btn-sm" onclick="abrirNuevaPartida('${tipo}')">+ Agregar partida</button>
+      </div>
+    </div>`;
+
+  // En taller — pendientes de despacho
+  if (grupos.en_taller.length) {
+    html += `<div class="card"><div class="sec" style="color:${color};">⏳ En Taller — Pendientes de Despacho <span class="pill" style="color:${color};background:${color}15;border:1px solid ${color}30;">${grupos.en_taller.length}</span></div>`;
+    grupos.en_taller.forEach(p => {
+      html += `<div class="partida en_taller">
+        <div class="partida-header">
+          <span class="partida-codigo">${p.muebleCodigo}</span>
+          <div style="flex:1;">
+            <div class="partida-nombre">${p.muebleNombre}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">${p.proyectoNum} · ${p.obra}</div>
+          </div>
+          <span class="pill" style="color:var(--amber);background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);">En Taller</span>
+        </div>
+        ${tlHtml(p)}
+        <div class="partida-body">
+          <button class="btn btn-primary btn-sm" onclick="abrirDespacho('${p.id}')">→ Despachar al proveedor</button>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Despachadas — esperando retorno
+  if (grupos.despachada.length) {
+    html += `<div class="card"><div class="sec" style="color:var(--blue);">🚚 Despachadas — En poder del proveedor <span class="pill" style="color:var(--blue);background:rgba(91,141,239,.1);border:1px solid rgba(91,141,239,.3);">${grupos.despachada.length}</span></div>`;
+    grupos.despachada.forEach(p => {
+      html += `<div class="partida despachada">
+        <div class="partida-header">
+          <span class="partida-codigo">${p.muebleCodigo}</span>
+          <div style="flex:1;">
+            <div class="partida-nombre">${p.muebleNombre}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px;">${p.proyectoNum} · ${p.obra}</div>
+          </div>
+          <span class="pill" style="color:var(--blue);background:rgba(91,141,239,.1);border:1px solid rgba(91,141,239,.3);">En proveedor</span>
+        </div>
+        ${tlHtml(p)}
+        <div class="partida-body">
+          <div style="font-size:12px;color:var(--muted);">Partes: <span style="color:var(--text);">${p.partes||'—'}</span></div>
+          <div style="font-size:12px;color:var(--muted);">Salida: <span style="color:var(--text);">${p.fechaDespacho}</span>${p.nota?` · <span style="color:var(--blue);">${p.nota}</span>`:''}</div>
+          <button class="btn btn-success btn-sm" onclick="abrirRecepcion('${p.id}')">✓ Registrar Recepción</button>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Recibidas — vista compacta
+  if (grupos.recibida.length) {
+    html += `<div class="card">
+      <div class="sec" style="color:var(--green);margin-bottom:10px;">
+        ✓ Recibidas
+        <span class="pill" style="color:var(--green);background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.3);">${grupos.recibida.length}</span>
+      </div>`;
+    grupos.recibida.forEach(p => {
+      const recColor = p.estadoRecep==='ok'?'var(--green)':p.estadoRecep==='obs'?'var(--amber)':'var(--red)';
+      const recIcon  = p.estadoRecep==='ok'?'✓':p.estadoRecep==='obs'?'⚠':'✗';
+      const recLabel = p.estadoRecep==='ok'?'Conforme':p.estadoRecep==='obs'?'Obs.':'Rehacer';
+      const esParcial = p.tipoDespacho === 'parcial';
+      html += `
+        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;margin-bottom:4px;background:var(--faint);">
+          <span class="mono" style="font-size:11px;font-weight:700;color:var(--amber);min-width:52px;">${p.muebleCodigo}</span>
+          <span style="font-size:12px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.muebleNombre}</span>
+          <span style="font-size:10px;color:var(--muted);white-space:nowrap;">${p.proyectoNum}</span>
+          ${esParcial?`<span class="pill" style="color:var(--amber);background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);">Parcial</span>`:''}
+          <span style="font-size:10px;color:var(--muted);white-space:nowrap;">${p.fechaDespacho}→${p.fechaRecepcion}</span>
+          <span class="pill" style="color:${recColor};background:${recColor}15;border:1px solid ${recColor}30;">${recIcon} ${recLabel}</span>
+          ${p.obs?`<span title="${p.obs}" style="font-size:13px;cursor:help;">💬</span>`:''}
+        </div>`;
+    });
+    html += `</div>`;
+  }
+
+  if (!lista.length) {
+    html += `<div style="text-align:center;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;padding:40px;">Sin partidas de ${tipo==='tap'?'tapicería':'lustre'} registradas.</div>`;
+  }
+
+  contenedor.innerHTML = html;
+}
+
+function tlHtml(p) {
+  const steps = [
+    { l:'En Taller', done: true, active: p.estado==='en_taller' },
+    { l:'Despachado', done: p.estado!=='en_taller', active: p.estado==='despachada' },
+    { l:'Recibido', done: p.estado==='recibida', active: false },
+  ];
+  return `<div class="timeline" style="margin-bottom:12px;">${steps.map((s,i)=>`
+    <div class="tl-step">
+      <div class="tl-line ${i<steps.length-1&&steps[i+1].done?'done':''}"></div>
+      <div class="tl-dot ${s.done&&!s.active?'done':''} ${s.active?'active':''}">${s.done&&!s.active?'✓':i+1}</div>
+      <div class="tl-label">${s.l}</div>
+    </div>`).join('')}</div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ACCIONES
+// ══════════════════════════════════════════════════════════════════════════
+let modalPartidaId = null;
+let modalTipoNueva = null;
+let tipoDesp = 'total';
+
+function setTipoDesp(t) {
+  tipoDesp = t;
+  const btnT = document.getElementById('desp-btn-total');
+  const btnP = document.getElementById('desp-btn-parcial');
+  if (t === 'total') {
+    btnT.style.borderColor = 'var(--amber)';
+    btnT.style.background  = 'rgba(245,166,35,.1)';
+    btnT.querySelector('div').style.color = 'var(--amber)';
+    btnP.style.borderColor = 'var(--border)';
+    btnP.style.background  = 'transparent';
+    btnP.querySelector('div').style.color = 'var(--muted)';
+  } else {
+    btnP.style.borderColor = 'var(--blue)';
+    btnP.style.background  = 'rgba(91,141,239,.1)';
+    btnP.querySelector('div').style.color = 'var(--blue)';
+    btnT.style.borderColor = 'var(--border)';
+    btnT.style.background  = 'transparent';
+    btnT.querySelector('div').style.color = 'var(--muted)';
+  }
+}
+
+function abrirDespacho(id) {
+  modalPartidaId = id;
+  tipoDesp = 'total';
+  setTipoDesp('total');
+  document.getElementById('desp-fecha').value  = hoy();
+  document.getElementById('desp-partes').value = '';
+  document.getElementById('desp-nota').value   = '';
+  abrirModal('desp');
+}
+
+function confirmarDespacho() {
+  const p = PARTIDAS.find(x=>x.id===modalPartidaId); if(!p) return;
+  const partes = document.getElementById('desp-partes').value;
+  const fecha  = document.getElementById('desp-fecha').value;
+  const nota   = document.getElementById('desp-nota').value;
+
+  if (tipoDesp === 'total') {
+    // despacho total → una sola partida pasa a despachada
+    p.estado         = 'despachada';
+    p.tipoDespacho   = 'total';
+    p.partes         = partes;
+    p.fechaDespacho  = fecha;
+    p.nota           = nota;
+  } else {
+    // despacho parcial → la partida original queda en_taller (resto pendiente)
+    // se crea una nueva partida despachada con las partes que salen
+    const nueva = {
+      ...p,
+      id:            'p'+Date.now(),
+      estado:        'despachada',
+      tipoDespacho:  'parcial',
+      partes,
+      fechaDespacho: fecha,
+      nota,
+      fechaRecepcion:'', estadoRecep:'', obs:''
+    };
+    p.nota = `Despacho parcial el ${fecha}. Quedan partes en taller.`;
+    PARTIDAS.push(nueva);
+  }
+
+  guardarPartidas(); cerrarModal('desp'); render();
+}
+
+function abrirRecepcion(id) {
+  modalPartidaId = id;
+  document.getElementById('recv-fecha').value = hoy();
+  document.getElementById('recv-estado').value = 'ok';
+  document.getElementById('recv-obs').value = '';
+  abrirModal('recv');
+}
+
+function confirmarRecepcion() {
+  const p = PARTIDAS.find(x=>x.id===modalPartidaId); if(!p) return;
+  p.estado = 'recibida';
+  p.fechaRecepcion = document.getElementById('recv-fecha').value;
+  p.estadoRecep = document.getElementById('recv-estado').value;
+  p.obs = document.getElementById('recv-obs').value;
+  guardarPartidas(); cerrarModal('recv'); render();
+}
+
+function abrirNuevaPartida(tipo) {
+  modalTipoNueva = tipo;
+  // cargar proyectos del localStorage para elegir
+  const proyectos = JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay open';
+  overlay.id = 'overlay-nueva';
+  overlay.onclick = () => document.body.removeChild(overlay);
+  overlay.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title">Nueva Partida — ${tipo==='tap'?'Tapicería':'Lustre'}</div>
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div class="field"><label>Proyecto</label>
+          <select id="nueva-pr" onchange="onNuevaPr(this.value)">
+            <option value="">Seleccionar...</option>
+            ${proyectos.map(p=>`<option value="${p.id}">${p.numero} · ${p.obra}</option>`).join('')}
+            <option value="manual">Cargar manualmente</option>
+          </select>
+        </div>
+        <div id="nueva-manual" style="display:none;gap:14px;flex-direction:column;">
+          <div class="field"><label>Número proyecto</label><input id="nueva-num" placeholder="ODF-2385"/></div>
+          <div class="field"><label>Obra</label><input id="nueva-obra" placeholder="HUGO BOSS"/></div>
+        </div>
+        <div id="nueva-muebles-wrap" style="display:none;">
+          <div class="field"><label>Mueble</label>
+            <select id="nueva-mueble"><option value="">Seleccionar mueble...</option></select>
+          </div>
+        </div>
+        <div class="field"><label>Código mueble (manual)</label><input id="nueva-codigo" placeholder="C01"/></div>
+        <div class="field"><label>Nombre mueble</label><input id="nueva-nombre" placeholder="Descripción"/></div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="confirmarNueva()">Agregar</button>
+          <button class="btn btn-ghost" onclick="document.body.removeChild(document.getElementById('overlay-nueva'))">Cancelar</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function onNuevaPr(prId) {
+  const proyectos = JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const pr = proyectos.find(p=>p.id===prId);
+  document.getElementById('nueva-manual').style.display = prId==='manual'?'flex':'none';
+  document.getElementById('nueva-muebles-wrap').style.display = pr?'block':'none';
+  if (pr) {
+    const sel = document.getElementById('nueva-mueble');
+    const tipo = modalTipoNueva;
+    sel.innerHTML = '<option value="">Seleccionar mueble...</option>' +
+      pr.muebles.filter(m=>m.flujos.includes(tipo)).map(m=>`<option value="${m.codigo}|||${m.nombre}">${m.codigo} · ${m.nombre}</option>`).join('');
+    document.getElementById('nueva-num').value = pr.numero||'';
+    document.getElementById('nueva-obra').value = pr.obra||'';
+    sel.onchange = () => {
+      const v=sel.value.split('|||');
+      document.getElementById('nueva-codigo').value=v[0]||'';
+      document.getElementById('nueva-nombre').value=v[1]||'';
+    };
+  }
+}
+
+function confirmarNueva() {
+  const prId  = document.getElementById('nueva-pr')?.value;
+  const proyectos = JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const pr    = proyectos.find(p=>p.id===prId);
+  const nueva = {
+    id: 'p'+Date.now(),
+    tipo: modalTipoNueva,
+    proyectoNum: pr?.numero || document.getElementById('nueva-num')?.value || '',
+    obra:        pr?.obra   || document.getElementById('nueva-obra')?.value || '',
+    muebleCodigo:document.getElementById('nueva-codigo')?.value || '',
+    muebleNombre:document.getElementById('nueva-nombre')?.value || '',
+    estado:'en_taller', partes:'', fechaDespacho:'', fechaRecepcion:'', estadoRecep:'', obs:'', nota:''
+  };
+  if (!nueva.muebleCodigo || !nueva.muebleNombre) { alert('Completá código y nombre del mueble'); return; }
+  PARTIDAS.push(nueva);
+  guardarPartidas();
+  const ov = document.getElementById('overlay-nueva');
+  if(ov) document.body.removeChild(ov);
+  render();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════════════════════
+function abrirModal(id)  { document.getElementById('overlay-'+id)?.classList.add('open'); }
+function cerrarModal(id) { document.getElementById('overlay-'+id)?.classList.remove('open'); }
+function hoy() { return new Date().toISOString().split('T')[0]; }
+
+// ══════════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════════
+loadProvs();
+render();
+</script>
+</body>
+</html>

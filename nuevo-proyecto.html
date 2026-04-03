@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maderable · Nuevo Proyecto</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Sora:wght@400;500;600;700&display=swap');
+  :root {
+    --bg:#0E0F14;--panel:#14161D;--card:#1A1D27;--border:#252836;
+    --text:#E8EAF2;--muted:#5A5F78;--faint:#20243A;
+    --amber:#F5A623;--green:#3DD68C;--red:#F05C5C;
+    --blue:#5B8DEF;--purple:#9B6DFF;--teal:#2EC4B6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100vh;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 28px;height:54px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:50;}
+  .logo{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
+  .page{max-width:900px;margin:0 auto;padding:28px 24px 80px;}
+  .steps{display:flex;margin-bottom:28px;}
+  .step{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .step-num{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;border:2px solid var(--border);color:var(--muted);background:var(--faint);transition:all .3s;}
+  .step.done .step-num{background:var(--green);border-color:var(--green);color:#0E0F14;}
+  .step.active .step-num{background:var(--amber);border-color:var(--amber);color:#0E0F14;}
+  .step-label{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;white-space:nowrap;}
+  .step.active .step-label{color:var(--amber);}
+  .step.done .step-label{color:var(--green);}
+  .step-line{flex:1;height:1px;background:var(--border);margin:0 6px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:22px;margin-bottom:16px;}
+  .card-title{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:16px;}
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
+  .field label{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+  .field input,.field select,.field textarea{background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 11px;color:var(--text);font-family:'Sora',sans-serif;font-size:14px;outline:none;width:100%;transition:border-color .2s;}
+  .field input:focus,.field select:focus{border-color:var(--amber);}
+  .field textarea{height:60px;resize:vertical;}
+  select option{background:var(--faint);}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+  .btn{padding:8px 18px;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.5px;transition:opacity .15s;}
+  .btn:hover{opacity:.82;}
+  .btn-primary{background:var(--amber);color:#0E0F14;}
+  .btn-ghost{background:var(--faint);color:var(--muted);border:1px solid var(--border);}
+  .btn-success{background:var(--green);color:#0E0F14;}
+  .btn-danger{background:var(--red);color:#fff;}
+  .btn-sm{padding:4px 11px;font-size:10px;}
+  .pill{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.8px;padding:2px 8px;border-radius:3px;text-transform:uppercase;white-space:nowrap;}
+  .divider{height:1px;background:var(--border);margin:14px 0;}
+  .info-box{background:rgba(91,141,239,.06);border:1px solid rgba(91,141,239,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--blue);margin-bottom:14px;line-height:1.5;}
+  .warn-box{background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.25);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--amber);margin-bottom:10px;}
+
+  /* drop */
+  .dropzone{border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:all .2s;position:relative;display:flex;align-items:center;gap:12px;}
+  .dropzone:hover,.dropzone.drag{border-color:var(--amber);background:rgba(245,166,35,.04);}
+  .dropzone.done{border-color:rgba(61,214,140,.4);background:rgba(61,214,140,.03);}
+  .dropzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+  .so-chip{display:flex;align-items:center;gap:10px;background:rgba(61,214,140,.05);border:1px solid rgba(61,214,140,.2);border-radius:6px;padding:8px 12px;margin-bottom:8px;}
+
+  /* mueble */
+  .mueble-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden;transition:border-color .2s;}
+  .mueble-card:hover{border-color:rgba(245,166,35,.3);}
+  .mueble-header{padding:13px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none;}
+  .mueble-codigo{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--amber);min-width:60px;}
+  .mueble-nombre{font-size:13px;font-weight:600;flex:1;}
+  .mueble-body{padding:16px;border-top:1px solid var(--border);display:none;}
+  .mueble-body.open{display:block;}
+
+  .flujos-wrap{display:flex;gap:7px;flex-wrap:wrap;}
+  .flujo-btn{padding:5px 12px;border:1px solid var(--border);border-radius:20px;background:transparent;color:var(--muted);cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;transition:all .15s;}
+  .flujo-btn[data-f="tapiceria"].sel  {color:var(--purple);background:rgba(155,109,255,.1);border-color:var(--purple);}
+  .flujo-btn[data-f="herreria"].sel   {color:var(--blue);background:rgba(91,141,239,.1);border-color:var(--blue);}
+  .flujo-btn[data-f="lustre"].sel     {color:var(--teal);background:rgba(46,196,182,.1);border-color:var(--teal);}
+  .flujo-btn[data-f="electricidad"].sel{color:var(--amber);background:rgba(245,166,35,.1);border-color:var(--amber);}
+  .flujo-btn[data-f="madera_maciza"].sel{color:var(--green);background:rgba(61,214,140,.1);border-color:var(--green);}
+
+  /* flujos extra horas */
+  .flujo-extra-hrs{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:10px;}
+  .flujo-extra-row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);}
+  .flujo-extra-row:last-child{border-bottom:none;}
+  .flujo-extra-label{font-size:13px;font-weight:600;}
+  .flujo-extra-tag{font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 6px;border-radius:3px;text-transform:uppercase;}
+  .hrs-input{background:var(--card);border:1px solid var(--border);border-radius:5px;padding:7px 10px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;text-align:center;outline:none;width:80px;}
+  .hrs-input:focus{border-color:var(--amber);}
+
+  .dif-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+  .dif-btn{padding:9px 4px;border:1px solid var(--border);border-radius:6px;background:var(--faint);cursor:pointer;text-align:center;transition:all .15s;}
+  .dif-num{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--muted);display:block;margin-bottom:2px;}
+  .dif-lbl{font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+  .dif-btn.sel{border-color:var(--amber);background:rgba(245,166,35,.08);}
+  .dif-btn.sel .dif-num,.dif-btn.sel .dif-lbl{color:var(--amber);}
+
+  .est-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px;}
+  .est-box{background:var(--faint);border-radius:6px;padding:9px 5px;text-align:center;}
+  .est-label{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:4px;}
+  .est-val{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);}
+
+  /* mat */
+  .mat-hdr{display:grid;grid-template-columns:1fr 110px 80px 80px 30px;gap:8px;margin-bottom:5px;}
+  .mat-row{display:grid;grid-template-columns:1fr 110px 80px 80px 30px;gap:8px;align-items:center;margin-bottom:7px;}
+  .mat-in{background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:7px 9px;color:var(--text);font-family:'Sora',sans-serif;font-size:13px;outline:none;width:100%;}
+  .mat-in.mono{font-family:'JetBrains Mono',monospace;}
+  .mat-in:focus{border-color:var(--amber);}
+
+  .res-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .res-row:last-child{border-bottom:none;}
+
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(245,166,35,.3);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .proc-msg{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--amber);padding:8px 0;display:none;}
+  .proc-msg.show{display:block;}
+  .err-msg{font-size:12px;color:var(--red);padding:6px 0;display:none;}
+  .err-msg.show{display:block;}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .fu{animation:fadeUp .25s ease both;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo">⬡ MADERABLE</span>
+  <span class="mono" style="font-size:11px;color:var(--muted);">/ NUEVO PROYECTO</span>
+  <div style="margin-left:auto;display:flex;gap:10px;align-items:center;">
+    <a href="config-formula.html" style="text-decoration:none;"><button class="btn btn-ghost btn-sm">⚙ Fórmula</button></a>
+    <a href="tercerizados.html" style="text-decoration:none;"><button class="btn btn-ghost btn-sm">🧵 Tercerizados</button></a>
+    <a href="admin.html" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-decoration:none;">← Admin</a>
+  </div>
+</div>
+
+<div class="page">
+  <div class="steps">
+    <div class="step active" id="step-1"><div class="step-num">1</div><div class="step-label">DOCUMENTOS</div></div>
+    <div class="step-line"></div>
+    <div class="step" id="step-2"><div class="step-num">2</div><div class="step-label">DATOS</div></div>
+    <div class="step-line"></div>
+    <div class="step" id="step-3"><div class="step-num">3</div><div class="step-label">MUEBLES</div></div>
+    <div class="step-line"></div>
+    <div class="step" id="step-4"><div class="step-num">4</div><div class="step-label">MATERIALES</div></div>
+    <div class="step-line"></div>
+    <div class="step" id="step-5"><div class="step-num">5</div><div class="step-label">CONFIRMAR</div></div>
+  </div>
+
+  <!-- ══ PASO 1 ══ -->
+  <div id="pane-1">
+    <div class="info-box">Subí el Remito ODF para importar muebles, y una o más Órdenes SO para los materiales. También podés continuar sin PDFs.</div>
+    <div class="g2">
+      <div class="card">
+        <div class="card-title">Remito ODF — Muebles</div>
+        <div class="dropzone" id="dz-odf" ondragover="drag(event,'dz-odf',1)" ondragleave="drag(event,'dz-odf',0)" ondrop="drop(event,'odf')">
+          <input type="file" accept=".pdf" onchange="fileIn(event,'odf')">
+          <span style="font-size:24px;" id="icon-odf">📄</span>
+          <div><div style="font-size:13px;font-weight:600;" id="title-odf">Remito ODF</div><div style="font-size:11px;color:var(--muted);" id="sub-odf">Arrastrá o clic · PDF</div></div>
+        </div>
+        <div class="proc-msg" id="proc-odf"><span class="spinner"></span><span id="proc-odf-txt">Procesando...</span></div>
+        <div class="err-msg" id="err-odf"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Órdenes SO — Materiales <span style="color:var(--muted);font-weight:400;font-size:9px;">(múltiples)</span></div>
+        <div id="so-list"></div>
+        <div class="dropzone" id="dz-so" ondragover="drag(event,'dz-so',1)" ondragleave="drag(event,'dz-so',0)" ondrop="drop(event,'so')">
+          <input type="file" accept=".pdf" onchange="fileIn(event,'so')">
+          <span style="font-size:24px;">➕</span>
+          <div><div style="font-size:13px;font-weight:600;">Agregar SO</div><div style="font-size:11px;color:var(--muted);">Los materiales se acumulan</div></div>
+        </div>
+        <div class="proc-msg" id="proc-so"><span class="spinner"></span><span id="proc-so-txt">Procesando...</span></div>
+        <div class="err-msg" id="err-so"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="goStep(2)">Continuar sin PDF →</button>
+      <button class="btn btn-primary" onclick="goStep(2)">Siguiente →</button>
+    </div>
+  </div>
+
+  <!-- ══ PASO 2 ══ -->
+  <div id="pane-2" style="display:none;">
+    <div class="card fu">
+      <div class="card-title">Datos del Proyecto</div>
+      <div class="g3">
+        <div class="field"><label>Número (ODF / SO)</label><input id="f-num" placeholder="ODF-2385"/></div>
+        <div class="field"><label>Obra</label><input id="f-obra" placeholder="HUGO BOSS"/></div>
+        <div class="field"><label>Cliente</label><input id="f-cliente" placeholder="LGD Arquitectos"/></div>
+      </div>
+      <div class="g2">
+        <div class="field"><label>Fecha de inicio</label><input type="date" id="f-inicio"/></div>
+        <div class="field"><label>Fecha de entrega</label><input type="date" id="f-entrega"/></div>
+      </div>
+      <div class="field"><label>Notas</label><textarea id="f-notas" placeholder="Observaciones generales..."></textarea></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="goStep(1)">← Atrás</button>
+      <button class="btn btn-primary" onclick="goStep(3)">Siguiente → Muebles</button>
+    </div>
+  </div>
+
+  <!-- ══ PASO 3 ══ -->
+  <div id="pane-3" style="display:none;">
+    <div class="card fu" style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="card-title" style="margin:0;">Muebles del Proyecto</div>
+        <button class="btn btn-primary btn-sm" onclick="addMueble()">+ Agregar</button>
+      </div>
+    </div>
+    <div class="info-box">
+      <strong>Flujo principal</strong> (todos los muebles): Corte → Enchapado → Armado → Revisión → Empaquetado. El operario decide qué centros aplica.<br>
+      <strong>Flujos internos</strong> (Herrería, Electricidad, Madera maciza): requieren cargar horas estimadas y se verifican antes del despacho.<br>
+      <strong>Flujos tercerizados</strong> (Lustre, Tapicería): salen partes al proveedor — se gestionan en la pantalla de Tercerizados.
+    </div>
+    <div id="muebles-list"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px;">
+      <button class="btn btn-ghost" onclick="goStep(2)">← Atrás</button>
+      <button class="btn btn-primary" onclick="goStep(4)">Siguiente → Materiales</button>
+    </div>
+  </div>
+
+  <!-- ══ PASO 4 ══ -->
+  <div id="pane-4" style="display:none;">
+    <div class="card fu">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div class="card-title" style="margin:0;">Materiales a Recibir</div>
+        <button class="btn btn-primary btn-sm" onclick="addMat()">+ Agregar</button>
+      </div>
+      <div id="mat-so-ref"></div>
+      <div class="mat-hdr">
+        <span class="mono" style="font-size:9px;color:var(--muted);">MATERIAL</span>
+        <span class="mono" style="font-size:9px;color:var(--muted);">UNIDAD</span>
+        <span class="mono" style="font-size:9px;color:var(--muted);">REQUERIDO</span>
+        <span class="mono" style="font-size:9px;color:var(--muted);">RECIBIDO</span>
+        <span></span>
+      </div>
+      <div id="mat-list"></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="goStep(3)">← Atrás</button>
+      <button class="btn btn-primary" onclick="goStep(5)">Siguiente → Confirmar</button>
+    </div>
+  </div>
+
+  <!-- ══ PASO 5 ══ -->
+  <div id="pane-5" style="display:none;">
+    <div class="card fu"><div class="card-title">Resumen del Proyecto</div><div id="res-datos"></div></div>
+    <div class="card fu"><div class="card-title">Horas Estimadas</div><div id="res-horas"></div></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="goStep(4)">← Atrás</button>
+      <button class="btn btn-success" onclick="guardar()">✓ Guardar Proyecto</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+// FLUJOS — configuración completa
+// ══════════════════════════════════════════════════════════════════════════
+const FLUJOS_CONFIG = {
+  tapiceria:    { label:'Tapicería',    color:'var(--purple)', tipo:'tercerizado', requiereHrs:false },
+  herreria:     { label:'Herrería',     color:'var(--blue)',   tipo:'interno',     requiereHrs:true  },
+  lustre:       { label:'Lustre',       color:'var(--teal)',   tipo:'tercerizado', requiereHrs:false },
+  electricidad: { label:'Electricidad', color:'var(--amber)',  tipo:'interno',     requiereHrs:true  },
+  madera_maciza:{ label:'Mad. Maciza',  color:'var(--green)',  tipo:'interno',     requiereHrs:true  },
+};
+const FLUJOS = Object.entries(FLUJOS_CONFIG).map(([id,v])=>({id,...v}));
+const FLUJOS_INTERNOS = FLUJOS.filter(f=>f.tipo==='interno');
+const FLUJOS_TERC     = FLUJOS.filter(f=>f.tipo==='tercerizado');
+
+// ══════════════════════════════════════════════════════════════════════════
+// FÓRMULA
+// ══════════════════════════════════════════════════════════════════════════
+const COEF_DEF={corte:0.50,enchapado:0.30,armado:0.80,revision:0.20,empaquetado:0.20};
+const DIF_DEF ={1:0.7,2:1.0,3:1.5,4:2.2};
+const CENTROS =['corte','enchapado','armado','revision','empaquetado'];
+const C_LABEL ={corte:'Corte',enchapado:'Enchapado',armado:'Armado',revision:'Revisión',empaquetado:'Empaq.'};
+const DIF_NAMES={1:'Simple',2:'Medio',3:'Complejo',4:'Muy Comp.'};
+function getCoef(){return JSON.parse(localStorage.getItem('coef')||JSON.stringify(COEF_DEF));}
+function getDif() {return JSON.parse(localStorage.getItem('dif') ||JSON.stringify(DIF_DEF));}
+function calcHoras(placas,dif){const c=getCoef(),d=getDif(),f=d[dif]||1,h={};CENTROS.forEach(k=>{h[k]=Math.round(placas*(c[k]||0)*f*10)/10;});return h;}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ESTADO
+// ══════════════════════════════════════════════════════════════════════════
+let step=1,muebles=[],materiales=[],sosCargadas=[];
+
+// demo muebles
+const DEMO=[
+  {id:'d1',codigo:'MF01',nombre:'Banco Central Salón',cant:1,flujos:['tapiceria'],hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},placas:10,dif:3,horas:calcHoras(10,3)},
+  {id:'d2',codigo:'MF03',nombre:'Equipamiento Frente Barra',cant:1,flujos:['herreria','electricidad'],hrsExtra:{tapiceria:0,herreria:4,lustre:0,electricidad:2,madera_maciza:0},placas:8,dif:3,horas:calcHoras(8,3)},
+  {id:'d3',codigo:'MF07',nombre:'Reja Oficina',cant:2,flujos:['herreria','lustre'],hrsExtra:{tapiceria:0,herreria:6,lustre:0,electricidad:0,madera_maciza:0},placas:2,dif:2,horas:calcHoras(2,2)},
+];
+
+// ══════════════════════════════════════════════════════════════════════════
+// STEPS
+// ══════════════════════════════════════════════════════════════════════════
+function goStep(n){
+  document.getElementById('pane-'+step).style.display='none';
+  for(let i=1;i<=5;i++){const s=document.getElementById('step-'+i);s.classList.remove('active','done');if(i<n)s.classList.add('done');if(i===n)s.classList.add('active');}
+  step=n;
+  document.getElementById('pane-'+n).style.display='block';
+  if(n===3){if(!muebles.length)muebles=DEMO.map(m=>({...m,horas:calcHoras(m.placas,m.dif)}));renderMuebles();}
+  if(n===4){if(!materiales.length)materiales=[{id:'m1',nombre:'MDF 18mm',unidad:'planchas',requerido:24,recibido:0}];renderMats();renderSoRef();}
+  if(n===5)renderResumen();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PDF
+// ══════════════════════════════════════════════════════════════════════════
+function drag(e,id,on){e.preventDefault();document.getElementById(id)?.classList.toggle('drag',!!on);}
+function drop(e,t){e.preventDefault();document.getElementById('dz-'+t)?.classList.remove('drag');const f=e.dataTransfer.files[0];if(f)procPDF(f,t);}
+function fileIn(e,t){const f=e.target.files[0];if(f)procPDF(f,t);}
+
+async function procPDF(file,tipo){
+  if(!file.name.toLowerCase().endsWith('.pdf')){showErr(tipo,'Solo PDF.');return;}
+  showErr(tipo,'',0);showProc(tipo,1,'LEYENDO PDF...');
+  const b64=await toB64(file);
+  showProc(tipo,1,'ANALIZANDO CON IA...');
+  const esOdf=tipo==='odf';
+  const prompt=esOdf
+    ?`Analizá este remito de carpintería. SOLO JSON, sin markdown:
+{"numero":"","obra":"","cliente":"","muebles":[{"codigo":"C01","nombre":"","cant":1,"flujos_extra":[],"placas":4,"dif":2}]}
+flujos_extra: ["tapiceria"] tapicería, ["herreria"] hierro/chapa, ["lustre"] lustre, ["electricidad"] electricidad, ["madera_maciza"] madera maciza/itauba/cedro.
+placas: por medidas. >3m→12, 2-3m→8, 1-2m→4, <1m→2, sin dato→4. dif: 1-4.`
+    :`Analizá esta orden de venta/compra. SOLO JSON sin markdown:
+{"numero":"","obra":"","cliente":"","materiales":[{"nombre":"","unidad":"unidades","cantidad":1}]}
+unidad: planchas, unidades, pares, metros, ml, kg, litros, m². cantidad: el número del documento.`;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,messages:[{role:'user',content:[{type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},{type:'text',text:prompt}]}]})});
+    const data=await res.json();
+    const parsed=parseJ(data.content?.[0]?.text||'');
+    showProc(tipo,0);
+    if(parsed.numero&&!gv('f-num'))sv('f-num',parsed.numero);
+    if(parsed.obra&&!gv('f-obra'))sv('f-obra',parsed.obra);
+    if(parsed.cliente&&!gv('f-cliente'))sv('f-cliente',parsed.cliente);
+    if(esOdf&&parsed.muebles?.length){
+      muebles=parsed.muebles.map((m,i)=>({
+        id:'mf_'+Date.now()+'_'+i,codigo:m.codigo||'C'+(i+1).toString().padStart(2,'0'),
+        nombre:m.nombre||'',cant:m.cant||1,flujos:m.flujos_extra||[],
+        hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},
+        placas:m.placas||4,dif:m.dif||2,horas:calcHoras(m.placas||4,m.dif||2)
+      }));
+      document.getElementById('dz-odf').classList.add('done');
+      document.getElementById('icon-odf').textContent='✅';
+      document.getElementById('title-odf').textContent=file.name;
+      document.getElementById('sub-odf').textContent=parsed.muebles.length+' muebles';
+    }
+    if(!esOdf&&parsed.materiales?.length){
+      materiales=[...materiales,...parsed.materiales.map((m,i)=>({id:'mat_'+Date.now()+'_'+i,nombre:m.nombre||'',unidad:m.unidad||'unidades',requerido:m.cantidad||0,recibido:0}))];
+      sosCargadas.push({nombre:file.name,numero:parsed.numero||file.name,count:parsed.materiales.length});
+      renderSoList();
+    }
+  }catch(err){showProc(tipo,0);showErr(tipo,'Error: '+err.message);}
+}
+
+function renderSoList(){
+  const el=document.getElementById('so-list');if(!el)return;
+  el.innerHTML=sosCargadas.map(s=>`<div class="so-chip"><span style="color:var(--green)">📋</span><span class="mono" style="font-size:12px;color:var(--green);flex:1;">${s.numero}</span><span style="font-size:11px;color:var(--muted);">${s.count} items</span></div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// RENDER MUEBLES
+// ══════════════════════════════════════════════════════════════════════════
+function renderMuebles(){
+  const list=document.getElementById('muebles-list');list.innerHTML='';
+  if(!muebles.length){list.innerHTML='<div style="text-align:center;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:12px;padding:24px;">Sin muebles. Importá un remito o + Agregar.</div>';return;}
+  muebles.forEach(m=>{
+    const tags=m.flujos.map(fid=>{const f=FLUJOS_CONFIG[fid];return f?`<span class="pill" style="color:${f.color};background:${f.color}15;border:1px solid ${f.color}30;">${f.tipo==='interno'?'⚙ ':'✈ '}${f.label}</span>`:''}).join('');
+    const tieneInternos=m.flujos.some(f=>FLUJOS_CONFIG[f]?.tipo==='interno');
+    const tieneTerc=m.flujos.some(f=>FLUJOS_CONFIG[f]?.tipo==='tercerizado');
+
+    const c=document.createElement('div');
+    c.className='mueble-card fu';c.id='mc-'+m.id;
+    c.innerHTML=`
+      <div class="mueble-header" onclick="togBody('${m.id}')">
+        <span class="mueble-codigo">${m.codigo}</span>
+        <span class="mueble-nombre">${m.nombre||'Sin nombre'}</span>
+        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+          ${tags}
+          <span class="mono" style="font-size:12px;color:var(--muted);min-width:26px;text-align:right;">×${m.cant}</span>
+          <span style="color:var(--muted);font-size:11px;margin-left:2px;">▾</span>
+        </div>
+      </div>
+      <div class="mueble-body" id="mb-${m.id}">
+        <div class="g2" style="margin-bottom:12px;">
+          <div class="field" style="margin:0;"><label>Código</label><input value="${m.codigo}" onchange="upM('${m.id}','codigo',this.value)"/></div>
+          <div class="field" style="margin:0;"><label>Cantidad</label><input type="number" min="1" value="${m.cant}" onchange="upM('${m.id}','cant',+this.value)"/></div>
+        </div>
+        <div class="field" style="margin-bottom:12px;"><label>Nombre</label><input value="${m.nombre}" onchange="upM('${m.id}','nombre',this.value)" placeholder="Descripción del mueble"/></div>
+
+        <div style="margin-bottom:14px;">
+          <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">FLUJOS EXTRA</div>
+          <div class="flujos-wrap">
+            ${FLUJOS.map(f=>`<button class="flujo-btn ${m.flujos.includes(f.id)?'sel':''}" data-f="${f.id}" onclick="togFlujo('${m.id}','${f.id}',this)">${f.tipo==='interno'?'⚙':' ✈'} ${f.label}</button>`).join('')}
+          </div>
+          <div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;">
+            <span style="font-size:10px;color:var(--muted);"><span style="color:var(--text);">⚙</span> Interno — requiere horas + verificación</span>
+            <span style="font-size:10px;color:var(--muted);"><span style="color:var(--text);">✈</span> Tercerizado — sale al proveedor</span>
+          </div>
+        </div>
+
+        ${tieneInternos ? `
+        <div class="flujo-extra-hrs">
+          <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">HORAS ESTIMADAS — FLUJOS INTERNOS <span style="color:var(--red);">*obligatorio</span></div>
+          ${m.flujos.filter(fid=>FLUJOS_CONFIG[fid]?.tipo==='interno').map(fid=>{
+            const f=FLUJOS_CONFIG[fid];
+            return `<div class="flujo-extra-row">
+              <span class="flujo-extra-tag" style="color:${f.color};background:${f.color}15;border:1px solid ${f.color}30;">${f.label}</span>
+              <span class="flujo-extra-label" style="color:${f.color};">${f.label}</span>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input class="hrs-input" type="number" min="0" step="0.5" value="${m.hrsExtra[fid]||0}" 
+                  onchange="upHrsExtra('${m.id}','${fid}',+this.value)" placeholder="0"/>
+                <span class="mono" style="font-size:11px;color:var(--muted);">h est.</span>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>` : ''}
+
+        ${tieneTerc ? `
+        <div class="warn-box" style="margin-top:10px;">
+          ✈ Este mueble tiene flujos tercerizados (${m.flujos.filter(f=>FLUJOS_CONFIG[f]?.tipo==='tercerizado').map(f=>FLUJOS_CONFIG[f].label).join(', ')}). 
+          Gestioná el despacho y recepción en <a href="tercerizados.html" style="color:var(--amber);">Tercerizados →</a>
+        </div>` : ''}
+
+        <div class="divider"></div>
+        <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">ESTIMACIÓN FLUJO PRINCIPAL</div>
+        <div class="g2" style="margin-bottom:10px;">
+          <div class="field" style="margin:0;"><label>Placas</label><input type="number" min="1" value="${m.placas}" onchange="upEst('${m.id}','placas',+this.value)"/></div>
+          <div>
+            <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:7px;">DIFICULTAD</div>
+            <div class="dif-grid">${[1,2,3,4].map(d=>`<button class="dif-btn ${m.dif===d?'sel':''}" onclick="upEst('${m.id}','dif',${d},this.parentElement)"><span class="dif-num">${d}</span><span class="dif-lbl">${DIF_NAMES[d]}</span></button>`).join('')}</div>
+          </div>
+        </div>
+        <div class="est-grid" id="est-${m.id}">${estHtml(m.horas)}</div>
+        <div class="divider"></div>
+        <button class="btn btn-danger btn-sm" onclick="delM('${m.id}')">× Eliminar</button>
+      </div>`;
+    list.appendChild(c);
+  });
+}
+
+function estHtml(h){return CENTROS.map(c=>`<div class="est-box"><div class="est-label">${C_LABEL[c]}</div><div class="est-val">${h[c]}h</div></div>`).join('');}
+function togBody(id){document.getElementById('mb-'+id)?.classList.toggle('open');}
+
+function upM(id,key,val){
+  const m=muebles.find(x=>x.id===id);if(!m)return;m[key]=val;
+  if(key==='nombre'){const el=document.querySelector(`#mc-${id} .mueble-nombre`);if(el)el.textContent=val||'Sin nombre';}
+  if(key==='cant'){const el=document.querySelector(`#mc-${id} .mono[style*="min-width"]`);if(el)el.textContent='×'+val;}
+  if(key==='codigo'){const el=document.querySelector(`#mc-${id} .mueble-codigo`);if(el)el.textContent=val;}
+}
+
+function togFlujo(mid,fid,btn){
+  const m=muebles.find(x=>x.id===mid);if(!m)return;
+  m.flujos.includes(fid)?(m.flujos=m.flujos.filter(f=>f!==fid),btn.classList.remove('sel')):(m.flujos.push(fid),btn.classList.add('sel'));
+  renderMuebles();
+  setTimeout(()=>document.getElementById('mb-'+mid)?.classList.add('open'),30);
+}
+
+function upHrsExtra(mid,fid,val){
+  const m=muebles.find(x=>x.id===mid);if(!m)return;
+  if(!m.hrsExtra)m.hrsExtra={};
+  m.hrsExtra[fid]=val;
+}
+
+function upEst(id,key,val,parent){
+  const m=muebles.find(x=>x.id===id);if(!m)return;m[key]=val;
+  if(key==='dif'&&parent)parent.querySelectorAll('.dif-btn').forEach((b,i)=>b.classList.toggle('sel',i+1===val));
+  m.horas=calcHoras(m.placas,m.dif);
+  const g=document.getElementById('est-'+id);if(g)g.innerHTML=estHtml(m.horas);
+}
+
+function addMueble(){
+  const id='mf_'+Date.now();
+  muebles.push({id,codigo:'C'+(muebles.length+1).toString().padStart(2,'0'),nombre:'',cant:1,flujos:[],hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},placas:4,dif:2,horas:calcHoras(4,2)});
+  renderMuebles();
+  setTimeout(()=>document.getElementById('mb-'+id)?.classList.add('open'),50);
+}
+function delM(id){muebles=muebles.filter(m=>m.id!==id);renderMuebles();}
+
+// ══════════════════════════════════════════════════════════════════════════
+// MATERIALES
+// ══════════════════════════════════════════════════════════════════════════
+const UNIDS=['planchas','unidades','pares','metros','ml','kg','litros','m²'];
+function renderSoRef(){
+  const el=document.getElementById('mat-so-ref');if(!el||!sosCargadas.length){if(el)el.innerHTML='';return;}
+  el.innerHTML=`<div style="margin-bottom:10px;">${sosCargadas.map(s=>`<div class="so-chip"><span style="color:var(--green)">📋</span><span class="mono" style="font-size:11px;color:var(--green);flex:1;">${s.numero}</span><span style="font-size:11px;color:var(--muted);">${s.count} items</span></div>`).join('')}</div>`;
+}
+function renderMats(){
+  const list=document.getElementById('mat-list');list.innerHTML='';
+  if(!materiales.length){list.innerHTML='<div style="text-align:center;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:12px;padding:14px;">Sin materiales.</div>';return;}
+  materiales.forEach((m,i)=>{
+    const row=document.createElement('div');row.className='mat-row';
+    row.innerHTML=`
+      <input class="mat-in" value="${m.nombre}" placeholder="Material" onchange="materiales[${i}].nombre=this.value"/>
+      <select class="mat-in" onchange="materiales[${i}].unidad=this.value">${UNIDS.map(u=>`<option value="${u}" ${m.unidad===u?'selected':''}>${u}</option>`).join('')}</select>
+      <input class="mat-in mono" type="number" min="0" value="${m.requerido}" onchange="materiales[${i}].requerido=+this.value"/>
+      <input class="mat-in mono" type="number" min="0" value="${m.recibido||0}" onchange="materiales[${i}].recibido=+this.value" style="color:var(--green);"/>
+      <button onclick="materiales.splice(${i},1);renderMats();" style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:6px;cursor:pointer;color:var(--red);font-weight:700;font-size:13px;">×</button>`;
+    list.appendChild(row);
+  });
+}
+function addMat(){materiales.push({id:'mat_'+Date.now(),nombre:'',unidad:'planchas',requerido:0,recibido:0});renderMats();}
+
+// ══════════════════════════════════════════════════════════════════════════
+// RESUMEN
+// ══════════════════════════════════════════════════════════════════════════
+function renderResumen(){
+  const num=gv('f-num'),obra=gv('f-obra'),cli=gv('f-cliente'),ini=gv('f-inicio'),ent=gv('f-entrega');
+
+  // verificar flujos internos sin horas
+  const sinHrs=muebles.filter(m=>m.flujos.some(f=>FLUJOS_CONFIG[f]?.tipo==='interno'&&!(m.hrsExtra?.[f]>0)));
+
+  document.getElementById('res-datos').innerHTML=`
+    ${sinHrs.length?`<div class="warn-box" style="margin-bottom:14px;">⚠ Los siguientes muebles tienen flujos internos sin horas estimadas: <strong>${sinHrs.map(m=>m.codigo).join(', ')}</strong>. Podés guardar igual y completarlos después.</div>`:''}
+    <div class="res-row"><span style="color:var(--muted);">Documento</span><span class="mono" style="color:var(--amber);font-weight:700;">${num||'—'}</span></div>
+    <div class="res-row"><span style="color:var(--muted);">Obra</span><span style="font-weight:600;">${obra||'—'}</span></div>
+    <div class="res-row"><span style="color:var(--muted);">Cliente</span><span>${cli||'—'}</span></div>
+    <div class="res-row"><span style="color:var(--muted);">Inicio / Entrega</span><span>${ini||'—'} → ${ent||'—'}</span></div>
+    <div class="res-row"><span style="color:var(--muted);">Muebles</span><span class="mono">${muebles.length} tipos · ${muebles.reduce((a,m)=>a+m.cant,0)} unidades</span></div>
+    <div class="res-row"><span style="color:var(--muted);">Materiales</span><span class="mono">${materiales.length} ítems · ${sosCargadas.length} SO${sosCargadas.length!==1?'s':''}</span></div>`;
+
+  // horas
+  const tot={};CENTROS.forEach(c=>{tot[c]=0;});let gran=0;
+  let hrsExtrasTotal=0;
+  muebles.forEach(m=>{
+    CENTROS.forEach(c=>{const h=(m.horas[c]||0)*m.cant;tot[c]+=h;gran+=h;});
+    if(m.hrsExtra)Object.values(m.hrsExtra).forEach(h=>{hrsExtrasTotal+=(h||0)*m.cant;});
+  });
+
+  const tags=m=>m.flujos.map(fid=>{const f=FLUJOS_CONFIG[fid];return f?`<span class="pill" style="color:${f.color};background:${f.color}15;border:1px solid ${f.color}30;">${f.tipo==='interno'?'⚙':' ✈'} ${f.label}</span>`:''}).join('');
+  const hrsExtraM=m=>m.flujos.filter(f=>FLUJOS_CONFIG[f]?.tipo==='interno').map(f=>{const h=m.hrsExtra?.[f]||0;const fc=FLUJOS_CONFIG[f];return h>0?`<span style="font-size:11px;color:${fc.color};">+${h}h ${fc.label}</span>`:''}).join(' ');
+
+  document.getElementById('res-horas').innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px;">
+      ${CENTROS.map(c=>`<div style="background:var(--faint);border-radius:8px;padding:12px;text-align:center;"><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:5px;">${C_LABEL[c].toUpperCase()}</div><div class="mono" style="font-size:20px;font-weight:700;color:var(--amber);">${tot[c].toFixed(1)}h</div></div>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+      <div style="background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.2);border-radius:8px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;">
+        <span class="mono" style="font-size:10px;color:var(--muted);">FLUJO PRINCIPAL</span>
+        <span class="mono" style="font-size:22px;font-weight:700;color:var(--amber);">${gran.toFixed(1)}h</span>
+      </div>
+      <div style="background:rgba(91,141,239,.06);border:1px solid rgba(91,141,239,.2);border-radius:8px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;">
+        <span class="mono" style="font-size:10px;color:var(--muted);">FLUJOS INTERNOS</span>
+        <span class="mono" style="font-size:22px;font-weight:700;color:var(--blue);">${hrsExtrasTotal.toFixed(1)}h</span>
+      </div>
+    </div>
+    <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">DETALLE POR MUEBLE</div>
+    ${muebles.map(m=>{const ht=CENTROS.reduce((a,c)=>a+(m.horas[c]||0),0)*m.cant;const hte=Object.values(m.hrsExtra||{}).reduce((a,v)=>a+v,0)*m.cant;return`<div class="res-row"><div><span class="mono" style="font-size:11px;color:var(--amber);margin-right:8px;">${m.codigo}</span><span style="font-size:13px;">${m.nombre||'Sin nombre'}</span><span class="mono" style="font-size:11px;color:var(--muted);margin-left:6px;">×${m.cant}</span><div style="margin-top:4px;display:flex;gap:5px;flex-wrap:wrap;">${tags(m)} ${hrsExtraM(m)}</div></div><div style="text-align:right;"><span class="mono" style="color:var(--amber);">${ht.toFixed(1)}h</span>${hte>0?`<br><span class="mono" style="font-size:11px;color:var(--blue);">+${hte.toFixed(1)}h int.</span>`:''}</div></div>`;}).join('')}`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// GUARDAR
+// ══════════════════════════════════════════════════════════════════════════
+function guardar(){
+  const p={id:'pr_'+Date.now(),numero:gv('f-num'),obra:gv('f-obra'),clienteNombre:gv('f-cliente'),
+    fechaInicio:gv('f-inicio'),fechaEntrega:gv('f-entrega'),notas:gv('f-notas'),
+    estado:'en_produccion',muebles,materiales,sosCargadas,modulos:[],creadoEn:Date.now()};
+  const lista=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  lista.push(p);localStorage.setItem('proyectos',JSON.stringify(lista));
+  document.querySelector('.page').innerHTML=`
+    <div style="text-align:center;padding:70px 20px;">
+      <div style="font-size:52px;margin-bottom:18px;">✓</div>
+      <div style="font-size:24px;font-weight:700;color:var(--green);margin-bottom:8px;">Proyecto guardado</div>
+      <div class="mono" style="font-size:14px;color:var(--amber);margin-bottom:4px;">${p.numero||'—'}</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:32px;">${p.obra} · ${p.clienteNombre}</div>
+      <div style="display:flex;gap:12px;justify-content:center;">
+        <a href="admin.html"><button class="btn btn-primary">Ver en Admin →</button></a>
+        <a href="tercerizados.html"><button class="btn btn-ghost">🧵 Tercerizados</button></a>
+        <button class="btn btn-ghost" onclick="location.reload()">+ Nuevo Proyecto</button>
+      </div>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════════════════════
+function gv(id){return document.getElementById(id)?.value||'';}
+function sv(id,v){const el=document.getElementById(id);if(el)el.value=v;}
+function showProc(t,show,txt){const el=document.getElementById('proc-'+t);if(!el)return;el.style.display=show?'block':'none';const tx=document.getElementById('proc-'+t+'-txt');if(tx&&txt)tx.textContent=txt;}
+function showErr(t,msg,show=1){const el=document.getElementById('err-'+t);if(!el)return;el.textContent=msg;el.style.display=show?'block':'none';}
+function toB64(f){return new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f);});}
+function parseJ(raw){try{return JSON.parse(raw.trim());}catch{const m=raw.match(/\{[\s\S]*\}/);if(m)return JSON.parse(m[0]);throw new Error('JSON inválido');}}
+
+document.getElementById('f-inicio').value=new Date().toISOString().split('T')[0];
+</script>
+</body>
+</html>

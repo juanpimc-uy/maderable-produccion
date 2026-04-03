@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maderable · Admin</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Sora:wght@400;500;600;700&display=swap');
+  :root {
+    --bg:#0E0F14; --panel:#14161D; --card:#1A1D27; --border:#252836; --borderL:#2E3247;
+    --text:#E8EAF2; --muted:#5A5F78; --faint:#20243A;
+    --amber:#F5A623; --green:#3DD68C; --red:#F05C5C;
+    --blue:#5B8DEF; --purple:#9B6DFF; --teal:#2EC4B6;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:'Sora',sans-serif; min-height:100vh; }
+  ::-webkit-scrollbar { width:4px; height:4px; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+  .mono { font-family:'JetBrains Mono',monospace; }
+  /* layout */
+  .shell { display:flex; height:100vh; overflow:hidden; }
+  /* sidebar */
+  .sidebar { width:200px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+  .sidebar-logo { padding:18px 16px; border-bottom:1px solid var(--border); font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; color:var(--amber); letter-spacing:2px; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:11px 16px; cursor:pointer; font-size:13px; color:var(--muted); border-left:3px solid transparent; transition:all .15s; user-select:none; }
+  .nav-item:hover { background:var(--faint); color:var(--text); }
+  .nav-item.active { background:rgba(245,166,35,.08); color:var(--amber); border-left-color:var(--amber); font-weight:600; }
+  .nav-icon { font-size:15px; width:20px; text-align:center; flex-shrink:0; }
+  /* main */
+  .main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+  .topbar { background:var(--panel); border-bottom:1px solid var(--border); padding:0 24px; height:52px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+  .content { flex:1; overflow-y:auto; padding:24px; }
+  /* views */
+  .view { display:none; } .view.active { display:block; }
+  /* cards */
+  .card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:20px; }
+  /* grids */
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+  .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .grid-auto { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
+  /* kpi */
+  .kpi { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:18px 20px; }
+  .kpi-label { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; }
+  .kpi-val { font-family:'JetBrains Mono',monospace; font-size:36px; font-weight:700; line-height:1; }
+  /* section title */
+  .sec-title { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; }
+  /* pill */
+  .pill { display:inline-block; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.8px; padding:2px 8px; border-radius:3px; text-transform:uppercase; white-space:nowrap; }
+  /* bar */
+  .bar-track { height:6px; background:var(--faint); border-radius:99px; overflow:hidden; flex:1; }
+  .bar-fill  { height:100%; border-radius:99px; transition:width .6s ease; }
+  /* avatar */
+  .av { border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-weight:700; flex-shrink:0; }
+  .av.idle   { background:var(--faint); border:2px solid var(--border); color:var(--muted); }
+  .av.active { background:linear-gradient(135deg,var(--amber),#C4841A); border:2px solid var(--amber); color:#0E0F14; box-shadow:0 0 10px rgba(245,166,35,.35); }
+  /* table */
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); }
+  td { padding:10px 12px; border-bottom:1px solid rgba(37,40,54,.6); vertical-align:middle; }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:var(--faint); }
+  /* buttons */
+  .btn { padding:7px 16px; border:none; border-radius:5px; cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.5px; transition:opacity .15s; }
+  .btn:hover { opacity:.8; }
+  .btn-primary { background:var(--amber); color:#0E0F14; }
+  .btn-ghost   { background:var(--faint); color:var(--muted); }
+  .btn-success { background:var(--green); color:#0E0F14; }
+  .btn-danger  { background:var(--red);   color:#fff; }
+  .btn-sm { padding:4px 10px; font-size:10px; }
+  /* inputs */
+  .field { display:flex; flex-direction:column; gap:5px; }
+  .field label { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; }
+  .field input, .field select, .field textarea { background:var(--faint); border:1px solid var(--border); border-radius:5px; padding:8px 10px; color:var(--text); font-family:'Sora',sans-serif; font-size:13px; outline:none; width:100%; }
+  .field textarea { height:70px; resize:vertical; }
+  select option { background:var(--faint); }
+  /* modal */
+  .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:100; align-items:center; justify-content:center; }
+  .overlay.open { display:flex; }
+  .modal { background:var(--panel); border:1px solid var(--borderL); border-radius:10px; padding:28px; width:460px; max-width:95vw; max-height:90vh; overflow-y:auto; }
+  .modal-title { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:20px; }
+  /* live dot */
+  .live-dot { width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; display:inline-block; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  /* sub tabs */
+  .sub-tabs { display:flex; gap:4px; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:12px; }
+  .sub-tab { padding:5px 16px; border:none; border-radius:5px; cursor:pointer; background:transparent; color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; text-transform:capitalize; }
+  .sub-tab.active { background:var(--amber); color:#0E0F14; }
+  /* operario row */
+  .op-row { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:18px 20px; display:flex; align-items:flex-start; gap:18px; transition:border-color .2s; }
+  .op-row.busy { border-color:rgba(245,166,35,.35); }
+  /* nota box */
+  .nota-box { background:rgba(91,141,239,.08); border:1px solid rgba(91,141,239,.25); border-radius:6px; padding:10px 12px; font-size:12px; color:var(--blue); line-height:1.5; margin-top:8px; }
+  /* back btn */
+  .back-btn { background:var(--faint); border:none; color:var(--muted); border-radius:5px; padding:6px 12px; cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ═══ SIDEBAR ══════════════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">⬡ MADERABLE</div>
+  <div style="flex:1;padding:8px 0;overflow-y:auto;">
+    <div class="nav-item active" onclick="navTo('dashboard')"><span class="nav-icon">◈</span> Dashboard</div>
+    <div class="nav-item" onclick="navTo('proyectos')"><span class="nav-icon">⬡</span> Proyectos</div>
+    <div class="nav-item" onclick="navTo('operarios')"><span class="nav-icon">◎</span> Operarios</div>
+    <div class="nav-item" onclick="navTo('tiempos')"><span class="nav-icon">⬗</span> Tiempos</div>
+    <div class="nav-item" onclick="navTo('materiales')"><span class="nav-icon">▣</span> Materiales</div>
+  </div>
+  <div style="padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);">
+    <div class="mono" style="font-size:10px;margin-bottom:4px;">VISTA PLANTA</div>
+    <a href="planta.html" target="_blank" style="color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-decoration:none;">Abrir tablet →</a>
+  </div>
+</aside>
+
+<!-- ═══ MAIN ══════════════════════════════════════════════════════════════ -->
+<div class="main">
+  <div class="topbar">
+    <div id="topbar-title" class="mono" style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Dashboard</div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span class="live-dot"></span>
+      <span class="mono" style="font-size:11px;color:var(--muted);" id="reloj"></span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══ DASHBOARD ═══════════════════════════════════════════════════════ -->
+    <div class="view active" id="v-dashboard">
+      <!-- KPIs -->
+      <div class="grid4" style="margin-bottom:20px;">
+        <div class="kpi"><div class="kpi-label">Proyectos Activos</div><div class="kpi-val" style="color:var(--amber)" id="kpi-proyectos">2</div></div>
+        <div class="kpi"><div class="kpi-label">Operarios en Tarea</div><div class="kpi-val" style="color:var(--green)" id="kpi-operarios">3/5</div></div>
+        <div class="kpi"><div class="kpi-label">En Inventario</div><div class="kpi-val" style="color:var(--blue)" id="kpi-inventario">2</div></div>
+        <div class="kpi"><div class="kpi-label">Despachados</div><div class="kpi-val" style="color:var(--purple)" id="kpi-despachados">1</div></div>
+      </div>
+      <!-- Operarios en vivo -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="sec-title">▶ Operarios ahora mismo</div>
+        <div class="grid-auto" id="dash-operarios"></div>
+      </div>
+      <!-- Proyectos resumen -->
+      <div class="card">
+        <div class="sec-title">◈ Proyectos en Producción <button class="btn btn-primary btn-sm" onclick="navTo('proyectos')">Ver todos</button></div>
+        <div id="dash-proyectos"></div>
+      </div>
+    </div>
+
+    <!-- ══ PROYECTOS ════════════════════════════════════════════════════════ -->
+    <div class="view" id="v-proyectos">
+      <div id="pr-lista"></div>
+      <div id="pr-detalle" style="display:none;"></div>
+    </div>
+
+    <!-- ══ OPERARIOS ════════════════════════════════════════════════════════ -->
+    <div class="view" id="v-operarios">
+      <div class="sec-title">Operarios — Estado en Tiempo Real</div>
+      <div id="op-lista" style="display:flex;flex-direction:column;gap:12px;"></div>
+    </div>
+
+    <!-- ══ TIEMPOS ══════════════════════════════════════════════════════════ -->
+    <div class="view" id="v-tiempos">
+      <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;" id="tiempos-tabs"></div>
+      <div id="tiempos-contenido"></div>
+    </div>
+
+    <!-- ══ MATERIALES ═══════════════════════════════════════════════════════ -->
+    <div class="view" id="v-materiales">
+      <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;" id="mat-tabs"></div>
+      <div id="mat-contenido"></div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- ═══ MODAL ════════════════════════════════════════════════════════════ -->
+<div class="overlay" id="overlay" onclick="cerrarModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" id="modal-title"></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// DATOS
+// ═══════════════════════════════════════════════════════════════════════════
+const OPERARIOS = [
+  {id:'op1',nombre:'Carlos Méndez', avatar:'CM',especialidad:'CNC'     },
+  {id:'op2',nombre:'Diego Suárez',  avatar:'DS',especialidad:'Armado'  },
+  {id:'op3',nombre:'Martín Pérez',  avatar:'MP',especialidad:'Revisión'},
+  {id:'op4',nombre:'Ariel Fontana', avatar:'AF',especialidad:'CNC'     },
+  {id:'op5',nombre:'Roberto Vega',  avatar:'RV',especialidad:'Armado'  },
+];
+
+const CENTROS = [
+  {id:'corte',       label:'Corte',              icon:'⬡',color:'var(--amber)'},
+  {id:'enchapado',   label:'Enchapado/Perf.',     icon:'◈',color:'var(--blue)' },
+  {id:'armado',      label:'Armado',              icon:'⬗',color:'var(--purple)'},
+  {id:'revision',    label:'Revisión',            icon:'◎',color:'var(--teal)' },
+  {id:'empaquetado', label:'Empaquetado/Coloc.',  icon:'▣',color:'var(--green)'},
+];
+
+let PROYECTOS = [
+  {id:'pr1',clienteNombre:'Estudio JCE',nombre:'MON BRAVA 301',estado:'en_produccion',
+   items:[
+     {id:'it1',nombre:'Closet Dormitorio Principal',centros:['corte','enchapado','armado','revision','empaquetado'],hEst:18,nota:'Verificar medidas con plano v3. Tolerancia ±1mm en paneles laterales.'},
+     {id:'it2',nombre:'Cocina Integral',            centros:['corte','armado','revision'],                         hEst:32,nota:'Módulos altos primero. Consultar con Diego el tema de las bisagras.'},
+     {id:'it3',nombre:'Puerta Principal',           centros:['corte','enchapado','revision','empaquetado'],        hEst:8, nota:'Enchapado en dirección horizontal. Revisar muestra de color aprobada.'},
+   ],
+   materiales:[
+     {id:'ma1',nombre:'MDF 18mm',        unidad:'planchas',requerido:24,recibido:18},
+     {id:'ma2',nombre:'Melamina Blanca', unidad:'planchas',requerido:12,recibido:12},
+     {id:'ma3',nombre:'Enchapado Nogal', unidad:'planchas',requerido:6, recibido:0 },
+   ],
+   modulos:[
+     {id:'mo1',itemId:'it1',nombre:'Panel Lateral Izq.',estado:'en_inventario',despacho:null},
+     {id:'mo2',itemId:'it1',nombre:'Panel Lateral Der.',estado:'en_inventario',despacho:null},
+     {id:'mo3',itemId:'it2',nombre:'Módulo Bajo 80cm', estado:'despachado',   despacho:'01/04/2025'},
+   ],
+  },
+  {id:'pr2',clienteNombre:'BAUTEN',nombre:'MELI COSMOS',estado:'en_produccion',
+   items:[
+     {id:'it4',nombre:'Banco Corrido Lobby',centros:['corte','armado','empaquetado'],hEst:10,nota:'Largo total 4.2m. Se corta en 3 tramos y se ensambla en obra.'},
+     {id:'it5',nombre:'Revestimiento Pared',centros:['corte','enchapado','revision'], hEst:20,nota:'Listones de 12cm de ancho. Junta de 3mm entre piezas.'},
+   ],
+   materiales:[
+     {id:'ma4',nombre:'MDF 18mm',      unidad:'planchas',requerido:16,recibido:16},
+     {id:'ma5',nombre:'HDF 3mm Fondo', unidad:'planchas',requerido:30,recibido:10},
+   ],
+   modulos:[],
+  },
+];
+
+const NOW = Date.now(), H = h => h * 3600000;
+let SESIONES  = JSON.parse(localStorage.getItem('sesiones')  || '[]');
+let HISTORIAL = JSON.parse(localStorage.getItem('historial') || '[]');
+
+// sesiones semilla si no hay nada
+if (SESIONES.length === 0) {
+  SESIONES = [
+    {id:'s1',operarioId:'op1',proyectoId:'pr1',itemId:'it1',centroId:'corte',   inicio:NOW-H(1.4)},
+    {id:'s2',operarioId:'op2',proyectoId:'pr1',itemId:'it2',centroId:'armado',  inicio:NOW-H(0.6)},
+    {id:'s3',operarioId:'op4',proyectoId:'pr2',itemId:'it4',centroId:'corte',   inicio:NOW-H(2.1)},
+  ];
+}
+if (HISTORIAL.length === 0) {
+  HISTORIAL = [
+    {id:'h1',operarioId:'op1',proyectoId:'pr1',itemId:'it1',centroId:'corte',   inicio:NOW-H(9),  fin:NOW-H(7)  },
+    {id:'h2',operarioId:'op2',proyectoId:'pr1',itemId:'it2',centroId:'corte',   inicio:NOW-H(8),  fin:NOW-H(5)  },
+    {id:'h3',operarioId:'op3',proyectoId:'pr1',itemId:'it1',centroId:'revision',inicio:NOW-H(6),  fin:NOW-H(4.5)},
+    {id:'h4',operarioId:'op5',proyectoId:'pr2',itemId:'it5',centroId:'enchapado',inicio:NOW-H(4), fin:NOW-H(1.5)},
+  ];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════════════════
+function fmtH(h) { if(h===0)return'0h'; return h<1?`${Math.round(h*60)}m`:`${h.toFixed(1)}h`; }
+function msH(ms) { return ms/3600000; }
+function pct(a,b) { return b===0?0:Math.min(100,Math.round((a/b)*100)); }
+function fmt(ms) { const s=Math.floor(ms/1000),m=Math.floor(s/60),h=Math.floor(m/60); return h>0?`${h}h ${m%60}m ${s%60}s`:`${m}m ${s%60}s`; }
+function pill(label, color, bg) { return `<span class="pill" style="color:${color};background:${bg||color+'15'};border:1px solid ${color}33">${label}</span>`; }
+function bar(val, max, color, h=6) {
+  const p = pct(val, max||1);
+  return `<div style="display:flex;align-items:center;gap:8px;"><div class="bar-track"><div class="bar-fill" style="width:${p}%;background:${p>=100?'var(--red)':color}"></div></div><span class="mono" style="font-size:10px;color:${p>=100?'var(--red)':color};white-space:nowrap;">${p}%</span></div>`;
+}
+
+function hAcumPr(prId) {
+  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId);
+  return all.reduce((a,s)=>a+msH(s.fin-s.inicio),0);
+}
+function hAcumIt(prId,itId) {
+  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId&&s.itemId===itId);
+  return all.reduce((a,s)=>a+msH(s.fin-s.inicio),0);
+}
+function hByCentro(prId) {
+  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId);
+  const m={}; CENTROS.forEach(c=>{m[c.id]=0;});
+  all.forEach(s=>{m[s.centroId]=(m[s.centroId]||0)+msH(s.fin-s.inicio);});
+  return m;
+}
+function hByOp(prId) {
+  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId);
+  const m={};
+  all.forEach(s=>{m[s.operarioId]=(m[s.operarioId]||0)+msH(s.fin-s.inicio);});
+  return m;
+}
+function hEstPr(pr) { return pr.items.reduce((a,i)=>a+i.hEst,0); }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RELOJ
+// ═══════════════════════════════════════════════════════════════════════════
+function actualizarReloj() {
+  document.getElementById('reloj').textContent =
+    new Date().toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+setInterval(actualizarReloj, 1000);
+actualizarReloj();
+
+// recarga datos de planta cada 5s
+setInterval(() => {
+  SESIONES  = JSON.parse(localStorage.getItem('sesiones')  || JSON.stringify(SESIONES));
+  HISTORIAL = JSON.parse(localStorage.getItem('historial') || JSON.stringify(HISTORIAL));
+  renderCurrentView();
+}, 5000);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NAVEGACIÓN
+// ═══════════════════════════════════════════════════════════════════════════
+let currentView = 'dashboard';
+const VIEW_LABELS = {dashboard:'Dashboard',proyectos:'Proyectos',operarios:'Operarios',tiempos:'Tiempos',materiales:'Materiales'};
+
+function navTo(v) {
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  document.getElementById('v-'+v).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(el=>{
+    if(el.textContent.trim().toLowerCase().startsWith(VIEW_LABELS[v].toLowerCase().slice(0,4))) el.classList.add('active');
+  });
+  document.getElementById('topbar-title').textContent = VIEW_LABELS[v];
+  currentView = v;
+  renderView(v);
+  // reset proyectos
+  if(v==='proyectos') { document.getElementById('pr-lista').style.display='block'; document.getElementById('pr-detalle').style.display='none'; }
+}
+
+function renderCurrentView() { renderView(currentView); }
+function renderView(v) {
+  if(v==='dashboard')  renderDashboard();
+  if(v==='proyectos')  renderProyectos();
+  if(v==='operarios')  renderOperarios();
+  if(v==='tiempos')    renderTiempos();
+  if(v==='materiales') renderMateriales();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TIMERS activos en pantalla
+// ═══════════════════════════════════════════════════════════════════════════
+let timerIds = [];
+function clearTimers() { timerIds.forEach(t=>clearInterval(t)); timerIds=[]; }
+function liveTimer(elId, startMs) {
+  const t = setInterval(()=>{
+    const el = document.getElementById(elId);
+    if(!el){clearInterval(t);return;}
+    el.textContent = fmt(Date.now()-startMs);
+  },1000);
+  timerIds.push(t);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+function renderDashboard() {
+  clearTimers();
+  const ocupados = OPERARIOS.filter(op=>SESIONES.some(s=>s.operarioId===op.id));
+  const totalMod = PROYECTOS.reduce((a,p)=>a+p.modulos.length,0);
+  const desp     = PROYECTOS.reduce((a,p)=>a+p.modulos.filter(m=>m.estado==='despachado').length,0);
+  document.getElementById('kpi-proyectos').textContent  = PROYECTOS.filter(p=>p.estado==='en_produccion').length;
+  document.getElementById('kpi-operarios').textContent  = `${ocupados.length}/${OPERARIOS.length}`;
+  document.getElementById('kpi-inventario').textContent = totalMod-desp;
+  document.getElementById('kpi-despachados').textContent= desp;
+
+  // operarios
+  let opHtml = '';
+  OPERARIOS.forEach(op=>{
+    const ses = SESIONES.find(s=>s.operarioId===op.id);
+    const c   = ses?CENTROS.find(x=>x.id===ses.centroId):null;
+    const pr  = ses?PROYECTOS.find(p=>p.id===ses.proyectoId):null;
+    const it  = ses&&pr?pr.items.find(i=>i.id===ses.itemId):null;
+    const tid = `t-dash-${op.id}`;
+    opHtml += `
+      <div style="background:var(--panel);border:1px solid ${ses?'rgba(245,166,35,.35)':'var(--border)'};border-radius:7px;padding:14px;display:flex;gap:10px;align-items:flex-start;">
+        <div class="av ${ses?'active':'idle'}" style="width:36px;height:36px;font-size:12px;">${op.avatar}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:2px;">${op.nombre}</div>
+          ${ses?`
+            <div style="font-size:11px;color:${c?.color};margin-bottom:2px;">${c?.icon} ${c?.label}</div>
+            <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;">${pr?.nombre} · ${it?.nombre}</div>
+            <span class="mono" style="font-size:12px;color:var(--amber);font-weight:700;" id="${tid}">–</span>
+          `:`<span style="font-size:11px;color:var(--muted);">Disponible</span>`}
+        </div>
+      </div>`;
+  });
+  document.getElementById('dash-operarios').innerHTML = opHtml;
+  SESIONES.forEach(s=>liveTimer(`t-dash-${s.operarioId}`,s.inicio));
+
+  // proyectos
+  let prHtml = '';
+  PROYECTOS.forEach(pr=>{
+    const hA=hAcumPr(pr.id), hE=hEstPr(pr);
+    const matP=pr.materiales.filter(m=>m.recibido<m.requerido).length;
+    prHtml += `
+      <div style="background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:14px 16px;cursor:pointer;margin-bottom:8px;transition:border-color .2s;"
+        onmouseenter="this.style.borderColor='var(--amber)'" onmouseleave="this.style.borderColor='var(--border)'"
+        onclick="abrirDetallePr('${pr.id}')">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;">${pr.nombre}</div>
+            <div style="font-size:11px;color:var(--muted);">${pr.clienteNombre}</div>
+          </div>
+          ${matP>0?pill(matP+' mat. pend.','var(--red)'):''}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap;">${fmtH(hA)}/${fmtH(hE)}</span>
+          ${bar(hA,hE,hA>hE?'var(--red)':'var(--amber)')}
+        </div>
+      </div>`;
+  });
+  document.getElementById('dash-proyectos').innerHTML = prHtml;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROYECTOS
+// ═══════════════════════════════════════════════════════════════════════════
+function renderProyectos() {
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><div class="sec-title" style="margin:0;">Proyectos</div><button class="btn btn-primary" onclick="abrirModalNuevoPr()">+ Nuevo Proyecto</button></div>`;
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">`;
+  PROYECTOS.forEach(pr=>{
+    const hA=hAcumPr(pr.id),hE=hEstPr(pr);
+    const matP=pr.materiales.filter(m=>m.recibido<m.requerido).length;
+    const inv=pr.modulos.filter(m=>m.estado==='en_inventario').length;
+    const des=pr.modulos.filter(m=>m.estado==='despachado').length;
+    html+=`
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;cursor:pointer;transition:border-color .2s;"
+        onmouseenter="this.style.borderColor='var(--amber)'" onmouseleave="this.style.borderColor='var(--border)'"
+        onclick="abrirDetallePr('${pr.id}')">
+        <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:4px;">${pr.clienteNombre}</div>
+        <div style="font-size:18px;font-weight:700;margin-bottom:14px;">${pr.nombre}</div>
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+            <span class="mono" style="font-size:10px;color:var(--muted);">HORAS ${fmtH(hA)} / ${fmtH(hE)}</span>
+          </div>
+          ${bar(hA,hE,hA>hE?'var(--red)':'var(--amber)',5)}
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${pill(pr.items.length+' ítems','var(--blue)')}
+          ${pill(matP+' mat. pend.',matP>0?'var(--red)':'var(--green)')}
+          ${pill(inv+' inventario','var(--teal)')}
+          ${pill(des+' despachados','var(--purple)')}
+        </div>
+      </div>`;
+  });
+  html+=`</div>`;
+  document.getElementById('pr-lista').innerHTML = html;
+}
+
+function abrirDetallePr(prId) {
+  clearTimers();
+  const pr = PROYECTOS.find(p=>p.id===prId);
+  if(!pr) return;
+  document.getElementById('pr-lista').style.display = 'none';
+  const det = document.getElementById('pr-detalle');
+  det.style.display = 'block';
+  renderDetallePr(pr, 'resumen');
+}
+
+let detallePrId = null, detalleSub = 'resumen';
+function renderDetallePr(pr, sub) {
+  detallePrId = pr.id; detalleSub = sub;
+  clearTimers();
+  const hA=hAcumPr(pr.id), hE=hEstPr(pr);
+  const byCentro=hByCentro(pr.id), byOp=hByOp(pr.id);
+  const SUBS=['resumen','ítems','materiales','módulos','tiempos'];
+
+  let html = `
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+      <button class="back-btn" onclick="volverListaPr()">← Proyectos</button>
+      <div style="flex:1;">
+        <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${pr.clienteNombre}</div>
+        <div style="font-size:22px;font-weight:700;">${pr.nombre}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="mono" style="font-size:13px;color:${hA>hE?'var(--red)':'var(--amber)'};">${fmtH(hA)} / ${fmtH(hE)}</div>
+        <div style="font-size:10px;color:var(--muted);">real / estimado</div>
+      </div>
+    </div>
+    <div class="sub-tabs">
+      ${SUBS.map(s=>`<button class="sub-tab ${sub===s?'active':''}" onclick="renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${s}')">${s}</button>`).join('')}
+    </div>`;
+
+  // ── RESUMEN ──
+  if(sub==='resumen'){
+    const maxH=Math.max(...Object.values(byCentro),...Object.values(byOp).length?Object.values(byOp):[0],1);
+    html+=`<div class="grid2">
+      <div class="card"><div class="sec-title">Horas por Centro</div>`;
+    CENTROS.forEach(c=>{
+      html+=`<div style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+          <span style="font-size:12px;color:${c.color};font-weight:600;">${c.icon} ${c.label}</span>
+          <span class="mono" style="font-size:12px;font-weight:700;">${fmtH(byCentro[c.id]||0)}</span>
+        </div>${bar(byCentro[c.id]||0,maxH,c.color,7)}</div>`;
+    });
+    html+=`</div><div class="card"><div class="sec-title">Horas por Operario</div>`;
+    OPERARIOS.forEach(op=>{
+      const h=byOp[op.id]||0;
+      const ses=SESIONES.find(s=>s.operarioId===op.id&&s.proyectoId===pr.id);
+      const tid=`t-byop-${op.id}`;
+      html+=`<div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+        <div class="av ${ses?'active':'idle'}" style="width:28px;height:28px;font-size:10px;">${op.avatar}</div>
+        <div style="flex:1;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span style="font-size:12px;">${op.nombre}</span>
+            <span class="mono" style="font-size:12px;color:${ses?'var(--amber)':'var(--text)'};font-weight:700;">${fmtH(h)}${ses?` <span id="${tid}">–</span> ▶`:''}</span>
+          </div>${bar(h,maxH,ses?'var(--amber)':'var(--blue)')}
+        </div></div>`;
+    });
+    html+=`</div></div>`;
+    document.getElementById('pr-detalle').innerHTML = html;
+    SESIONES.filter(s=>s.proyectoId===pr.id).forEach(s=>liveTimer(`t-byop-${s.operarioId}`,s.inicio));
+    return;
+  }
+
+  // ── ÍTEMS ──
+  if(sub==='ítems'){
+    html+=`<div style="display:flex;flex-direction:column;gap:12px;">`;
+    pr.items.forEach(it=>{
+      const hA2=hAcumIt(pr.id,it.id);
+      const sesAct=SESIONES.filter(s=>s.proyectoId===pr.id&&s.itemId===it.id);
+      html+=`<div style="background:var(--card);border:1px solid ${sesAct.length?'rgba(245,166,35,.4)':'var(--border)'};border-radius:8px;padding:20px;">
+        <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
+          <div style="flex:1;">
+            <div style="font-size:16px;font-weight:600;margin-bottom:8px;">${it.nombre}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">${it.centros.map(cId=>{const c=CENTROS.find(x=>x.id===cId);return`<span class="pill" style="color:${c?.color};border:1px solid ${c?.color}33;background:${c?.color}10">${c?.label}</span>`;}).join('')}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="mono" style="font-size:20px;font-weight:700;color:${hA2>it.hEst?'var(--red)':'var(--amber)'};">${fmtH(hA2)}</div>
+            <div style="font-size:11px;color:var(--muted);">de ${fmtH(it.hEst)} est.</div>
+          </div>
+        </div>
+        ${bar(hA2,it.hEst||1,hA2>it.hEst?'var(--red)':'var(--green)',5)}
+        ${it.nota?`<div class="nota-box" style="margin-top:12px;">${it.nota}</div>`:''}
+        ${sesAct.length?`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">${sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);const c=CENTROS.find(x=>x.id===s.centroId);const tid=`t-it-${s.id}`;return`<div style="display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:5px;padding:5px 10px;border:1px solid rgba(245,166,35,.3);"><div class="av active" style="width:22px;height:22px;font-size:9px;">${op?.avatar}</div><span style="font-size:11px;">${op?.nombre}</span><span style="font-size:11px;color:${c?.color};">${c?.icon}</span><span class="mono" style="font-size:11px;color:var(--amber);" id="${tid}">–</span></div>`;}).join('')}</div>`:''}
+      </div>`;
+    });
+    html+=`</div>`;
+    document.getElementById('pr-detalle').innerHTML = html;
+    SESIONES.forEach(s=>liveTimer(`t-it-${s.id}`,s.inicio));
+    return;
+  }
+
+  // ── MATERIALES ──
+  if(sub==='materiales'){
+    html+=`<div style="display:flex;flex-direction:column;gap:10px;">`;
+    pr.materiales.forEach(m=>{
+      const ok=m.recibido>=m.requerido;
+      html+=`<div style="background:var(--card);border:1px solid ${ok?'rgba(61,214,140,.3)':'var(--border)'};border-radius:8px;padding:18px;display:flex;align-items:center;gap:16px;">
+        <div style="flex:1;">
+          <div style="font-size:14px;font-weight:600;margin-bottom:8px;">${m.nombre}</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="mono" style="font-size:12px;color:${ok?'var(--green)':'var(--amber)'};white-space:nowrap;">${m.recibido}/${m.requerido} ${m.unidad}</span>
+            ${bar(m.recibido,m.requerido,ok?'var(--green)':'var(--amber)')}
+          </div>
+        </div>
+        ${!ok?`<div style="display:flex;gap:6px;align-items:center;">
+          <input type="number" min="1" max="${m.requerido-m.recibido}" placeholder="cant." id="recv-${m.id}" style="width:70px;background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:6px 8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;">
+          <button class="btn btn-primary btn-sm" onclick="recibirMat('${pr.id}','${m.id}',false)">Recibir</button>
+          <button class="btn btn-ghost btn-sm" onclick="recibirMat('${pr.id}','${m.id}',true)">Todo</button>
+        </div>`:`${pill('✓ Completo','var(--green)')}`}
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+
+  // ── MÓDULOS ──
+  if(sub==='módulos'){
+    html+=`<div style="display:flex;justify-content:flex-end;margin-bottom:14px;"><button class="btn btn-primary" onclick="abrirModalModulo('${pr.id}')">+ Agregar Módulo</button></div>`;
+    html+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;">`;
+    pr.modulos.forEach(mo=>{
+      const it=pr.items.find(i=>i.id===mo.itemId);
+      const des=mo.estado==='despachado';
+      // QR decorativo SVG
+      let qrSvg=`<svg viewBox="0 0 21 21" width="40" height="40">`;
+      for(let r=0;r<7;r++){for(let c=0;c<7;c++){const fin=(r<3&&c<3)||(r<3&&c>3)||(r>3&&c<3);const code=mo.id.charCodeAt((r*7+c)%mo.id.length);const on=fin?true:code%2===0;if(on)qrSvg+=`<rect x="${c*3}" y="${r*3}" width="2.5" height="2.5" fill="var(--amber)" rx=".3"/>`;}}
+      qrSvg+=`</svg>`;
+      html+=`<div style="background:var(--card);border:1px solid ${des?'rgba(155,109,255,.4)':'var(--border)'};border-radius:8px;padding:18px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+          ${pill(des?'Despachado':'En Inventario',des?'var(--purple)':'var(--teal)')}
+          ${mo.despacho?`<span class="mono" style="font-size:10px;color:var(--muted);">${mo.despacho}</span>`:''}
+        </div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:3px;">${mo.nombre}</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">${it?.nombre||''}</div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;">
+          <div style="background:var(--panel);border:1px solid var(--border);border-radius:5px;padding:5px;flex-shrink:0;">${qrSvg}</div>
+          <div class="mono" style="font-size:10px;color:var(--muted);line-height:1.7;">${mo.id.toUpperCase()}<br>${pr.nombre}<br>${it?.nombre||''}</div>
+        </div>
+        ${!des?`<div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm">🖨 Etiqueta</button>
+          <button class="btn btn-success btn-sm" onclick="despacharModulo('${pr.id}','${mo.id}')">Despachar</button>
+        </div>`:''}
+      </div>`;
+    });
+    if(pr.modulos.length===0) html+=`<div class="mono" style="font-size:12px;color:var(--muted);">Sin módulos cargados</div>`;
+    html+=`</div>`;
+  }
+
+  // ── TIEMPOS ──
+  if(sub==='tiempos'){
+    html+=`<div style="display:flex;flex-direction:column;gap:12px;">`;
+    pr.items.forEach(it=>{
+      const hA2=hAcumIt(pr.id,it.id);
+      html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-size:15px;font-weight:600;">${it.nombre}</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span class="mono" style="font-size:14px;color:${hA2>it.hEst?'var(--red)':'var(--amber)'};font-weight:700;">${fmtH(hA2)}</span>
+            <span style="font-size:11px;color:var(--muted);">/ ${fmtH(it.hEst)}</span>
+            ${pill(pct(hA2,it.hEst)+'%',hA2>it.hEst?'var(--red)':'var(--green)')}
+          </div>
+        </div>
+        ${bar(hA2,it.hEst||1,hA2>it.hEst?'var(--red)':'var(--green)',6)}
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+
+  document.getElementById('pr-detalle').innerHTML = html;
+}
+
+function volverListaPr() {
+  clearTimers();
+  document.getElementById('pr-lista').style.display = 'block';
+  document.getElementById('pr-detalle').style.display = 'none';
+  renderProyectos();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OPERARIOS
+// ═══════════════════════════════════════════════════════════════════════════
+function renderOperarios() {
+  clearTimers();
+  let html = '';
+  OPERARIOS.forEach(op=>{
+    const ses=SESIONES.find(s=>s.operarioId===op.id);
+    const c=ses?CENTROS.find(x=>x.id===ses.centroId):null;
+    const pr=ses?PROYECTOS.find(p=>p.id===ses.proyectoId):null;
+    const it=ses&&pr?pr.items.find(i=>i.id===ses.itemId):null;
+    const hist=HISTORIAL.filter(h=>h.operarioId===op.id);
+    const totalH=hist.reduce((a,h)=>a+msH(h.fin-h.inicio),0)+(ses?msH(Date.now()-ses.inicio):0);
+    const tid=`t-op-${op.id}`;
+    html+=`
+      <div class="op-row ${ses?'busy':''}">
+        <div style="flex-shrink:0;text-align:center;">
+          <div class="av ${ses?'active':'idle'}" style="width:48px;height:48px;font-size:16px;">${op.avatar}</div>
+          <div class="mono" style="font-size:10px;color:var(--muted);margin-top:6px;">${fmtH(totalH)}</div>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:16px;font-weight:700;margin-bottom:2px;">${op.nombre}</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">${op.especialidad}</div>
+          ${ses?`
+            <div style="background:var(--panel);border:1px solid rgba(245,166,35,.25);border-radius:7px;padding:12px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px;">
+              <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">CENTRO</div><div style="font-size:13px;color:${c?.color};font-weight:600;">${c?.icon} ${c?.label}</div></div>
+              <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">PROYECTO</div><div style="font-size:13px;">${pr?.nombre}</div></div>
+              <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">ÍTEM</div><div style="font-size:13px;">${it?.nombre}</div></div>
+              <div style="margin-left:auto;text-align:right;"><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">TIEMPO</div><span class="mono" style="font-size:13px;color:var(--amber);font-weight:700;" id="${tid}">–</span></div>
+            </div>`:`<div style="margin-bottom:10px;">${pill('Sin tarea activa','var(--muted)')}</div>`}
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            ${hist.slice(-3).reverse().map(h=>{const hc=CENTROS.find(x=>x.id===h.centroId);const hp=PROYECTOS.find(x=>x.id===h.proyectoId);const hi=hp?.items.find(x=>x.id===h.itemId);return`<div style="font-size:11px;color:var(--muted);display:flex;gap:10px;"><span style="color:${hc?.color}">${hc?.icon}</span><span>${hp?.nombre} · ${hi?.nombre}</span><span style="margin-left:auto;font-family:'JetBrains Mono',monospace;">${fmtH(msH(h.fin-h.inicio))}</span></div>`;}).join('')}
+          </div>
+        </div>
+      </div>`;
+  });
+  document.getElementById('op-lista').innerHTML = html;
+  SESIONES.forEach(s=>liveTimer(`t-op-${s.operarioId}`,s.inicio));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TIEMPOS
+// ═══════════════════════════════════════════════════════════════════════════
+let tiemposPrSel = PROYECTOS[0]?.id;
+function renderTiempos() {
+  clearTimers();
+  // tabs selector
+  let tabs = PROYECTOS.map(p=>`<button class="btn ${tiemposPrSel===p.id?'btn-primary':'btn-ghost'}" onclick="tiemposPrSel='${p.id}';renderTiempos();">${p.nombre}</button>`).join('');
+  document.getElementById('tiempos-tabs').innerHTML = tabs;
+
+  const pr=PROYECTOS.find(p=>p.id===tiemposPrSel);
+  if(!pr){return;}
+  const hA=hAcumPr(pr.id),hE=hEstPr(pr);
+  const byCentro=hByCentro(pr.id),byOp=hByOp(pr.id);
+  const maxH=Math.max(...Object.values(byCentro),...Object.values(byOp).length?Object.values(byOp):[0],1);
+
+  let html=`
+    <div class="grid3" style="margin-bottom:20px;">
+      <div class="card" style="text-align:center;"><div class="kpi-label">Total Real</div><div class="kpi-val" style="color:var(--amber);">${fmtH(hA)}</div></div>
+      <div class="card" style="text-align:center;"><div class="kpi-label">Total Estimado</div><div class="kpi-val" style="color:var(--blue);">${fmtH(hE)}</div></div>
+      <div class="card" style="text-align:center;"><div class="kpi-label">Desviación</div><div class="kpi-val" style="color:${hA>hE?'var(--red)':'var(--green)'};">${hA>hE?'+':''}${fmtH(hA-hE)}</div></div>
+    </div>
+    <div class="grid2" style="margin-bottom:16px;">
+      <div class="card"><div class="sec-title">Por Centro de Trabajo</div>`;
+  CENTROS.forEach(c=>{
+    const h=byCentro[c.id]||0;
+    html+=`<div style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+        <span style="font-size:12px;color:${c.color};font-weight:600;">${c.icon} ${c.label}</span>
+        <span class="mono" style="font-size:13px;font-weight:700;">${fmtH(h)}</span>
+      </div>${bar(h,maxH,c.color,8)}</div>`;
+  });
+  html+=`</div><div class="card"><div class="sec-title">Por Operario</div>`;
+  OPERARIOS.forEach(op=>{
+    const h=byOp[op.id]||0;
+    const ses=SESIONES.find(s=>s.operarioId===op.id&&s.proyectoId===pr.id);
+    const tid=`t-tiem-${op.id}`;
+    html+=`<div style="margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+        <div class="av ${ses?'active':'idle'}" style="width:26px;height:26px;font-size:10px;">${op.avatar}</div>
+        <span style="font-size:12px;flex:1;">${op.nombre}</span>
+        <span class="mono" style="font-size:13px;color:${ses?'var(--amber)':'var(--text)'};font-weight:700;">${fmtH(h)}${ses?` <span id="${tid}">–</span> ▶`:''}</span>
+      </div>${bar(h,maxH,ses?'var(--amber)':'var(--blue)',6)}</div>`;
+  });
+  html+=`</div></div><div class="card"><div class="sec-title">Por Ítem del Proyecto</div>`;
+  pr.items.forEach(it=>{
+    const hA2=hAcumIt(pr.id,it.id);
+    const sesAct=SESIONES.filter(s=>s.proyectoId===pr.id&&s.itemId===it.id);
+    html+=`<div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div>
+          <span style="font-size:14px;font-weight:600;">${it.nombre}</span>
+          ${sesAct.length?`<span class="mono" style="margin-left:10px;font-size:10px;color:var(--amber);">▶ ${sesAct.length} activo${sesAct.length>1?'s':''}</span>`:''}
+        </div>
+        <div style="text-align:right;">
+          <span class="mono" style="font-size:15px;color:${hA2>it.hEst?'var(--red)':'var(--amber)'};font-weight:700;">${fmtH(hA2)}</span>
+          <span style="font-size:11px;color:var(--muted);"> / ${fmtH(it.hEst)}</span>
+        </div>
+      </div>
+      ${bar(hA2,it.hEst||1,hA2>it.hEst?'var(--red)':'var(--green)',7)}
+    </div>`;
+  });
+  html+=`</div>`;
+  document.getElementById('tiempos-contenido').innerHTML=html;
+  SESIONES.filter(s=>s.proyectoId===pr.id).forEach(s=>{liveTimer(`t-tiem-${s.operarioId}`,s.inicio);});
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MATERIALES (global)
+// ═══════════════════════════════════════════════════════════════════════════
+let matPrSel = PROYECTOS[0]?.id;
+function renderMateriales() {
+  let tabs = PROYECTOS.map(p=>`<button class="btn ${matPrSel===p.id?'btn-primary':'btn-ghost'}" onclick="matPrSel='${p.id}';renderMateriales();">${p.nombre}</button>`).join('');
+  document.getElementById('mat-tabs').innerHTML = tabs;
+  const pr=PROYECTOS.find(p=>p.id===matPrSel);
+  if(!pr){return;}
+  let html=`<div style="display:flex;flex-direction:column;gap:10px;">`;
+  pr.materiales.forEach(m=>{
+    const ok=m.recibido>=m.requerido;
+    html+=`<div style="background:var(--card);border:1px solid ${ok?'rgba(61,214,140,.3)':'var(--border)'};border-radius:8px;padding:18px;display:flex;align-items:center;gap:16px;">
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:600;margin-bottom:8px;">${m.nombre}</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="mono" style="font-size:12px;color:${ok?'var(--green)':'var(--amber)'};white-space:nowrap;">${m.recibido}/${m.requerido} ${m.unidad}</span>
+          ${bar(m.recibido,m.requerido,ok?'var(--green)':'var(--amber)')}
+        </div>
+      </div>
+      ${!ok?`<div style="display:flex;gap:6px;align-items:center;">
+        <input type="number" min="1" max="${m.requerido-m.recibido}" placeholder="cant." id="mat-${m.id}" style="width:70px;background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:6px 8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;">
+        <button class="btn btn-primary btn-sm" onclick="recibirMat('${pr.id}','${m.id}',false,'mat-')">Recibir</button>
+        <button class="btn btn-ghost btn-sm" onclick="recibirMat('${pr.id}','${m.id}',true,'mat-')">Todo</button>
+      </div>`:`${pill('✓ Completo','var(--green)')}`}
+    </div>`;
+  });
+  html+=`</div>`;
+  document.getElementById('mat-contenido').innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACCIONES
+// ═══════════════════════════════════════════════════════════════════════════
+function recibirMat(prId,maId,todo,prefix='recv-'){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  const m=pr?.materiales.find(x=>x.id===maId);
+  if(!m)return;
+  let cant=todo?(m.requerido-m.recibido):Number(document.getElementById(`${prefix}${maId}`)?.value||0);
+  if(cant<=0)return;
+  m.recibido=Math.min(m.requerido,m.recibido+cant);
+  renderCurrentView();
+}
+
+function despacharModulo(prId,moId){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  const mo=pr?.modulos.find(m=>m.id===moId);
+  if(!mo)return;
+  mo.estado='despachado';
+  mo.despacho=new Date().toLocaleDateString('es-UY');
+  renderDetallePr(pr,'módulos');
+}
+
+function abrirDetallePr(prId) {
+  navTo('proyectos');
+  setTimeout(()=>{
+    document.getElementById('pr-lista').style.display='none';
+    document.getElementById('pr-detalle').style.display='block';
+    renderDetallePr(PROYECTOS.find(p=>p.id===prId),'resumen');
+  },10);
+}
+
+// ─── modales ───────────────────────────────────────────────────────────────
+function abrirModal(title,bodyHtml){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-body').innerHTML=bodyHtml;
+  document.getElementById('overlay').classList.add('open');
+}
+function cerrarModal(){ document.getElementById('overlay').classList.remove('open'); }
+
+function abrirModalModulo(prId){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  abrirModal('Agregar Módulo',`
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="field"><label>Ítem</label>
+        <select id="m-item"><option value="">Seleccionar...</option>${pr.items.map(i=>`<option value="${i.id}">${i.nombre}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Nombre del módulo</label><input id="m-nombre" placeholder="Ej: Panel Lateral Izq."></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-primary" onclick="confirmarModulo('${prId}')">Agregar</button>
+        <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
+      </div>
+    </div>`);
+}
+
+function confirmarModulo(prId){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  const itId=document.getElementById('m-item').value;
+  const nombre=document.getElementById('m-nombre').value;
+  if(!itId||!nombre)return;
+  pr.modulos.push({id:Math.random().toString(36).slice(2,8),itemId:itId,nombre,estado:'en_inventario',despacho:null});
+  cerrarModal();
+  renderDetallePr(pr,'módulos');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════
+renderDashboard();
+</script>
+</body>
+</html>

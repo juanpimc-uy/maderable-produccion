@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maderable · Fórmula de Tiempos</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Sora:wght@400;500;600;700&display=swap');
+  :root {
+    --bg:#0E0F14;--panel:#14161D;--card:#1A1D27;--border:#252836;
+    --text:#E8EAF2;--muted:#5A5F78;--faint:#20243A;
+    --amber:#F5A623;--green:#3DD68C;--red:#F05C5C;
+    --blue:#5B8DEF;--purple:#9B6DFF;--teal:#2EC4B6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100vh;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 28px;height:54px;display:flex;align-items:center;gap:14px;}
+  .logo{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
+  .page{max-width:960px;margin:0 auto;padding:28px 24px 80px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;margin-bottom:20px;}
+  .card-title{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:18px;}
+  .btn{padding:8px 18px;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.5px;transition:opacity .15s;}
+  .btn:hover{opacity:.82;}
+  .btn-primary{background:var(--amber);color:#0E0F14;}
+  .btn-ghost{background:var(--faint);color:var(--muted);border:1px solid var(--border);}
+  .btn-success{background:var(--green);color:#0E0F14;}
+  .info-box{background:rgba(91,141,239,.06);border:1px solid rgba(91,141,239,.2);border-radius:8px;padding:14px 18px;font-size:13px;color:var(--blue);margin-bottom:20px;line-height:1.6;}
+  .ok-banner{background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.3);border-radius:8px;padding:12px 18px;font-size:13px;color:var(--green);margin-bottom:16px;display:none;}
+  .ok-banner.show{display:block;}
+
+  /* coeficientes */
+  .coef-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:12px;}
+  .coef-box{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:16px 10px;text-align:center;}
+  .coef-icon{font-size:20px;margin-bottom:6px;}
+  .coef-label{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;margin-bottom:10px;display:block;}
+  .coef-input{width:100%;background:var(--card);border:1px solid var(--border);border-radius:5px;padding:8px 4px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;text-align:center;outline:none;transition:border-color .2s;}
+  .coef-input:focus{border-color:var(--amber);}
+  .coef-unit{font-size:10px;color:var(--muted);margin-top:5px;font-family:'JetBrains Mono',monospace;}
+
+  /* dificultad */
+  .dif-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;}
+  .dif-box{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:16px 14px;}
+  .dif-num-label{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--amber);margin-bottom:4px;}
+  .dif-name{font-size:13px;font-weight:600;margin-bottom:6px;}
+  .dif-desc{font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5;}
+  .dif-input{width:100%;background:var(--card);border:1px solid var(--border);border-radius:5px;padding:8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;text-align:center;outline:none;transition:border-color .2s;}
+  .dif-input:focus{border-color:var(--amber);}
+
+  /* tabla preview */
+  .preview-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .preview-table th{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.8px;color:var(--muted);padding:7px 8px;text-align:center;border-bottom:1px solid var(--border);background:var(--faint);}
+  .preview-table th.row-h{text-align:left;}
+  .preview-table th.dif-h{color:var(--amber);}
+  .preview-table td{padding:6px 8px;text-align:center;border-bottom:1px solid rgba(37,40,54,.5);font-family:'JetBrains Mono',monospace;font-size:11px;}
+  .preview-table td.pl{font-weight:700;color:var(--text);text-align:left;border-right:1px solid var(--border);}
+  .preview-table td.sep{border-left:1px solid var(--border);}
+  .preview-table tr:hover td{background:var(--faint);}
+
+  /* formula display */
+  .formula-display{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:16px 20px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text);text-align:center;margin-bottom:12px;line-height:2;}
+  .formula-highlight{color:var(--amber);font-weight:700;}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .fu{animation:fadeUp .25s ease both;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo">⬡ MADERABLE</span>
+  <span class="mono" style="font-size:11px;color:var(--muted);">/ FÓRMULA DE TIEMPOS</span>
+  <div style="margin-left:auto;display:flex;gap:10px;">
+    <a href="nuevo-proyecto.html" style="text-decoration:none;"><button class="btn btn-ghost">+ Nuevo Proyecto</button></a>
+    <a href="admin.html" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-decoration:none;align-self:center;">← Admin</a>
+  </div>
+</div>
+
+<div class="page">
+
+  <div class="ok-banner fu" id="ok-banner">✓ Fórmula guardada correctamente. Se aplica a todos los proyectos.</div>
+
+  <div class="info-box fu">
+    Esta configuración es <strong>global</strong> — aplica a todos los proyectos activos y futuros. 
+    Las horas estimadas se calculan como: <strong>Placas × Coeficiente del centro × Factor de dificultad</strong>. 
+    Ajustá los valores a medida que tengas datos reales del taller.
+  </div>
+
+  <!-- fórmula visual -->
+  <div class="card fu">
+    <div class="card-title">Fórmula</div>
+    <div class="formula-display">
+      Horas<sub style="font-size:10px;">centro</sub> = 
+      <span class="formula-highlight">Placas</span> × 
+      <span class="formula-highlight">Coef<sub style="font-size:10px;">centro</sub></span> × 
+      <span class="formula-highlight">Factor<sub style="font-size:10px;">dificultad</sub></span>
+    </div>
+    <div style="font-size:11px;color:var(--muted);text-align:center;">
+      Ejemplo con 8 placas, dificultad 3 → Armado = 8 × <span id="ej-coef" style="color:var(--amber);">0.80</span> × <span id="ej-dif" style="color:var(--amber);">1.5</span> = <span id="ej-result" style="color:var(--green);font-weight:700;">9.6h</span>
+    </div>
+  </div>
+
+  <!-- coeficientes por centro -->
+  <div class="card fu">
+    <div class="card-title">Coeficiente de horas por placa · por centro de trabajo</div>
+    <div class="coef-grid" id="coef-grid"></div>
+    <div style="font-size:11px;color:var(--muted);">Un valor de 0.50 significa que cada placa requiere 0.50h en ese centro (con dificultad base 2).</div>
+  </div>
+
+  <!-- factores dificultad -->
+  <div class="card fu">
+    <div class="card-title">Factores de dificultad</div>
+    <div class="dif-grid" id="dif-grid"></div>
+  </div>
+
+  <!-- tabla preview -->
+  <div class="card fu">
+    <div class="card-title">Tabla de referencia · Horas estimadas</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Horas totales (suma de todos los centros) según cantidad de placas y dificultad.</div>
+    <div style="overflow-x:auto;">
+      <table class="preview-table" id="preview-table"></table>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;justify-content:flex-end;">
+    <button class="btn btn-ghost" onclick="resetear()">Restaurar defaults</button>
+    <button class="btn btn-primary" onclick="guardar()">✓ Guardar Fórmula</button>
+  </div>
+
+</div>
+
+<script>
+const CENTROS      = ['corte','enchapado','armado','revision','empaquetado'];
+const CENTRO_LABEL = { corte:'Corte', enchapado:'Enchapado/Perf.', armado:'Armado', revision:'Revisión', empaquetado:'Empaquetado' };
+const CENTRO_ICON  = { corte:'⬡', enchapado:'◈', armado:'⬗', revision:'◎', empaquetado:'▣' };
+const CENTRO_COLOR = { corte:'var(--amber)', enchapado:'var(--blue)', armado:'var(--purple)', revision:'var(--teal)', empaquetado:'var(--green)' };
+
+const COEF_DEF = { corte:0.50, enchapado:0.30, armado:0.80, revision:0.20, empaquetado:0.20 };
+const DIF_DEF  = { 1:0.7, 2:1.0, 3:1.5, 4:2.2 };
+const DIF_NAMES = { 1:'Simple', 2:'Medio', 3:'Complejo', 4:'Muy complejo' };
+const DIF_DESC  = {
+  1:'Cortes rectos sin detalles especiales. Sin herrajes complejos.',
+  2:'Cantos ABS, bisagras estándar, cajones simples.',
+  3:'Molduras, puertas proyectantes, brazo a gas, múltiples mecanismos.',
+  4:'Formas irregulares, curvas, múltiples terminaciones simultáneas.'
+};
+
+let COEF = JSON.parse(localStorage.getItem('coef') || JSON.stringify(COEF_DEF));
+let DIF  = JSON.parse(localStorage.getItem('dif')  || JSON.stringify(DIF_DEF));
+
+function init() {
+  // coeficientes
+  document.getElementById('coef-grid').innerHTML = CENTROS.map(c => `
+    <div class="coef-box">
+      <div class="coef-icon" style="color:${CENTRO_COLOR[c]}">${CENTRO_ICON[c]}</div>
+      <span class="coef-label" style="color:${CENTRO_COLOR[c]}">${CENTRO_LABEL[c].toUpperCase()}</span>
+      <input class="coef-input" type="number" step="0.05" min="0.05" max="5" value="${COEF[c]}" id="coef-${c}" oninput="onInput()"/>
+      <div class="coef-unit">h / placa</div>
+    </div>`).join('');
+
+  // dificultad
+  document.getElementById('dif-grid').innerHTML = [1,2,3,4].map(d => `
+    <div class="dif-box">
+      <div class="dif-num-label">${d}</div>
+      <div class="dif-name">${DIF_NAMES[d]}</div>
+      <div class="dif-desc">${DIF_DESC[d]}</div>
+      <input class="dif-input" type="number" step="0.1" min="0.1" max="10" value="${DIF[d]}" id="dif-${d}" oninput="onInput()"/>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:'JetBrains Mono',monospace;">multiplicador</div>
+    </div>`).join('');
+
+  renderTable();
+}
+
+function readCurrent() {
+  const coef = {}, dif = {};
+  CENTROS.forEach(c => { const el = document.getElementById('coef-'+c); coef[c] = el ? parseFloat(el.value)||COEF_DEF[c] : COEF_DEF[c]; });
+  [1,2,3,4].forEach(d => { const el = document.getElementById('dif-'+d); dif[d] = el ? parseFloat(el.value)||DIF_DEF[d] : DIF_DEF[d]; });
+  return { coef, dif };
+}
+
+function onInput() {
+  const { coef, dif } = readCurrent();
+  // actualizar ejemplo (armado, 8 placas, dif 3)
+  const ejC = coef['armado'] || 0.80;
+  const ejD = dif[3] || 1.5;
+  document.getElementById('ej-coef').textContent   = ejC.toFixed(2);
+  document.getElementById('ej-dif').textContent    = ejD.toFixed(1);
+  document.getElementById('ej-result').textContent = (8 * ejC * ejD).toFixed(1) + 'h';
+  renderTable();
+}
+
+function renderTable() {
+  const { coef, dif } = readCurrent();
+  const ejemplos = [2, 4, 6, 8, 10, 14, 18, 24];
+
+  let html = `<thead>
+    <tr>
+      <th class="row-h" rowspan="2">Placas</th>
+      ${[1,2,3,4].map(d => `<th class="dif-h" colspan="2" style="border-left:1px solid var(--border);">DIF ${d} — ${DIF_NAMES[d]}<br><span style="font-weight:400;color:var(--muted);">×${(dif[d]||1).toFixed(1)}</span></th>`).join('')}
+    </tr>
+    <tr>
+      ${[1,2,3,4].map(() => `<th style="border-left:1px solid var(--border);">Total</th><th>Corte</th>`).join('')}
+    </tr>
+  </thead><tbody>`;
+
+  ejemplos.forEach((p, ri) => {
+    html += `<tr style="background:${ri%2===0?'transparent':'rgba(32,36,58,.5)'}">
+      <td class="pl">${p}</td>`;
+    [1,2,3,4].forEach(d => {
+      const f = dif[d] || 1;
+      const total = CENTROS.reduce((a,c) => a + (coef[c]||0)*p*f, 0);
+      const corte = (coef['corte']||0)*p*f;
+      html += `<td class="sep" style="color:var(--amber);font-weight:700;">${total.toFixed(1)}h</td>
+               <td style="color:var(--muted);">${corte.toFixed(1)}h</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  document.getElementById('preview-table').innerHTML = html;
+}
+
+function guardar() {
+  const { coef, dif } = readCurrent();
+  localStorage.setItem('coef', JSON.stringify(coef));
+  localStorage.setItem('dif',  JSON.stringify(dif));
+  COEF = coef; DIF = dif;
+  const b = document.getElementById('ok-banner');
+  b.classList.add('show');
+  setTimeout(() => b.classList.remove('show'), 3000);
+}
+
+function resetear() {
+  if(!confirm('¿Restaurar valores por defecto?')) return;
+  localStorage.removeItem('coef'); localStorage.removeItem('dif');
+  COEF = JSON.parse(JSON.stringify(COEF_DEF));
+  DIF  = JSON.parse(JSON.stringify(DIF_DEF));
+  init();
+}
+
+init();
+</script>
+</body>
+</html>

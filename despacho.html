@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maderable · Despacho</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Sora:wght@400;500;600;700&display=swap');
+  :root {
+    --bg:#0E0F14;--panel:#14161D;--card:#1A1D27;--border:#252836;
+    --text:#E8EAF2;--muted:#5A5F78;--faint:#20243A;
+    --amber:#F5A623;--green:#3DD68C;--red:#F05C5C;
+    --blue:#5B8DEF;--purple:#9B6DFF;--teal:#2EC4B6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100vh;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 24px;height:54px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:50;}
+  .logo{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
+  .page{max-width:1000px;margin:0 auto;padding:24px 20px 80px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
+  .btn{padding:8px 18px;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.5px;transition:opacity .15s;}
+  .btn:hover{opacity:.82;}
+  .btn-primary{background:var(--amber);color:#0E0F14;}
+  .btn-ghost{background:var(--faint);color:var(--muted);border:1px solid var(--border);}
+  .btn-success{background:var(--green);color:#0E0F14;}
+  .btn-danger{background:var(--red);color:#fff;}
+  .btn-sm{padding:4px 11px;font-size:10px;}
+  .pill{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.8px;padding:2px 8px;border-radius:3px;text-transform:uppercase;white-space:nowrap;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+  .field input,.field select{background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 11px;color:var(--text);font-family:'Sora',sans-serif;font-size:14px;outline:none;width:100%;transition:border-color .2s;}
+  .field input:focus{border-color:var(--amber);}
+  select option{background:var(--faint);}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  .divider{height:1px;background:var(--border);margin:14px 0;}
+  .sec{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;}
+  .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100;align-items:center;justify-content:center;}
+  .overlay.open{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:26px;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+  .modal-title{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;}
+
+  /* tabs */
+  .tabs{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:4px;margin-bottom:24px;}
+  .tab{flex:1;padding:8px 12px;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;background:transparent;color:var(--muted);transition:all .2s;text-align:center;}
+  .tab.active{background:var(--amber);color:#0E0F14;}
+
+  /* módulo row */
+  .mod-row{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:7px;margin-bottom:6px;cursor:pointer;transition:all .2s;border:2px solid transparent;user-select:none;}
+  .mod-row:hover{background:var(--faint);}
+  .mod-row.sel{background:rgba(61,214,140,.06);border-color:rgba(61,214,140,.35);}
+  .mod-row.despachado{opacity:.5;cursor:default;background:var(--faint);}
+  .mod-check{width:22px;height:22px;border-radius:5px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;font-size:12px;}
+  .mod-row.sel .mod-check{background:var(--green);border-color:var(--green);color:#0E0F14;}
+  .mod-row.despachado .mod-check{background:var(--faint);border-color:var(--border);color:var(--muted);}
+  .mod-codigo{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--amber);min-width:60px;}
+  .mod-nombre{font-size:13px;font-weight:600;flex:1;}
+  .mod-cant{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);}
+
+  /* bulto card */
+  .bulto-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;}
+  .bulto-header{display:flex;align-items:center;gap:12px;margin-bottom:10px;}
+  .bulto-num{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--amber);min-width:40px;}
+  .bulto-mods{font-size:12px;color:var(--muted);}
+
+  /* verificación scanner */
+  .scan-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:6px;margin-bottom:6px;background:var(--faint);}
+  .scan-row.ok{background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.25);}
+  .scan-row.pendiente{background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.2);}
+  .scan-icon{font-size:16px;width:24px;text-align:center;}
+
+  /* resumen despacho */
+  .desp-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.25);border-radius:6px;padding:6px 12px;font-size:12px;color:var(--green);font-family:'JetBrains Mono',monospace;}
+
+  /* print */
+  @media print {
+    .topbar,.tabs,.no-print{display:none!important;}
+    .page{padding:0;max-width:100%;}
+    body{background:#fff;color:#000;}
+    .card{border:1px solid #ccc;background:#fff;}
+    .print-only{display:block!important;}
+  }
+  .print-only{display:none;}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .fu{animation:fadeUp .25s ease both;}
+  @keyframes scan-flash{0%{background:rgba(61,214,140,.3)}100%{background:rgba(61,214,140,.08)}}
+  .scan-flash{animation:scan-flash .4s ease;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo">⬡ MADERABLE</span>
+  <span class="mono" style="font-size:11px;color:var(--muted);">/ DESPACHO</span>
+  <div style="margin-left:auto;display:flex;gap:10px;align-items:center;">
+    <a href="admin.html" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-decoration:none;">← Admin</a>
+  </div>
+</div>
+
+<div class="page">
+
+  <div class="tabs">
+    <button class="tab active" id="tab-preparar" onclick="switchTab('preparar')">📦 Preparar Despacho</button>
+    <button class="tab" id="tab-verificar" onclick="switchTab('verificar')">📡 Verificar Bultos</button>
+    <button class="tab" id="tab-historial" onclick="switchTab('historial')">✓ Historial</button>
+  </div>
+
+  <!-- ══ PREPARAR ══════════════════════════════════════════════════════════ -->
+  <div id="pane-preparar">
+
+    <!-- KPIs -->
+    <div class="g4" style="margin-bottom:20px;" id="kpi-desp"></div>
+
+    <!-- selector proyecto -->
+    <div class="card">
+      <div class="sec">Seleccionar Proyecto</div>
+      <div class="field">
+        <select id="sel-proyecto" onchange="onProyecto()">
+          <option value="">— Elegir proyecto —</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="detalle-proyecto" style="display:none;">
+
+      <!-- info proyecto -->
+      <div class="card fu" id="info-pr"></div>
+
+      <!-- módulos disponibles -->
+      <div class="card fu">
+        <div class="sec">
+          Módulos Listos para Despachar
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="selTodos()">Seleccionar todos</button>
+            <button class="btn btn-ghost btn-sm" onclick="deselTodos()">Ninguno</button>
+          </div>
+        </div>
+        <div id="lista-modulos"></div>
+      </div>
+
+      <!-- armar bultos -->
+      <div class="card fu" id="card-bultos" style="display:none;">
+        <div class="sec">
+          Armar Bultos
+          <button class="btn btn-primary btn-sm" onclick="addBulto()">+ Agregar bulto</button>
+        </div>
+        <div class="card" style="background:rgba(245,166,35,.04);border-color:rgba(245,166,35,.2);margin-bottom:14px;">
+          <div style="font-size:12px;color:var(--amber);">Arrastrá los módulos seleccionados a cada bulto, o usá "Auto-distribuir" para que el sistema los reparta.</div>
+          <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="autoDistribuir()">⚡ Auto-distribuir</button>
+        </div>
+        <div id="lista-bultos"></div>
+      </div>
+
+      <!-- acciones -->
+      <div id="acciones-desp" style="display:none;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="confirmarDespacho()">✓ Confirmar Despacho</button>
+          <button class="btn btn-ghost" onclick="imprimirListaBultos()">🖨 Imprimir Lista</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ VERIFICAR ═════════════════════════════════════════════════════════ -->
+  <div id="pane-verificar" style="display:none;">
+    <div class="card">
+      <div class="sec">Verificar Despacho — Escaneo de Bultos</div>
+      <div class="field" style="margin-bottom:14px;">
+        <select id="sel-desp-verif" onchange="onDespVerif()">
+          <option value="">— Seleccionar despacho —</option>
+        </select>
+      </div>
+      <div id="verif-contenido"></div>
+    </div>
+  </div>
+
+  <!-- ══ HISTORIAL ══════════════════════════════════════════════════════════ -->
+  <div id="pane-historial" style="display:none;">
+    <div class="card">
+      <div class="sec">Despachos Realizados</div>
+      <div id="historial-lista"></div>
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<!-- modal confirmar despacho -->
+<div class="overlay" id="overlay-confirm" onclick="cerrarModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Confirmar Despacho</div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="g2">
+        <div class="field"><label>Fecha de salida</label><input type="date" id="conf-fecha"/></div>
+        <div class="field"><label>Responsable</label><input id="conf-resp" placeholder="Quién firma"/></div>
+      </div>
+      <div class="field"><label>Transportista / Vehículo</label><input id="conf-transp" placeholder="Ej: Camioneta propia, Fletes Suárez..."/></div>
+      <div class="field"><label>Observaciones</label><input id="conf-obs" placeholder="Notas del despacho..."/></div>
+      <div id="conf-resumen" style="background:var(--faint);border-radius:8px;padding:14px;font-size:13px;"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-success" onclick="guardarDespacho()">✓ Despachar</button>
+        <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- print overlay -->
+<div id="print-area" class="print-only">
+  <div id="print-contenido"></div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+// DATOS
+// ══════════════════════════════════════════════════════════════════════════
+let PROYECTOS  = JSON.parse(localStorage.getItem('proyectos') || '[]');
+let DESPACHOS  = JSON.parse(localStorage.getItem('despachos') || '[]');
+
+// proyectos demo si no hay ninguno
+if (!PROYECTOS.length) {
+  PROYECTOS = [
+    { id:'pr1', numero:'ODF-2385', obra:'MON BRAVA 301', clienteNombre:'Estudio JCE',
+      fechaEntrega:'2026-04-15', estado:'en_produccion',
+      muebles:[
+        {id:'mf1',codigo:'MF01',nombre:'Banco Central Salón',cant:1,flujos:['tapiceria'],hrsExtra:{}},
+        {id:'mf2',codigo:'MF02',nombre:'Banco Corrido Salón',cant:1,flujos:[],hrsExtra:{}},
+        {id:'mf3',codigo:'MF03',nombre:'Equipamiento Frente Barra',cant:1,flujos:['herreria'],hrsExtra:{herreria:4}},
+        {id:'mf4',codigo:'MF04',nombre:'Barra Espera',cant:1,flujos:[],hrsExtra:{}},
+        {id:'mf5',codigo:'MF05',nombre:'Reja Oficina',cant:2,flujos:['herreria','lustre'],hrsExtra:{herreria:6}},
+      ],
+      modulos:[
+        {id:'mo1',muebleId:'mf1',codigo:'MF01',nombre:'Banco Central Salón',bulto:null,despachado:false},
+        {id:'mo2',muebleId:'mf2',codigo:'MF02',nombre:'Banco Corrido — Tramo A',bulto:null,despachado:false},
+        {id:'mo3',muebleId:'mf2',codigo:'MF02',nombre:'Banco Corrido — Tramo B',bulto:null,despachado:false},
+        {id:'mo4',muebleId:'mf3',codigo:'MF03',nombre:'Módulo Bajo Barra',bulto:null,despachado:true},
+        {id:'mo5',muebleId:'mf4',codigo:'MF04',nombre:'Barra Espera',bulto:null,despachado:false},
+      ],
+      materiales:[
+        {id:'ma1',nombre:'MDF 18mm',unidad:'planchas',requerido:24,recibido:24},
+        {id:'ma2',nombre:'Melamina Blanca',unidad:'planchas',requerido:12,recibido:8},
+      ]
+    },
+    { id:'pr2', numero:'SO-01879', obra:'HUGO BOSS', clienteNombre:'LGD Arquitectos',
+      fechaEntrega:'2026-04-20', estado:'en_produccion',
+      muebles:[{id:'mf6',codigo:'C01',nombre:'Puerta Depósito',cant:1,flujos:[],hrsExtra:{}}],
+      modulos:[
+        {id:'mo6',muebleId:'mf6',codigo:'C01',nombre:'Puerta Depósito',bulto:null,despachado:false},
+      ],
+      materiales:[{id:'ma3',nombre:'MDF 18mm',unidad:'planchas',requerido:2,recibido:2}]
+    }
+  ];
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ESTADO LOCAL
+// ══════════════════════════════════════════════════════════════════════════
+let prActual   = null;
+let selMods    = new Set();   // ids de módulos seleccionados
+let bultos     = [];          // [{id, label, modIds:[]}]
+let despActual = null;        // despacho en verificación
+
+// ══════════════════════════════════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════════════════════════════════
+function switchTab(t) {
+  ['preparar','verificar','historial'].forEach(x=>{
+    document.getElementById('pane-'+x).style.display   = x===t?'block':'none';
+    document.getElementById('tab-'+x).classList.toggle('active', x===t);
+  });
+  if(t==='verificar') renderVerificar();
+  if(t==='historial') renderHistorial();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════════
+function init() {
+  // poblar select proyectos
+  const sel = document.getElementById('sel-proyecto');
+  sel.innerHTML = '<option value="">— Elegir proyecto —</option>';
+  PROYECTOS.forEach(p => {
+    const pendientes = (p.modulos||[]).filter(m=>!m.despachado).length;
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `${p.numero} · ${p.obra} (${pendientes} módulos pendientes)`;
+    sel.appendChild(opt);
+  });
+  renderKpis();
+}
+
+function renderKpis() {
+  const totalMods  = PROYECTOS.reduce((a,p)=>(a+(p.modulos||[]).length),0);
+  const despachados= PROYECTOS.reduce((a,p)=>(a+(p.modulos||[]).filter(m=>m.despachado).length),0);
+  const pendientes = totalMods - despachados;
+  const hoy = new Date().toISOString().split('T')[0];
+  const vencen = PROYECTOS.filter(p=>p.fechaEntrega&&p.fechaEntrega<=hoy&&(p.modulos||[]).some(m=>!m.despachado)).length;
+
+  document.getElementById('kpi-desp').innerHTML = [
+    {l:'Total Módulos',    v:totalMods,   c:'var(--blue)'  },
+    {l:'Despachados',      v:despachados, c:'var(--green)' },
+    {l:'Pendientes',       v:pendientes,  c:'var(--amber)' },
+    {l:'Proyectos Vencidos',v:vencen,    c:vencen>0?'var(--red)':'var(--muted)'},
+  ].map(k=>`
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px 18px;">
+      <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">${k.l.toUpperCase()}</div>
+      <div class="mono" style="font-size:30px;font-weight:700;color:${k.c};">${k.v}</div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PREPARAR — proyecto
+// ══════════════════════════════════════════════════════════════════════════
+function onProyecto() {
+  const id = document.getElementById('sel-proyecto').value;
+  prActual = PROYECTOS.find(p=>p.id===id) || null;
+  selMods  = new Set();
+  bultos   = [];
+  document.getElementById('detalle-proyecto').style.display = prActual ? 'block' : 'none';
+  if (!prActual) return;
+  renderInfoPr();
+  renderModulos();
+}
+
+function renderInfoPr() {
+  const p = prActual;
+  const mods      = p.modulos||[];
+  const total     = mods.length;
+  const despachados = mods.filter(m=>m.despachado).length;
+  const pendientes  = total - despachados;
+  const hoy = new Date().toISOString().split('T')[0];
+  const vencido = p.fechaEntrega && p.fechaEntrega < hoy;
+
+  document.getElementById('info-pr').innerHTML = `
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div style="flex:1;">
+        <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;">${p.clienteNombre}</div>
+        <div style="font-size:20px;font-weight:700;margin-bottom:4px;">${p.obra}</div>
+        <div class="mono" style="font-size:12px;color:var(--amber);">${p.numero}</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <div style="text-align:center;background:var(--faint);border-radius:8px;padding:10px 16px;">
+          <div class="mono" style="font-size:9px;color:var(--muted);">TOTAL</div>
+          <div class="mono" style="font-size:22px;font-weight:700;color:var(--text);">${total}</div>
+        </div>
+        <div style="text-align:center;background:var(--faint);border-radius:8px;padding:10px 16px;">
+          <div class="mono" style="font-size:9px;color:var(--muted);">DESPACHADOS</div>
+          <div class="mono" style="font-size:22px;font-weight:700;color:var(--green);">${despachados}</div>
+        </div>
+        <div style="text-align:center;background:var(--faint);border-radius:8px;padding:10px 16px;">
+          <div class="mono" style="font-size:9px;color:var(--muted);">PENDIENTES</div>
+          <div class="mono" style="font-size:22px;font-weight:700;color:var(--amber);">${pendientes}</div>
+        </div>
+        ${p.fechaEntrega?`
+        <div style="text-align:center;background:${vencido?'rgba(240,92,92,.08)':'var(--faint)'};border:${vencido?'1px solid rgba(240,92,92,.3)':'none'};border-radius:8px;padding:10px 16px;">
+          <div class="mono" style="font-size:9px;color:${vencido?'var(--red)':'var(--muted)'};">ENTREGA</div>
+          <div class="mono" style="font-size:13px;font-weight:700;color:${vencido?'var(--red)':'var(--text)'};">${fmtFecha(p.fechaEntrega)}</div>
+          ${vencido?'<div style="font-size:9px;color:var(--red);">VENCIDO</div>':''}
+        </div>`:''}
+      </div>
+    </div>`;
+}
+
+function renderModulos() {
+  const p = prActual;
+  const mods = (p.modulos||[]);
+  let html = '';
+
+  if (!mods.length) {
+    html = '<div style="text-align:center;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:12px;padding:20px;">Sin módulos cargados en este proyecto.</div>';
+  } else {
+    mods.forEach(m => {
+      const esDespachado = m.despachado;
+      const esSel = selMods.has(m.id);
+      html += `
+        <div class="mod-row ${esDespachado?'despachado':''} ${esSel&&!esDespachado?'sel':''}"
+          onclick="${esDespachado?'':` togMod('${m.id}')`}">
+          <div class="mod-check">${esDespachado?'✓':esSel?'✓':''}</div>
+          <span class="mod-codigo">${m.codigo}</span>
+          <span class="mod-nombre">${m.nombre}</span>
+          ${m.bulto?`<span class="pill" style="color:var(--blue);background:rgba(91,141,239,.1);border:1px solid rgba(91,141,239,.3);">Bulto ${m.bulto}</span>`:''}
+          ${esDespachado?`<span class="pill" style="color:var(--green);background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.3);">Despachado</span>`:''}
+        </div>`;
+    });
+  }
+
+  document.getElementById('lista-modulos').innerHTML = html;
+
+  const haySeleccion = selMods.size > 0;
+  document.getElementById('card-bultos').style.display  = haySeleccion ? 'block' : 'none';
+  document.getElementById('acciones-desp').style.display = haySeleccion && bultos.length ? 'block' : 'none';
+
+  if (haySeleccion && !bultos.length) {
+    // auto-crear un bulto inicial
+    bultos = [{id:'b1', label:'Bulto 1', modIds:[...selMods]}];
+  }
+  renderBultos();
+}
+
+function togMod(id) {
+  if (selMods.has(id)) selMods.delete(id);
+  else selMods.add(id);
+  // limpiar bultos si cambia selección
+  bultos = [];
+  renderModulos();
+}
+
+function selTodos() {
+  (prActual.modulos||[]).filter(m=>!m.despachado).forEach(m=>selMods.add(m.id));
+  bultos = [];
+  renderModulos();
+}
+function deselTodos() { selMods.clear(); bultos=[]; renderModulos(); }
+
+// ══════════════════════════════════════════════════════════════════════════
+// BULTOS
+// ══════════════════════════════════════════════════════════════════════════
+function addBulto() {
+  const n = bultos.length + 1;
+  bultos.push({id:'b'+n, label:'Bulto '+n, modIds:[]});
+  renderBultos();
+}
+
+function autoDistribuir() {
+  // distribuye módulos seleccionados en grupos de ~3
+  const ids = [...selMods];
+  const porBulto = 3;
+  bultos = [];
+  for (let i=0; i<ids.length; i+=porBulto) {
+    const n = bultos.length+1;
+    bultos.push({id:'b'+n, label:'Bulto '+n, modIds:ids.slice(i,i+porBulto)});
+  }
+  renderBultos();
+}
+
+function moverABulto(modId, bultoId) {
+  bultos.forEach(b => { b.modIds = b.modIds.filter(id=>id!==modId); });
+  const b = bultos.find(x=>x.id===bultoId);
+  if (b) b.modIds.push(modId);
+  renderBultos();
+}
+
+function renderBultos() {
+  const mods = prActual.modulos||[];
+  // módulos seleccionados sin bulto aún
+  const sinBulto = [...selMods].filter(id=>!bultos.some(b=>b.modIds.includes(id)));
+
+  let html = '';
+  bultos.forEach(b => {
+    const bMods = b.modIds.map(id=>mods.find(m=>m.id===id)).filter(Boolean);
+    html += `
+      <div class="bulto-card">
+        <div class="bulto-header">
+          <div class="bulto-num">#${b.label.replace('Bulto ','')}</div>
+          <div style="flex:1;">
+            <input value="${b.label}" onchange="renameBulto('${b.id}',this.value)"
+              style="background:transparent;border:none;outline:none;color:var(--text);font-family:'Sora',sans-serif;font-size:14px;font-weight:600;width:100%;"/>
+            <div class="bulto-mods">${bMods.length} módulo${bMods.length!==1?'s':''}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="eliminarBulto('${b.id}')">× Eliminar</button>
+        </div>
+        ${bMods.map(m=>`
+          <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--faint);border-radius:5px;margin-bottom:4px;">
+            <span class="mono" style="font-size:11px;color:var(--amber);min-width:52px;">${m.codigo}</span>
+            <span style="font-size:12px;flex:1;">${m.nombre}</span>
+            <select onchange="moverABulto('${m.id}',this.value)" 
+              style="background:var(--card);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--muted);font-size:10px;font-family:'JetBrains Mono',monospace;">
+              ${bultos.map(x=>`<option value="${x.id}" ${x.id===b.id?'selected':''}>${x.label}</option>`).join('')}
+            </select>
+          </div>`).join('')}
+        ${bMods.length===0?`<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px;">Sin módulos — arrastrá o asigná desde arriba</div>`:''}
+      </div>`;
+  });
+
+  if (sinBulto.length) {
+    html += `<div style="background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.2);border-radius:8px;padding:12px;margin-bottom:10px;">
+      <div class="mono" style="font-size:10px;color:var(--amber);margin-bottom:8px;">SIN BULTO ASIGNADO (${sinBulto.length})</div>
+      ${sinBulto.map(id=>{const m=mods.find(x=>x.id===id);return m?`
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span class="mono" style="font-size:11px;color:var(--amber);min-width:52px;">${m.codigo}</span>
+          <span style="font-size:12px;flex:1;">${m.nombre}</span>
+          <select onchange="moverABulto('${id}',this.value)"
+            style="background:var(--card);border:1px solid var(--amber);border-radius:4px;padding:3px 6px;color:var(--amber);font-size:10px;font-family:'JetBrains Mono',monospace;">
+            <option value="">Asignar a...</option>
+            ${bultos.map(b=>`<option value="${b.id}">${b.label}</option>`).join('')}
+          </select>
+        </div>`:''}).join('')}
+    </div>`;
+  }
+
+  document.getElementById('lista-bultos').innerHTML = html;
+  document.getElementById('acciones-desp').style.display = bultos.length && sinBulto.length===0 ? 'block' : 'none';
+}
+
+function renameBulto(id, val) { const b=bultos.find(x=>x.id===id); if(b) b.label=val; }
+function eliminarBulto(id) {
+  const b = bultos.find(x=>x.id===id);
+  if (b) b.modIds.forEach(mid=>selMods.delete(mid));
+  bultos = bultos.filter(x=>x.id!==id);
+  renderBultos();
+  renderModulos();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONFIRMAR DESPACHO
+// ══════════════════════════════════════════════════════════════════════════
+function confirmarDespacho() {
+  document.getElementById('conf-fecha').value = hoy();
+  document.getElementById('conf-resp').value  = '';
+  document.getElementById('conf-transp').value = '';
+  document.getElementById('conf-obs').value   = '';
+
+  const totalMods = bultos.reduce((a,b)=>a+b.modIds.length,0);
+  document.getElementById('conf-resumen').innerHTML = `
+    <div class="mono" style="font-size:10px;color:var(--muted);margin-bottom:10px;">RESUMEN</div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;">
+      <div><span style="color:var(--muted);font-size:12px;">Proyecto: </span><strong>${prActual.numero}</strong></div>
+      <div><span style="color:var(--muted);font-size:12px;">Obra: </span><strong>${prActual.obra}</strong></div>
+      <div><span style="color:var(--muted);font-size:12px;">Módulos: </span><strong style="color:var(--amber);">${totalMods}</strong></div>
+      <div><span style="color:var(--muted);font-size:12px;">Bultos: </span><strong style="color:var(--amber);">${bultos.length}</strong></div>
+    </div>
+    <div style="margin-top:10px;">
+      ${bultos.map(b=>`<div style="font-size:12px;color:var(--muted);margin-top:4px;"><span style="color:var(--text);font-weight:600;">${b.label}:</span> ${b.modIds.map(id=>{ const m=(prActual.modulos||[]).find(x=>x.id===id); return m?m.nombre:''; }).join(', ')}</div>`).join('')}
+    </div>`;
+
+  document.getElementById('overlay-confirm').classList.add('open');
+}
+
+function guardarDespacho() {
+  const fecha  = document.getElementById('conf-fecha').value || hoy();
+  const resp   = document.getElementById('conf-resp').value;
+  const transp = document.getElementById('conf-transp').value;
+  const obs    = document.getElementById('conf-obs').value;
+
+  const despId = 'desp_'+Date.now();
+
+  // marcar módulos como despachados en el proyecto
+  const pr = PROYECTOS.find(p=>p.id===prActual.id);
+  bultos.forEach(b => {
+    b.modIds.forEach(mid => {
+      const m = (pr.modulos||[]).find(x=>x.id===mid);
+      if (m) { m.despachado=true; m.despachado_en=fecha; m.bulto=b.label; m.despId=despId; }
+    });
+  });
+
+  // guardar despacho
+  const despacho = {
+    id: despId,
+    proyectoId: prActual.id,
+    proyectoNum: prActual.numero,
+    obra: prActual.obra,
+    cliente: prActual.clienteNombre,
+    fecha, resp, transp, obs,
+    bultos: bultos.map(b=>({
+      ...b,
+      modulos: b.modIds.map(id=>(prActual.modulos||[]).find(m=>m.id===id)).filter(Boolean)
+    })),
+    totalModulos: bultos.reduce((a,b)=>a+b.modIds.length,0),
+    verificado: false,
+    bultos_verificados: [],
+  };
+  DESPACHOS.push(despacho);
+
+  // persistir
+  localStorage.setItem('proyectos', JSON.stringify(PROYECTOS));
+  localStorage.setItem('despachos', JSON.stringify(DESPACHOS));
+
+  cerrarModal();
+  selMods.clear(); bultos=[];
+  renderKpis();
+  onProyecto();
+
+  // mostrar confirmación
+  const area = document.getElementById('detalle-proyecto');
+  area.insertAdjacentHTML('afterbegin',`
+    <div class="fu" style="background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.3);border-radius:8px;padding:16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:24px;">✓</span>
+      <div>
+        <div style="font-size:14px;font-weight:700;color:var(--green);">Despacho registrado</div>
+        <div style="font-size:12px;color:var(--muted);">ID: <span class="mono">${despId}</span> · ${bultos.length||despacho.bultos.length} bultos · ${despacho.totalModulos} módulos</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="imprimirListaDespacho('${despId}')">🖨 Imprimir</button>
+    </div>`);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// VERIFICAR — escaneo de bultos
+// ══════════════════════════════════════════════════════════════════════════
+function renderVerificar() {
+  const sel = document.getElementById('sel-desp-verif');
+  sel.innerHTML = '<option value="">— Seleccionar despacho —</option>';
+  DESPACHOS.slice().reverse().forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.id;
+    opt.textContent = `${d.proyectoNum} · ${d.obra} · ${fmtFecha(d.fecha)} (${d.totalModulos} módulos)`;
+    sel.appendChild(opt);
+  });
+}
+
+function onDespVerif() {
+  const id = document.getElementById('sel-desp-verif').value;
+  despActual = DESPACHOS.find(d=>d.id===id) || null;
+  renderVerifContenido();
+}
+
+function renderVerifContenido() {
+  const el = document.getElementById('verif-contenido');
+  if (!despActual) { el.innerHTML=''; return; }
+
+  const d = despActual;
+  const verificados = new Set(d.bultos_verificados||[]);
+  const total = d.bultos.length;
+  const pct   = total ? Math.round(verificados.size/total*100) : 0;
+
+  let html = `
+    <div style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <span class="mono" style="font-size:11px;color:var(--muted);">PROGRESO: ${verificados.size}/${total} bultos</span>
+        <span class="mono" style="font-size:11px;color:${pct===100?'var(--green)':'var(--amber)'};">${pct}%</span>
+      </div>
+      <div style="height:8px;background:var(--faint);border-radius:99px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${pct===100?'var(--green)':'var(--amber)'};border-radius:99px;transition:width .5s;"></div>
+      </div>
+    </div>`;
+
+  if (pct===100) {
+    html += `<div style="background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.3);border-radius:8px;padding:14px;text-align:center;margin-bottom:14px;">
+      <div style="font-size:20px;margin-bottom:4px;">✓</div>
+      <div style="font-weight:700;color:var(--green);">Todos los bultos verificados</div>
+    </div>`;
+  }
+
+  html += `<div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">BULTOS — hacé clic para marcar como verificado</div>`;
+
+  d.bultos.forEach(b => {
+    const ok = verificados.has(b.id);
+    html += `
+      <div class="scan-row ${ok?'ok':'pendiente'}" onclick="toggleVerifBulto('${b.id}')" style="cursor:pointer;">
+        <span class="scan-icon">${ok?'✅':'📦'}</span>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;">${b.label}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${(b.modulos||[]).map(m=>m.nombre).join(' · ')}</div>
+        </div>
+        <span class="pill" style="color:${ok?'var(--green)':'var(--amber)'};background:${ok?'rgba(61,214,140,.1)':'rgba(245,166,35,.1)'};border:1px solid ${ok?'rgba(61,214,140,.3)':'rgba(245,166,35,.3)'};">${ok?'Verificado':'Pendiente'}</span>
+      </div>`;
+  });
+
+  el.innerHTML = html;
+}
+
+function toggleVerifBulto(bultoId) {
+  if (!despActual) return;
+  const idx = DESPACHOS.findIndex(d=>d.id===despActual.id);
+  if (idx<0) return;
+  const verif = new Set(DESPACHOS[idx].bultos_verificados||[]);
+  verif.has(bultoId) ? verif.delete(bultoId) : verif.add(bultoId);
+  DESPACHOS[idx].bultos_verificados = [...verif];
+  if (verif.size === DESPACHOS[idx].bultos.length) DESPACHOS[idx].verificado=true;
+  despActual = DESPACHOS[idx];
+  localStorage.setItem('despachos', JSON.stringify(DESPACHOS));
+  renderVerifContenido();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// HISTORIAL
+// ══════════════════════════════════════════════════════════════════════════
+function renderHistorial() {
+  const el = document.getElementById('historial-lista');
+  if (!DESPACHOS.length) {
+    el.innerHTML='<div style="text-align:center;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:12px;padding:24px;">Sin despachos registrados aún.</div>';
+    return;
+  }
+  el.innerHTML = DESPACHOS.slice().reverse().map(d=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:7px;background:var(--faint);margin-bottom:6px;">
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;">${d.obra}</div>
+        <div class="mono" style="font-size:10px;color:var(--muted);">${d.proyectoNum} · ${fmtFecha(d.fecha)}</div>
+      </div>
+      <span class="mono" style="font-size:11px;color:var(--muted);">${d.bultos.length} bultos · ${d.totalModulos} mods</span>
+      ${d.resp?`<span style="font-size:11px;color:var(--muted);">Resp: ${d.resp}</span>`:''}
+      <span class="pill" style="color:${d.verificado?'var(--green)':'var(--amber)'};background:${d.verificado?'rgba(61,214,140,.1)':'rgba(245,166,35,.1)'};border:1px solid ${d.verificado?'rgba(61,214,140,.3)':'rgba(245,166,35,.3)'};">
+        ${d.verificado?'✓ Verificado':'Pendiente verif.'}
+      </span>
+      <button class="btn btn-ghost btn-sm" onclick="imprimirListaDespacho('${d.id}')">🖨</button>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// IMPRIMIR
+// ══════════════════════════════════════════════════════════════════════════
+function imprimirListaDespacho(despId) {
+  const d = DESPACHOS.find(x=>x.id===despId) || { bultos, proyectoNum:prActual?.numero, obra:prActual?.obra, fecha:hoy(), totalModulos:bultos.reduce((a,b)=>a+b.modIds.length,0) };
+
+  const modsPr = prActual?.modulos || [];
+
+  let html = `
+    <div style="font-family:'JetBrains Mono',monospace;padding:20px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:24px;">
+        <div>
+          <div style="font-size:20px;font-weight:700;">MADERABLE</div>
+          <div style="font-size:12px;color:#666;">Remito de Despacho</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:14px;font-weight:700;">${d.proyectoNum||''}</div>
+          <div style="font-size:12px;">${d.obra||''}</div>
+          <div style="font-size:12px;color:#666;">${fmtFecha(d.fecha||hoy())}</div>
+        </div>
+      </div>
+      <div style="border-top:2px solid #000;padding-top:12px;margin-bottom:20px;">
+        <div style="font-size:11px;color:#666;margin-bottom:4px;">RESUMEN</div>
+        <div style="font-size:13px;">${(d.bultos||[]).length} bultos · ${d.totalModulos||0} módulos</div>
+        ${d.transp?`<div style="font-size:13px;">Transporte: ${d.transp}</div>`:''}
+        ${d.resp?`<div style="font-size:13px;">Responsable: ${d.resp}</div>`:''}
+      </div>`;
+
+  (d.bultos||[]).forEach(b => {
+    const bMods = (b.modulos||b.modIds?.map(id=>modsPr.find(m=>m.id===id))||[]).filter(Boolean);
+    html += `
+      <div style="border:2px solid #000;border-radius:8px;padding:16px;margin-bottom:12px;page-break-inside:avoid;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-size:18px;font-weight:700;">${b.label}</div>
+          <div style="font-size:11px;border:1px solid #000;padding:4px 8px;border-radius:4px;">□ Verificado</div>
+        </div>
+        ${bMods.map((m,i)=>`
+          <div style="display:flex;gap:12px;padding:6px 0;border-bottom:1px solid #eee;align-items:center;">
+            <span style="font-weight:700;min-width:52px;">${m.codigo}</span>
+            <span style="flex:1;">${m.nombre}</span>
+            <span style="font-size:11px;border:1px solid #ccc;padding:2px 8px;border-radius:3px;">□ OK</span>
+          </div>`).join('')}
+        <div style="margin-top:12px;display:flex;gap:20px;font-size:11px;color:#666;">
+          <span>Firma: ________________________</span>
+          <span>Hora salida: ________________</span>
+        </div>
+      </div>`;
+  });
+
+  html += `<div style="margin-top:20px;font-size:11px;color:#666;text-align:center;">Generado por Maderable · ${new Date().toLocaleString('es-UY')}</div></div>`;
+
+  const w = window.open('','_blank');
+  w.document.write(`<html><head><title>Despacho ${d.proyectoNum}</title><style>body{margin:0;font-family:'JetBrains Mono',monospace;}@media print{@page{margin:1cm}}</style></head><body>${html}</body></html>`);
+  w.document.close();
+  setTimeout(()=>w.print(),300);
+}
+
+function imprimirListaBultos() {
+  const despId = 'preview_'+Date.now();
+  const fakeDesp = { id:despId, bultos, proyectoNum:prActual?.numero, obra:prActual?.obra, fecha:hoy(), totalModulos:bultos.reduce((a,b)=>a+b.modIds.length,0), transp:'', resp:'' };
+  DESPACHOS.push(fakeDesp);
+  imprimirListaDespacho(despId);
+  DESPACHOS.pop();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════════════════════
+function cerrarModal() { document.getElementById('overlay-confirm').classList.remove('open'); }
+function hoy() { return new Date().toISOString().split('T')[0]; }
+function fmtFecha(s) { if(!s) return '—'; const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; }
+
+init();
+</script>
+</body>
+</html>
