@@ -666,11 +666,15 @@ function renderEstadoMuebles() {
         mats.forEach(mat=>{
           const pctMat=mat.requerido?Math.min(100,Math.round(mat.recibido/mat.requerido*100)):0;
           const cMat=pctMat===100?'var(--green)':pctMat>0?'var(--amber)':'var(--red)';
+          const faltante = mat.requerido - mat.recibido;
           html+=`<div style="display:flex;align-items:center;gap:10px;padding:5px 14px 5px 36px;font-size:12px;">
             <span style="flex:1;color:var(--muted);">${mat.nombre}</span>
             <span class="mono" style="font-size:11px;color:var(--muted);">${mat.recibido}/${mat.requerido} ${mat.unidad}</span>
             <div class="bar-track"><div class="bar-fill" style="width:${pctMat}%;background:${cMat};"></div></div>
             <span class="mono" style="font-size:10px;color:${cMat};min-width:30px;text-align:right;">${pctMat}%</span>
+            ${pctMat<100?`<input type="number" min="1" max="${faltante}" placeholder="cant." id="recv-mat-${mat.id}" style="width:60px;background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:4px 6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;outline:none;">
+            <button class="btn btn-primary btn-sm" onclick="recibirParcialMat('${pr.id}','${mat.id}')">Recibir</button>
+            <button class="btn btn-success btn-sm" onclick="recibirCompletaMat('${pr.id}','${mat.id}')">✓ Todo</button>`:''}
           </div>`;
         });
       }
@@ -684,6 +688,26 @@ function renderEstadoMuebles() {
 // ══════════════════════════════════════════════════════════════════════════
 // UTILS
 // ══════════════════════════════════════════════════════════════════════════
+function recibirCompletaMat(prId, matId) {
+  const pr = PROYECTOS.find(p => p.id === prId);
+  const mat = pr?.materiales.find(m => m.id === matId);
+  if (!mat) return;
+  mat.recibido = mat.requerido;
+  renderEstadoMuebles();
+  renderKpis();
+}
+
+function recibirParcialMat(prId, matId) {
+  const pr = PROYECTOS.find(p => p.id === prId);
+  const mat = pr?.materiales.find(m => m.id === matId);
+  if (!mat) return;
+  const cant = Number(document.getElementById('recv-mat-'+matId)?.value || 0);
+  if (cant <= 0) return;
+  mat.recibido = Math.min(mat.requerido, mat.recibido + cant);
+  renderEstadoMuebles();
+  renderKpis();
+}
+
 function cerrarModal(id){document.getElementById('overlay-'+id)?.classList.remove('open');}
 function hoy(){return new Date().toISOString().split('T')[0];}
 function fmtFecha(s){if(!s)return'—';const[y,m,d]=s.split('-');return`${d}/${m}/${y}`;}
