@@ -248,6 +248,7 @@
 </div>
 
 <script>
+const ANTHROPIC_KEY = window.ANTHROPIC_KEY || '';
 // ══════════════════════════════════════════════════════════════════════════
 // FLUJOS — configuración completa
 // ══════════════════════════════════════════════════════════════════════════
@@ -322,7 +323,7 @@ placas: por medidas. >3m→12, 2-3m→8, 1-2m→4, <1m→2, sin dato→4. dif: 1
 {"numero":"","obra":"","cliente":"","materiales":[{"nombre":"","unidad":"unidades","cantidad":1}]}
 unidad: planchas, unidades, pares, metros, ml, kg, litros, m². cantidad: el número del documento.`;
   try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,messages:[{role:'user',content:[{type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},{type:'text',text:prompt}]}]})});
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,messages:[{role:'user',content:[{type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},{type:'text',text:prompt}]}]})});
     const data=await res.json();
     const parsed=parseJ(data.content?.[0]?.text||'');
     showProc(tipo,0);

@@ -226,6 +226,7 @@
 </div>
 
 <script>
+const ANTHROPIC_KEY = window.ANTHROPIC_KEY || '';
 // ══════════════════════════════════════════════════════════════════════════
 // DATOS
 // ══════════════════════════════════════════════════════════════════════════
@@ -329,7 +330,7 @@ async function procRemito(file) {
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',headers:{'Content-Type':'application/json'},
+      method:'POST',headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,
         messages:[{role:'user',content:[
           {type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},
