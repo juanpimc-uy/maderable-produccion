@@ -287,12 +287,6 @@ function calcHoras(placas,dif){const c=getCoef(),d=getDif(),f=d[dif]||1,h={};CEN
 // ══════════════════════════════════════════════════════════════════════════
 let step=1,muebles=[],materiales=[],sosCargadas=[];
 
-// demo muebles
-const DEMO=[
-  {id:'d1',codigo:'MF01',nombre:'Banco Central Salón',cant:1,flujos:['tapiceria'],hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},placas:10,dif:3,horas:calcHoras(10,3)},
-  {id:'d2',codigo:'MF03',nombre:'Equipamiento Frente Barra',cant:1,flujos:['herreria','electricidad'],hrsExtra:{tapiceria:0,herreria:4,lustre:0,electricidad:2,madera_maciza:0},placas:8,dif:3,horas:calcHoras(8,3)},
-  {id:'d3',codigo:'MF07',nombre:'Reja Oficina',cant:2,flujos:['herreria','lustre'],hrsExtra:{tapiceria:0,herreria:6,lustre:0,electricidad:0,madera_maciza:0},placas:2,dif:2,horas:calcHoras(2,2)},
-];
 
 // ══════════════════════════════════════════════════════════════════════════
 // STEPS
@@ -302,7 +296,7 @@ function goStep(n){
   for(let i=1;i<=5;i++){const s=document.getElementById('step-'+i);s.classList.remove('active','done');if(i<n)s.classList.add('done');if(i===n)s.classList.add('active');}
   step=n;
   document.getElementById('pane-'+n).style.display='block';
-  if(n===3){if(!muebles.length)muebles=DEMO.map(m=>({...m,horas:calcHoras(m.placas,m.dif)}));renderMuebles();}
+  if(n===3){renderMuebles();}
   if(n===4){renderMats();renderSoRef();}
   if(n===5)renderResumen();
   window.scrollTo({top:0,behavior:'smooth'});
@@ -336,12 +330,12 @@ async function buscarODF(){
     }
     showProc('odf',0);
     if(!inv){showErr('odf','No se encontró el documento ODF-'+base+' en Zoho');return;}
-    console.log('zoho invoice keys:',Object.keys(inv));
-    console.log('invoice data:',JSON.stringify(inv));
+    console.log('INVOICE COMPLETO:',JSON.stringify(data));
     if(!gv('f-num'))sv('f-num',inv.invoice_number||numUsado);
     if(!gv('f-obra'))sv('f-obra',inv.subject||inv.reference_number||'');
     if(!gv('f-cliente'))sv('f-cliente',inv.customer_name||'');
     const items=inv.line_items||inv.invoice_items||inv.items||inv.line_item||[];
+    if(!items.length){showErr('odf','ODF encontrado pero sin ítems — revisá la consola para ver la estructura');return;}
     muebles=items.map((item,i)=>({
       id:'mf_'+i,
       codigo:item.item_code||item.sku||('MF'+(i+1).toString().padStart(2,'0')),
