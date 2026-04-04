@@ -1288,6 +1288,8 @@ function renderMatTabOCs() {
     </div>
   </div>`;
   document.getElementById('mat-contenido').innerHTML=html;
+  // restaurar OC buscada si existe (sobrevive al re-render del setInterval)
+  if(window._ocActual)renderOC(window._ocActual.oc,window._ocActual.items);
 }
 
 function _renderOCCard(oc){
