@@ -148,8 +148,8 @@
       <div class="card-title">Remito ODF — Muebles</div>
       <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px;">
         <div class="field" style="flex:1;margin:0;">
-          <label>Número ODF</label>
-          <input id="zoho-odf-num" placeholder="ODF-2385" onkeydown="if(event.key==='Enter')buscarODF()"/>
+          <label>Número ODF <span style="font-weight:400;color:var(--muted);font-size:9px;letter-spacing:0;">Solo el número — sin 'ODF-' ni 'SO-'</span></label>
+          <input id="zoho-odf-num" placeholder="Ej: 2385" onkeydown="if(event.key==='Enter')buscarODF()"/>
         </div>
         <button class="btn btn-primary" onclick="buscarODF()">Buscar</button>
       </div>
@@ -163,8 +163,8 @@
       <div id="so-list"></div>
       <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px;">
         <div class="field" style="flex:1;margin:0;">
-          <label>Número SO</label>
-          <input id="zoho-so-num" placeholder="SO-1234" onkeydown="if(event.key==='Enter')buscarSO()"/>
+          <label>Número SO <span style="font-weight:400;color:var(--muted);font-size:9px;letter-spacing:0;">Solo el número — sin 'ODF-' ni 'SO-'</span></label>
+          <input id="zoho-so-num" placeholder="Ej: 1234" onkeydown="if(event.key==='Enter')buscarSO()"/>
         </div>
         <button class="btn btn-primary" onclick="buscarSO()">Buscar</button>
       </div>
@@ -318,7 +318,9 @@ async function getZohoToken(){
 }
 
 async function buscarODF(){
-  const num=document.getElementById('zoho-odf-num').value.trim();
+  const raw=document.getElementById('zoho-odf-num').value.trim();
+  const num=raw.replace(/^(ODF-|odf-|SO-|so-)/i,'').trim();
+  document.getElementById('zoho-odf-num').value=num;
   if(!num)return;
   showErr('odf','',0);showProc('odf',1,'OBTENIENDO TOKEN...');
   try{
@@ -329,10 +331,11 @@ async function buscarODF(){
     showProc('odf',0);
     const inv=data.invoices?.[0]||data.invoice;
     if(!inv){showErr('odf','No se encontró el documento '+num);return;}
+    console.log('invoice data:',JSON.stringify(inv));
     if(!gv('f-num'))sv('f-num',inv.invoice_number||num);
     if(!gv('f-obra'))sv('f-obra',inv.subject||inv.reference_number||'');
     if(!gv('f-cliente'))sv('f-cliente',inv.customer_name||'');
-    const items=inv.line_items||[];
+    const items=inv.line_items||inv.invoice_items||inv.items||[];
     muebles=items.map((item,i)=>({
       id:'mf_'+Date.now()+'_'+i,
       codigo:item.sku||('MF'+(i+1).toString().padStart(2,'0')),
@@ -359,7 +362,9 @@ async function buscarODF(){
 }
 
 async function buscarSO(){
-  const num=document.getElementById('zoho-so-num').value.trim();
+  const raw=document.getElementById('zoho-so-num').value.trim();
+  const num=raw.replace(/^(ODF-|odf-|SO-|so-)/i,'').trim();
+  document.getElementById('zoho-so-num').value=num;
   if(!num)return;
   showErr('so','',0);showProc('so',1,'BUSCANDO SO...');
   try{
