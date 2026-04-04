@@ -1016,15 +1016,24 @@ async function zohoFetchAdmin(endpoint,token=null){
 // two-call SO lookup: search by number → get detail by ID
 async function zohoFetchSOByNum(rawNum){
   const token=await zohoTokenAdmin();
+  console.log('Token obtenido:', token ? 'SI' : 'NO', token?.substring(0,20));
   if(!token)throw new Error('Sin token Zoho');
   const base=rawNum.replace(/^(SO-|so-)/i,'').trim();
+  console.log('Buscando SO:', base);
   let soObj=null;
   for(const n of ['SO-'+base,base]){
-    const d=await zohoFetchAdmin('salesorders?salesorder_number='+encodeURIComponent(n),token);
+    const ep='salesorders?salesorder_number='+encodeURIComponent(n);
+    console.log('URL 1:', '/api/zoho-books?endpoint='+encodeURIComponent(ep)+'&token=...');
+    const d=await zohoFetchAdmin(ep,token);
+    console.log('Respuesta 1:', JSON.stringify(d));
     if(d?.salesorders?.length){soObj=d.salesorders[0];break;}
   }
   if(!soObj)return null;
-  const det=await zohoFetchAdmin('salesorders/'+soObj.salesorder_id,token);
+  console.log('ID encontrado:', soObj.salesorder_id);
+  const ep2='salesorders/'+soObj.salesorder_id;
+  console.log('URL 2:', '/api/zoho-books?endpoint='+encodeURIComponent(ep2)+'&token=...');
+  const det=await zohoFetchAdmin(ep2,token);
+  console.log('Respuesta 2:', JSON.stringify(det));
   return {soNum:'SO-'+base, salesorder:det?.salesorder||null};
 }
 
