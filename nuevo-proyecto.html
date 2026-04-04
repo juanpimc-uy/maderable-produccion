@@ -321,20 +321,22 @@ async function buscarODF(){
     const token=await getZohoToken();
     showProc('odf',1,'BUSCANDO INVOICE...');
     const candidatos=['ODF-'+base,'odf-'+base,base];
-    let inv=null, numUsado=base;
+    let lastData=null, numUsado=base;
     for(const candidato of candidatos){
       const res=await fetch(`/api/zoho-books?endpoint=invoices?invoice_number=${encodeURIComponent(candidato)}&token=${token}`);
       const data=await res.json();
-      const found=data.invoices?.[0]||data.invoice;
-      if(found){inv=found;numUsado=candidato;break;}
+      lastData=data;
+      const found=data.invoice||data.invoices?.[0];
+      if(found){numUsado=candidato;break;}
     }
     showProc('odf',0);
-    if(!inv){showErr('odf','No se encontró el documento ODF-'+base+' en Zoho');return;}
-    console.log('INVOICE COMPLETO:',JSON.stringify(data));
-    if(!gv('f-num'))sv('f-num',inv.invoice_number||numUsado);
-    if(!gv('f-obra'))sv('f-obra',inv.subject||inv.reference_number||'');
-    if(!gv('f-cliente'))sv('f-cliente',inv.customer_name||'');
-    const items=inv.line_items||inv.invoice_items||inv.items||inv.line_item||[];
+    console.log('INVOICE COMPLETO:',JSON.stringify(lastData));
+    const invoice=lastData?.invoice||lastData?.invoices?.[0];
+    if(!invoice){showErr('odf','No se encontró el documento ODF-'+base+' en Zoho');return;}
+    if(!gv('f-num'))sv('f-num',invoice.invoice_number||numUsado);
+    if(!gv('f-obra'))sv('f-obra',invoice.subject||invoice.reference_number||'');
+    if(!gv('f-cliente'))sv('f-cliente',invoice.customer_name||'');
+    const items=invoice.line_items||invoice.invoice_items||invoice.items||invoice.line_item||[];
     if(!items.length){showErr('odf','ODF encontrado pero sin ítems — revisá la consola para ver la estructura');return;}
     muebles=items.map((item,i)=>({
       id:'mf_'+i,
@@ -348,11 +350,11 @@ async function buscarODF(){
     document.getElementById('odf-result').innerHTML=`
       <div style="background:rgba(61,214,140,.05);border:1px solid rgba(61,214,140,.2);border-radius:6px;padding:12px;margin-top:4px;">
         <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-          <span class="mono" style="color:var(--green);font-weight:700;">${inv.invoice_number||numUsado}</span>
+          <span class="mono" style="color:var(--green);font-weight:700;">${invoice.invoice_number||numUsado}</span>
           <span class="mono" style="color:var(--muted);font-size:11px;">${items.length} muebles</span>
         </div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:2px;">${inv.customer_name||'—'}</div>
-        <div style="font-size:12px;color:var(--muted);">${inv.subject||inv.reference_number||''}</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:2px;">${invoice.customer_name||'—'}</div>
+        <div style="font-size:12px;color:var(--muted);">${invoice.subject||invoice.reference_number||''}</div>
         <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
           ${items.slice(0,5).map(item=>`<div style="font-size:12px;color:var(--muted);display:flex;justify-content:space-between;"><span>${item.name||item.description||'—'}</span><span class="mono">×${item.quantity}</span></div>`).join('')}
           ${items.length>5?`<div style="font-size:11px;color:var(--muted);">...y ${items.length-5} más</div>`:''}
