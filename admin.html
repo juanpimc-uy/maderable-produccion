@@ -130,12 +130,13 @@
     <!-- ══ DASHBOARD ═══════════════════════════════════════════════════════ -->
     <div class="view active" id="v-dashboard">
       <!-- KPIs -->
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
         <div class="kpi"><div class="kpi-label">Proyectos Activos</div><div class="kpi-val" style="color:var(--amber)" id="kpi-proyectos">2</div></div>
         <div class="kpi"><div class="kpi-label">Operarios en Tarea</div><div class="kpi-val" style="color:var(--green)" id="kpi-operarios">3/5</div></div>
         <div class="kpi"><div class="kpi-label">En Inventario</div><div class="kpi-val" style="color:var(--blue)" id="kpi-inventario">2</div></div>
         <div class="kpi"><div class="kpi-label">Despachados</div><div class="kpi-val" style="color:var(--purple)" id="kpi-despachados">1</div></div>
         <div class="kpi"><div class="kpi-label">Muebles Bloqueados</div><div class="kpi-val" id="kpi-bloqueados">0</div></div>
+        <div class="kpi" title="Horas perdidas en correcciones"><div class="kpi-label">Horas Retrabajo</div><div class="kpi-val" id="kpi-retrabajo">0h</div></div>
       </div>
       <!-- Operarios en vivo -->
       <div class="card" style="margin-bottom:20px;">
@@ -304,7 +305,11 @@ function hAcumPr(prId) {
   return all.reduce((a,s)=>a+msH(s.fin-s.inicio),0);
 }
 function hAcumIt(prId,itId) {
-  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId&&s.itemId===itId);
+  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId&&s.itemId===itId&&(s.tipo||'normal')==='normal');
+  return all.reduce((a,s)=>a+msH(s.fin-s.inicio),0);
+}
+function hRetrabajoIt(prId,itId) {
+  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId&&s.itemId===itId&&s.tipo==='retrabajo');
   return all.reduce((a,s)=>a+msH(s.fin-s.inicio),0);
 }
 function hByCentro(prId) {
@@ -398,6 +403,14 @@ function renderDashboard() {
   const kpiBloq = document.getElementById('kpi-bloqueados');
   kpiBloq.textContent = bloqueados;
   kpiBloq.style.color = bloqueados>0?'var(--red)':'var(--green)';
+  // horas retrabajo del mes en curso
+  const mesActual = new Date().getMonth(), anoActual = new Date().getFullYear();
+  const hRetMes = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))]
+    .filter(s=>s.tipo==='retrabajo' && new Date(s.inicio).getMonth()===mesActual && new Date(s.inicio).getFullYear()===anoActual)
+    .reduce((a,s)=>a+msH(s.fin-s.inicio),0);
+  const kpiRet = document.getElementById('kpi-retrabajo');
+  kpiRet.textContent = fmtH(Math.round(hRetMes*10)/10);
+  kpiRet.style.color = hRetMes>0?'var(--red)':'var(--muted)';
 
   // operarios
   let opHtml = '';
@@ -760,7 +773,7 @@ function renderDetallePr(pr, sub) {
   if(sub==='tiempos'){
     // tabla compacta por mueble/ítem
     const rows = pr.muebles && pr.muebles.length ? pr.muebles : pr.items;
-    const colCount = (pr.muebles&&pr.muebles.length) ? 6 : 5;
+    const colCount = (pr.muebles&&pr.muebles.length) ? 7 : 6;
     const allSesTiempos=[
       ...HISTORIAL.filter(s=>s.proyectoId===pr.id).map(s=>({...s,activa:false})),
       ...SESIONES.filter(s=>s.proyectoId===pr.id).map(s=>({...s,fin:Date.now(),activa:true})),
@@ -773,27 +786,30 @@ function renderDetallePr(pr, sub) {
           <th style="text-align:right;">Real</th>
           <th style="text-align:right;">Est.</th>
           <th style="text-align:right;">%</th>
+          <th style="text-align:right;color:var(--red);">Retrabajo</th>
           <th>Activos</th>
         </tr></thead>
         <tbody>
         ${rows.map(row=>{
           const hA2=hAcumIt(pr.id,row.id);
+          const hRet=hRetrabajoIt(pr.id,row.id);
           const hEst=row.hEst||Object.values(row.horas||{}).reduce((a,v)=>a+Number(v||0),0)*(row.cant||1)||0;
           const p=pct(hA2,hEst||1);
           const over=hA2>hEst&&hEst>0;
           const sesAct=SESIONES.filter(s=>s.proyectoId===pr.id&&s.itemId===row.id);
           const ops=sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);return op?`<div class="av active" style="width:20px;height:20px;font-size:9px;display:inline-flex;margin-right:3px;">${op.avatar}</div>`:''}).join('');
           const rowSes=allSesTiempos.filter(s=>s.itemId===row.id);
-          const nombreCorto=row.codigo||(row.nombre||'').split(' – ')[0]||row.id;
+          const nCorto=row.codigo||(row.nombre||'').split(' – ')[0]||row.id;
           const expandHtml=rowSes.length?rowSes.map(s=>{
             const op=OPERARIOS.find(o=>o.id===s.operarioId);
             const c=CENTROS.find(x=>x.id===s.centroId);
             const dur=msH(s.fin-s.inicio);
             const ts=new Date(s.inicio).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-            return`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(37,40,54,.3);">
+            const isRet=s.tipo==='retrabajo';
+            return`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(37,40,54,.3);${isRet?'background:rgba(240,92,92,.06);border-radius:4px;padding-left:6px;':''}">
               <div class="av ${s.activa?'active':'idle'}" style="width:22px;height:22px;font-size:10px;flex-shrink:0;">${op?.avatar||'?'}</div>
-              <div style="flex:1;min-width:0;"><div style="font-size:11px;font-weight:600;">${op?.nombre||'—'}</div><div style="font-size:10px;color:${c?.color||'var(--muted)'};">${c?.label||s.centroId}</div></div>
-              <div style="text-align:right;flex-shrink:0;"><div class="mono" style="font-size:12px;color:${s.activa?'var(--amber)':'var(--text)'};">${fmtH(dur)}${s.activa?' ▶':''}</div><div class="mono" style="font-size:10px;color:var(--muted);">${ts}</div></div>
+              <div style="flex:1;min-width:0;"><div style="font-size:11px;font-weight:600;">${op?.nombre||'—'}${isRet?` <span class="pill" style="color:var(--red);background:rgba(240,92,92,.12);border:1px solid rgba(240,92,92,.3);font-size:9px;">⚠ RETRABAJO</span>`:''}</div><div style="font-size:10px;color:${c?.color||'var(--muted)'};">${c?.label||s.centroId}</div></div>
+              <div style="text-align:right;flex-shrink:0;"><div class="mono" style="font-size:12px;color:${isRet?'var(--red)':s.activa?'var(--amber)':'var(--text)'};">${fmtH(dur)}${s.activa?' ▶':''}</div><div class="mono" style="font-size:10px;color:var(--muted);">${ts}</div></div>
             </div>`;
           }).join(''):`<div class="mono" style="font-size:11px;color:var(--muted);padding:8px 0;">Sin sesiones registradas aún</div>`;
           const expId=`tr-exp-${pr.id}-${row.id}`;
@@ -803,12 +819,13 @@ function renderDetallePr(pr, sub) {
             <td class="mono" style="text-align:right;color:${over?'var(--red)':'var(--amber)'};">${fmtH(hA2)}</td>
             <td class="mono" style="text-align:right;color:var(--muted);">${hEst?fmtH(hEst):'—'}</td>
             <td style="text-align:right;">${hEst?pill(p+'%',over?'var(--red)':'var(--green)'):'—'}</td>
+            <td class="mono" style="text-align:right;color:${hRet>0?'var(--red)':'var(--muted)'}">${hRet>0?fmtH(hRet):'—'}</td>
             <td>${ops||'—'}</td>
           </tr>
           <tr id="${expId}" style="display:none;">
             <td colspan="${colCount}" style="padding:0;background:var(--faint);">
               <div style="padding:10px 16px;">
-                <div class="mono" style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px;letter-spacing:.05em;">SESIONES — ${nombreCorto}</div>
+                <div class="mono" style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px;letter-spacing:.05em;">SESIONES — ${nCorto}</div>
                 ${expandHtml}
               </div>
             </td>

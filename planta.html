@@ -225,9 +225,35 @@
       <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:12px;">PASO 3 — ACCIONES</div>
       <div style="display:flex;flex-direction:column;gap:10px;">
         <button class="btn-main btn-ghost" onclick="accionImprimirEtiquetas()">🖨 Imprimir etiquetas</button>
-        <button class="btn-main btn-ghost" onclick="window.open('https://maderable-produccion.vercel.app/despacho.html','_blank')">🔗 Ver verificador</button>
+        <button class="btn-main btn-ghost" onclick="window.open('/despacho.html','_blank')">🔗 Ver despacho</button>
         <button class="btn-main btn-success" id="btn-confirmar-revision" disabled onclick="confirmarRevision()" style="opacity:.4;cursor:not-allowed;">✓ Confirmar y finalizar</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DIÁLOGO CONFIRMAR FINALIZAR ══════════════════════════════════════ -->
+<div id="dlg-finalizar" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:50;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--panel);border:1px solid var(--borderL,#2E3247);border-radius:12px;padding:28px;max-width:380px;width:100%;">
+    <div class="mono" style="font-size:10px;color:var(--amber);letter-spacing:2px;margin-bottom:12px;">⏹ FINALIZAR TAREA</div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:8px;">¿Estás seguro que la tarea está terminada?</div>
+    <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:24px;">Se guardará el tiempo registrado para esta pieza.</div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-main btn-success" style="flex:1;" onclick="confirmarFinalizar()">✓ Sí, finalizar</button>
+      <button class="btn-main btn-ghost" style="flex:1;" onclick="cerrarDlgFinalizar()">← Volver</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DIÁLOGO RETRABAJO ══════════════════════════════════════════════ -->
+<div id="dlg-retrabajo" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:50;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--panel);border:1px solid rgba(240,92,92,.4);border-radius:12px;padding:28px;max-width:380px;width:100%;">
+    <div class="mono" style="font-size:10px;color:var(--red);letter-spacing:2px;margin-bottom:12px;">⚠ RETRABAJO</div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:8px;">¿Confirmar retrabajo?</div>
+    <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:24px;">El tiempo quedará identificado como RETRABAJO y no sumará a las horas normales.</div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-main btn-danger" style="flex:1;" onclick="confirmarRetrabajo()">✓ Confirmar retrabajo</button>
+      <button class="btn-main btn-ghost" style="flex:1;" onclick="cerrarDlgRetrabajo()">Cancelar</button>
     </div>
   </div>
 </div>
@@ -518,8 +544,8 @@ function iniciarTarea() {
   // cerrar sesión previa del operario si existe
   SESIONES = SESIONES.filter(s => {
     if (s.operarioId === opActual.id) {
-      // guardar en historial (simplificado)
-      guardarHistorial({ ...s, fin: Date.now() });
+      const ahora = Date.now();
+      guardarHistorial({ ...s, fin: ahora, duracion: ahora - s.inicio, tipo: s.tipo || 'normal' });
       return false;
     }
     return true;
@@ -533,6 +559,7 @@ function iniciarTarea() {
     centroId: centroActual,
     nota: document.getElementById('campo-nota').value,
     inicio: Date.now(),
+    tipo: 'normal',
   };
   SESIONES.push(nueva);
   guardarEstado();
@@ -540,17 +567,32 @@ function iniciarTarea() {
 }
 
 function finalizarTarea() {
-  if (centroActual === 'revision') {
+  const ses = SESIONES.find(s => s.operarioId === opActual.id);
+  console.log('centro actual:', ses?.centroId);
+  if (ses?.centroId === 'revision') {
     abrirPanelRevision();
     return;
   }
+  document.getElementById('dlg-finalizar').style.display = 'flex';
+}
+function cerrarDlgFinalizar() {
+  document.getElementById('dlg-finalizar').style.display = 'none';
+}
+function confirmarFinalizar() {
+  cerrarDlgFinalizar();
   _doFinalizarSesion();
 }
 
 function _doFinalizarSesion() {
   SESIONES = SESIONES.filter(s => {
     if (s.operarioId === opActual.id) {
-      guardarHistorial({ ...s, fin: Date.now() });
+      const ahora = Date.now();
+      guardarHistorial({ ...s, fin: ahora, duracion: ahora - s.inicio, tipo: s.tipo || 'normal' });
+      // marcar completado
+      const cKey = s.proyectoId + '_' + s.itemId + '_' + s.centroId;
+      const completados = JSON.parse(localStorage.getItem('completados') || '{}');
+      completados[cKey] = true;
+      localStorage.setItem('completados', JSON.stringify(completados));
       return false;
     }
     return true;
@@ -685,7 +727,55 @@ function confirmarRevision() {
   lista.push(registro);
   localStorage.setItem('bultos_listos', JSON.stringify(lista));
   cerrarPanelRevision();
+  // marcar completado para revisión antes de finalizar sesión
+  if (ses) {
+    const cKey = ses.proyectoId + '_' + ses.itemId + '_' + ses.centroId;
+    const completados = JSON.parse(localStorage.getItem('completados') || '{}');
+    completados[cKey] = true;
+    localStorage.setItem('completados', JSON.stringify(completados));
+  }
   _doFinalizarSesion();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RETRABAJO
+// ═══════════════════════════════════════════════════════════════════════════
+let _pendingRetrabajoItem = null;
+
+function iniciarRetrabajo(prId, itId) {
+  _pendingRetrabajoItem = { prId, itId };
+  document.getElementById('dlg-retrabajo').style.display = 'flex';
+}
+function cerrarDlgRetrabajo() {
+  document.getElementById('dlg-retrabajo').style.display = 'none';
+}
+function confirmarRetrabajo() {
+  cerrarDlgRetrabajo();
+  if (!_pendingRetrabajoItem) return;
+  const { prId, itId } = _pendingRetrabajoItem;
+  _pendingRetrabajoItem = null;
+  // cerrar sesión activa si existe
+  SESIONES = SESIONES.filter(s => {
+    if (s.operarioId === opActual.id) {
+      const ahora = Date.now();
+      guardarHistorial({ ...s, fin: ahora, duracion: ahora - s.inicio, tipo: s.tipo || 'normal' });
+      return false;
+    }
+    return true;
+  });
+  const nueva = {
+    id: Math.random().toString(36).slice(2,8),
+    operarioId: opActual.id,
+    proyectoId: prId,
+    itemId: itId,
+    centroId: centroActual,
+    nota: '',
+    inicio: Date.now(),
+    tipo: 'retrabajo',
+  };
+  SESIONES.push(nueva);
+  guardarEstado();
+  renderPantallaTarea();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -695,16 +785,37 @@ function renderPiezasPendientes() {
   const lista = document.getElementById('lista-piezas');
   lista.innerHTML = '';
   let count = 0;
+  const completados = JSON.parse(localStorage.getItem('completados') || '{}');
   PROYECTOS.forEach(pr => {
     pr.items.forEach(it => {
       if (!it.centros.includes(centroActual)) return;
       const sesActiva = SESIONES.find(s => s.proyectoId === pr.id && s.itemId === it.id && s.centroId === centroActual);
       const opAsig = sesActiva ? OPERARIOS.find(o => o.id === sesActiva.operarioId) : null;
+      const cKey = pr.id + '_' + it.id + '_' + centroActual;
+      const completado = !!completados[cKey];
+      const esRetrabajo = sesActiva?.tipo === 'retrabajo';
       count++;
       const div = document.createElement('div');
       div.className = 'pieza-card' + (sesActiva ? ' activa' : '');
       const nCorto = nombreCorto(it.nombre);
       const nDesc  = nombreDesc(it.nombre);
+
+      let estadoChip = '';
+      if (sesActiva) {
+        const chipColor = esRetrabajo ? 'var(--red)' : 'var(--amber)';
+        const chipBg    = esRetrabajo ? 'rgba(240,92,92,.12)' : 'rgba(245,166,35,.12)';
+        const chipBdr   = esRetrabajo ? 'rgba(240,92,92,.4)' : 'rgba(245,166,35,.4)';
+        const chipLabel = esRetrabajo ? '⚠ RETRABAJO' : ('▶ ' + (opAsig?.nombre.split(' ')[0] || 'Activo'));
+        estadoChip = `<span class="pill" style="background:${chipBg};color:${chipColor};border:1px solid ${chipBdr}">${chipLabel}</span>`;
+      } else if (completado) {
+        estadoChip = `<div style="display:flex;align-items:center;gap:6px;">
+          <span class="pill" style="background:rgba(61,214,140,.12);color:var(--green);border:1px solid rgba(61,214,140,.4)">✓ Completado</span>
+          <button onclick="iniciarRetrabajo('${pr.id}','${it.id}')" style="padding:4px 10px;border:1px solid rgba(240,92,92,.5);border-radius:4px;background:rgba(240,92,92,.1);color:var(--red);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;">⚠ Retrabajo</button>
+        </div>`;
+      } else {
+        estadoChip = `<span class="pill" style="background:rgba(32,36,58,.8);color:var(--muted);border:1px solid var(--border)">Pendiente</span>`;
+      }
+
       div.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:${nDesc?'6':'10'}px;">
           <div style="flex:1;min-width:0;margin-right:10px;">
@@ -712,9 +823,7 @@ function renderPiezasPendientes() {
             ${nDesc?`<div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;">${nDesc}</div>`:''}
             <div class="mono" style="font-size:10px;color:var(--muted);">${pr.nombre}</div>
           </div>
-          <span class="pill" style="background:${sesActiva?'rgba(245,166,35,.12)':'rgba(32,36,58,.8)'};color:${sesActiva?'var(--amber)':'var(--muted)'};border:1px solid ${sesActiva?'rgba(245,166,35,.4)':'var(--border)'}">
-            ${sesActiva ? '▶ ' + (opAsig?.nombre.split(' ')[0] || 'Activo') : 'Pendiente'}
-          </span>
+          ${estadoChip}
         </div>
         ${it.nota ? `<div class="nota-box">${it.nota}</div>` : ''}`;
       lista.appendChild(div);
