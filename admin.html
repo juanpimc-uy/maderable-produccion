@@ -205,7 +205,7 @@ const CENTROS = [
   {id:'empaquetado', label:'Empaquetado/Coloc.',  icon:'▣',color:'var(--green)'},
 ];
 
-let PROYECTOS = [
+const SEED_PROYECTOS = [
   {id:'pr1',clienteNombre:'Estudio JCE',nombre:'MON BRAVA 301',estado:'en_produccion',
    items:[
      {id:'it1',nombre:'Closet Dormitorio Principal',centros:['corte','enchapado','armado','revision','empaquetado'],hEst:18,nota:'Verificar medidas con plano v3. Tolerancia ±1mm en paneles laterales.'},
@@ -235,6 +235,26 @@ let PROYECTOS = [
    modulos:[],
   },
 ];
+
+// Cargar proyectos: localStorage primero, luego seed
+let PROYECTOS = (()=>{
+  const stored = JSON.parse(localStorage.getItem('proyectos') || '[]');
+  if (!stored.length) return SEED_PROYECTOS;
+  return stored.map(p => ({
+    ...p,
+    nombre: p.obra || p.nombre || '',
+    clienteNombre: p.clienteNombre || '',
+    items: (p.muebles || []).map(m => ({
+      id: m.id,
+      nombre: [m.codigo, m.nombre].filter(Boolean).join(' – '),
+      centros: [],
+      hEst: Object.values(m.horas || {}).reduce((a,v)=>a+Number(v||0), 0),
+      nota: '',
+    })),
+    materiales: p.materiales || [],
+    modulos: p.modulos || [],
+  }));
+})();
 
 const NOW = Date.now(), H = h => h * 3600000;
 let SESIONES  = JSON.parse(localStorage.getItem('sesiones')  || '[]');
@@ -464,25 +484,26 @@ function abrirDetallePr(prId) {
   renderDetallePr(pr, 'resumen');
 }
 
-let detallePrId = null, detalleSub = 'resumen';
+let detallePrId = null, detalleSub = 'resumen', editMode = false;
 function renderDetallePr(pr, sub) {
   detallePrId = pr.id; detalleSub = sub;
   clearTimers();
   const hA=hAcumPr(pr.id), hE=hEstPr(pr);
   const byCentro=hByCentro(pr.id), byOp=hByOp(pr.id);
-  const SUBS=['resumen','ítems','materiales','módulos','tiempos'];
+  const SUBS=['resumen','ítems','materiales','tiempos'];
+
+  const hdrContent = editMode
+    ? `<input id="ed-cliente" value="${pr.clienteNombre}" style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:5px 9px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10px;width:100%;margin-bottom:6px;outline:none;"><input id="ed-nombre" value="${pr.nombre}" style="background:var(--faint);border:1px solid var(--amber);border-radius:5px;padding:7px 11px;color:var(--text);font-size:18px;font-weight:700;width:100%;outline:none;">`
+    : `<div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${pr.clienteNombre}</div><div style="font-size:22px;font-weight:700;">${pr.nombre}</div>`;
+  const hdrButtons = editMode
+    ? `<button class="btn btn-success btn-sm" onclick="guardarProyecto('${pr.id}','${sub}')">Guardar cambios</button><button class="btn btn-ghost btn-sm" onclick="editMode=false;renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${sub}')">Cancelar</button>`
+    : `<div style="text-align:right;margin-right:8px;"><div class="mono" style="font-size:13px;color:${hA>hE?'var(--red)':'var(--amber)'};">${fmtH(hA)} / ${fmtH(hE)}</div><div style="font-size:10px;color:var(--muted);">real / estimado</div></div><button class="btn btn-ghost btn-sm" onclick="editMode=true;renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${sub}')">✏ Editar</button>`;
 
   let html = `
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
       <button class="back-btn" onclick="volverListaPr()">← Proyectos</button>
-      <div style="flex:1;">
-        <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${pr.clienteNombre}</div>
-        <div style="font-size:22px;font-weight:700;">${pr.nombre}</div>
-      </div>
-      <div style="text-align:right;">
-        <div class="mono" style="font-size:13px;color:${hA>hE?'var(--red)':'var(--amber)'};">${fmtH(hA)} / ${fmtH(hE)}</div>
-        <div style="font-size:10px;color:var(--muted);">real / estimado</div>
-      </div>
+      <div style="flex:1;">${hdrContent}</div>
+      <div style="display:flex;gap:8px;align-items:center;">${hdrButtons}</div>
     </div>
     <div class="sub-tabs">
       ${SUBS.map(s=>`<button class="sub-tab ${sub===s?'active':''}" onclick="renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${s}')">${s}</button>`).join('')}
@@ -522,6 +543,20 @@ function renderDetallePr(pr, sub) {
 
   // ── ÍTEMS ──
   if(sub==='ítems'){
+    if(editMode && pr.muebles && pr.muebles.length){
+      html+=`<div class="card"><div class="sec-title" style="margin-bottom:14px;">Muebles · editar</div>
+        <table><thead><tr><th>Código</th><th>Nombre</th><th>Cant</th><th>Dif</th><th>Hrs Est.</th></tr></thead><tbody>
+        ${pr.muebles.map(m=>`<tr>
+          <td class="mono" style="color:var(--amber);font-size:12px;">${m.codigo||'—'}</td>
+          <td><input id="edm-nombre-${m.id}" value="${(m.nombre||'').replace(/"/g,'&quot;')}" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:13px;width:100%;outline:none;"></td>
+          <td><input type="number" id="edm-cant-${m.id}" value="${m.cant||1}" min="1" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:13px;width:60px;text-align:center;outline:none;"></td>
+          <td><input type="number" id="edm-dif-${m.id}" value="${m.dif||2}" min="1" max="4" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;width:50px;text-align:center;outline:none;"></td>
+          <td class="mono" style="color:var(--muted);font-size:12px;">${fmtH(Object.values(m.horas||{}).reduce((a,v)=>a+Number(v||0),0))}</td>
+        </tr>`).join('')}
+        </tbody></table></div>`;
+      document.getElementById('pr-detalle').innerHTML = html;
+      return;
+    }
     html+=`<div style="display:flex;flex-direction:column;gap:12px;">`;
     pr.items.forEach(it=>{
       const hA2=hAcumIt(pr.id,it.id);
@@ -550,24 +585,46 @@ function renderDetallePr(pr, sub) {
 
   // ── MATERIALES ──
   if(sub==='materiales'){
+    const hasMueblesConMats = (pr.muebles||[]).some(m=>m.mats&&m.mats.length>0);
     html+=`<div style="display:flex;flex-direction:column;gap:10px;">`;
-    pr.materiales.forEach(m=>{
-      const ok=m.recibido>=m.requerido;
-      html+=`<div style="background:var(--card);border:1px solid ${ok?'rgba(61,214,140,.3)':'var(--border)'};border-radius:8px;padding:18px;display:flex;align-items:center;gap:16px;">
-        <div style="flex:1;">
-          <div style="font-size:14px;font-weight:600;margin-bottom:8px;">${m.nombre}</div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span class="mono" style="font-size:12px;color:${ok?'var(--green)':'var(--amber)'};white-space:nowrap;">${m.recibido}/${m.requerido} ${m.unidad}</span>
-            ${bar(m.recibido,m.requerido,ok?'var(--green)':'var(--amber)')}
+    if(hasMueblesConMats){
+      pr.muebles.forEach(m=>{
+        if(!m.mats||!m.mats.length)return;
+        html+=`<div style="margin-bottom:4px;"><div class="mono" style="font-size:10px;color:var(--amber);letter-spacing:1px;padding:8px 0 6px;">${m.codigo||''} – ${m.nombre||''}</div>`;
+        m.mats.forEach(mat=>{
+          const ok=(mat.recibido||0)>=mat.requerido;
+          html+=`<div style="background:var(--card);border:1px solid ${ok?'rgba(61,214,140,.3)':'var(--border)'};border-radius:8px;padding:14px 18px;display:flex;align-items:center;gap:16px;margin-bottom:6px;">
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:600;margin-bottom:6px;">${mat.nombre}${mat.critico?` <span class="pill" style="color:var(--red);background:rgba(240,92,92,.1);border:1px solid rgba(240,92,92,.3);">CRÍTICO</span>`:''}</div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span class="mono" style="font-size:12px;color:${ok?'var(--green)':'var(--amber)'};white-space:nowrap;">${mat.recibido||0}/${mat.requerido} ${mat.unidad||''}</span>
+                ${bar(mat.recibido||0,mat.requerido,ok?'var(--green)':'var(--amber)')}
+              </div>
+            </div>
+            ${ok?pill('✓ Completo','var(--green)'):''}
+          </div>`;
+        });
+        html+=`</div>`;
+      });
+    } else {
+      pr.materiales.forEach(m=>{
+        const ok=m.recibido>=m.requerido;
+        html+=`<div style="background:var(--card);border:1px solid ${ok?'rgba(61,214,140,.3)':'var(--border)'};border-radius:8px;padding:18px;display:flex;align-items:center;gap:16px;">
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;margin-bottom:8px;">${m.nombre}</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="mono" style="font-size:12px;color:${ok?'var(--green)':'var(--amber)'};white-space:nowrap;">${m.recibido}/${m.requerido} ${m.unidad}</span>
+              ${bar(m.recibido,m.requerido,ok?'var(--green)':'var(--amber)')}
+            </div>
           </div>
-        </div>
-        ${!ok?`<div style="display:flex;gap:6px;align-items:center;">
-          <input type="number" min="1" max="${m.requerido-m.recibido}" placeholder="cant." id="recv-${m.id}" style="width:70px;background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:6px 8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;">
-          <button class="btn btn-primary btn-sm" onclick="recibirMat('${pr.id}','${m.id}',false)">Recibir</button>
-          <button class="btn btn-ghost btn-sm" onclick="recibirMat('${pr.id}','${m.id}',true)">Todo</button>
-        </div>`:`${pill('✓ Completo','var(--green)')}`}
-      </div>`;
-    });
+          ${!ok?`<div style="display:flex;gap:6px;align-items:center;">
+            <input type="number" min="1" max="${m.requerido-m.recibido}" placeholder="cant." id="recv-${m.id}" style="width:70px;background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:6px 8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;">
+            <button class="btn btn-primary btn-sm" onclick="recibirMat('${pr.id}','${m.id}',false)">Recibir</button>
+            <button class="btn btn-ghost btn-sm" onclick="recibirMat('${pr.id}','${m.id}',true)">Todo</button>
+          </div>`:pill('✓ Completo','var(--green)')}
+        </div>`;
+      });
+    }
     html+=`</div>`;
   }
 
@@ -628,9 +685,52 @@ function renderDetallePr(pr, sub) {
 
 function volverListaPr() {
   clearTimers();
+  editMode = false;
   document.getElementById('pr-lista').style.display = 'block';
   document.getElementById('pr-detalle').style.display = 'none';
   renderProyectos();
+}
+
+function guardarProyecto(prId, sub) {
+  const pr = PROYECTOS.find(p=>p.id===prId);
+  if(!pr) return;
+  const nuevoNombre = document.getElementById('ed-nombre')?.value?.trim();
+  const nuevoCliente = document.getElementById('ed-cliente')?.value?.trim();
+  if(nuevoNombre) pr.nombre = nuevoNombre;
+  if(nuevoCliente) pr.clienteNombre = nuevoCliente;
+  // editar muebles si existen
+  if(pr.muebles) {
+    pr.muebles.forEach(m=>{
+      const n = document.getElementById('edm-nombre-'+m.id);
+      const c = document.getElementById('edm-cant-'+m.id);
+      const d = document.getElementById('edm-dif-'+m.id);
+      if(n) m.nombre = n.value.trim();
+      if(c) m.cant = Number(c.value)||1;
+      if(d) m.dif = Number(d.value)||2;
+    });
+    // sincronizar items con muebles editados
+    pr.items = pr.muebles.map(m=>({
+      id: m.id,
+      nombre: [m.codigo, m.nombre].filter(Boolean).join(' – '),
+      centros: [],
+      hEst: Object.values(m.horas||{}).reduce((a,v)=>a+Number(v||0),0),
+      nota: '',
+    }));
+  }
+  // si vino de localStorage, guardar de vuelta
+  const stored = JSON.parse(localStorage.getItem('proyectos')||'[]');
+  if(stored.length) {
+    const idx = stored.findIndex(p=>p.id===prId);
+    if(idx>=0) {
+      stored[idx].nombre = pr.nombre;
+      stored[idx].obra = pr.nombre;
+      stored[idx].clienteNombre = pr.clienteNombre;
+      if(pr.muebles) stored[idx].muebles = pr.muebles;
+      localStorage.setItem('proyectos', JSON.stringify(stored));
+    }
+  }
+  editMode = false;
+  renderDetallePr(pr, sub||'resumen');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
