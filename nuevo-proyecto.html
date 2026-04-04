@@ -113,6 +113,22 @@
 
   @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
   .fu{animation:fadeUp .25s ease both;}
+
+  /* tabla muebles */
+  .tbl-wrap{width:100%;overflow-x:auto;}
+  .tbl-row{display:grid;grid-template-columns:68px 1fr 46px 52px 118px 1fr 28px;gap:5px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);}
+  .tbl-hdr span{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+  .tbl-in{background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 7px;color:var(--text);font-family:'Sora',sans-serif;font-size:12px;outline:none;width:100%;}
+  .tbl-in.mono{font-family:'JetBrains Mono',monospace;}
+  .tbl-in:focus{border-color:var(--amber);}
+  .fc-chip{padding:3px 5px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--muted);cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;transition:all .12s;white-space:nowrap;}
+  .fc-chip.sel-tap{color:var(--purple);background:rgba(155,109,255,.1);border-color:var(--purple);}
+  .fc-chip.sel-her{color:var(--blue);background:rgba(91,141,239,.1);border-color:var(--blue);}
+  .fc-chip.sel-lus{color:var(--teal);background:rgba(46,196,182,.1);border-color:var(--teal);}
+  .fc-chip.sel-ele{color:var(--amber);background:rgba(245,166,35,.1);border-color:var(--amber);}
+  .fc-chip.sel-mac{color:var(--green);background:rgba(61,214,140,.1);border-color:var(--green);}
+  .hrs-tiny{width:34px;background:var(--faint);border:1px solid var(--border);border-radius:3px;padding:3px 4px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;text-align:center;outline:none;}
+  .hrs-tiny:focus{border-color:var(--amber);}
 </style>
 </head>
 <body>
@@ -158,21 +174,6 @@
       <div id="odf-result"></div>
     </div>
 
-    <div class="card">
-      <div class="card-title">Órdenes SO — Materiales <span style="color:var(--muted);font-weight:400;font-size:9px;">(opcionales)</span></div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Las SOs de materiales son opcionales — podés agregarlas ahora o más adelante desde la pantalla de Materiales del proyecto.</div>
-      <div id="so-list"></div>
-      <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px;">
-        <div class="field" style="flex:1;margin:0;">
-          <label>Número SO <span style="font-weight:400;color:var(--muted);font-size:9px;letter-spacing:0;">Solo el número — sin 'ODF-' ni 'SO-'</span></label>
-          <input id="zoho-so-num" placeholder="Ej: 1234" onkeydown="if(event.key==='Enter')buscarSO()"/>
-        </div>
-        <button class="btn btn-primary" onclick="buscarSO()">Buscar</button>
-      </div>
-      <div class="proc-msg" id="proc-so"><span class="spinner"></span><span id="proc-so-txt">Buscando...</span></div>
-      <div class="err-msg" id="err-so"></div>
-    </div>
-
     <div style="display:flex;gap:10px;justify-content:flex-end;">
       <button class="btn btn-ghost" onclick="goStep(2)">Continuar sin Zoho →</button>
       <button class="btn btn-primary" onclick="goStep(2)">Siguiente →</button>
@@ -202,19 +203,17 @@
 
   <!-- ══ PASO 3 ══ -->
   <div id="pane-3" style="display:none;">
-    <div class="card fu" style="margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div class="card-title" style="margin:0;">Muebles del Proyecto</div>
-        <button class="btn btn-primary btn-sm" onclick="addMueble()">+ Agregar</button>
+    <div class="info-box" style="margin-bottom:16px;">
+      Chips de flujo: <span style="color:var(--purple);font-weight:700;">TAP</span> Tapicería · <span style="color:var(--blue);font-weight:700;">HER</span> Herrería · <span style="color:var(--teal);font-weight:700;">LUS</span> Lustre · <span style="color:var(--amber);font-weight:700;">ELE</span> Electricidad · <span style="color:var(--green);font-weight:700;">MAC</span> Mad. Maciza — Los internos (HER/ELE/MAC) requieren horas estimadas.
+    </div>
+    <div class="card fu">
+      <div class="card-title" style="margin-bottom:10px;">Muebles del Proyecto</div>
+      <div class="tbl-wrap">
+        <div id="muebles-list"></div>
       </div>
+      <div id="horas-totales" style="margin-top:14px;padding:12px 14px;background:var(--faint);border-radius:6px;"></div>
     </div>
-    <div class="info-box">
-      <strong>Flujo principal</strong> (todos los muebles): Corte → Enchapado → Armado → Revisión → Empaquetado. El operario decide qué centros aplica.<br>
-      <strong>Flujos internos</strong> (Herrería, Electricidad, Madera maciza): requieren cargar horas estimadas y se verifican antes del despacho.<br>
-      <strong>Flujos tercerizados</strong> (Lustre, Tapicería): salen partes al proveedor — se gestionan en la pantalla de Tercerizados.
-    </div>
-    <div id="muebles-list"></div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px;">
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px;">
       <button class="btn btn-ghost" onclick="goStep(2)">← Atrás</button>
       <button class="btn btn-primary" onclick="goStep(4)">Siguiente → Materiales</button>
     </div>
@@ -222,21 +221,43 @@
 
   <!-- ══ PASO 4 ══ -->
   <div id="pane-4" style="display:none;">
+    <div class="info-box">Buscá las SOs de materiales en Zoho Books. Podés agregar múltiples SOs — los materiales se acumulan.</div>
+
+    <!-- SOs cargadas -->
+    <div id="so-chips-4" style="margin-bottom:12px;"></div>
+
+    <!-- Buscador SO -->
     <div class="card fu">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-        <div class="card-title" style="margin:0;">Materiales a Recibir</div>
-        <button class="btn btn-primary btn-sm" onclick="addMat()">+ Agregar</button>
+      <div class="card-title">Buscar SO — Materiales</div>
+      <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px;">
+        <div class="field" style="flex:1;margin:0;">
+          <label>Número SO <span style="font-weight:400;color:var(--muted);font-size:9px;letter-spacing:0;">con o sin prefijo (ej: 1234 o SO-1234)</span></label>
+          <input id="so-num-4" placeholder="Ej: 1234 o SO-1234" onkeydown="if(event.key==='Enter')buscarSO4()"/>
+        </div>
+        <button class="btn btn-primary" onclick="buscarSO4()">Buscar</button>
       </div>
-      <div id="mat-so-ref"></div>
-      <div class="mat-hdr">
-        <span class="mono" style="font-size:9px;color:var(--muted);">MATERIAL</span>
-        <span class="mono" style="font-size:9px;color:var(--muted);">UNIDAD</span>
-        <span class="mono" style="font-size:9px;color:var(--muted);">REQUERIDO</span>
-        <span class="mono" style="font-size:9px;color:var(--muted);">RECIBIDO</span>
-        <span></span>
-      </div>
-      <div id="mat-list"></div>
+      <div class="proc-msg" id="proc-so4"><span class="spinner"></span><span id="proc-so4-txt">Buscando...</span></div>
+      <div class="err-msg" id="err-so4"></div>
+      <div id="so4-result"></div>
     </div>
+
+    <!-- Agregar material manual (colapsable) -->
+    <details style="margin-bottom:16px;">
+      <summary style="cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);padding:10px 14px;background:var(--faint);border:1px solid var(--border);border-radius:6px;list-style:none;">+ Agregar material manual</summary>
+      <div style="background:var(--card);border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;padding:14px;">
+        <div class="warn-box">Los materiales manuales no se vinculan automáticamente con las OCs de Zoho</div>
+        <div class="mat-hdr">
+          <span class="mono" style="font-size:9px;color:var(--muted);">MATERIAL</span>
+          <span class="mono" style="font-size:9px;color:var(--muted);">UNIDAD</span>
+          <span class="mono" style="font-size:9px;color:var(--muted);">CANTIDAD</span>
+          <span class="mono" style="font-size:9px;color:var(--muted);">SO</span>
+          <span></span>
+        </div>
+        <div id="mat-list"></div>
+        <button class="btn btn-ghost btn-sm" onclick="addMat()" style="margin-top:8px;">+ Agregar ítem</button>
+      </div>
+    </details>
+
     <div style="display:flex;gap:10px;justify-content:flex-end;">
       <button class="btn btn-ghost" onclick="goStep(3)">← Atrás</button>
       <button class="btn btn-primary" onclick="goStep(5)">Siguiente → Confirmar</button>
@@ -297,7 +318,7 @@ function goStep(n){
   step=n;
   document.getElementById('pane-'+n).style.display='block';
   if(n===3){renderMuebles();}
-  if(n===4){renderMats();renderSoRef();}
+  if(n===4){renderSoChips4();renderMats();}
   if(n===5)renderResumen();
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -368,190 +389,136 @@ async function buscarODF(){
   }catch(err){showProc('odf',0);showErr('odf','Error: '+err.message);}
 }
 
-async function buscarSO(){
-  const raw=document.getElementById('zoho-so-num').value.trim();
+async function buscarSO4(){
+  const raw=document.getElementById('so-num-4').value.trim();
   const base=raw.replace(/^(ODF-|odf-|SO-|so-)/i,'').trim();
-  document.getElementById('zoho-so-num').value=base;
+  document.getElementById('so-num-4').value=base;
   if(!base)return;
-  showErr('so','',0);showProc('so',1,'BUSCANDO SO...');
+  showErr('so4','',0);showProc('so4',1,'BUSCANDO SO...');
   try{
     const token=await getZohoToken();
-    // 1ª llamada: buscar por número → obtener salesorder_id
-    let soId=null, soNumUsado=null;
-    for(const candidato of ['SO-'+base, base]){
+    let soId=null,soNumUsado=null;
+    for(const candidato of ['SO-'+base,base]){
       const r1=await fetch(`/api/zoho-books?endpoint=salesorders?salesorder_number=${encodeURIComponent(candidato)}&token=${token}`);
       const d1=await r1.json();
-      console.log('búsqueda SO:', candidato, JSON.stringify(d1));
+      console.log('búsqueda SO:',candidato,JSON.stringify(d1));
       const found=d1.salesorders?.[0];
       if(found){soId=found.salesorder_id;soNumUsado=candidato;break;}
     }
-    if(!soId){showProc('so',0);showErr('so','No se encontró la SO '+base);return;}
-    // 2ª llamada: obtener detalle con line_items
+    if(!soId){showProc('so4',0);showErr('so4','No se encontró la SO '+base);return;}
     const r2=await fetch(`/api/zoho-books?endpoint=salesorders/${soId}&token=${token}`);
     const d2=await r2.json();
     console.log('SO COMPLETO:',JSON.stringify(d2));
-    showProc('so',0);
+    showProc('so4',0);
     const so=d2.salesorder;
-    if(!so){showErr('so','Error al obtener detalle de la SO');return;}
+    if(!so){showErr('so4','Error al obtener detalle de la SO');return;}
     const items=so.line_items||[];
+    const soNum=so.salesorder_number||soNumUsado;
     materiales=[...materiales,...items.map((item,i)=>({
       id:'mat_'+Date.now()+'_'+i,
       nombre:item.name||item.description||'',
       unidad:'unidades',
       requerido:item.quantity||0,
-      recibido:0
+      recibido:0,
+      soOrigen:soNum
     }))];
-    sosCargadas.push({nombre:base,numero:so.salesorder_number||soNumUsado,count:items.length});
-    renderSoList();
-    document.getElementById('zoho-so-num').value='';
-  }catch(err){showProc('so',0);showErr('so','Error: '+err.message);}
-}
-
-function renderSoList(){
-  const el=document.getElementById('so-list');if(!el)return;
-  el.innerHTML=sosCargadas.map(s=>`<div class="so-chip"><span style="color:var(--green)">📋</span><span class="mono" style="font-size:12px;color:var(--green);flex:1;">${s.numero}</span><span style="font-size:11px;color:var(--muted);">${s.count} items</span></div>`).join('');
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-// RENDER MUEBLES
-// ══════════════════════════════════════════════════════════════════════════
-function renderMuebles(){
-  const list=document.getElementById('muebles-list');list.innerHTML='';
-  if(!muebles.length){list.innerHTML='<div style="text-align:center;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:12px;padding:24px;">Sin muebles. Importá un remito o + Agregar.</div>';return;}
-  muebles.forEach(m=>{
-    const tags=m.flujos.map(fid=>{const f=FLUJOS_CONFIG[fid];return f?`<span class="pill" style="color:${f.color};background:${f.color}15;border:1px solid ${f.color}30;">${f.tipo==='interno'?'⚙ ':'✈ '}${f.label}</span>`:''}).join('');
-    const tieneInternos=m.flujos.some(f=>FLUJOS_CONFIG[f]?.tipo==='interno');
-    const tieneTerc=m.flujos.some(f=>FLUJOS_CONFIG[f]?.tipo==='tercerizado');
-
-    const c=document.createElement('div');
-    c.className='mueble-card fu';c.id='mc-'+m.id;
-    c.innerHTML=`
-      <div class="mueble-header" onclick="togBody('${m.id}')">
-        <span class="mueble-codigo">${m.codigo}</span>
-        <span class="mueble-nombre">${m.nombre||'Sin nombre'}</span>
-        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
-          ${tags}
-          <span class="mono" style="font-size:12px;color:var(--muted);min-width:26px;text-align:right;">×${m.cant}</span>
-          <span style="color:var(--muted);font-size:11px;margin-left:2px;">▾</span>
+    sosCargadas.push({numero:soNum,count:items.length});
+    renderSoChips4();
+    document.getElementById('so-num-4').value='';
+    document.getElementById('so4-result').innerHTML=`
+      <div style="background:rgba(61,214,140,.05);border:1px solid rgba(61,214,140,.2);border-radius:6px;padding:10px 12px;margin-top:4px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+          <span class="mono" style="color:var(--green);font-weight:700;">${soNum}</span>
+          <span class="mono" style="color:var(--muted);font-size:11px;">${items.length} materiales</span>
         </div>
-      </div>
-      <div class="mueble-body" id="mb-${m.id}">
-        <div class="g2" style="margin-bottom:12px;">
-          <div class="field" style="margin:0;"><label>Código</label><input value="${m.codigo}" onchange="upM('${m.id}','codigo',this.value)"/></div>
-          <div class="field" style="margin:0;"><label>Cantidad</label><input type="number" min="1" value="${m.cant}" onchange="upM('${m.id}','cant',+this.value)"/></div>
-        </div>
-        <div class="field" style="margin-bottom:12px;"><label>Nombre</label><input value="${m.nombre}" onchange="upM('${m.id}','nombre',this.value)" placeholder="Descripción del mueble"/></div>
-
-        <div style="margin-bottom:14px;">
-          <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">FLUJOS EXTRA</div>
-          <div class="flujos-wrap">
-            ${FLUJOS.map(f=>`<button class="flujo-btn ${m.flujos.includes(f.id)?'sel':''}" data-f="${f.id}" onclick="togFlujo('${m.id}','${f.id}',this)">${f.tipo==='interno'?'⚙':' ✈'} ${f.label}</button>`).join('')}
-          </div>
-          <div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;">
-            <span style="font-size:10px;color:var(--muted);"><span style="color:var(--text);">⚙</span> Interno — requiere horas + verificación</span>
-            <span style="font-size:10px;color:var(--muted);"><span style="color:var(--text);">✈</span> Tercerizado — sale al proveedor</span>
-          </div>
-        </div>
-
-        ${tieneInternos ? `
-        <div class="flujo-extra-hrs">
-          <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">HORAS ESTIMADAS — FLUJOS INTERNOS <span style="color:var(--red);">*obligatorio</span></div>
-          ${m.flujos.filter(fid=>FLUJOS_CONFIG[fid]?.tipo==='interno').map(fid=>{
-            const f=FLUJOS_CONFIG[fid];
-            return `<div class="flujo-extra-row">
-              <span class="flujo-extra-tag" style="color:${f.color};background:${f.color}15;border:1px solid ${f.color}30;">${f.label}</span>
-              <span class="flujo-extra-label" style="color:${f.color};">${f.label}</span>
-              <div style="display:flex;align-items:center;gap:6px;">
-                <input class="hrs-input" type="number" min="0" step="0.5" value="${m.hrsExtra[fid]||0}" 
-                  onchange="upHrsExtra('${m.id}','${fid}',+this.value)" placeholder="0"/>
-                <span class="mono" style="font-size:11px;color:var(--muted);">h est.</span>
-              </div>
-            </div>`;
-          }).join('')}
-        </div>` : ''}
-
-        ${tieneTerc ? `
-        <div class="warn-box" style="margin-top:10px;">
-          ✈ Este mueble tiene flujos tercerizados (${m.flujos.filter(f=>FLUJOS_CONFIG[f]?.tipo==='tercerizado').map(f=>FLUJOS_CONFIG[f].label).join(', ')}).
-          Gestioná el despacho y recepción en <a href="tercerizados.html" style="color:var(--amber);">Tercerizados →</a>
-        </div>` : ''}
-
-        ${(()=>{
-          if(!m.mats||!m.mats.length){m.mats=materiales.map(mat=>({nombre:mat.nombre,unidad:mat.unidad||'unidades',requerido:mat.requerido||0,recibido:0,critico:false}));}
-          if(!m.mats.length)return'';
-          return`<div style="margin-top:12px;">
-            <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">MATERIALES DEL MUEBLE <span style="color:var(--blue);font-size:9px;">— Marcá como CRÍTICO los que bloquean producción</span></div>
-            ${m.mats.map((mat,i)=>`
-            <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);">
-              <span style="flex:1;font-size:13px;">${mat.nombre}</span>
-              <span class="mono" style="font-size:11px;color:var(--muted);">${mat.requerido} ${mat.unidad}</span>
-              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:${mat.critico?'var(--red)':'var(--muted)'};">
-                <input type="checkbox" ${mat.critico?'checked':''} onchange="togCritico('${m.id}',${i},this.checked)" style="accent-color:var(--red);cursor:pointer;"/>
-                CRÍTICO
-              </label>
-            </div>`).join('')}
-          </div>`;
-        })()}
-
-        <div class="divider"></div>
-        <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">ESTIMACIÓN FLUJO PRINCIPAL</div>
-        <div class="g2" style="margin-bottom:10px;">
-          <div class="field" style="margin:0;"><label>Placas</label><input type="number" min="1" value="${m.placas}" onchange="upEst('${m.id}','placas',+this.value)"/></div>
-          <div>
-            <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:7px;">DIFICULTAD</div>
-            <div class="dif-grid">${[1,2,3,4].map(d=>`<button class="dif-btn ${m.dif===d?'sel':''}" onclick="upEst('${m.id}','dif',${d},this.parentElement)"><span class="dif-num">${d}</span><span class="dif-lbl">${DIF_NAMES[d]}</span></button>`).join('')}</div>
-          </div>
-        </div>
-        <div class="est-grid" id="est-${m.id}">${estHtml(m.horas)}</div>
-        <div class="divider"></div>
-        <button class="btn btn-danger btn-sm" onclick="delM('${m.id}')">× Eliminar</button>
+        ${items.slice(0,4).map(it=>`<div style="font-size:12px;color:var(--muted);display:flex;justify-content:space-between;padding:2px 0;"><span>${it.name||it.description||'—'}</span><span class="mono">×${it.quantity}</span></div>`).join('')}
+        ${items.length>4?`<div style="font-size:11px;color:var(--muted);">...y ${items.length-4} más</div>`:''}
       </div>`;
-    list.appendChild(c);
+    renderMats();
+  }catch(err){showProc('so4',0);showErr('so4','Error: '+err.message);}
+}
+
+function renderSoChips4(){
+  const el=document.getElementById('so-chips-4');if(!el)return;
+  if(!sosCargadas.length){el.innerHTML='';return;}
+  el.innerHTML=sosCargadas.map(s=>`<div class="so-chip"><span style="color:var(--green)">📋</span><span class="mono" style="font-size:12px;color:var(--green);flex:1;">${s.numero}</span><span style="font-size:11px;color:var(--muted);">${s.count} materiales</span></div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// RENDER MUEBLES — tabla compacta inline
+// ══════════════════════════════════════════════════════════════════════════
+const FC=[
+  {id:'tapiceria',  label:'TAP', cls:'sel-tap', interno:false},
+  {id:'herreria',   label:'HER', cls:'sel-her', interno:true },
+  {id:'lustre',     label:'LUS', cls:'sel-lus', interno:false},
+  {id:'electricidad',label:'ELE',cls:'sel-ele', interno:true },
+  {id:'madera_maciza',label:'MAC',cls:'sel-mac',interno:true },
+];
+
+function renderMuebles(){
+  const list=document.getElementById('muebles-list');
+  if(!muebles.length){
+    list.innerHTML='<div style="text-align:center;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:12px;padding:24px;">Sin muebles. Importá un ODF o usá + Agregar mueble.</div>';
+    renderHorasTotales(); return;
+  }
+  const rows=muebles.map((m,idx)=>{
+    const difBtns=[1,2,3,4].map(d=>`<button onclick="tblDif(${idx},${d})" style="padding:3px 5px;border:1px solid ${m.dif===d?'var(--amber)':'var(--border)'};border-radius:3px;background:${m.dif===d?'rgba(245,166,35,.12)':'var(--faint)'};color:${m.dif===d?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;">${d}</button>`).join('');
+    const chips=FC.map(f=>{
+      const on=m.flujos.includes(f.id);
+      return `<button class="fc-chip ${on?f.cls:''}" onclick="tblFlujo(${idx},'${f.id}')">${f.label}</button>`
+            +(on&&f.interno?`<input type="number" min="0" step="0.5" value="${m.hrsExtra[f.id]||0}" onchange="tblHrs(${idx},'${f.id}',+this.value)" class="hrs-tiny" title="${FLUJOS_CONFIG[f.id].label} h estimadas"/>`:``);
+    }).join('');
+    return `<div class="tbl-row">
+      <input class="tbl-in mono" value="${m.codigo}" onchange="tblUpd(${idx},'codigo',this.value)" style="color:var(--amber);font-size:11px;font-weight:700;"/>
+      <input class="tbl-in" value="${m.nombre}" placeholder="Nombre del mueble" onchange="tblUpd(${idx},'nombre',this.value)"/>
+      <input class="tbl-in mono" type="number" min="1" value="${m.cant}" onchange="tblUpd(${idx},'cant',+this.value)" style="text-align:center;"/>
+      <input class="tbl-in mono" type="number" min="1" value="${m.placas}" onchange="tblPlacas(${idx},+this.value)" style="text-align:center;"/>
+      <div style="display:flex;gap:2px;">${difBtns}</div>
+      <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center;">${chips}</div>
+      <button onclick="delM('${m.id}')" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 7px;cursor:pointer;color:var(--red);font-weight:700;font-size:12px;">×</button>
+    </div>`;
+  }).join('');
+  list.innerHTML=`
+    <div class="tbl-row tbl-hdr" style="padding-bottom:8px;">
+      <span>CÓDIGO</span><span>NOMBRE</span><span>CANT</span><span>PLACAS</span><span>DIF</span><span>FLUJOS EXTRA (HER/ELE/MAC incluyen horas)</span><span></span>
+    </div>
+    ${rows}
+    <button class="btn btn-ghost btn-sm" onclick="addMueble()" style="margin-top:10px;width:100%;">+ Agregar mueble</button>`;
+  renderHorasTotales();
+}
+
+function renderHorasTotales(){
+  const el=document.getElementById('horas-totales');if(!el)return;
+  if(!muebles.length){el.innerHTML='';return;}
+  const tot={};CENTROS.forEach(c=>{tot[c]=0;});let gran=0,ext=0;
+  muebles.forEach(m=>{
+    CENTROS.forEach(c=>{const h=(m.horas[c]||0)*m.cant;tot[c]+=h;gran+=h;});
+    if(m.hrsExtra)Object.values(m.hrsExtra).forEach(h=>{ext+=(h||0)*m.cant;});
   });
+  el.innerHTML=`<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+    <span class="mono" style="font-size:9px;color:var(--muted);">ESTIMACIÓN TOTAL →</span>
+    ${CENTROS.map(c=>`<div style="text-align:center;"><div class="mono" style="font-size:9px;color:var(--muted);">${C_LABEL[c]}</div><div class="mono" style="font-size:12px;color:var(--amber);font-weight:700;">${tot[c].toFixed(1)}h</div></div>`).join('')}
+    <div style="margin-left:auto;display:flex;gap:12px;">
+      <div style="text-align:center;"><div class="mono" style="font-size:9px;color:var(--muted);">PRINCIPAL</div><div class="mono" style="font-size:15px;color:var(--amber);font-weight:700;">${gran.toFixed(1)}h</div></div>
+      ${ext>0?`<div style="text-align:center;"><div class="mono" style="font-size:9px;color:var(--muted);">INTERNOS</div><div class="mono" style="font-size:15px;color:var(--blue);font-weight:700;">${ext.toFixed(1)}h</div></div>`:''}
+    </div>
+  </div>`;
 }
 
-function estHtml(h){return CENTROS.map(c=>`<div class="est-box"><div class="est-label">${C_LABEL[c]}</div><div class="est-val">${h[c]}h</div></div>`).join('');}
-function togBody(id){document.getElementById('mb-'+id)?.classList.toggle('open');}
-
-function upM(id,key,val){
-  const m=muebles.find(x=>x.id===id);if(!m)return;m[key]=val;
-  if(key==='nombre'){const el=document.querySelector(`#mc-${id} .mueble-nombre`);if(el)el.textContent=val||'Sin nombre';}
-  if(key==='cant'){const el=document.querySelector(`#mc-${id} .mono[style*="min-width"]`);if(el)el.textContent='×'+val;}
-  if(key==='codigo'){const el=document.querySelector(`#mc-${id} .mueble-codigo`);if(el)el.textContent=val;}
-}
-
-function togFlujo(mid,fid,btn){
-  const m=muebles.find(x=>x.id===mid);if(!m)return;
-  m.flujos.includes(fid)?(m.flujos=m.flujos.filter(f=>f!==fid),btn.classList.remove('sel')):(m.flujos.push(fid),btn.classList.add('sel'));
+function tblUpd(idx,key,val){if(muebles[idx])muebles[idx][key]=val;}
+function tblPlacas(idx,val){if(!muebles[idx])return;muebles[idx].placas=val;muebles[idx].horas=calcHoras(val,muebles[idx].dif);renderHorasTotales();}
+function tblDif(idx,val){if(!muebles[idx])return;muebles[idx].dif=val;muebles[idx].horas=calcHoras(muebles[idx].placas,val);renderMuebles();}
+function tblFlujo(idx,fid){
+  if(!muebles[idx])return;
+  const m=muebles[idx];
+  m.flujos.includes(fid)?m.flujos=m.flujos.filter(f=>f!==fid):m.flujos.push(fid);
   renderMuebles();
-  setTimeout(()=>document.getElementById('mb-'+mid)?.classList.add('open'),30);
 }
-
-function togCritico(mid,idx,val){
-  const m=muebles.find(x=>x.id===mid);if(!m||!m.mats)return;
-  m.mats[idx].critico=val;
-  const lbl=document.querySelector(`#mc-${mid} [data-crit-lbl="${idx}"]`);
-  if(lbl)lbl.style.color=val?'var(--red)':'var(--muted)';
-}
-
-function upHrsExtra(mid,fid,val){
-  const m=muebles.find(x=>x.id===mid);if(!m)return;
-  if(!m.hrsExtra)m.hrsExtra={};
-  m.hrsExtra[fid]=val;
-}
-
-function upEst(id,key,val,parent){
-  const m=muebles.find(x=>x.id===id);if(!m)return;m[key]=val;
-  if(key==='dif'&&parent)parent.querySelectorAll('.dif-btn').forEach((b,i)=>b.classList.toggle('sel',i+1===val));
-  m.horas=calcHoras(m.placas,m.dif);
-  const g=document.getElementById('est-'+id);if(g)g.innerHTML=estHtml(m.horas);
-}
+function tblHrs(idx,fid,val){if(!muebles[idx])return;if(!muebles[idx].hrsExtra)muebles[idx].hrsExtra={};muebles[idx].hrsExtra[fid]=val;}
 
 function addMueble(){
-  const id='mf_'+Date.now();
-  muebles.push({id,codigo:'C'+(muebles.length+1).toString().padStart(2,'0'),nombre:'',cant:1,flujos:[],hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},placas:4,dif:2,horas:calcHoras(4,2),mats:[]});
+  muebles.push({id:'mf_'+Date.now(),codigo:'MF'+(muebles.length+1).toString().padStart(2,'0'),nombre:'',cant:1,flujos:[],hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},placas:4,dif:2,horas:calcHoras(4,2),mats:[]});
   renderMuebles();
-  setTimeout(()=>document.getElementById('mb-'+id)?.classList.add('open'),50);
 }
 function delM(id){muebles=muebles.filter(m=>m.id!==id);renderMuebles();}
 
@@ -559,25 +526,21 @@ function delM(id){muebles=muebles.filter(m=>m.id!==id);renderMuebles();}
 // MATERIALES
 // ══════════════════════════════════════════════════════════════════════════
 const UNIDS=['planchas','unidades','pares','metros','ml','kg','litros','m²'];
-function renderSoRef(){
-  const el=document.getElementById('mat-so-ref');if(!el||!sosCargadas.length){if(el)el.innerHTML='';return;}
-  el.innerHTML=`<div style="margin-bottom:10px;">${sosCargadas.map(s=>`<div class="so-chip"><span style="color:var(--green)">📋</span><span class="mono" style="font-size:11px;color:var(--green);flex:1;">${s.numero}</span><span style="font-size:11px;color:var(--muted);">${s.count} items</span></div>`).join('')}</div>`;
-}
 function renderMats(){
-  const list=document.getElementById('mat-list');list.innerHTML='';
-  if(!materiales.length){list.innerHTML='<div style="color:var(--muted);font-size:12px;padding:14px;line-height:1.6;">Sin materiales cargados aún. Podés agregarlos desde <strong>Materiales → Proyecto</strong> una vez guardado.</div>';return;}
+  const list=document.getElementById('mat-list');if(!list)return;list.innerHTML='';
+  if(!materiales.length){list.innerHTML='<div style="color:var(--muted);font-size:12px;padding:10px 0;line-height:1.6;">Sin materiales manuales. Usá el buscador de SOs arriba.</div>';return;}
   materiales.forEach((m,i)=>{
     const row=document.createElement('div');row.className='mat-row';
     row.innerHTML=`
       <input class="mat-in" value="${m.nombre}" placeholder="Material" onchange="materiales[${i}].nombre=this.value"/>
       <select class="mat-in" onchange="materiales[${i}].unidad=this.value">${UNIDS.map(u=>`<option value="${u}" ${m.unidad===u?'selected':''}>${u}</option>`).join('')}</select>
       <input class="mat-in mono" type="number" min="0" value="${m.requerido}" onchange="materiales[${i}].requerido=+this.value"/>
-      <input class="mat-in mono" type="number" min="0" value="${m.recibido||0}" onchange="materiales[${i}].recibido=+this.value" style="color:var(--green);"/>
+      <span class="mono" style="font-size:10px;color:var(--muted);padding:0 4px;">${m.soOrigen||'—'}</span>
       <button onclick="materiales.splice(${i},1);renderMats();" style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:6px;cursor:pointer;color:var(--red);font-weight:700;font-size:13px;">×</button>`;
     list.appendChild(row);
   });
 }
-function addMat(){materiales.push({id:'mat_'+Date.now(),nombre:'',unidad:'planchas',requerido:0,recibido:0});renderMats();}
+function addMat(){materiales.push({id:'mat_'+Date.now(),nombre:'',unidad:'planchas',requerido:0,recibido:0,soOrigen:''});renderMats();}
 
 // ══════════════════════════════════════════════════════════════════════════
 // RESUMEN
