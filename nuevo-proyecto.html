@@ -340,7 +340,7 @@ async function buscarODF(){
       cant:item.quantity||1,
       flujos:[],
       hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},
-      placas:4,dif:2,horas:calcHoras(4,2)
+      placas:4,dif:2,horas:calcHoras(4,2),mats:[]
     }));
     document.getElementById('odf-result').innerHTML=`
       <div style="background:rgba(61,214,140,.05);border:1px solid rgba(61,214,140,.2);border-radius:6px;padding:12px;margin-top:4px;">
@@ -448,9 +448,26 @@ function renderMuebles(){
 
         ${tieneTerc ? `
         <div class="warn-box" style="margin-top:10px;">
-          ✈ Este mueble tiene flujos tercerizados (${m.flujos.filter(f=>FLUJOS_CONFIG[f]?.tipo==='tercerizado').map(f=>FLUJOS_CONFIG[f].label).join(', ')}). 
+          ✈ Este mueble tiene flujos tercerizados (${m.flujos.filter(f=>FLUJOS_CONFIG[f]?.tipo==='tercerizado').map(f=>FLUJOS_CONFIG[f].label).join(', ')}).
           Gestioná el despacho y recepción en <a href="tercerizados.html" style="color:var(--amber);">Tercerizados →</a>
         </div>` : ''}
+
+        ${(()=>{
+          if(!m.mats||!m.mats.length){m.mats=materiales.map(mat=>({nombre:mat.nombre,unidad:mat.unidad||'unidades',requerido:mat.requerido||0,recibido:0,critico:false}));}
+          if(!m.mats.length)return'';
+          return`<div style="margin-top:12px;">
+            <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">MATERIALES DEL MUEBLE <span style="color:var(--blue);font-size:9px;">— Marcá como CRÍTICO los que bloquean producción</span></div>
+            ${m.mats.map((mat,i)=>`
+            <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);">
+              <span style="flex:1;font-size:13px;">${mat.nombre}</span>
+              <span class="mono" style="font-size:11px;color:var(--muted);">${mat.requerido} ${mat.unidad}</span>
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:${mat.critico?'var(--red)':'var(--muted)'};">
+                <input type="checkbox" ${mat.critico?'checked':''} onchange="togCritico('${m.id}',${i},this.checked)" style="accent-color:var(--red);cursor:pointer;"/>
+                CRÍTICO
+              </label>
+            </div>`).join('')}
+          </div>`;
+        })()}
 
         <div class="divider"></div>
         <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">ESTIMACIÓN FLUJO PRINCIPAL</div>
@@ -486,6 +503,13 @@ function togFlujo(mid,fid,btn){
   setTimeout(()=>document.getElementById('mb-'+mid)?.classList.add('open'),30);
 }
 
+function togCritico(mid,idx,val){
+  const m=muebles.find(x=>x.id===mid);if(!m||!m.mats)return;
+  m.mats[idx].critico=val;
+  const lbl=document.querySelector(`#mc-${mid} [data-crit-lbl="${idx}"]`);
+  if(lbl)lbl.style.color=val?'var(--red)':'var(--muted)';
+}
+
 function upHrsExtra(mid,fid,val){
   const m=muebles.find(x=>x.id===mid);if(!m)return;
   if(!m.hrsExtra)m.hrsExtra={};
@@ -501,7 +525,7 @@ function upEst(id,key,val,parent){
 
 function addMueble(){
   const id='mf_'+Date.now();
-  muebles.push({id,codigo:'C'+(muebles.length+1).toString().padStart(2,'0'),nombre:'',cant:1,flujos:[],hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},placas:4,dif:2,horas:calcHoras(4,2)});
+  muebles.push({id,codigo:'C'+(muebles.length+1).toString().padStart(2,'0'),nombre:'',cant:1,flujos:[],hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},placas:4,dif:2,horas:calcHoras(4,2),mats:[]});
   renderMuebles();
   setTimeout(()=>document.getElementById('mb-'+id)?.classList.add('open'),50);
 }

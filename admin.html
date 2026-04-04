@@ -130,11 +130,12 @@
     <!-- ══ DASHBOARD ═══════════════════════════════════════════════════════ -->
     <div class="view active" id="v-dashboard">
       <!-- KPIs -->
-      <div class="grid4" style="margin-bottom:20px;">
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
         <div class="kpi"><div class="kpi-label">Proyectos Activos</div><div class="kpi-val" style="color:var(--amber)" id="kpi-proyectos">2</div></div>
         <div class="kpi"><div class="kpi-label">Operarios en Tarea</div><div class="kpi-val" style="color:var(--green)" id="kpi-operarios">3/5</div></div>
         <div class="kpi"><div class="kpi-label">En Inventario</div><div class="kpi-val" style="color:var(--blue)" id="kpi-inventario">2</div></div>
         <div class="kpi"><div class="kpi-label">Despachados</div><div class="kpi-val" style="color:var(--purple)" id="kpi-despachados">1</div></div>
+        <div class="kpi"><div class="kpi-label">Muebles Bloqueados</div><div class="kpi-val" id="kpi-bloqueados">0</div></div>
       </div>
       <!-- Operarios en vivo -->
       <div class="card" style="margin-bottom:20px;">
@@ -363,6 +364,11 @@ function renderDashboard() {
   document.getElementById('kpi-operarios').textContent  = `${ocupados.length}/${OPERARIOS.length}`;
   document.getElementById('kpi-inventario').textContent = totalMod-desp;
   document.getElementById('kpi-despachados').textContent= desp;
+  const proyStorage = JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const bloqueados = proyStorage.reduce((a,p)=>a+(p.muebles||[]).filter(m=>(m.mats||[]).some(mat=>mat.critico&&(mat.recibido||0)<mat.requerido)).length,0);
+  const kpiBloq = document.getElementById('kpi-bloqueados');
+  kpiBloq.textContent = bloqueados;
+  kpiBloq.style.color = bloqueados>0?'var(--red)':'var(--green)';
 
   // operarios
   let opHtml = '';

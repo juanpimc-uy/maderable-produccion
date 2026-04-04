@@ -101,7 +101,7 @@
 
   <div class="tabs">
     <button class="tab active" id="tab-recepcion" onclick="switchTab('recepcion')">📥 Recepción</button>
-    <button class="tab" id="tab-ocs" onclick="switchTab('ocs')">📋 Órdenes OC</button>
+    <button class="tab" id="tab-ocs" onclick="switchTab('ocs')">📦 Órdenes OC</button>
     <button class="tab" id="tab-estado" onclick="switchTab('estado')">🟢 Estado por Mueble</button>
   </div>
 
@@ -148,8 +148,13 @@
   <div id="pane-ocs" style="display:none;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
       <div class="sec" style="margin:0;">Órdenes de Compra</div>
-      <button class="btn btn-primary btn-sm" onclick="abrirModalNuevaOC()">+ Nueva OC</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="importarOCsZoho()">☁ Importar desde Zoho</button>
+        <button class="btn btn-primary btn-sm" onclick="abrirModalNuevaOC()">+ Nueva OC</button>
+      </div>
     </div>
+    <div class="proc-msg" id="proc-zoho-oc"><span class="spinner"></span>Cargando desde Zoho...</div>
+    <div id="zoho-ocs-list"></div>
     <div id="lista-ocs"></div>
   </div>
 
@@ -466,6 +471,27 @@ function confirmarRecepcion() {
     });
   });
 
+  // actualizar mats críticos por mueble y detectar desbloqueos
+  const mueblesDesbloqueados = [];
+  PROYECTOS.forEach(pr => {
+    (pr.muebles||[]).forEach(mueble => {
+      const mats = mueble.mats||[];
+      if (!mats.length) return;
+      recvItems.forEach(it => {
+        if (!it.nombre) return;
+        mats.forEach(mat => {
+          const coincide = mat.nombre.toLowerCase().includes(it.nombre.toLowerCase()) ||
+                           it.nombre.toLowerCase().includes(mat.nombre.toLowerCase());
+          if (coincide) mat.recibido = Math.min(mat.requerido, (mat.recibido||0) + it.cantidad);
+        });
+      });
+      const criticos = mats.filter(m=>m.critico);
+      if (criticos.length && criticos.every(m=>m.recibido>=m.requerido)) {
+        mueblesDesbloqueados.push(`${pr.numero||pr.obra||''} · ${mueble.codigo||''} ${mueble.nombre||''}`);
+      }
+    });
+  });
+
   // marcar OC como recibida si hay número
   if (ocNum) {
     const oc = OCS.find(o=>o.numero===ocNum);
@@ -486,11 +512,11 @@ function confirmarRecepcion() {
   renderRecepciones();
 
   // mostrar impacto
-  if (impactados.length) {
+  if (impactados.length || mueblesDesbloqueados.length) {
     const card = document.getElementById('card-impacto');
     card.style.display='block';
     document.getElementById('impacto-contenido').innerHTML=`
-      <div class="ok-box" style="margin-bottom:12px;">✓ Recepción registrada. ${impactados.length} material${impactados.length>1?'es':''} actualizado${impactados.length>1?'s':''}.</div>
+      ${impactados.length?`<div class="ok-box" style="margin-bottom:12px;">✓ Recepción registrada. ${impactados.length} material${impactados.length>1?'es':''} actualizado${impactados.length>1?'s':''}.</div>
       ${impactados.map(imp=>`
         <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--faint);border-radius:6px;margin-bottom:5px;">
           <span style="width:8px;height:8px;border-radius:50%;background:${imp.a>=imp.req?'var(--green)':'var(--amber)'};flex-shrink:0;"></span>
@@ -498,18 +524,12 @@ function confirmarRecepcion() {
           <span class="mono" style="font-size:12px;color:var(--muted);">${imp.prNum}</span>
           <span class="mono" style="font-size:12px;">${imp.de} → <span style="color:${imp.a>=imp.req?'var(--green)':'var(--amber)'};">${imp.a}</span>/${imp.req}</span>
           ${imp.a>=imp.req?`<span class="pill" style="color:var(--green);background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.3);">✓</span>`:''}
-        </div>`).join('')}`;
-
-    // flash animación en muebles habilitados
-    const mueblesBloqueados = [];
-    PROYECTOS.forEach(pr=>(pr.muebles||[]).forEach(m=>{ if(m.materialesOk) mueblesBloqueados.push(`${pr.numero} · ${m.codigo} ${m.nombre}`); }));
-    if (mueblesBloqueados.length) {
-      document.getElementById('impacto-contenido').insertAdjacentHTML('beforeend',`
+        </div>`).join('')}`:''}
+      ${mueblesDesbloqueados.length?`
         <div class="ok-box" style="margin-top:10px;">
-          🟢 <strong>Muebles habilitados para producción:</strong><br>
-          ${mueblesBloqueados.map(m=>`<span style="display:block;font-family:'JetBrains Mono',monospace;font-size:11px;margin-top:4px;">${m}</span>`).join('')}
-        </div>`);
-    }
+          🟢 <strong>${mueblesDesbloqueados.length} mueble${mueblesDesbloqueados.length>1?'s':''} desbloqueado${mueblesDesbloqueados.length>1?'s':''} para producción:</strong><br>
+          ${mueblesDesbloqueados.map(m=>`<span style="display:block;font-family:'JetBrains Mono',monospace;font-size:11px;margin-top:4px;">${m}</span>`).join('')}
+        </div>`:''}`;
   }
 }
 
@@ -571,6 +591,54 @@ function recibirOC(ocId) {
   recvItems = oc.items.map(i=>({nombre:i.nombre,unidad:i.unidad,cantidad:i.cantidad}));
   document.getElementById('recv-oc').value   = oc.numero;
   document.getElementById('recv-prov').value = oc.proveedor;
+  document.getElementById('recv-fecha').value= hoy();
+  document.getElementById('recv-obs').value  = '';
+  renderRecvItems();
+  switchTab('recepcion');
+  document.getElementById('overlay-recv').classList.add('open');
+}
+
+async function importarOCsZoho() {
+  const el=document.getElementById('zoho-ocs-list');
+  const proc=document.getElementById('proc-zoho-oc');
+  proc.classList.add('show'); el.innerHTML='';
+  try {
+    const tr=await fetch('/api/zoho-token');
+    const td=await tr.json();
+    if(!td.access_token)throw new Error('Sin token: '+JSON.stringify(td));
+    const r=await fetch(`/api/zoho-books?endpoint=purchaseorders?status=open&token=${td.access_token}`);
+    const data=await r.json();
+    proc.classList.remove('show');
+    const ocs=data.purchaseorders||[];
+    if(!ocs.length){el.innerHTML='<div class="info-box">No hay OCs abiertas en Zoho Books.</div>';return;}
+    el.innerHTML=`<div class="info-box" style="margin-bottom:12px;">OCs abiertas en Zoho (${ocs.length})</div>`+
+      ocs.map(oc=>`
+        <div class="oc-card">
+          <div class="oc-header">
+            <span class="oc-num">${oc.purchaseorder_number}</span>
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:600;">${oc.vendor_name||oc.contact_name||'—'}</div>
+              <div style="font-size:11px;color:var(--muted);">${oc.date||''} · ${(oc.line_items||[]).length} ítems</div>
+            </div>
+            <button class="btn btn-success btn-sm" onclick='recibirOCZoho(${JSON.stringify(oc).replace(/'/g,"&#39;")})'>→ Recibir esta OC</button>
+          </div>
+          ${(oc.line_items||[]).slice(0,3).map(it=>`
+            <div class="mat-oc-row">
+              <span class="mat-nombre">${it.name||it.description||'—'}</span>
+              <span class="mat-cant">${it.quantity_cancelled!==undefined?it.quantity:it.quantity} ${it.unit||'unidades'}</span>
+            </div>`).join('')}
+          ${(oc.line_items||[]).length>3?`<div style="font-size:11px;color:var(--muted);padding:5px 0;">...y ${(oc.line_items||[]).length-3} más</div>`:''}
+        </div>`).join('');
+  } catch(err) {
+    proc.classList.remove('show');
+    el.innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px 0;">Error: ${err.message}</div>`;
+  }
+}
+
+function recibirOCZoho(oc) {
+  recvItems=(oc.line_items||[]).map(it=>({nombre:it.name||it.description||'',unidad:it.unit||'unidades',cantidad:+(it.quantity||1)}));
+  document.getElementById('recv-oc').value   = oc.purchaseorder_number||'';
+  document.getElementById('recv-prov').value = oc.vendor_name||oc.contact_name||'';
   document.getElementById('recv-fecha').value= hoy();
   document.getElementById('recv-obs').value  = '';
   renderRecvItems();
@@ -650,30 +718,48 @@ function renderEstadoMuebles() {
     html+=`<div class="card" style="margin-bottom:12px;">
       <div class="sec">${pr.numero} · ${pr.obra}</div>`;
     (pr.muebles||[]).forEach(mueble=>{
-      const mats=(pr.materiales||[]).filter(m=>m.muebleId===mueble.id);
-      const allOk=mats.length>0&&mats.every(m=>m.recibido>=m.requerido);
-      const ninguno=mats.every(m=>m.recibido===0);
-      const semColor=allOk?'var(--green)':ninguno?'var(--red)':'var(--amber)';
-      const statusLabel=allOk?'Listo para producción':ninguno?'Sin materiales':'Materiales parciales';
+      // Use per-mueble mats (from nuevo-proyecto) if available, else fallback to pr.materiales by muebleId
+      const mats = (mueble.mats&&mueble.mats.length) ? mueble.mats : (pr.materiales||[]).filter(m=>m.muebleId===mueble.id);
+      const criticos = mats.filter(m=>m.critico);
+      const criticosPendientes = criticos.filter(m=>(m.recibido||0)<m.requerido);
+      const nosCriticosPendientes = mats.filter(m=>!m.critico&&(m.recibido||0)<m.requerido);
+      const allOk = mats.length>0 && mats.every(m=>(m.recibido||0)>=m.requerido);
+      const criticosOk = criticos.length===0 || criticosPendientes.length===0;
+
+      let semColor, statusLabel, badge='';
+      if (allOk) {
+        semColor='var(--green)'; statusLabel='Todos los materiales completos';
+      } else if (criticosOk && nosCriticosPendientes.length>0) {
+        semColor='var(--amber)'; statusLabel='Críticos OK · faltan no-críticos';
+        badge=`<span class="pill" style="color:var(--green);background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.3);font-size:9px;">LISTO PARA PRODUCCIÓN</span>`;
+      } else if (criticosPendientes.length>0) {
+        semColor='var(--red)'; statusLabel=`${criticosPendientes.length} material${criticosPendientes.length>1?'es':''} crítico${criticosPendientes.length>1?'s':''} pendiente${criticosPendientes.length>1?'s':''}`;
+      } else {
+        const ninguno=mats.every(m=>(m.recibido||0)===0);
+        semColor=ninguno?'var(--red)':'var(--amber)'; statusLabel=ninguno?'Sin materiales':'Materiales parciales';
+      }
 
       html+=`<div class="mueble-estado">
         <span class="semaforo" style="background:${semColor};"></span>
         <span class="mono" style="font-size:11px;color:var(--amber);min-width:52px;">${mueble.codigo}</span>
         <span style="font-size:13px;font-weight:600;flex:1;">${mueble.nombre}</span>
+        ${badge}
         <span style="font-size:11px;color:${semColor};">${statusLabel}</span>
       </div>`;
 
       if(mats.length){
         mats.forEach(mat=>{
-          const pctMat=mat.requerido?Math.min(100,Math.round(mat.recibido/mat.requerido*100)):0;
+          const recibido=mat.recibido||0;
+          const pctMat=mat.requerido?Math.min(100,Math.round(recibido/mat.requerido*100)):0;
           const cMat=pctMat===100?'var(--green)':pctMat>0?'var(--amber)':'var(--red)';
-          const faltante = mat.requerido - mat.recibido;
+          const faltante = mat.requerido - recibido;
+          const critBadge=mat.critico?`<span class="pill" style="color:var(--red);background:rgba(240,92,92,.1);border:1px solid rgba(240,92,92,.3);font-size:9px;">CRÍTICO</span>`:'';
           html+=`<div style="display:flex;align-items:center;gap:10px;padding:5px 14px 5px 36px;font-size:12px;">
-            <span style="flex:1;color:var(--muted);">${mat.nombre}</span>
-            <span class="mono" style="font-size:11px;color:var(--muted);">${mat.recibido}/${mat.requerido} ${mat.unidad}</span>
+            <span style="flex:1;color:var(--muted);">${mat.nombre} ${critBadge}</span>
+            <span class="mono" style="font-size:11px;color:var(--muted);">${recibido}/${mat.requerido} ${mat.unidad||''}</span>
             <div class="bar-track"><div class="bar-fill" style="width:${pctMat}%;background:${cMat};"></div></div>
             <span class="mono" style="font-size:10px;color:${cMat};min-width:30px;text-align:right;">${pctMat}%</span>
-            ${pctMat<100?`<input type="number" min="1" max="${faltante}" placeholder="cant." id="recv-mat-${mat.id}" style="width:60px;background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:4px 6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;outline:none;">
+            ${pctMat<100&&mat.id?`<input type="number" min="1" max="${faltante}" placeholder="cant." id="recv-mat-${mat.id}" style="width:60px;background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:4px 6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;outline:none;">
             <button class="btn btn-primary btn-sm" onclick="recibirParcialMat('${pr.id}','${mat.id}')">Recibir</button>
             <button class="btn btn-success btn-sm" onclick="recibirCompletaMat('${pr.id}','${mat.id}')">✓ Todo</button>`:''}
           </div>`;
