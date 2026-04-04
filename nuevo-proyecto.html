@@ -159,7 +159,8 @@
     </div>
 
     <div class="card">
-      <div class="card-title">Órdenes SO — Materiales <span style="color:var(--muted);font-weight:400;font-size:9px;">(múltiples)</span></div>
+      <div class="card-title">Órdenes SO — Materiales <span style="color:var(--muted);font-weight:400;font-size:9px;">(opcionales)</span></div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Las SOs de materiales son opcionales — podés agregarlas ahora o más adelante desde la pantalla de Materiales del proyecto.</div>
       <div id="so-list"></div>
       <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px;">
         <div class="field" style="flex:1;margin:0;">
@@ -302,7 +303,7 @@ function goStep(n){
   step=n;
   document.getElementById('pane-'+n).style.display='block';
   if(n===3){if(!muebles.length)muebles=DEMO.map(m=>({...m,horas:calcHoras(m.placas,m.dif)}));renderMuebles();}
-  if(n===4){if(!materiales.length)materiales=[{id:'m1',nombre:'MDF 18mm',unidad:'planchas',requerido:24,recibido:0}];renderMats();renderSoRef();}
+  if(n===4){renderMats();renderSoRef();}
   if(n===5)renderResumen();
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -331,14 +332,15 @@ async function buscarODF(){
     showProc('odf',0);
     const inv=data.invoices?.[0]||data.invoice;
     if(!inv){showErr('odf','No se encontró el documento '+num);return;}
+    console.log('zoho invoice keys:',Object.keys(inv));
     console.log('invoice data:',JSON.stringify(inv));
     if(!gv('f-num'))sv('f-num',inv.invoice_number||num);
     if(!gv('f-obra'))sv('f-obra',inv.subject||inv.reference_number||'');
     if(!gv('f-cliente'))sv('f-cliente',inv.customer_name||'');
-    const items=inv.line_items||inv.invoice_items||inv.items||[];
+    const items=inv.line_items||inv.invoice_items||inv.items||inv.line_item||[];
     muebles=items.map((item,i)=>({
-      id:'mf_'+Date.now()+'_'+i,
-      codigo:item.sku||('MF'+(i+1).toString().padStart(2,'0')),
+      id:'mf_'+i,
+      codigo:item.item_code||item.sku||('MF'+(i+1).toString().padStart(2,'0')),
       nombre:item.name||item.description||'',
       cant:item.quantity||1,
       flujos:[],
@@ -546,7 +548,7 @@ function renderSoRef(){
 }
 function renderMats(){
   const list=document.getElementById('mat-list');list.innerHTML='';
-  if(!materiales.length){list.innerHTML='<div style="text-align:center;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:12px;padding:14px;">Sin materiales.</div>';return;}
+  if(!materiales.length){list.innerHTML='<div style="color:var(--muted);font-size:12px;padding:14px;line-height:1.6;">Sin materiales cargados aún. Podés agregarlos desde <strong>Materiales → Proyecto</strong> una vez guardado.</div>';return;}
   materiales.forEach((m,i)=>{
     const row=document.createElement('div');row.className='mat-row';
     row.innerHTML=`
