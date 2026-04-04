@@ -576,16 +576,24 @@ function renderDetallePr(pr, sub) {
         const critPend=mats.filter(mat=>mat.critico&&(mat.recibido||0)<mat.requerido);
         const allPend=mats.filter(mat=>(mat.recibido||0)<mat.requerido);
         const sem=!mats.length?'🟢':critPend.length?'🔴':allPend.length?'🟡':'🟢';
-        const flujoChips=FLUJOS_ORDER.map(f=>{const fc=FLUJOS_CONF[f];const sel=m.flujos&&m.flujos.includes(f);return`<button onclick="toggleFlujoInline('${pr.id}','${m.id}','${f}')" style="padding:4px 10px;border:1px solid ${sel?fc.color:'var(--border)'};border-radius:20px;background:${sel?fc.color+'18':'transparent'};color:${sel?fc.color:'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;transition:all .15s;">${fc.label}</button>`;}).join('');
+        const FLUJOS_INTERNO=['madera_maciza','herreria','electricidad'];
+        const flujoChips=FLUJOS_ORDER.map(f=>{const fc=FLUJOS_CONF[f];const sel=m.flujos&&m.flujos.includes(f);const btn=`<button onclick="toggleFlujoInline('${pr.id}','${m.id}','${f}')" style="padding:4px 10px;border:1px solid ${sel?fc.color:'var(--border)'};border-radius:20px;background:${sel?fc.color+'18':'transparent'};color:${sel?fc.color:'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;transition:all .15s;">${fc.label}</button>`;if(sel&&FLUJOS_INTERNO.includes(f)){const hrs=(m.hrsExtra||{})[f]||'';return`<span style="display:inline-flex;align-items:center;gap:4px;">${btn}<input type="number" min="0" step="0.5" value="${hrs}" placeholder="h" onchange="setHrsExtraInline('${pr.id}','${m.id}','${f}',this.value)" style="width:48px;background:var(--faint);border:1px solid ${fc.color}44;border-radius:4px;padding:3px 5px;color:${fc.color};font-family:'JetBrains Mono',monospace;font-size:10px;text-align:center;outline:none;" title="Horas estimadas ${fc.label}"></span>`;}return btn;}).join('');
+        const difBtns=[1,2,3,4].map(d=>{const sel=(m.dif||2)===d;return`<button onclick="setDifInline('${pr.id}','${m.id}',${d})" style="width:26px;height:22px;border:1px solid ${sel?'var(--amber)':'var(--border)'};border-radius:4px;background:${sel?'rgba(245,166,35,.2)':'transparent'};color:${sel?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;transition:all .15s;">${d}</button>`;}).join('');
         html+=`<div style="background:var(--card);border:1px solid ${sesAct.length?'rgba(245,166,35,.4)':'var(--border)'};border-radius:8px;padding:18px;">
           <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;">
             <div class="mono" style="font-size:11px;font-weight:700;color:var(--amber);min-width:38px;padding-top:2px;">${m.codigo||'—'}</div>
             <div style="flex:1;">
               <div style="font-size:15px;font-weight:600;margin-bottom:8px;">${m.nombre||'—'} <span style="font-size:12px;color:var(--muted);">×${m.cant||1}</span></div>
               <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">${flujoChips}</div>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span class="mono" style="font-size:10px;color:var(--muted);">PLACAS</span>
-                <input type="number" min="1" max="99" value="${m.placas||4}" onchange="setPlacasInline('${pr.id}','${m.id}',this.value)" style="width:52px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 6px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;text-align:center;outline:none;">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <span class="mono" style="font-size:10px;color:var(--muted);">PLACAS</span>
+                  <input type="number" min="1" max="99" value="${m.placas||4}" onchange="setPlacasInline('${pr.id}','${m.id}',this.value)" style="width:52px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 6px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;text-align:center;outline:none;">
+                </div>
+                <div style="display:flex;align-items:center;gap:5px;">
+                  <span class="mono" style="font-size:10px;color:var(--muted);">DIF</span>
+                  ${difBtns}
+                </div>
               </div>
             </div>
             <div style="font-size:22px;">${sem}</div>
@@ -752,6 +760,11 @@ function renderDetallePr(pr, sub) {
   if(sub==='tiempos'){
     // tabla compacta por mueble/ítem
     const rows = pr.muebles && pr.muebles.length ? pr.muebles : pr.items;
+    const colCount = (pr.muebles&&pr.muebles.length) ? 6 : 5;
+    const allSesTiempos=[
+      ...HISTORIAL.filter(s=>s.proyectoId===pr.id).map(s=>({...s,activa:false})),
+      ...SESIONES.filter(s=>s.proyectoId===pr.id).map(s=>({...s,fin:Date.now(),activa:true})),
+    ].sort((a,b)=>b.inicio-a.inicio);
     html+=`<div class="card" style="margin-bottom:16px;overflow-x:auto;">
       <table>
         <thead><tr>
@@ -770,13 +783,35 @@ function renderDetallePr(pr, sub) {
           const over=hA2>hEst&&hEst>0;
           const sesAct=SESIONES.filter(s=>s.proyectoId===pr.id&&s.itemId===row.id);
           const ops=sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);return op?`<div class="av active" style="width:20px;height:20px;font-size:9px;display:inline-flex;margin-right:3px;">${op.avatar}</div>`:''}).join('');
-          return`<tr>
+          const rowSes=allSesTiempos.filter(s=>s.itemId===row.id);
+          const nombreCorto=row.codigo||(row.nombre||'').split(' – ')[0]||row.id;
+          const expandHtml=rowSes.length?rowSes.map(s=>{
+            const op=OPERARIOS.find(o=>o.id===s.operarioId);
+            const c=CENTROS.find(x=>x.id===s.centroId);
+            const dur=msH(s.fin-s.inicio);
+            const ts=new Date(s.inicio).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+            return`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(37,40,54,.3);">
+              <div class="av ${s.activa?'active':'idle'}" style="width:22px;height:22px;font-size:10px;flex-shrink:0;">${op?.avatar||'?'}</div>
+              <div style="flex:1;min-width:0;"><div style="font-size:11px;font-weight:600;">${op?.nombre||'—'}</div><div style="font-size:10px;color:${c?.color||'var(--muted)'};">${c?.label||s.centroId}</div></div>
+              <div style="text-align:right;flex-shrink:0;"><div class="mono" style="font-size:12px;color:${s.activa?'var(--amber)':'var(--text)'};">${fmtH(dur)}${s.activa?' ▶':''}</div><div class="mono" style="font-size:10px;color:var(--muted);">${ts}</div></div>
+            </div>`;
+          }).join(''):`<div class="mono" style="font-size:11px;color:var(--muted);padding:8px 0;">Sin sesiones registradas aún</div>`;
+          const expId=`tr-exp-${pr.id}-${row.id}`;
+          return`<tr style="cursor:pointer;" onclick="toggleTiemposRow('${expId}')">
             ${pr.muebles&&pr.muebles.length?`<td class="mono" style="font-size:11px;color:var(--amber);">${row.codigo||'—'}</td>`:''}
             <td style="font-size:13px;font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${row.nombre||'—'}</td>
             <td class="mono" style="text-align:right;color:${over?'var(--red)':'var(--amber)'};">${fmtH(hA2)}</td>
             <td class="mono" style="text-align:right;color:var(--muted);">${hEst?fmtH(hEst):'—'}</td>
             <td style="text-align:right;">${hEst?pill(p+'%',over?'var(--red)':'var(--green)'):'—'}</td>
             <td>${ops||'—'}</td>
+          </tr>
+          <tr id="${expId}" style="display:none;">
+            <td colspan="${colCount}" style="padding:0;background:var(--faint);">
+              <div style="padding:10px 16px;">
+                <div class="mono" style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:8px;letter-spacing:.05em;">SESIONES — ${nombreCorto}</div>
+                ${expandHtml}
+              </div>
+            </td>
           </tr>`;
         }).join('')}
         </tbody>
@@ -868,6 +903,7 @@ function guardarProyecto(prId, sub) {
 // MATERIALES — helpers
 // ═══════════════════════════════════════════════════════════════════════════
 function toggleEl(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'block':'none';}
+function toggleTiemposRow(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'table-row':'none';}
 function toggleAddMatForm(prId,mId){toggleEl('add-mat-form-'+mId);}
 
 function guardarMueblesLS(prId, pr){
@@ -903,6 +939,32 @@ function setPlacasInline(prId,mId,val){
   // update items so hEstPr works correctly
   pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
   renderDetallePr(pr,'ítems');
+}
+
+function setDifInline(prId,mId,dif){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  const m=pr?.muebles?.find(x=>x.id===mId);
+  if(!m)return;
+  m.dif=dif;
+  const COEF_DEF={corte:0.5,enchapado:0.3,armado:0.8,revision:0.2,empaquetado:0.15};
+  const DIF_DEF={1:0.7,2:1,3:1.4,4:1.8};
+  const coef=JSON.parse(localStorage.getItem('coef')||JSON.stringify(COEF_DEF));
+  const dif_map=JSON.parse(localStorage.getItem('dif')||JSON.stringify(DIF_DEF));
+  const f=dif_map[dif]||1;
+  const horas={};['corte','enchapado','armado','revision','empaquetado'].forEach(k=>{horas[k]=Math.round((m.placas||4)*(coef[k]||0)*f*10)/10;});
+  m.horas=horas;
+  guardarMueblesLS(prId,pr);
+  pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
+  renderDetallePr(pr,'ítems');
+}
+
+function setHrsExtraInline(prId,mId,flujoId,val){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  const m=pr?.muebles?.find(x=>x.id===mId);
+  if(!m)return;
+  if(!m.hrsExtra)m.hrsExtra={};
+  m.hrsExtra[flujoId]=Number(val)||0;
+  guardarMueblesLS(prId,pr);
 }
 
 function agregarMatManual(prId,mId){
@@ -963,7 +1025,7 @@ async function buscarSOParaMueble(prId,mId){
     const items=res.salesorder.line_items||[];
     if(!m.mats)m.mats=[];
     items.forEach(item=>{
-      m.mats.push({id:'mat_'+Date.now()+'_'+Math.random().toString(36).slice(2,4),nombre:item.name||item.description||'',unidad:item.unit||'unidades',requerido:item.quantity||1,recibido:0,critico:false,manual:false,soOrigen:res.soNum});
+      m.mats.push({id:'mat_'+Date.now()+'_'+Math.random().toString(36).slice(2,4),nombre:item.name||'',unidad:item.unit||'unidades',requerido:item.quantity||1,recibido:0,critico:false,manual:false,fuente:res.soNum});
     });
     guardarMueblesLS(prId,pr);
     msgEl.textContent=items.length+' materiales importados';msgEl.style.color='var(--green)';
