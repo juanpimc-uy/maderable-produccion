@@ -1243,6 +1243,7 @@ function renderMatTabOCs() {
     .filter(oc=>!ocsProcesadas.includes(oc.purchaseorder_id));
   window._zohoOCs=[...ocsManual];
 
+  const ocsSistema=JSON.parse(localStorage.getItem('ocs_sistema')||'[]');
   let html=`
   <!-- buscador -->
   <div class="card" style="margin-bottom:16px;">
@@ -1257,6 +1258,23 @@ function renderMatTabOCs() {
   </div>
   <!-- resultado de búsqueda -->
   <div id="oc-resultado" style="margin-bottom:16px;"></div>
+  <!-- OCs registradas en sistema -->
+  ${ocsSistema.length?`<div class="card" style="margin-bottom:16px;">
+    <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:12px;">OCs EN SISTEMA</div>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      ${ocsSistema.map(o=>{
+        const isPend=o.estado==='pendiente';
+        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--faint);border-radius:7px;border:1px solid ${isPend?'rgba(245,166,35,.3)':'rgba(61,214,140,.3)'};flex-wrap:wrap;gap:8px;">
+          <div>
+            <span class="mono" style="font-size:12px;font-weight:700;color:var(--amber);">${o.numero}</span>
+            <span style="font-size:12px;color:var(--muted);margin-left:10px;">${o.proveedor} · ${fmtFecha(o.fecha)}</span>
+            <span class="pill" style="margin-left:8px;font-size:9px;color:${isPend?'var(--amber)':'var(--green)'};border:1px solid ${isPend?'rgba(245,166,35,.4)':'rgba(61,214,140,.4)'};background:${isPend?'rgba(245,166,35,.08)':'rgba(61,214,140,.08)'};">${isPend?'PENDIENTE':'RECIBIDA'}</span>
+          </div>
+          ${isPend?`<button class="btn btn-success btn-sm" onclick="recibirOCRegistrada('${o.id}')">✓ Recibir OC</button>`:''}
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`:''}
   <!-- OCs manuales guardadas -->
   <div id="oc-lista-manual" style="display:flex;flex-direction:column;gap:12px;">
     ${ocsManual.length ? ocsManual.map(oc=>_renderOCCard(oc)).join('') : ''}
@@ -1373,6 +1391,7 @@ function fmtFecha(s){if(!s)return'—';try{return new Date(s).toLocaleDateString
 function renderOC(oc, items){
   const contenedor=document.getElementById('oc-resultado');
   if(!contenedor){console.error('No existe #oc-resultado en el DOM');return;}
+  const yaRegistrada=JSON.parse(localStorage.getItem('ocs_sistema')||'[]').some(o=>o.id===oc.purchaseorder_id&&o.estado==='pendiente');
   contenedor.innerHTML=`
     <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-top:4px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
@@ -1380,15 +1399,21 @@ function renderOC(oc, items){
           <div class="mono" style="font-size:13px;font-weight:700;color:var(--amber);">${oc.purchaseorder_number||'—'}</div>
           <div style="font-size:12px;color:var(--muted);margin-top:3px;">${oc.vendor_name||'—'} · ${fmtFecha(oc.date)}</div>
         </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-success" onclick="recibirOCCompleta()">✓ Recibir OC completa</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${yaRegistrada
+            ?`<span class="pill" style="color:var(--amber);border:1px solid rgba(245,166,35,.4);background:rgba(245,166,35,.08);">Ya registrada</span>`
+            :`<button class="btn btn-ghost btn-sm" onclick="registrarOCPendiente()">📥 Registrar OC pendiente</button>`}
+          <button class="btn btn-success btn-sm" onclick="recibirOCCompleta()">✓ Recibir OC completa</button>
           <button class="btn btn-ghost btn-sm" onclick="abrirRecepcionParcialActual()">Recepción parcial</button>
         </div>
       </div>
       ${items.length?items.map(i=>`
-        <div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;">
-          <span style="flex:1;">${i.name||i.description||'—'}</span>
-          <span class="mono" style="color:var(--amber);">${i.quantity||1} ${i.unit||'unid'}</span>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:flex-start;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;">${i.name||i.description||'—'}</div>
+            ${(i.sku||i.account_name)?`<div class="mono" style="font-size:10px;color:var(--muted);margin-top:2px;">${[i.sku,i.account_name].filter(Boolean).join(' · ')}</div>`:''}
+          </div>
+          <span class="mono" style="color:var(--amber);white-space:nowrap;flex-shrink:0;">${i.quantity||1} ${i.unit||'unid'}</span>
         </div>`).join(''):`<div class="mono" style="font-size:11px;color:var(--muted);padding:8px 0;">Sin ítems</div>`}
     </div>`;
   window._ocActual={oc,items};
@@ -1412,6 +1437,58 @@ function recibirOCCompleta(){
     contenedor.innerHTML=html;
   }
   window._ocActual=null;
+}
+
+function registrarOCPendiente(){
+  if(!window._ocActual){console.error('No hay OC activa');return;}
+  const {oc,items}=window._ocActual;
+  const lista=JSON.parse(localStorage.getItem('ocs_sistema')||'[]');
+  if(lista.some(o=>o.id===oc.purchaseorder_id)){
+    // ya existe — actualizar si estaba recibida
+    return;
+  }
+  lista.push({
+    id:oc.purchaseorder_id,
+    numero:oc.purchaseorder_number||'—',
+    proveedor:oc.vendor_name||'—',
+    fecha:oc.date||'',
+    items:items.map(i=>({nombre:i.name||'',sku:i.sku||'',cantidad:i.quantity||1,unidad:i.unit||'unidades',recibido:0})),
+    estado:'pendiente',
+    fechaRegistro:new Date().toISOString(),
+  });
+  localStorage.setItem('ocs_sistema',JSON.stringify(lista));
+  // mostrar feedback en el botón sin re-renderizar la card
+  renderOC(oc,items); // re-render para mostrar "Ya registrada"
+  const contenedor=document.getElementById('oc-resultado');
+  if(contenedor){
+    const msg=document.createElement('div');
+    msg.style.cssText='font-size:12px;color:var(--green);margin-top:8px;font-weight:600;';
+    msg.textContent='✓ OC registrada como pendiente';
+    contenedor.appendChild(msg);
+    setTimeout(()=>msg.remove(),3000);
+  }
+  // actualizar lista en sistema sin perder la card
+  renderMatTabOCs();
+}
+
+function recibirOCRegistrada(ocId){
+  const lista=JSON.parse(localStorage.getItem('ocs_sistema')||'[]');
+  const ocReg=lista.find(o=>o.id===ocId);
+  if(!ocReg)return;
+  // convertir items a formato line_items para _cruzarItemsConMuebles
+  const lineItems=ocReg.items.map(i=>({name:i.nombre,sku:i.sku,quantity:i.cantidad,unit:i.unidad}));
+  const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(lineItems,proyStorage);
+  localStorage.setItem('proyectos',JSON.stringify(proyStorage));
+  PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
+  ocReg.estado='recibida';
+  ocReg.fechaRecepcion=new Date().toISOString();
+  ocReg.items=ocReg.items.map(i=>({...i,recibido:i.cantidad}));
+  localStorage.setItem('ocs_sistema',JSON.stringify(lista));
+  ocsProcesadas.push(ocId);
+  localStorage.setItem('ocsProcesadas',JSON.stringify(ocsProcesadas));
+  alert(`✓ OC recibida. ${matActualizados} materiales actualizados. ${mueblesDesbloqueados.length} muebles desbloqueados.`);
+  renderMatTabOCs();
 }
 
 function abrirRecepcionParcialActual(){
