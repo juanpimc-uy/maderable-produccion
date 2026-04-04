@@ -1,6 +1,23 @@
 export const config = { runtime: 'edge' };
 
 export default async function handler(req) {
+  if (req.method === 'GET') {
+    const params = new URLSearchParams();
+    params.append('client_id', process.env.ZOHO_CLIENT_ID);
+    params.append('client_secret', process.env.ZOHO_CLIENT_SECRET);
+    params.append('refresh_token', process.env.ZOHO_REFRESH_TOKEN);
+    params.append('grant_type', 'refresh_token');
+
+    const res = await fetch('https://accounts.zoho.com/oauth/v2/token', {
+      method: 'POST',
+      body: params,
+    });
+    const data = await res.json();
+    return new Response(JSON.stringify(data), {
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    });
+  }
+
   const { code, refresh_token } = await req.json();
 
   const params = new URLSearchParams();
