@@ -1337,26 +1337,28 @@ async function buscarOCZoho(){
       limpio.padStart(5,'0'),
       limpio,
     ];
-    let ocObj=null;
+    let ocId=null;
     for(const fmt of formatos){
       console.log('Probando OC formato:', fmt);
       const r=await fetch('/api/zoho-books?endpoint='+encodeURIComponent('purchaseorders?purchaseorder_number='+fmt)+'&token='+encodeURIComponent(token));
       const d=await r.json();
       console.log('Keys respuesta OC:', Object.keys(d));
       console.log('RAW:', JSON.stringify(d).substring(0,300));
-      const lista=d.purchaseorders||d.purchase_orders||d.bills||d.vendor_bills||[];
+      const lista=d.purchaseorders||d.purchase_orders||[];
       console.log('Resultado OC:', fmt, '->', lista.length, 'resultados');
-      if(lista.length){ocObj=lista[0];break;}
+      if(lista.length){ocId=lista[0]?.purchaseorder_id;console.log('OC ID encontrado:', ocId);break;}
     }
-    if(!ocObj){msgEl.textContent='OC no encontrada. Probados: '+formatos.join(', ');msgEl.style.color='var(--red)';return;}
-    console.log('OC ID encontrado:', ocObj.purchaseorder_id);
-    const r2=await fetch('/api/zoho-books?endpoint='+encodeURIComponent('purchaseorders/'+ocObj.purchaseorder_id)+'&token='+encodeURIComponent(token));
+    if(!ocId){msgEl.textContent='OC no encontrada. Probados: '+formatos.join(', ');msgEl.style.color='var(--red)';return;}
+    const r2=await fetch('/api/zoho-books?endpoint='+encodeURIComponent('purchaseorders/'+ocId)+'&token='+encodeURIComponent(token));
     const d2=await r2.json();
-    console.log('Detalle OC line_items:', JSON.stringify(d2.purchaseorder?.line_items));
+    console.log('Keys detalle OC:', Object.keys(d2));
     const oc=d2.purchaseorder;
+    const items=oc?.line_items||[];
+    console.log('Items encontrados:', items.length);
+    console.log('Detalle OC line_items:', JSON.stringify(items).substring(0,400));
     if(!oc){msgEl.textContent='No se pudo obtener detalle de la OC';msgEl.style.color='var(--red)';return;}
+    console.log('Renderizando OC:', oc?.purchaseorder_number, 'con', items.length, 'items');
     msgEl.textContent='';
-    // agregar a _zohoOCs para que confirmar/parcial funcionen
     if(!window._zohoOCs)window._zohoOCs=[];
     window._zohoOCs=window._zohoOCs.filter(o=>o.purchaseorder_id!==oc.purchaseorder_id);
     window._zohoOCs.push({...oc,_manual:false});
