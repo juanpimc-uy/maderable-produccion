@@ -1330,15 +1330,20 @@ async function buscarOCZoho(){
     const token=await zohoTokenAdmin();
     console.log('Token OC:', token?'SI':'NO', token?.substring(0,20));
     if(!token)throw new Error('Sin token Zoho');
-    const limpio=raw.replace(/^OC-?/i,'').trim();
-    const formatos=['OC-'+limpio,'OC-0'+limpio,'OC-'+limpio.padStart(5,'0'),limpio,limpio.padStart(5,'0')];
+    const limpio=raw.trim().replace(/^OC-?/i,'');
+    const formatos=[
+      'OC-'+limpio.padStart(5,'0'),
+      'OC-'+limpio,
+      limpio.padStart(5,'0'),
+      limpio,
+    ];
     let ocObj=null;
     for(const fmt of formatos){
       console.log('Probando OC formato:', fmt);
       const r=await fetch('/api/zoho-books?endpoint='+encodeURIComponent('purchaseorders?purchaseorder_number='+fmt)+'&token='+encodeURIComponent(token));
       const d=await r.json();
-      console.log('RAW OC respuesta:', JSON.stringify(d).substring(0,1000));
-      console.log('Keys de respuesta:', Object.keys(d));
+      console.log('Keys respuesta OC:', Object.keys(d));
+      console.log('RAW:', JSON.stringify(d).substring(0,300));
       const lista=d.purchaseorders||d.purchase_orders||d.bills||d.vendor_bills||[];
       console.log('Resultado OC:', fmt, '->', lista.length, 'resultados');
       if(lista.length){ocObj=lista[0];break;}
