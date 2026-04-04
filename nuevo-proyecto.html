@@ -148,8 +148,8 @@
       <div class="card-title">Remito ODF — Muebles</div>
       <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px;">
         <div class="field" style="flex:1;margin:0;">
-          <label>Número ODF <span style="font-weight:400;color:var(--muted);font-size:9px;letter-spacing:0;">Solo el número — sin 'ODF-' ni 'SO-'</span></label>
-          <input id="zoho-odf-num" placeholder="Ej: 2385" onkeydown="if(event.key==='Enter')buscarODF()"/>
+          <label>Número ODF <span style="font-weight:400;color:var(--muted);font-size:9px;letter-spacing:0;">Ingresá el número — con o sin prefijo (ej: 2385 o ODF-2385)</span></label>
+          <input id="zoho-odf-num" placeholder="Ej: 2385 o ODF-2385" onkeydown="if(event.key==='Enter')buscarODF()"/>
         </div>
         <button class="btn btn-primary" onclick="buscarODF()">Buscar</button>
       </div>
@@ -320,21 +320,25 @@ async function getZohoToken(){
 
 async function buscarODF(){
   const raw=document.getElementById('zoho-odf-num').value.trim();
-  const num=raw.replace(/^(ODF-|odf-|SO-|so-)/i,'').trim();
-  document.getElementById('zoho-odf-num').value=num;
-  if(!num)return;
+  const base=raw.replace(/^(ODF-|odf-|SO-|so-)/i,'').trim();
+  if(!base)return;
   showErr('odf','',0);showProc('odf',1,'OBTENIENDO TOKEN...');
   try{
     const token=await getZohoToken();
     showProc('odf',1,'BUSCANDO INVOICE...');
-    const res=await fetch(`/api/zoho-books?endpoint=invoices?invoice_number=${encodeURIComponent(num)}&token=${token}`);
-    const data=await res.json();
+    const candidatos=['ODF-'+base,'odf-'+base,base];
+    let inv=null, numUsado=base;
+    for(const candidato of candidatos){
+      const res=await fetch(`/api/zoho-books?endpoint=invoices?invoice_number=${encodeURIComponent(candidato)}&token=${token}`);
+      const data=await res.json();
+      const found=data.invoices?.[0]||data.invoice;
+      if(found){inv=found;numUsado=candidato;break;}
+    }
     showProc('odf',0);
-    const inv=data.invoices?.[0]||data.invoice;
-    if(!inv){showErr('odf','No se encontró el documento '+num);return;}
+    if(!inv){showErr('odf','No se encontró el documento ODF-'+base+' en Zoho');return;}
     console.log('zoho invoice keys:',Object.keys(inv));
     console.log('invoice data:',JSON.stringify(inv));
-    if(!gv('f-num'))sv('f-num',inv.invoice_number||num);
+    if(!gv('f-num'))sv('f-num',inv.invoice_number||numUsado);
     if(!gv('f-obra'))sv('f-obra',inv.subject||inv.reference_number||'');
     if(!gv('f-cliente'))sv('f-cliente',inv.customer_name||'');
     const items=inv.line_items||inv.invoice_items||inv.items||inv.line_item||[];
@@ -350,7 +354,7 @@ async function buscarODF(){
     document.getElementById('odf-result').innerHTML=`
       <div style="background:rgba(61,214,140,.05);border:1px solid rgba(61,214,140,.2);border-radius:6px;padding:12px;margin-top:4px;">
         <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-          <span class="mono" style="color:var(--green);font-weight:700;">${inv.invoice_number||num}</span>
+          <span class="mono" style="color:var(--green);font-weight:700;">${inv.invoice_number||numUsado}</span>
           <span class="mono" style="color:var(--muted);font-size:11px;">${items.length} muebles</span>
         </div>
         <div style="font-size:13px;font-weight:600;margin-bottom:2px;">${inv.customer_name||'—'}</div>
