@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head><title>Zoho Auth</title></head>
+<body>
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (code) {
+    localStorage.setItem('zoho_auth_code', code);
+    document.body.innerHTML = '<h2>✓ Autorización exitosa. Podés cerrar esta ventana.</h2>';
+    if (window.opener) {
+      window.opener.postMessage({ zoho_code: code }, '*');
+      setTimeout(() => window.close(), 2000);
+    }
+  } else {
+    document.body.innerHTML = '<h2>Error: no se recibió código de autorización</h2>';
+  }
+</script>
+</body>
+</html>
