@@ -128,15 +128,20 @@
   <div id="bloque-activo" class="card amber-border" style="display:none;">
     <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:12px;">▶ EN CURSO</div>
     <div class="timer-display" id="timer-display">0h 0m 0s</div>
-    <div style="text-align:center;margin:14px 0 6px;">
+    <div style="text-align:center;margin:14px 0 12px;">
       <div style="font-size:17px;font-weight:700;" id="tarea-item-nombre"></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px;" id="tarea-item-desc"></div>
       <div class="mono" style="font-size:11px;color:var(--muted);margin-top:4px;" id="tarea-proyecto-nombre"></div>
     </div>
-    <button class="btn-main btn-danger" style="margin-top:16px;" onclick="finalizarTarea()">⏹ Finalizar Tarea</button>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+      <button class="btn-main btn-ghost" onclick="cambiarDeTarea()">↩ Cambiar de tarea</button>
+      <button class="btn-main btn-danger" onclick="finalizarTarea()">⏹ Finalizar tarea</button>
+      <button class="btn-main btn-ghost" style="color:var(--muted);font-size:12px;" onclick="salirPausa()">Salir / Pausa</button>
+    </div>
   </div>
 
   <!-- iniciar nueva -->
-  <div id="bloque-nueva" class="card">
+  <div id="bloque-nueva" class="card" style="display:none;">
     <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:18px;" id="label-nueva-tarea">INICIAR TAREA</div>
     <div style="display:flex;flex-direction:column;gap:14px;">
       <div class="field">
@@ -163,6 +168,19 @@
   <div id="bloque-piezas">
     <div class="sec-label">Piezas pendientes en este centro</div>
     <div id="lista-piezas"></div>
+  </div>
+</div>
+
+<!-- ═══ DIÁLOGO CONFIRMACIÓN CENTRO ══════════════════════════════════════ -->
+<div id="dlg-centro" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:50;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--panel);border:1px solid var(--borderL,#2E3247);border-radius:12px;padding:28px;max-width:380px;width:100%;">
+    <div class="mono" style="font-size:10px;color:var(--amber);letter-spacing:2px;margin-bottom:12px;">⚠ CONFIRMACIÓN</div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:8px;" id="dlg-centro-titulo">¿Podés avanzar?</div>
+    <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:24px;" id="dlg-centro-msg"></div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-main btn-primary" style="flex:1;" id="dlg-centro-ok">Sí, avanzar</button>
+      <button class="btn-main btn-ghost" style="flex:1;" onclick="cerrarDlgCentro()">Cancelar</button>
+    </div>
   </div>
 </div>
 
@@ -246,7 +264,34 @@ function goBack(screenId) { show(screenId); }
 // ═══════════════════════════════════════════════════════════════════════════
 // PANTALLA 0 → 1: elegir centro
 // ═══════════════════════════════════════════════════════════════════════════
+const CENTROS_ORDEN = ['corte','enchapado','armado','revision','empaquetado'];
+const CENTROS_LABEL = {corte:'Corte',enchapado:'Enchapado/Perforado',armado:'Armado',revision:'Revisión',empaquetado:'Empaquetado/Colocación'};
+
+let _pendingCentroId=null, _pendingCentroNombre=null;
+
 function elegirCentro(id, nombre) {
+  const idx = CENTROS_ORDEN.indexOf(id);
+  if(idx > 0) {
+    // no es el primero — pedir confirmación
+    const prevLabel = CENTROS_LABEL[CENTROS_ORDEN[idx-1]]||CENTROS_ORDEN[idx-1];
+    _pendingCentroId = id; _pendingCentroNombre = nombre;
+    document.getElementById('dlg-centro-titulo').textContent = '¿Podés avanzar a '+nombre+'?';
+    document.getElementById('dlg-centro-msg').textContent =
+      'El centro anterior ('+prevLabel+') puede estar en proceso. Confirmá que las piezas están listas para avanzar a '+nombre+'.';
+    document.getElementById('dlg-centro-ok').onclick = confirmarCentro;
+    document.getElementById('dlg-centro').style.display = 'flex';
+  } else {
+    _finalizarElegirCentro(id, nombre);
+  }
+}
+function confirmarCentro(){
+  cerrarDlgCentro();
+  _finalizarElegirCentro(_pendingCentroId, _pendingCentroNombre);
+}
+function cerrarDlgCentro(){
+  document.getElementById('dlg-centro').style.display='none';
+}
+function _finalizarElegirCentro(id, nombre){
   centroActual = id;
   centroNombre = nombre;
   document.getElementById('centro-label').textContent = nombre;
@@ -254,6 +299,15 @@ function elegirCentro(id, nombre) {
   document.getElementById('centro-nombre-op').textContent = nombre;
   renderOperarios();
   show('s-operario');
+}
+
+function nombreCorto(nombre){
+  const idx=nombre.indexOf(' – ');
+  return idx>=0?nombre.slice(0,idx):nombre;
+}
+function nombreDesc(nombre){
+  const idx=nombre.indexOf(' – ');
+  return idx>=0?nombre.slice(idx+3):'';
 }
 
 function renderOperarios() {
@@ -295,20 +349,35 @@ function renderPantallaTarea() {
   const lblNueva = document.getElementById('label-nueva-tarea');
 
   if (ses) {
-    // mostrar tarea activa
     bloqAct.style.display = 'block';
+    bloqNuev.style.display = 'none';
     const pr = PROYECTOS.find(p => p.id === ses.proyectoId);
     const it = pr?.items.find(i => i.id === ses.itemId);
-    document.getElementById('tarea-item-nombre').textContent    = it?.nombre || '';
-    document.getElementById('tarea-proyecto-nombre').textContent = pr?.nombre || '';
+    const nCorto = nombreCorto(it?.nombre||'');
+    const nDesc  = nombreDesc(it?.nombre||'');
+    document.getElementById('tarea-item-nombre').textContent     = nCorto;
+    document.getElementById('tarea-item-desc').textContent       = nDesc;
+    document.getElementById('tarea-proyecto-nombre').textContent  = pr?.nombre || '';
     iniciarTimer(ses.inicio);
-    lblNueva.textContent = 'CAMBIAR A NUEVA TAREA';
+    lblNueva.textContent = 'INICIAR NUEVA TAREA';
   } else {
     bloqAct.style.display = 'none';
+    bloqNuev.style.display = 'block';
     lblNueva.textContent  = 'INICIAR TAREA';
     pararTimer();
   }
   renderPiezasPendientes();
+}
+
+function cambiarDeTarea(){
+  document.getElementById('bloque-nueva').style.display='block';
+  document.getElementById('label-nueva-tarea').textContent='NUEVA TAREA';
+  cargarSelectProyectos();
+}
+
+function salirPausa(){
+  pararTimer();
+  show('s-operario');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -419,9 +488,7 @@ function finalizarTarea() {
   });
   guardarEstado();
   pararTimer();
-  document.getElementById('bloque-activo').style.display = 'none';
-  document.getElementById('label-nueva-tarea').textContent = 'INICIAR TAREA';
-  renderPiezasPendientes();
+  renderPantallaTarea();
 }
 
 function guardarEstado() {
@@ -448,10 +515,13 @@ function renderPiezasPendientes() {
       count++;
       const div = document.createElement('div');
       div.className = 'pieza-card' + (sesActiva ? ' activa' : '');
+      const nCorto = nombreCorto(it.nombre);
+      const nDesc  = nombreDesc(it.nombre);
       div.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
-          <div>
-            <div style="font-size:14px;font-weight:700;margin-bottom:3px;">${it.nombre}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:${nDesc?'6':'10'}px;">
+          <div style="flex:1;min-width:0;margin-right:10px;">
+            <div style="font-size:14px;font-weight:700;margin-bottom:2px;">${nCorto}</div>
+            ${nDesc?`<div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;">${nDesc}</div>`:''}
             <div class="mono" style="font-size:10px;color:var(--muted);">${pr.nombre}</div>
           </div>
           <span class="pill" style="background:${sesActiva?'rgba(245,166,35,.12)':'rgba(32,36,58,.8)'};color:${sesActiva?'var(--amber)':'var(--muted)'};border:1px solid ${sesActiva?'rgba(245,166,35,.4)':'var(--border)'}">

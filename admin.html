@@ -568,7 +568,7 @@ function renderDetallePr(pr, sub) {
     }
     if(pr.muebles && pr.muebles.length){
       html+=`<div style="display:flex;flex-direction:column;gap:10px;">`;
-      pr.muebles.forEach(m=>{
+      pr.muebles.forEach((m,mIdx)=>{
         const hEst=Object.values(m.horas||{}).reduce((a,v)=>a+Number(v||0),0)*(m.cant||1);
         const hA2=hAcumIt(pr.id,m.id);
         const sesAct=SESIONES.filter(s=>s.proyectoId===pr.id&&s.itemId===m.id);
@@ -576,13 +576,17 @@ function renderDetallePr(pr, sub) {
         const critPend=mats.filter(mat=>mat.critico&&(mat.recibido||0)<mat.requerido);
         const allPend=mats.filter(mat=>(mat.recibido||0)<mat.requerido);
         const sem=!mats.length?'🟢':critPend.length?'🔴':allPend.length?'🟡':'🟢';
-        const chips=FLUJOS_ORDER.filter(f=>m.flujos&&m.flujos.includes(f)).map(f=>{const fc=FLUJOS_CONF[f];return`<span class="pill" style="color:${fc.color};border:1px solid ${fc.color}33;background:${fc.color}10">${fc.label}</span>`;}).join('');
+        const flujoChips=FLUJOS_ORDER.map(f=>{const fc=FLUJOS_CONF[f];const sel=m.flujos&&m.flujos.includes(f);return`<button onclick="toggleFlujoInline('${pr.id}','${m.id}','${f}')" style="padding:4px 10px;border:1px solid ${sel?fc.color:'var(--border)'};border-radius:20px;background:${sel?fc.color+'18':'transparent'};color:${sel?fc.color:'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;transition:all .15s;">${fc.label}</button>`;}).join('');
         html+=`<div style="background:var(--card);border:1px solid ${sesAct.length?'rgba(245,166,35,.4)':'var(--border)'};border-radius:8px;padding:18px;">
           <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;">
             <div class="mono" style="font-size:11px;font-weight:700;color:var(--amber);min-width:38px;padding-top:2px;">${m.codigo||'—'}</div>
             <div style="flex:1;">
-              <div style="font-size:15px;font-weight:600;margin-bottom:5px;">${m.nombre||'—'} <span style="font-size:12px;color:var(--muted);">×${m.cant||1}</span></div>
-              ${chips?`<div style="display:flex;gap:5px;flex-wrap:wrap;">${chips}</div>`:''}
+              <div style="font-size:15px;font-weight:600;margin-bottom:8px;">${m.nombre||'—'} <span style="font-size:12px;color:var(--muted);">×${m.cant||1}</span></div>
+              <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">${flujoChips}</div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span class="mono" style="font-size:10px;color:var(--muted);">PLACAS</span>
+                <input type="number" min="1" max="99" value="${m.placas||4}" onchange="setPlacasInline('${pr.id}','${m.id}',this.value)" style="width:52px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 6px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;text-align:center;outline:none;">
+              </div>
             </div>
             <div style="font-size:22px;">${sem}</div>
           </div>
@@ -872,6 +876,35 @@ function guardarMueblesLS(prId, pr){
   if(idx>=0){stored[idx].muebles=pr.muebles;localStorage.setItem('proyectos',JSON.stringify(stored));}
 }
 
+function toggleFlujoInline(prId,mId,flujoId){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  const m=pr?.muebles?.find(x=>x.id===mId);
+  if(!m)return;
+  if(!m.flujos)m.flujos=[];
+  m.flujos.includes(flujoId)?m.flujos=m.flujos.filter(f=>f!==flujoId):m.flujos.push(flujoId);
+  guardarMueblesLS(prId,pr);
+  renderDetallePr(pr,'ítems');
+}
+
+function setPlacasInline(prId,mId,val){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  const m=pr?.muebles?.find(x=>x.id===mId);
+  if(!m)return;
+  m.placas=Number(val)||1;
+  // recalculate horas using stored coef/dif
+  const COEF_DEF={corte:0.5,enchapado:0.3,armado:0.8,revision:0.2,empaquetado:0.15};
+  const DIF_DEF={1:0.7,2:1,3:1.4,4:1.8};
+  const coef=JSON.parse(localStorage.getItem('coef')||JSON.stringify(COEF_DEF));
+  const dif=JSON.parse(localStorage.getItem('dif')||JSON.stringify(DIF_DEF));
+  const f=dif[m.dif||2]||1;
+  const horas={};['corte','enchapado','armado','revision','empaquetado'].forEach(k=>{horas[k]=Math.round(m.placas*(coef[k]||0)*f*10)/10;});
+  m.horas=horas;
+  guardarMueblesLS(prId,pr);
+  // update items so hEstPr works correctly
+  pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
+  renderDetallePr(pr,'ítems');
+}
+
 function agregarMatManual(prId,mId){
   const pr=PROYECTOS.find(p=>p.id===prId);
   const m=pr?.muebles?.find(x=>x.id===mId);
@@ -887,14 +920,33 @@ function agregarMatManual(prId,mId){
   renderDetallePr(pr,'materiales');
 }
 
+let _zohoTokenCache=null, _zohoTokenExpiry=0;
 async function zohoTokenAdmin(){
-  try{const r=await fetch('/api/zoho-token');const d=await r.json();return d.access_token||null;}catch{return null;}
+  if(_zohoTokenCache&&Date.now()<_zohoTokenExpiry)return _zohoTokenCache;
+  try{const r=await fetch('/api/zoho-token');const d=await r.json();
+    _zohoTokenCache=d.access_token||null;_zohoTokenExpiry=Date.now()+55*60*1000;
+    return _zohoTokenCache;
+  }catch{return null;}
 }
-async function zohoFetchAdmin(endpoint){
-  const token=await zohoTokenAdmin();
+async function zohoFetchAdmin(endpoint,token=null){
+  if(!token)token=await zohoTokenAdmin();
   if(!token)throw new Error('Sin token Zoho');
   const r=await fetch('/api/zoho-books?endpoint='+encodeURIComponent(endpoint)+'&token='+encodeURIComponent(token));
   return r.json();
+}
+// two-call SO lookup: search by number → get detail by ID
+async function zohoFetchSOByNum(rawNum){
+  const token=await zohoTokenAdmin();
+  if(!token)throw new Error('Sin token Zoho');
+  const base=rawNum.replace(/^(SO-|so-)/i,'').trim();
+  let soObj=null;
+  for(const n of ['SO-'+base,base]){
+    const d=await zohoFetchAdmin('salesorders?salesorder_number='+encodeURIComponent(n),token);
+    if(d?.salesorders?.length){soObj=d.salesorders[0];break;}
+  }
+  if(!soObj)return null;
+  const det=await zohoFetchAdmin('salesorders/'+soObj.salesorder_id,token);
+  return {soNum:'SO-'+base, salesorder:det?.salesorder||null};
 }
 
 async function buscarSOParaMueble(prId,mId){
@@ -902,23 +954,16 @@ async function buscarSOParaMueble(prId,mId){
   if(!raw)return;
   const msgEl=document.getElementById('so-mat-msg-'+mId);
   msgEl.textContent='Buscando...';msgEl.style.color='var(--muted)';
-  const base=raw.replace(/^(SO-|so-)/i,'').trim();
   const pr=PROYECTOS.find(p=>p.id===prId);
   const m=pr?.muebles?.find(x=>x.id===mId);
   if(!m)return;
   try{
-    let soObj=null;
-    for(const n of ['SO-'+base,base]){
-      const d=await zohoFetchAdmin('salesorders?salesorder_number='+encodeURIComponent(n));
-      if(d?.salesorders?.length){soObj=d.salesorders[0];break;}
-    }
-    if(!soObj){msgEl.textContent='SO no encontrada';msgEl.style.color='var(--red)';return;}
-    const det=await zohoFetchAdmin('salesorders/'+soObj.salesorder_id);
-    const items=det?.salesorder?.line_items||[];
+    const res=await zohoFetchSOByNum(raw);
+    if(!res?.salesorder){msgEl.textContent='SO no encontrada';msgEl.style.color='var(--red)';return;}
+    const items=res.salesorder.line_items||[];
     if(!m.mats)m.mats=[];
-    const soNum='SO-'+base;
     items.forEach(item=>{
-      m.mats.push({id:'mat_'+Date.now()+'_'+Math.random().toString(36).slice(2,4),nombre:item.name||item.description||'',unidad:item.unit||'unidades',requerido:item.quantity||1,recibido:0,critico:false,manual:false,soOrigen:soNum});
+      m.mats.push({id:'mat_'+Date.now()+'_'+Math.random().toString(36).slice(2,4),nombre:item.name||item.description||'',unidad:item.unit||'unidades',requerido:item.quantity||1,recibido:0,critico:false,manual:false,soOrigen:res.soNum});
     });
     guardarMueblesLS(prId,pr);
     msgEl.textContent=items.length+' materiales importados';msgEl.style.color='var(--green)';
@@ -932,18 +977,13 @@ async function buscarSOBulk(prId){
   const msgEl=document.getElementById('so-bulk-msg');
   const itemsEl=document.getElementById('so-bulk-items');
   msgEl.textContent='Buscando...';msgEl.style.color='var(--muted)';itemsEl.innerHTML='';
-  const base=raw.replace(/^(SO-|so-)/i,'').trim();
   const pr=PROYECTOS.find(p=>p.id===prId);
   if(!pr)return;
   try{
-    let soObj=null;
-    for(const n of ['SO-'+base,base]){
-      const d=await zohoFetchAdmin('salesorders?salesorder_number='+encodeURIComponent(n));
-      if(d?.salesorders?.length){soObj=d.salesorders[0];break;}
-    }
-    if(!soObj){msgEl.textContent='SO no encontrada';msgEl.style.color='var(--red)';return;}
-    const det=await zohoFetchAdmin('salesorders/'+soObj.salesorder_id);
-    const items=det?.salesorder?.line_items||[];
+    const res=await zohoFetchSOByNum(raw);
+    if(!res?.salesorder){msgEl.textContent='SO no encontrada';msgEl.style.color='var(--red)';return;}
+    const base=res.soNum.replace(/^SO-/,'');
+    const items=res.salesorder.line_items||[];
     msgEl.textContent=items.length+' materiales encontrados';msgEl.style.color='var(--green)';
     const muebleOpts=(pr.muebles||[]).map(m=>`<option value="${m.id}">${m.codigo} – ${m.nombre}</option>`).join('');
     itemsEl.innerHTML=`<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
@@ -1058,21 +1098,32 @@ function renderTiempos() {
       </div>${bar(h,maxH,ses?'var(--amber)':'var(--blue)',6)}</div>`;
   });
   html+=`</div></div><div class="card"><div class="sec-title">Por Ítem del Proyecto</div>`;
-  pr.items.forEach(it=>{
+  // use muebles if available (localStorage projects), else fall back to items
+  const tItems = (pr.muebles&&pr.muebles.length) ? pr.muebles : pr.items;
+  tItems.forEach(it=>{
     const hA2=hAcumIt(pr.id,it.id);
+    const hEst2=it.hEst||Object.values(it.horas||{}).reduce((a,v)=>a+Number(v||0),0)*(it.cant||1)||0;
     const sesAct=SESIONES.filter(s=>s.proyectoId===pr.id&&s.itemId===it.id);
+    // split código+nombre corto vs descripción larga
+    const codigoNombre = it.codigo ? `${it.codigo} ${it.nombre||''}` : (it.nombre||'');
+    const dashIdx = codigoNombre.indexOf(' – ');
+    const nombreCorto = dashIdx>=0 ? codigoNombre.slice(0,dashIdx) : codigoNombre;
+    const descLarga   = dashIdx>=0 ? codigoNombre.slice(dashIdx+3) : '';
     html+=`<div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div>
-          <span style="font-size:14px;font-weight:600;">${it.nombre}</span>
-          ${sesAct.length?`<span class="mono" style="margin-left:10px;font-size:10px;color:var(--amber);">▶ ${sesAct.length} activo${sesAct.length>1?'s':''}</span>`:''}
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div style="min-width:0;flex:1;margin-right:12px;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:14px;font-weight:600;color:var(--text);">${nombreCorto}</span>
+            ${sesAct.length?`<span class="mono" style="font-size:10px;color:var(--amber);">▶ ${sesAct.length} activo${sesAct.length>1?'s':''}</span>`:''}
+          </div>
+          ${descLarga?`<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px;">${descLarga}</div>`:''}
         </div>
-        <div style="text-align:right;">
-          <span class="mono" style="font-size:15px;color:${hA2>it.hEst?'var(--red)':'var(--amber)'};font-weight:700;">${fmtH(hA2)}</span>
-          <span style="font-size:11px;color:var(--muted);"> / ${fmtH(it.hEst)}</span>
+        <div style="text-align:right;flex-shrink:0;">
+          <span class="mono" style="font-size:15px;color:${hA2>hEst2?'var(--red)':'var(--amber)'};font-weight:700;">${fmtH(hA2)}</span>
+          <span style="font-size:11px;color:var(--muted);"> / ${fmtH(hEst2)}</span>
         </div>
       </div>
-      ${bar(hA2,it.hEst||1,hA2>it.hEst?'var(--red)':'var(--green)',7)}
+      ${bar(hA2,hEst2||1,hA2>hEst2?'var(--red)':'var(--green)',7)}
     </div>`;
   });
   html+=`</div>`;
@@ -1081,34 +1132,114 @@ function renderTiempos() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MATERIALES (global)
+// MATERIALES (global) — OCs de Zoho Books
 // ═══════════════════════════════════════════════════════════════════════════
-let matPrSel = PROYECTOS[0]?.id;
-function renderMateriales() {
-  let tabs = PROYECTOS.map(p=>`<button class="btn ${matPrSel===p.id?'btn-primary':'btn-ghost'}" onclick="matPrSel='${p.id}';renderMateriales();">${p.nombre}</button>`).join('');
-  document.getElementById('mat-tabs').innerHTML = tabs;
-  const pr=PROYECTOS.find(p=>p.id===matPrSel);
-  if(!pr){return;}
-  let html=`<div style="display:flex;flex-direction:column;gap:10px;">`;
-  pr.materiales.forEach(m=>{
-    const ok=m.recibido>=m.requerido;
-    html+=`<div style="background:var(--card);border:1px solid ${ok?'rgba(61,214,140,.3)':'var(--border)'};border-radius:8px;padding:18px;display:flex;align-items:center;gap:16px;">
-      <div style="flex:1;">
-        <div style="font-size:14px;font-weight:600;margin-bottom:8px;">${m.nombre}</div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span class="mono" style="font-size:12px;color:${ok?'var(--green)':'var(--amber)'};white-space:nowrap;">${m.recibido}/${m.requerido} ${m.unidad}</span>
-          ${bar(m.recibido,m.requerido,ok?'var(--green)':'var(--amber)')}
+let ocsProcesadas = JSON.parse(localStorage.getItem('ocsProcesadas')||'[]');
+
+async function renderMateriales() {
+  document.getElementById('mat-tabs').innerHTML='';
+  document.getElementById('mat-contenido').innerHTML=`<div class="mono" style="font-size:11px;color:var(--muted);padding:16px;">Cargando OCs de Zoho Books...</div>`;
+  try{
+    const token=await zohoTokenAdmin();
+    if(!token){document.getElementById('mat-contenido').innerHTML=`<div class="mono" style="font-size:11px;color:var(--red);">Sin token Zoho. Configurá las variables de entorno.</div>`;return;}
+    const data=await zohoFetchAdmin('purchaseorders?status=open');
+    const ocs=(data?.purchaseorders||[]).filter(oc=>!ocsProcesadas.includes(oc.purchaseorder_id));
+    if(!ocs.length){document.getElementById('mat-contenido').innerHTML=`<div style="text-align:center;padding:32px;"><div style="font-size:32px;margin-bottom:12px;">✓</div><div class="mono" style="font-size:12px;color:var(--green);">Sin OCs pendientes de recibir</div></div>`;return;}
+    const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
+    let html=`<div style="display:flex;flex-direction:column;gap:12px;">`;
+    ocs.forEach(oc=>{
+      const fecha=oc.date||oc.created_time||'—';
+      html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+        <div style="padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="mono" style="font-size:12px;font-weight:700;color:var(--amber);">${oc.purchaseorder_number||oc.purchaseorder_id}</span>
+              <span style="font-size:13px;font-weight:600;">${oc.vendor_name||'—'}</span>
+            </div>
+            <div class="mono" style="font-size:10px;color:var(--muted);margin-top:3px;">${fecha} · ${(oc.line_items||[]).length} ítems</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="abrirRecibirOC('${oc.purchaseorder_id}')">Recibir OC</button>
         </div>
+        <div style="padding:12px 18px;">
+          ${(oc.line_items||[]).slice(0,4).map(li=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(37,40,54,.4);">
+            <span style="font-size:12px;">${li.name||li.description||'—'}</span>
+            <span class="mono" style="font-size:11px;color:var(--muted);">${li.quantity||1} ${li.unit||''}</span>
+          </div>`).join('')}
+          ${(oc.line_items||[]).length>4?`<div class="mono" style="font-size:10px;color:var(--muted);padding-top:6px;">+${oc.line_items.length-4} más...</div>`:''}
+        </div>
+      </div>`;
+    });
+    html+=`</div>`;
+    // panel recibir OC (oculto inicialmente)
+    html+=`<div id="panel-recibir-oc" style="display:none;"></div>`;
+    document.getElementById('mat-contenido').innerHTML=html;
+    // guardar OCs en memoria para el panel
+    window._zohoOCs=ocs;
+    window._zohoProyStorage=proyStorage;
+  }catch(e){document.getElementById('mat-contenido').innerHTML=`<div class="mono" style="font-size:11px;color:var(--red);">Error: ${e.message}</div>`;}
+}
+
+function abrirRecibirOC(ocId){
+  const oc=window._zohoOCs?.find(o=>o.purchaseorder_id===ocId);
+  if(!oc)return;
+  const proyStorage=window._zohoProyStorage||[];
+  const items=oc.line_items||[];
+  // opciones de proyecto+mueble
+  let muebleOpts='<option value="">— sin asignar —</option>';
+  proyStorage.forEach(p=>{(p.muebles||[]).forEach(m=>{muebleOpts+=`<option value="${p.id}|||${m.id}">${p.obra||p.nombre} › ${m.codigo} ${m.nombre}</option>`;});});
+  let html=`<div class="card" style="margin-top:12px;border-color:rgba(91,141,239,.3);">
+    <div class="sec-title" style="margin-bottom:14px;">Recibir OC ${oc.purchaseorder_number||ocId}</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+    ${items.map((li,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--faint);border-radius:6px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:160px;">
+        <div style="font-size:13px;font-weight:600;">${li.name||li.description||'—'}</div>
+        <div class="mono" style="font-size:10px;color:var(--muted);">${li.quantity||1} ${li.unit||''}</div>
       </div>
-      ${!ok?`<div style="display:flex;gap:6px;align-items:center;">
-        <input type="number" min="1" max="${m.requerido-m.recibido}" placeholder="cant." id="mat-${m.id}" style="width:70px;background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:6px 8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;">
-        <button class="btn btn-primary btn-sm" onclick="recibirMat('${pr.id}','${m.id}',false,'mat-')">Recibir</button>
-        <button class="btn btn-ghost btn-sm" onclick="recibirMat('${pr.id}','${m.id}',true,'mat-')">Todo</button>
-      </div>`:`${pill('✓ Completo','var(--green)')}`}
-    </div>`;
+      <select id="oc-mueble-${i}" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:11px;outline:none;min-width:200px;">${muebleOpts}</select>
+    </div>`).join('')}
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-success" onclick="confirmarRecibirOC('${ocId}',${JSON.stringify(items).replace(/"/g,'&quot;')})">Confirmar recepción</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('panel-recibir-oc').style.display='none'">Cancelar</button>
+    </div>
+  </div>`;
+  const panel=document.getElementById('panel-recibir-oc');
+  panel.innerHTML=html;panel.style.display='block';
+  panel.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function confirmarRecibirOC(ocId,items){
+  const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  items.forEach((li,i)=>{
+    const val=document.getElementById('oc-mueble-'+i)?.value;
+    if(!val)return;
+    const [prId,mId]=val.split('|||');
+    const pr=proyStorage.find(p=>p.id===prId);
+    const m=pr?.muebles?.find(x=>x.id===mId);
+    if(!m)return;
+    if(!m.mats)m.mats=[];
+    // intentar actualizar mat existente por nombre
+    const existing=m.mats.find(mat=>mat.nombre===(li.name||li.description||''));
+    if(existing){existing.recibido=Math.min(existing.requerido,(existing.recibido||0)+(li.quantity||1));}
+    else{m.mats.push({id:'mat_'+Date.now()+'_'+i,nombre:li.name||li.description||'',unidad:li.unit||'unidades',requerido:li.quantity||1,recibido:li.quantity||1,critico:false,manual:false,soOrigen:''});}
   });
-  html+=`</div>`;
-  document.getElementById('mat-contenido').innerHTML=html;
+  localStorage.setItem('proyectos',JSON.stringify(proyStorage));
+  // también actualizar PROYECTOS en memoria
+  items.forEach((li,i)=>{
+    const val=document.getElementById('oc-mueble-'+i)?.value;
+    if(!val)return;
+    const [prId,mId]=val.split('|||');
+    const pr=PROYECTOS.find(p=>p.id===prId);
+    const m=pr?.muebles?.find(x=>x.id===mId);
+    if(!m)return;
+    if(!m.mats)m.mats=[];
+    const existing=m.mats.find(mat=>mat.nombre===(li.name||li.description||''));
+    if(existing){existing.recibido=Math.min(existing.requerido,(existing.recibido||0)+(li.quantity||1));}
+    else{m.mats.push({id:'mat_'+Date.now()+'_'+i+'b',nombre:li.name||li.description||'',unidad:li.unit||'unidades',requerido:li.quantity||1,recibido:li.quantity||1,critico:false,manual:false,soOrigen:''});}
+  });
+  ocsProcesadas.push(ocId);
+  localStorage.setItem('ocsProcesadas',JSON.stringify(ocsProcesadas));
+  renderMateriales();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
