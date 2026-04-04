@@ -319,24 +319,29 @@ async function buscarODF(){
   showErr('odf','',0);showProc('odf',1,'OBTENIENDO TOKEN...');
   try{
     const token=await getZohoToken();
+    // 1ª llamada: buscar por número → obtener invoice_id
     showProc('odf',1,'BUSCANDO INVOICE...');
-    const candidatos=['ODF-'+base,'odf-'+base,base];
-    let lastData=null, numUsado=base;
-    for(const candidato of candidatos){
-      const res=await fetch(`/api/zoho-books?endpoint=invoices?invoice_number=${encodeURIComponent(candidato)}&token=${token}`);
-      const data=await res.json();
-      lastData=data;
-      const found=data.invoice||data.invoices?.[0];
-      if(found){numUsado=candidato;break;}
+    let invoiceId=null, numUsado=null;
+    for(const candidato of ['ODF-'+base, base]){
+      const r1=await fetch(`/api/zoho-books?endpoint=invoices?invoice_number=${encodeURIComponent(candidato)}&token=${token}`);
+      const d1=await r1.json();
+      console.log('búsqueda por número:', candidato, JSON.stringify(d1));
+      const found=d1.invoices?.[0];
+      if(found){invoiceId=found.invoice_id;numUsado=candidato;break;}
     }
+    if(!invoiceId){showProc('odf',0);showErr('odf','No se encontró ODF-'+base+' en Zoho');return;}
+    // 2ª llamada: obtener detalle con line_items
+    showProc('odf',1,'CARGANDO DETALLE...');
+    const r2=await fetch(`/api/zoho-books?endpoint=invoices/${invoiceId}&token=${token}`);
+    const d2=await r2.json();
+    console.log('INVOICE COMPLETO:',JSON.stringify(d2));
     showProc('odf',0);
-    console.log('INVOICE COMPLETO:',JSON.stringify(lastData));
-    const invoice=lastData?.invoice||lastData?.invoices?.[0];
-    if(!invoice){showErr('odf','No se encontró el documento ODF-'+base+' en Zoho');return;}
+    const invoice=d2.invoice;
+    if(!invoice){showErr('odf','Error al obtener detalle del invoice');return;}
     if(!gv('f-num'))sv('f-num',invoice.invoice_number||numUsado);
     if(!gv('f-obra'))sv('f-obra',invoice.subject||invoice.reference_number||'');
     if(!gv('f-cliente'))sv('f-cliente',invoice.customer_name||'');
-    const items=invoice.line_items||invoice.invoice_items||invoice.items||invoice.line_item||[];
+    const items=invoice.line_items||[];
     if(!items.length){showErr('odf','ODF encontrado pero sin ítems — revisá la consola para ver la estructura');return;}
     muebles=items.map((item,i)=>({
       id:'mf_'+i,
@@ -365,17 +370,29 @@ async function buscarODF(){
 
 async function buscarSO(){
   const raw=document.getElementById('zoho-so-num').value.trim();
-  const num=raw.replace(/^(ODF-|odf-|SO-|so-)/i,'').trim();
-  document.getElementById('zoho-so-num').value=num;
-  if(!num)return;
+  const base=raw.replace(/^(ODF-|odf-|SO-|so-)/i,'').trim();
+  document.getElementById('zoho-so-num').value=base;
+  if(!base)return;
   showErr('so','',0);showProc('so',1,'BUSCANDO SO...');
   try{
     const token=await getZohoToken();
-    const res=await fetch(`/api/zoho-books?endpoint=salesorders?salesorder_number=${encodeURIComponent(num)}&token=${token}`);
-    const data=await res.json();
+    // 1ª llamada: buscar por número → obtener salesorder_id
+    let soId=null, soNumUsado=null;
+    for(const candidato of ['SO-'+base, base]){
+      const r1=await fetch(`/api/zoho-books?endpoint=salesorders?salesorder_number=${encodeURIComponent(candidato)}&token=${token}`);
+      const d1=await r1.json();
+      console.log('búsqueda SO:', candidato, JSON.stringify(d1));
+      const found=d1.salesorders?.[0];
+      if(found){soId=found.salesorder_id;soNumUsado=candidato;break;}
+    }
+    if(!soId){showProc('so',0);showErr('so','No se encontró la SO '+base);return;}
+    // 2ª llamada: obtener detalle con line_items
+    const r2=await fetch(`/api/zoho-books?endpoint=salesorders/${soId}&token=${token}`);
+    const d2=await r2.json();
+    console.log('SO COMPLETO:',JSON.stringify(d2));
     showProc('so',0);
-    const so=data.salesorders?.[0]||data.salesorder;
-    if(!so){showErr('so','No se encontró la SO '+num);return;}
+    const so=d2.salesorder;
+    if(!so){showErr('so','Error al obtener detalle de la SO');return;}
     const items=so.line_items||[];
     materiales=[...materiales,...items.map((item,i)=>({
       id:'mat_'+Date.now()+'_'+i,
@@ -384,7 +401,7 @@ async function buscarSO(){
       requerido:item.quantity||0,
       recibido:0
     }))];
-    sosCargadas.push({nombre:num,numero:so.salesorder_number||num,count:items.length});
+    sosCargadas.push({nombre:base,numero:so.salesorder_number||soNumUsado,count:items.length});
     renderSoList();
     document.getElementById('zoho-so-num').value='';
   }catch(err){showProc('so',0);showErr('so','Error: '+err.message);}
