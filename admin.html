@@ -1362,8 +1362,60 @@ async function buscarOCZoho(){
     if(!window._zohoOCs)window._zohoOCs=[];
     window._zohoOCs=window._zohoOCs.filter(o=>o.purchaseorder_id!==oc.purchaseorder_id);
     window._zohoOCs.push({...oc,_manual:false});
-    resEl.innerHTML=_renderOCCard({...oc,_manual:false});
+    renderOC(oc, items);
   }catch(e){msgEl.textContent='Error: '+e.message;msgEl.style.color='var(--red)';}
+}
+
+function fmtFecha(s){if(!s)return'—';try{return new Date(s).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric'});}catch{return s;}}
+
+function renderOC(oc, items){
+  const contenedor=document.getElementById('oc-resultado');
+  if(!contenedor){console.error('No existe #oc-resultado en el DOM');return;}
+  contenedor.innerHTML=`
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-top:4px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+        <div>
+          <div class="mono" style="font-size:13px;font-weight:700;color:var(--amber);">${oc.purchaseorder_number||'—'}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px;">${oc.vendor_name||'—'} · ${fmtFecha(oc.date)}</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-success" onclick="recibirOCCompleta()">✓ Recibir OC completa</button>
+          <button class="btn btn-ghost btn-sm" onclick="abrirRecepcionParcialActual()">Recepción parcial</button>
+        </div>
+      </div>
+      ${items.length?items.map(i=>`
+        <div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;">
+          <span style="flex:1;">${i.name||i.description||'—'}</span>
+          <span class="mono" style="color:var(--amber);">${i.quantity||1} ${i.unit||'unid'}</span>
+        </div>`).join(''):`<div class="mono" style="font-size:11px;color:var(--muted);padding:8px 0;">Sin ítems</div>`}
+    </div>`;
+  window._ocActual={oc,items};
+}
+
+function recibirOCCompleta(){
+  if(!window._ocActual){console.error('No hay OC activa en window._ocActual');return;}
+  const {oc,items}=window._ocActual;
+  const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(items,proyStorage);
+  localStorage.setItem('proyectos',JSON.stringify(proyStorage));
+  PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
+  ocsProcesadas.push(oc.purchaseorder_id);
+  localStorage.setItem('ocsProcesadas',JSON.stringify(ocsProcesadas));
+  const contenedor=document.getElementById('oc-resultado');
+  if(contenedor){
+    let html=`<div style="background:rgba(61,214,140,.07);border:1px solid rgba(61,214,140,.3);border-radius:10px;padding:18px;margin-top:4px;">
+      <div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:${mueblesDesbloqueados.length?'10':'0'}px;">✓ OC recibida. ${matActualizados} material${matActualizados!==1?'es':''} actualizado${matActualizados!==1?'s':''}. ${mueblesDesbloqueados.length} mueble${mueblesDesbloqueados.length!==1?'s':''} desbloqueado${mueblesDesbloqueados.length!==1?'s':''}.</div>`;
+    mueblesDesbloqueados.forEach(mu=>{html+=`<div style="font-size:11px;margin-top:4px;">🟢 <a href="#" onclick="abrirDetallePr('${mu.prId}');return false;" style="color:var(--green);">${mu.prNombre}</a> › ${mu.mNombre}</div>`;});
+    html+=`</div>`;
+    contenedor.innerHTML=html;
+  }
+  window._ocActual=null;
+}
+
+function abrirRecepcionParcialActual(){
+  if(!window._ocActual)return;
+  const {oc}=window._ocActual;
+  abrirRecepcionParcial(oc.purchaseorder_id);
 }
 
 function agregarFilaItemOC(){
