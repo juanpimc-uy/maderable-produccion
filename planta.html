@@ -4,6 +4,29 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Maderable · Planta</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+@media print {
+  @page { size: 60mm 30mm; margin: 0; }
+  html, body { width: 60mm; height: 30mm; background: white; }
+  .no-print { display: none !important; }
+  .print-grid { display: block !important; width: 60mm; }
+  .print-label {
+    width: 60mm; height: 30mm; display: flex; flex-direction: row;
+    align-items: center; gap: 2mm; padding: 2mm 3mm;
+    page-break-after: always; background: white; overflow: hidden;
+  }
+  .print-label canvas { width: 26mm !important; height: 26mm !important; flex-shrink: 0; }
+  .print-label-info { flex: 1; display: flex; flex-direction: column; gap: 1mm; overflow: hidden; }
+  .print-label .label-project { font-size: 14px; color: #000; text-transform: uppercase;
+    letter-spacing: 0.5px; font-family: monospace; font-weight: 700;
+    white-space: normal; word-break: break-word; line-height: 1.2; }
+  .print-label .label-num { font-size: 14px; font-weight: 700; font-family: monospace; line-height: 1.1; color: #000; }
+  .print-label .label-total { font-size: 10px; color: #555; font-family: monospace; }
+  .print-label .label-desc { font-size: 9px; color: #444; line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+</style>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Sora:wght@400;600;700&display=swap');
   :root {
@@ -50,6 +73,7 @@
   .btn-main:active { transform:scale(.98); }
   .btn-primary { background:var(--amber); color:#0E0F14; }
   .btn-danger  { background:var(--red);   color:#fff; }
+  .btn-success { background:var(--green); color:#0E0F14; }
   .btn-ghost   { background:var(--faint); color:var(--muted); border:1px solid var(--border); }
   /* select / input */
   .field { display:flex; flex-direction:column; gap:6px; }
@@ -93,7 +117,7 @@
       <button class="centro-btn" style="color:#5B8DEF"        onclick="elegirCentro('enchapado','Enchapado/Perforado')"><span style="font-size:22px">◈</span> Enchapado/<br>Perforado</button>
       <button class="centro-btn" style="color:var(--purple)"  onclick="elegirCentro('armado','Armado')">        <span style="font-size:22px">⬗</span> Armado</button>
       <button class="centro-btn" style="color:var(--teal)"    onclick="elegirCentro('revision','Revisión')">    <span style="font-size:22px">◎</span> Revisión</button>
-      <button class="centro-btn" style="color:var(--green); grid-column:span 2" onclick="elegirCentro('empaquetado','Empaquetado / Colocación')"><span style="font-size:22px">▣</span> Empaquetado / Colocación</button>
+      <button class="centro-btn" style="color:var(--green); grid-column:span 2" onclick="elegirCentro('empaquetado','Colocación')"><span style="font-size:22px">▣</span> Colocación</button>
     </div>
   </div>
 </div>
@@ -168,6 +192,43 @@
   <div id="bloque-piezas">
     <div class="sec-label">Piezas pendientes en este centro</div>
     <div id="lista-piezas"></div>
+  </div>
+</div>
+
+<!-- ═══ PANEL CIERRE REVISIÓN ════════════════════════════════════════════ -->
+<div id="dlg-revision" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:60;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;">
+  <div style="background:var(--panel);border:1px solid var(--borderL,#2E3247);border-radius:14px;padding:28px;max-width:420px;width:100%;margin:auto;">
+    <div class="mono" style="font-size:10px;color:var(--teal);letter-spacing:2px;margin-bottom:20px;">◎ CIERRE DE REVISIÓN</div>
+
+    <!-- PASO 1: APROBACIÓN -->
+    <div style="margin-bottom:24px;">
+      <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:12px;">PASO 1 — APROBACIÓN</div>
+      <label style="display:flex;align-items:center;gap:14px;cursor:pointer;background:var(--faint);border:2px solid var(--border);border-radius:10px;padding:16px;transition:border-color .2s;" id="lbl-aprobado">
+        <input type="checkbox" id="chk-aprobado" onchange="onChkAprobado()" style="width:24px;height:24px;cursor:pointer;accent-color:var(--green);flex-shrink:0;">
+        <span style="font-size:15px;font-weight:600;">Mueble revisado y aprobado</span>
+      </label>
+    </div>
+
+    <!-- PASO 2: BULTOS -->
+    <div style="margin-bottom:24px;">
+      <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:12px;">PASO 2 — CANTIDAD DE BULTOS</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:14px;">¿Cuántos bultos tiene este mueble?</div>
+      <div style="display:flex;align-items:center;gap:14px;justify-content:center;">
+        <button onclick="ajustarBultos(-1)" style="width:52px;height:52px;border:2px solid var(--border);border-radius:10px;background:var(--faint);color:var(--text);font-size:24px;font-weight:700;cursor:pointer;">−</button>
+        <div id="bultos-display" class="mono" style="font-size:40px;font-weight:700;color:var(--amber);min-width:60px;text-align:center;">1</div>
+        <button onclick="ajustarBultos(1)" style="width:52px;height:52px;border:2px solid var(--border);border-radius:10px;background:var(--faint);color:var(--text);font-size:24px;font-weight:700;cursor:pointer;">+</button>
+      </div>
+    </div>
+
+    <!-- PASO 3: ACCIONES -->
+    <div>
+      <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:12px;">PASO 3 — ACCIONES</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button class="btn-main btn-ghost" onclick="accionImprimirEtiquetas()">🖨 Imprimir etiquetas</button>
+        <button class="btn-main btn-ghost" onclick="window.open('https://maderable-produccion.vercel.app/despacho.html','_blank')">🔗 Ver verificador</button>
+        <button class="btn-main btn-success" id="btn-confirmar-revision" disabled onclick="confirmarRevision()" style="opacity:.4;cursor:not-allowed;">✓ Confirmar y finalizar</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -265,7 +326,7 @@ function goBack(screenId) { show(screenId); }
 // PANTALLA 0 → 1: elegir centro
 // ═══════════════════════════════════════════════════════════════════════════
 const CENTROS_ORDEN = ['corte','enchapado','armado','revision','empaquetado'];
-const CENTROS_LABEL = {corte:'Corte',enchapado:'Enchapado/Perforado',armado:'Armado',revision:'Revisión',empaquetado:'Empaquetado/Colocación'};
+const CENTROS_LABEL = {corte:'Corte',enchapado:'Enchapado/Perforado',armado:'Armado',revision:'Revisión',empaquetado:'Colocación'};
 
 let _pendingCentroId=null, _pendingCentroNombre=null;
 
@@ -479,6 +540,14 @@ function iniciarTarea() {
 }
 
 function finalizarTarea() {
+  if (centroActual === 'revision') {
+    abrirPanelRevision();
+    return;
+  }
+  _doFinalizarSesion();
+}
+
+function _doFinalizarSesion() {
   SESIONES = SESIONES.filter(s => {
     if (s.operarioId === opActual.id) {
       guardarHistorial({ ...s, fin: Date.now() });
@@ -498,6 +567,125 @@ function guardarHistorial(ses) {
   const h = JSON.parse(localStorage.getItem('historial') || '[]');
   h.push(ses);
   localStorage.setItem('historial', JSON.stringify(h));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PANEL CIERRE REVISIÓN
+// ═══════════════════════════════════════════════════════════════════════════
+let _cantBultos = 1;
+
+function abrirPanelRevision() {
+  _cantBultos = 1;
+  document.getElementById('bultos-display').textContent = '1';
+  document.getElementById('chk-aprobado').checked = false;
+  document.getElementById('lbl-aprobado').style.borderColor = 'var(--border)';
+  document.getElementById('btn-confirmar-revision').disabled = true;
+  document.getElementById('btn-confirmar-revision').style.opacity = '.4';
+  document.getElementById('btn-confirmar-revision').style.cursor = 'not-allowed';
+  document.getElementById('dlg-revision').style.display = 'flex';
+}
+
+function cerrarPanelRevision() {
+  document.getElementById('dlg-revision').style.display = 'none';
+}
+
+function onChkAprobado() {
+  const ok = document.getElementById('chk-aprobado').checked;
+  document.getElementById('lbl-aprobado').style.borderColor = ok ? 'var(--green)' : 'var(--border)';
+  const btn = document.getElementById('btn-confirmar-revision');
+  btn.disabled = !ok;
+  btn.style.opacity = ok ? '1' : '.4';
+  btn.style.cursor  = ok ? 'pointer' : 'not-allowed';
+}
+
+function ajustarBultos(delta) {
+  _cantBultos = Math.max(1, _cantBultos + delta);
+  document.getElementById('bultos-display').textContent = _cantBultos;
+}
+
+function accionImprimirEtiquetas() {
+  const ses = SESIONES.find(s => s.operarioId === opActual.id);
+  if (!ses) return;
+  const pr = PROYECTOS.find(p => p.id === ses.proyectoId);
+  const it = pr?.items.find(i => i.id === ses.itemId);
+  const nCorto = nombreCorto(it?.nombre||'');
+  const nDesc  = nombreDesc(it?.nombre||'');
+  // split código de nombre corto (MF01 vs resto)
+  const partes = nCorto.split(' ');
+  const codigo = partes[0]||nCorto;
+  const nombreM= partes.slice(1).join(' ')||nCorto;
+  imprimirEtiquetas(pr?.nombre||'', codigo, nombreM, nDesc||nombreM, _cantBultos);
+}
+
+function imprimirEtiquetas(proyectoNombre, proyectoNum, muebleCodigo, muebleNombre, cantBultos) {
+  const QR_URL = 'https://maderable-produccion.vercel.app/despacho.html';
+  let labelsHtml = '';
+  for (let i = 1; i <= cantBultos; i++) {
+    const bNum = String(i).padStart(2,'0');
+    const bTot = String(cantBultos).padStart(2,'0');
+    const divId = 'qr-'+i;
+    labelsHtml += `<div class="print-label">
+      <div id="${divId}"></div>
+      <div class="print-label-info">
+        <div class="label-project">${proyectoNombre}</div>
+        <div class="label-num">BULTO ${bNum}</div>
+        <div class="label-total">de ${bTot}</div>
+        <div class="label-desc">${proyectoNum} · ${muebleCodigo}</div>
+      </div>
+    </div>`;
+  }
+  const win = window.open('','_blank','width=300,height=400');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+    <style>
+      @page { size: 60mm 30mm; margin: 0; }
+      html, body { width: 60mm; background: white; margin: 0; padding: 0; font-family: monospace; }
+      .print-label { width: 60mm; height: 30mm; display: flex; flex-direction: row; align-items: center; gap: 2mm; padding: 2mm 3mm; page-break-after: always; background: white; overflow: hidden; box-sizing: border-box; }
+      .print-label canvas { width: 26mm !important; height: 26mm !important; flex-shrink: 0; }
+      .print-label-info { flex: 1; display: flex; flex-direction: column; gap: 1mm; overflow: hidden; }
+      .label-project { font-size: 14px; color: #000; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; white-space: normal; word-break: break-word; line-height: 1.2; }
+      .label-num { font-size: 14px; font-weight: 700; line-height: 1.1; color: #000; }
+      .label-total { font-size: 10px; color: #555; }
+      .label-desc { font-size: 9px; color: #444; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    </style>
+  </head><body>
+    <div class="print-grid">${labelsHtml}</div>
+    <script>
+      for(let i=1;i<=${cantBultos};i++){
+        new QRCode(document.getElementById('qr-'+i),{text:'${QR_URL}',width:104,height:104,correctLevel:QRCode.CorrectLevel.M});
+      }
+      setTimeout(()=>window.print(),800);
+    <\/script>
+  </body></html>`);
+  win.document.close();
+}
+
+function confirmarRevision() {
+  if (!document.getElementById('chk-aprobado').checked) return;
+  const ses = SESIONES.find(s => s.operarioId === opActual.id);
+  if (!ses) { cerrarPanelRevision(); _doFinalizarSesion(); return; }
+  const pr = PROYECTOS.find(p => p.id === ses.proyectoId);
+  const it = pr?.items.find(i => i.id === ses.itemId);
+  const nCorto = nombreCorto(it?.nombre||'');
+  const nDesc  = nombreDesc(it?.nombre||'');
+  const partes = nCorto.split(' ');
+  const registro = {
+    id: Date.now(),
+    proyectoId: ses.proyectoId,
+    proyectoNombre: pr?.nombre||'',
+    muebleId: ses.itemId,
+    muebleCodigo: partes[0]||nCorto,
+    muebleNombre: nDesc||nCorto,
+    cantBultos: _cantBultos,
+    fecha: new Date().toISOString(),
+    operario: opActual?.nombre||'',
+  };
+  const lista = JSON.parse(localStorage.getItem('bultos_listos')||'[]');
+  lista.push(registro);
+  localStorage.setItem('bultos_listos', JSON.stringify(lista));
+  cerrarPanelRevision();
+  _doFinalizarSesion();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
