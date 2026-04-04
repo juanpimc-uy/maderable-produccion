@@ -197,6 +197,15 @@ const OPERARIOS = [
   {id:'op5',nombre:'Roberto Vega',  avatar:'RV',especialidad:'Armado'  },
 ];
 
+const FLUJOS_CONF = {
+  lustre:       {label:'LUS',color:'var(--teal)'},
+  madera_maciza:{label:'MAC',color:'var(--green)'},
+  herreria:     {label:'HER',color:'var(--blue)'},
+  tapiceria:    {label:'TAP',color:'var(--purple)'},
+  electricidad: {label:'ELE',color:'var(--amber)'},
+};
+const FLUJOS_ORDER = ['lustre','madera_maciza','herreria','tapiceria','electricidad'];
+
 const CENTROS = [
   {id:'corte',       label:'Corte',              icon:'⬡',color:'var(--amber)'},
   {id:'enchapado',   label:'Enchapado/Perf.',     icon:'◈',color:'var(--blue)' },
@@ -557,27 +566,57 @@ function renderDetallePr(pr, sub) {
       document.getElementById('pr-detalle').innerHTML = html;
       return;
     }
-    html+=`<div style="display:flex;flex-direction:column;gap:12px;">`;
-    pr.items.forEach(it=>{
-      const hA2=hAcumIt(pr.id,it.id);
-      const sesAct=SESIONES.filter(s=>s.proyectoId===pr.id&&s.itemId===it.id);
-      html+=`<div style="background:var(--card);border:1px solid ${sesAct.length?'rgba(245,166,35,.4)':'var(--border)'};border-radius:8px;padding:20px;">
-        <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
-          <div style="flex:1;">
-            <div style="font-size:16px;font-weight:600;margin-bottom:8px;">${it.nombre}</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">${it.centros.map(cId=>{const c=CENTROS.find(x=>x.id===cId);return`<span class="pill" style="color:${c?.color};border:1px solid ${c?.color}33;background:${c?.color}10">${c?.label}</span>`;}).join('')}</div>
+    if(pr.muebles && pr.muebles.length){
+      html+=`<div style="display:flex;flex-direction:column;gap:10px;">`;
+      pr.muebles.forEach(m=>{
+        const hEst=Object.values(m.horas||{}).reduce((a,v)=>a+Number(v||0),0)*(m.cant||1);
+        const hA2=hAcumIt(pr.id,m.id);
+        const sesAct=SESIONES.filter(s=>s.proyectoId===pr.id&&s.itemId===m.id);
+        const mats=m.mats||[];
+        const critPend=mats.filter(mat=>mat.critico&&(mat.recibido||0)<mat.requerido);
+        const allPend=mats.filter(mat=>(mat.recibido||0)<mat.requerido);
+        const sem=!mats.length?'🟢':critPend.length?'🔴':allPend.length?'🟡':'🟢';
+        const chips=FLUJOS_ORDER.filter(f=>m.flujos&&m.flujos.includes(f)).map(f=>{const fc=FLUJOS_CONF[f];return`<span class="pill" style="color:${fc.color};border:1px solid ${fc.color}33;background:${fc.color}10">${fc.label}</span>`;}).join('');
+        html+=`<div style="background:var(--card);border:1px solid ${sesAct.length?'rgba(245,166,35,.4)':'var(--border)'};border-radius:8px;padding:18px;">
+          <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;">
+            <div class="mono" style="font-size:11px;font-weight:700;color:var(--amber);min-width:38px;padding-top:2px;">${m.codigo||'—'}</div>
+            <div style="flex:1;">
+              <div style="font-size:15px;font-weight:600;margin-bottom:5px;">${m.nombre||'—'} <span style="font-size:12px;color:var(--muted);">×${m.cant||1}</span></div>
+              ${chips?`<div style="display:flex;gap:5px;flex-wrap:wrap;">${chips}</div>`:''}
+            </div>
+            <div style="font-size:22px;">${sem}</div>
           </div>
-          <div style="text-align:right;">
-            <div class="mono" style="font-size:20px;font-weight:700;color:${hA2>it.hEst?'var(--red)':'var(--amber)'};">${fmtH(hA2)}</div>
-            <div style="font-size:11px;color:var(--muted);">de ${fmtH(it.hEst)} est.</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="mono" style="font-size:11px;color:${hA2>hEst?'var(--red)':'var(--muted)'};white-space:nowrap;">${fmtH(hA2)} / ${fmtH(hEst)}</span>
+            ${bar(hA2,hEst||1,hA2>hEst?'var(--red)':'var(--amber)')}
           </div>
-        </div>
-        ${bar(hA2,it.hEst||1,hA2>it.hEst?'var(--red)':'var(--green)',5)}
-        ${it.nota?`<div class="nota-box" style="margin-top:12px;">${it.nota}</div>`:''}
-        ${sesAct.length?`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">${sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);const c=CENTROS.find(x=>x.id===s.centroId);const tid=`t-it-${s.id}`;return`<div style="display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:5px;padding:5px 10px;border:1px solid rgba(245,166,35,.3);"><div class="av active" style="width:22px;height:22px;font-size:9px;">${op?.avatar}</div><span style="font-size:11px;">${op?.nombre}</span><span style="font-size:11px;color:${c?.color};">${c?.icon}</span><span class="mono" style="font-size:11px;color:var(--amber);" id="${tid}">–</span></div>`;}).join('')}</div>`:''}
-      </div>`;
-    });
-    html+=`</div>`;
+          ${sesAct.length?`<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px;">${sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);const c=CENTROS.find(x=>x.id===s.centroId);const tid='t-it-'+s.id;return`<div style="display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:5px;padding:4px 9px;border:1px solid rgba(245,166,35,.3);"><div class="av active" style="width:20px;height:20px;font-size:9px;">${op?.avatar}</div><span style="font-size:11px;">${op?.nombre}</span><span class="mono" style="font-size:11px;color:var(--amber);" id="${tid}">–</span></div>`;}).join('')}</div>`:''}
+        </div>`;
+      });
+      html+=`</div>`;
+    } else {
+      html+=`<div style="display:flex;flex-direction:column;gap:12px;">`;
+      pr.items.forEach(it=>{
+        const hA2=hAcumIt(pr.id,it.id);
+        const sesAct=SESIONES.filter(s=>s.proyectoId===pr.id&&s.itemId===it.id);
+        html+=`<div style="background:var(--card);border:1px solid ${sesAct.length?'rgba(245,166,35,.4)':'var(--border)'};border-radius:8px;padding:20px;">
+          <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
+            <div style="flex:1;">
+              <div style="font-size:16px;font-weight:600;margin-bottom:8px;">${it.nombre}</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">${it.centros.map(cId=>{const c=CENTROS.find(x=>x.id===cId);return`<span class="pill" style="color:${c?.color};border:1px solid ${c?.color}33;background:${c?.color}10">${c?.label}</span>`;}).join('')}</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="mono" style="font-size:20px;font-weight:700;color:${hA2>it.hEst?'var(--red)':'var(--amber)'};">${fmtH(hA2)}</div>
+              <div style="font-size:11px;color:var(--muted);">de ${fmtH(it.hEst)} est.</div>
+            </div>
+          </div>
+          ${bar(hA2,it.hEst||1,hA2>it.hEst?'var(--red)':'var(--green)',5)}
+          ${it.nota?`<div class="nota-box" style="margin-top:12px;">${it.nota}</div>`:''}
+          ${sesAct.length?`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">${sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);const c=CENTROS.find(x=>x.id===s.centroId);const tid='t-it-'+s.id;return`<div style="display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:5px;padding:5px 10px;border:1px solid rgba(245,166,35,.3);"><div class="av active" style="width:22px;height:22px;font-size:9px;">${op?.avatar}</div><span style="font-size:11px;">${op?.nombre}</span><span style="font-size:11px;color:${c?.color};">${c?.icon}</span><span class="mono" style="font-size:11px;color:var(--amber);" id="${tid}">–</span></div>`;}).join('')}</div>`:''}
+        </div>`;
+      });
+      html+=`</div>`;
+    }
     document.getElementById('pr-detalle').innerHTML = html;
     SESIONES.forEach(s=>liveTimer(`t-it-${s.id}`,s.inicio));
     return;
@@ -585,28 +624,73 @@ function renderDetallePr(pr, sub) {
 
   // ── MATERIALES ──
   if(sub==='materiales'){
-    const hasMueblesConMats = (pr.muebles||[]).some(m=>m.mats&&m.mats.length>0);
-    html+=`<div style="display:flex;flex-direction:column;gap:10px;">`;
-    if(hasMueblesConMats){
+    if(pr.muebles && pr.muebles.length){
+      html+=`<div style="display:flex;flex-direction:column;gap:16px;">`;
       pr.muebles.forEach(m=>{
-        if(!m.mats||!m.mats.length)return;
-        html+=`<div style="margin-bottom:4px;"><div class="mono" style="font-size:10px;color:var(--amber);letter-spacing:1px;padding:8px 0 6px;">${m.codigo||''} – ${m.nombre||''}</div>`;
-        m.mats.forEach(mat=>{
-          const ok=(mat.recibido||0)>=mat.requerido;
-          html+=`<div style="background:var(--card);border:1px solid ${ok?'rgba(61,214,140,.3)':'var(--border)'};border-radius:8px;padding:14px 18px;display:flex;align-items:center;gap:16px;margin-bottom:6px;">
-            <div style="flex:1;">
-              <div style="font-size:13px;font-weight:600;margin-bottom:6px;">${mat.nombre}${mat.critico?` <span class="pill" style="color:var(--red);background:rgba(240,92,92,.1);border:1px solid rgba(240,92,92,.3);">CRÍTICO</span>`:''}</div>
-              <div style="display:flex;align-items:center;gap:10px;">
-                <span class="mono" style="font-size:12px;color:${ok?'var(--green)':'var(--amber)'};white-space:nowrap;">${mat.recibido||0}/${mat.requerido} ${mat.unidad||''}</span>
-                ${bar(mat.recibido||0,mat.requerido,ok?'var(--green)':'var(--amber)')}
-              </div>
+        const mats=m.mats||[];
+        html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+          <div style="padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="mono" style="font-size:11px;font-weight:700;color:var(--amber);">${m.codigo||'—'}</span>
+              <span style="font-size:13px;font-weight:600;">${m.nombre||'—'}</span>
+              <span class="mono" style="font-size:10px;color:var(--muted);">×${m.cant||1}</span>
             </div>
-            ${ok?pill('✓ Completo','var(--green)'):''}
-          </div>`;
-        });
-        html+=`</div>`;
+            <button class="btn btn-ghost btn-sm" onclick="toggleAddMatForm('${pr.id}','${m.id}')">+ Material</button>
+          </div>
+          <div id="add-mat-form-${m.id}" style="display:none;padding:14px 18px;border-bottom:1px solid var(--border);background:rgba(91,141,239,.04);">
+            <div style="display:grid;grid-template-columns:1fr 100px 70px auto auto;gap:8px;align-items:end;margin-bottom:8px;">
+              <div class="field"><label style="font-size:9px;">Nombre</label><input id="nm-n-${m.id}" placeholder="Ej: MDF 18mm" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;width:100%;"></div>
+              <div class="field"><label style="font-size:9px;">Unidad</label><select id="nm-u-${m.id}" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;width:100%;"><option>planchas</option><option>metros</option><option>unidades</option><option>kg</option><option>litros</option></select></div>
+              <div class="field"><label style="font-size:9px;">Cant.</label><input type="number" id="nm-r-${m.id}" placeholder="0" min="1" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;width:100%;text-align:center;"></div>
+              <div class="field" style="justify-content:flex-end;"><label style="font-size:9px;">Crítico</label><input type="checkbox" id="nm-c-${m.id}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--red);"></div>
+              <button class="btn btn-primary btn-sm" onclick="agregarMatManual('${pr.id}','${m.id}')">Agregar</button>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input id="so-mat-${m.id}" placeholder="Nº SO (ej: 1234)" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;width:160px;">
+              <button class="btn btn-ghost btn-sm" onclick="buscarSOParaMueble('${pr.id}','${m.id}')">Buscar SO en Zoho</button>
+              <span id="so-mat-msg-${m.id}" style="font-size:11px;color:var(--muted);"></span>
+            </div>
+          </div>
+          <div style="padding:14px 18px;">
+            ${mats.length===0?`<div class="mono" style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0;">Sin materiales cargados</div>`:''}
+            ${mats.map(mat=>{
+              const ok=(mat.recibido||0)>=mat.requerido;
+              return`<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid rgba(37,40,54,.5);">
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                    <span style="font-size:13px;font-weight:600;">${mat.nombre}</span>
+                    ${mat.critico?`<span class="pill" style="color:var(--red);background:rgba(240,92,92,.1);border:1px solid rgba(240,92,92,.3);font-size:9px;">CRÍTICO</span>`:''}
+                    ${mat.manual?`<span class="pill" style="color:var(--muted);background:rgba(90,95,120,.15);border:1px solid var(--border);font-size:9px;">Manual</span>`:''}
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="mono" style="font-size:11px;color:${ok?'var(--green)':'var(--amber)'};white-space:nowrap;">${mat.recibido||0}/${mat.requerido} ${mat.unidad||''}</span>
+                    ${bar(mat.recibido||0,mat.requerido,ok?'var(--green)':'var(--amber)',4)}
+                  </div>
+                </div>
+                ${ok?pill('✓','var(--green)'):''}
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
       });
+      // ── sección colapsable SO completa ──
+      html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+        <div style="padding:12px 18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleEl('so-bulk-body')">
+          <span class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;">BUSCAR SO COMPLETA EN ZOHO</span>
+          <span style="font-size:12px;color:var(--muted);">▾</span>
+        </div>
+        <div id="so-bulk-body" style="display:none;padding:16px 18px;border-top:1px solid var(--border);">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+            <input id="so-bulk-num" placeholder="Nº SO (ej: 1234)" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;width:180px;">
+            <button class="btn btn-primary btn-sm" onclick="buscarSOBulk('${pr.id}')">Buscar</button>
+            <span id="so-bulk-msg" style="font-size:11px;color:var(--muted);"></span>
+          </div>
+          <div id="so-bulk-items"></div>
+        </div>
+      </div>`;
+      html+=`</div>`;
     } else {
+      html+=`<div style="display:flex;flex-direction:column;gap:10px;">`;
       pr.materiales.forEach(m=>{
         const ok=m.recibido>=m.requerido;
         html+=`<div style="background:var(--card);border:1px solid ${ok?'rgba(61,214,140,.3)':'var(--border)'};border-radius:8px;padding:18px;display:flex;align-items:center;gap:16px;">
@@ -624,8 +708,8 @@ function renderDetallePr(pr, sub) {
           </div>`:pill('✓ Completo','var(--green)')}
         </div>`;
       });
+      html+=`</div>`;
     }
-    html+=`</div>`;
   }
 
   // ── MÓDULOS ──
@@ -662,22 +746,65 @@ function renderDetallePr(pr, sub) {
 
   // ── TIEMPOS ──
   if(sub==='tiempos'){
-    html+=`<div style="display:flex;flex-direction:column;gap:12px;">`;
-    pr.items.forEach(it=>{
-      const hA2=hAcumIt(pr.id,it.id);
-      html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-          <div style="font-size:15px;font-weight:600;">${it.nombre}</div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <span class="mono" style="font-size:14px;color:${hA2>it.hEst?'var(--red)':'var(--amber)'};font-weight:700;">${fmtH(hA2)}</span>
-            <span style="font-size:11px;color:var(--muted);">/ ${fmtH(it.hEst)}</span>
-            ${pill(pct(hA2,it.hEst)+'%',hA2>it.hEst?'var(--red)':'var(--green)')}
+    // tabla compacta por mueble/ítem
+    const rows = pr.muebles && pr.muebles.length ? pr.muebles : pr.items;
+    html+=`<div class="card" style="margin-bottom:16px;overflow-x:auto;">
+      <table>
+        <thead><tr>
+          ${pr.muebles&&pr.muebles.length?'<th>Cód.</th>':''}
+          <th>Nombre</th>
+          <th style="text-align:right;">Real</th>
+          <th style="text-align:right;">Est.</th>
+          <th style="text-align:right;">%</th>
+          <th>Activos</th>
+        </tr></thead>
+        <tbody>
+        ${rows.map(row=>{
+          const hA2=hAcumIt(pr.id,row.id);
+          const hEst=row.hEst||Object.values(row.horas||{}).reduce((a,v)=>a+Number(v||0),0)*(row.cant||1)||0;
+          const p=pct(hA2,hEst||1);
+          const over=hA2>hEst&&hEst>0;
+          const sesAct=SESIONES.filter(s=>s.proyectoId===pr.id&&s.itemId===row.id);
+          const ops=sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);return op?`<div class="av active" style="width:20px;height:20px;font-size:9px;display:inline-flex;margin-right:3px;">${op.avatar}</div>`:''}).join('');
+          return`<tr>
+            ${pr.muebles&&pr.muebles.length?`<td class="mono" style="font-size:11px;color:var(--amber);">${row.codigo||'—'}</td>`:''}
+            <td style="font-size:13px;font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${row.nombre||'—'}</td>
+            <td class="mono" style="text-align:right;color:${over?'var(--red)':'var(--amber)'};">${fmtH(hA2)}</td>
+            <td class="mono" style="text-align:right;color:var(--muted);">${hEst?fmtH(hEst):'—'}</td>
+            <td style="text-align:right;">${hEst?pill(p+'%',over?'var(--red)':'var(--green)'):'—'}</td>
+            <td>${ops||'—'}</td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+    // historial de sesiones
+    const allSes=[
+      ...HISTORIAL.filter(s=>s.proyectoId===pr.id).map(s=>({...s,activa:false})),
+      ...SESIONES.filter(s=>s.proyectoId===pr.id).map(s=>({...s,fin:Date.now(),activa:true})),
+    ].sort((a,b)=>b.inicio-a.inicio);
+    if(allSes.length){
+      html+=`<div class="card"><div class="sec-title" style="margin-bottom:12px;">Detalle por sesión</div>`;
+      allSes.forEach(s=>{
+        const op=OPERARIOS.find(o=>o.id===s.operarioId);
+        const c=CENTROS.find(x=>x.id===s.centroId);
+        const row=(pr.muebles||[]).find(m=>m.id===s.itemId)||(pr.items||[]).find(i=>i.id===s.itemId);
+        const dur=msH(s.fin-s.inicio);
+        const ts=new Date(s.inicio).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+        html+=`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(37,40,54,.5);">
+          <div class="av ${s.activa?'active':'idle'}" style="width:26px;height:26px;font-size:10px;flex-shrink:0;">${op?.avatar||'?'}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:600;">${op?.nombre||'—'}</div>
+            <div style="font-size:11px;color:${c?.color||'var(--muted)'};">${c?.icon||''} ${c?.label||s.centroId} · <span style="color:var(--muted);">${row?.codigo||''} ${row?.nombre||row?.nombre||s.itemId}</span></div>
           </div>
-        </div>
-        ${bar(hA2,it.hEst||1,hA2>it.hEst?'var(--red)':'var(--green)',6)}
-      </div>`;
-    });
-    html+=`</div>`;
+          <div style="text-align:right;flex-shrink:0;">
+            <div class="mono" style="font-size:13px;color:${s.activa?'var(--amber)':'var(--text)'};">${fmtH(dur)}${s.activa?' ▶':''}</div>
+            <div class="mono" style="font-size:10px;color:var(--muted);">${ts}</div>
+          </div>
+        </div>`;
+      });
+      html+=`</div>`;
+    }
   }
 
   document.getElementById('pr-detalle').innerHTML = html;
@@ -731,6 +858,119 @@ function guardarProyecto(prId, sub) {
   }
   editMode = false;
   renderDetallePr(pr, sub||'resumen');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MATERIALES — helpers
+// ═══════════════════════════════════════════════════════════════════════════
+function toggleEl(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'block':'none';}
+function toggleAddMatForm(prId,mId){toggleEl('add-mat-form-'+mId);}
+
+function guardarMueblesLS(prId, pr){
+  const stored=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const idx=stored.findIndex(p=>p.id===prId);
+  if(idx>=0){stored[idx].muebles=pr.muebles;localStorage.setItem('proyectos',JSON.stringify(stored));}
+}
+
+function agregarMatManual(prId,mId){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  const m=pr?.muebles?.find(x=>x.id===mId);
+  if(!m)return;
+  const nombre=document.getElementById('nm-n-'+mId)?.value?.trim();
+  const unidad=document.getElementById('nm-u-'+mId)?.value||'unidades';
+  const requerido=Number(document.getElementById('nm-r-'+mId)?.value)||1;
+  const critico=document.getElementById('nm-c-'+mId)?.checked||false;
+  if(!nombre)return;
+  if(!m.mats)m.mats=[];
+  m.mats.push({id:'mat_'+Date.now(),nombre,unidad,requerido,recibido:0,critico,manual:true,soOrigen:''});
+  guardarMueblesLS(prId,pr);
+  renderDetallePr(pr,'materiales');
+}
+
+async function zohoTokenAdmin(){
+  try{const r=await fetch('/api/zoho-token');const d=await r.json();return d.access_token||null;}catch{return null;}
+}
+async function zohoFetchAdmin(endpoint){
+  const token=await zohoTokenAdmin();
+  if(!token)throw new Error('Sin token Zoho');
+  const r=await fetch('/api/zoho-books?endpoint='+encodeURIComponent(endpoint)+'&token='+encodeURIComponent(token));
+  return r.json();
+}
+
+async function buscarSOParaMueble(prId,mId){
+  const raw=document.getElementById('so-mat-'+mId)?.value?.trim();
+  if(!raw)return;
+  const msgEl=document.getElementById('so-mat-msg-'+mId);
+  msgEl.textContent='Buscando...';msgEl.style.color='var(--muted)';
+  const base=raw.replace(/^(SO-|so-)/i,'').trim();
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  const m=pr?.muebles?.find(x=>x.id===mId);
+  if(!m)return;
+  try{
+    let soObj=null;
+    for(const n of ['SO-'+base,base]){
+      const d=await zohoFetchAdmin('salesorders?salesorder_number='+encodeURIComponent(n));
+      if(d?.salesorders?.length){soObj=d.salesorders[0];break;}
+    }
+    if(!soObj){msgEl.textContent='SO no encontrada';msgEl.style.color='var(--red)';return;}
+    const det=await zohoFetchAdmin('salesorders/'+soObj.salesorder_id);
+    const items=det?.salesorder?.line_items||[];
+    if(!m.mats)m.mats=[];
+    const soNum='SO-'+base;
+    items.forEach(item=>{
+      m.mats.push({id:'mat_'+Date.now()+'_'+Math.random().toString(36).slice(2,4),nombre:item.name||item.description||'',unidad:item.unit||'unidades',requerido:item.quantity||1,recibido:0,critico:false,manual:false,soOrigen:soNum});
+    });
+    guardarMueblesLS(prId,pr);
+    msgEl.textContent=items.length+' materiales importados';msgEl.style.color='var(--green)';
+    setTimeout(()=>renderDetallePr(pr,'materiales'),800);
+  }catch(e){msgEl.textContent='Error: '+e.message;msgEl.style.color='var(--red)';}
+}
+
+async function buscarSOBulk(prId){
+  const raw=document.getElementById('so-bulk-num')?.value?.trim();
+  if(!raw)return;
+  const msgEl=document.getElementById('so-bulk-msg');
+  const itemsEl=document.getElementById('so-bulk-items');
+  msgEl.textContent='Buscando...';msgEl.style.color='var(--muted)';itemsEl.innerHTML='';
+  const base=raw.replace(/^(SO-|so-)/i,'').trim();
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  if(!pr)return;
+  try{
+    let soObj=null;
+    for(const n of ['SO-'+base,base]){
+      const d=await zohoFetchAdmin('salesorders?salesorder_number='+encodeURIComponent(n));
+      if(d?.salesorders?.length){soObj=d.salesorders[0];break;}
+    }
+    if(!soObj){msgEl.textContent='SO no encontrada';msgEl.style.color='var(--red)';return;}
+    const det=await zohoFetchAdmin('salesorders/'+soObj.salesorder_id);
+    const items=det?.salesorder?.line_items||[];
+    msgEl.textContent=items.length+' materiales encontrados';msgEl.style.color='var(--green)';
+    const muebleOpts=(pr.muebles||[]).map(m=>`<option value="${m.id}">${m.codigo} – ${m.nombre}</option>`).join('');
+    itemsEl.innerHTML=`<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+      ${items.map((item,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--faint);border-radius:6px;">
+        <span style="flex:1;font-size:12px;">${item.name||item.description||'—'} <span class="mono" style="color:var(--muted);">${item.quantity||1} ${item.unit||''}</span></span>
+        <select id="bulk-mueble-${i}" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:11px;outline:none;">
+          <option value="">— asignar a —</option>${muebleOpts}
+        </select>
+      </div>`).join('')}
+      <button class="btn btn-primary btn-sm" style="align-self:flex-start;margin-top:4px;" onclick="confirmarSOBulk('${prId}','SO-${base}',${JSON.stringify(items).replace(/'/g,'&apos;')})">Confirmar asignación</button>
+    </div>`;
+  }catch(e){msgEl.textContent='Error: '+e.message;msgEl.style.color='var(--red)';}
+}
+
+function confirmarSOBulk(prId,soNum,items){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  if(!pr)return;
+  items.forEach((item,i)=>{
+    const mId=document.getElementById('bulk-mueble-'+i)?.value;
+    if(!mId)return;
+    const m=pr.muebles?.find(x=>x.id===mId);
+    if(!m)return;
+    if(!m.mats)m.mats=[];
+    m.mats.push({id:'mat_'+Date.now()+'_'+i,nombre:item.name||item.description||'',unidad:item.unit||'unidades',requerido:item.quantity||1,recibido:0,critico:false,manual:false,soOrigen:soNum});
+  });
+  guardarMueblesLS(prId,pr);
+  renderDetallePr(pr,'materiales');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

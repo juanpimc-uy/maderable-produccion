@@ -170,15 +170,20 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // DATOS (en producción esto viene de API/backend)
 // ═══════════════════════════════════════════════════════════════════════════
-const OPERARIOS = [
+const OPERARIOS_DEMO = [
   { id:'op1', nombre:'Carlos Méndez',  avatar:'CM' },
   { id:'op2', nombre:'Diego Suárez',   avatar:'DS' },
   { id:'op3', nombre:'Martín Pérez',   avatar:'MP' },
   { id:'op4', nombre:'Ariel Fontana',  avatar:'AF' },
   { id:'op5', nombre:'Roberto Vega',   avatar:'RV' },
 ];
+const OPERARIOS = (()=>{
+  const s=JSON.parse(localStorage.getItem('operarios')||'[]');
+  return s.length?s:OPERARIOS_DEMO;
+})();
 
-const PROYECTOS = [
+const TODOS_CENTROS=['corte','enchapado','armado','revision','empaquetado'];
+const PROYECTOS_DEMO = [
   {
     id:'pr1', nombre:'MON BRAVA 301',
     items:[
@@ -195,6 +200,20 @@ const PROYECTOS = [
     ]
   },
 ];
+const PROYECTOS = (()=>{
+  const s=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  if(!s.length)return PROYECTOS_DEMO;
+  return s.map(p=>({
+    id:p.id,
+    nombre:p.obra||p.nombre||'',
+    items:(p.muebles||[]).map(m=>({
+      id:m.id,
+      nombre:[m.codigo,m.nombre].filter(Boolean).join(' – '),
+      centros:TODOS_CENTROS,
+      nota:'',
+    })),
+  }));
+})();
 
 // Estado en memoria (en producción: localStorage o API)
 let SESIONES = JSON.parse(localStorage.getItem('sesiones') || '[]');
