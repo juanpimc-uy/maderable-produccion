@@ -1238,44 +1238,135 @@ async function renderMateriales() {
 
 async function renderMatTabOCs() {
   document.getElementById('mat-contenido').innerHTML=`<div class="mono" style="font-size:11px;color:var(--muted);padding:16px;">Cargando OCs de Zoho Books...</div>`;
+  let zohoOCs=[];
   try{
     const token=await zohoTokenAdmin();
     if(!token){document.getElementById('mat-contenido').innerHTML=`<div class="mono" style="font-size:11px;color:var(--red);">Sin token Zoho. Configurá las variables de entorno.</div>`;return;}
-    const data=await zohoFetchAdmin('purchaseorders?status=open');
-    const ocs=(data?.purchaseorders||[]).filter(oc=>!ocsProcesadas.includes(oc.purchaseorder_id));
-    if(!ocs.length){document.getElementById('mat-contenido').innerHTML=`<div style="text-align:center;padding:32px;"><div style="font-size:32px;margin-bottom:12px;">✓</div><div class="mono" style="font-size:12px;color:var(--green);">Sin OCs pendientes de recibir</div></div>`;return;}
-    window._zohoOCs=ocs;
-    window._zohoProyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
-    let html=`<div style="display:flex;flex-direction:column;gap:12px;">`;
-    ocs.forEach(oc=>{
-      const fecha=oc.date||oc.created_time||'—';
-      const items=oc.line_items||[];
-      html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;" id="oc-card-${oc.purchaseorder_id}">
-        <div style="padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-          <div>
-            <div style="display:flex;align-items:center;gap:10px;">
-              <span class="mono" style="font-size:12px;font-weight:700;color:var(--amber);">${oc.purchaseorder_number||oc.purchaseorder_id}</span>
-              <span style="font-size:13px;font-weight:600;">${oc.vendor_name||'—'}</span>
-            </div>
-            <div class="mono" style="font-size:10px;color:var(--muted);margin-top:3px;">${fecha} · ${items.length} ítems</div>
-          </div>
-          <div style="display:flex;gap:8px;">
-            <button class="btn btn-primary btn-sm" onclick="confirmarRecibirOCCompleta('${oc.purchaseorder_id}')">✓ Recibir OC completa</button>
-            <button class="btn btn-ghost btn-sm" onclick="abrirRecepcionParcial('${oc.purchaseorder_id}')">Recepción parcial</button>
-          </div>
-        </div>
-        <div style="padding:12px 18px;">
-          ${items.map(li=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(37,40,54,.4);">
-            <span style="font-size:12px;">${li.name||li.description||'—'}</span>
-            <span class="mono" style="font-size:11px;color:var(--muted);">${li.quantity||1} ${li.unit||''}</span>
-          </div>`).join('')}
-        </div>
-        <div id="oc-panel-${oc.purchaseorder_id}" style="display:none;"></div>
-      </div>`;
+    // probar múltiples endpoints hasta encontrar OCs
+    const endpoints=['purchaseorders?status=open','purchaseorders?status=confirmed','purchaseorders'];
+    for(const ep of endpoints){
+      const data=await zohoFetchAdmin(ep);
+      console.log('OCs Zoho respuesta ('+ep+'):', JSON.stringify(data).substring(0,500));
+      if(data?.purchaseorders?.length){zohoOCs=data.purchaseorders;break;}
+    }
+    // filtrar últimos 90 días
+    const hace90=Date.now()-90*24*60*60*1000;
+    zohoOCs=zohoOCs.filter(oc=>{
+      const ts=oc.date||oc.created_time||'';
+      if(!ts)return true;
+      return new Date(ts).getTime()>=hace90;
     });
-    html+=`</div>`;
+  }catch(e){
+    console.log('Error Zoho OCs:', e.message);
+  }
+  // OCs manuales guardadas en localStorage
+  const ocsManual=JSON.parse(localStorage.getItem('ocs_manuales')||'[]');
+  // combinar, excluir procesadas
+  const todasOCs=[
+    ...zohoOCs.filter(oc=>!ocsProcesadas.includes(oc.purchaseorder_id)).map(oc=>({...oc,_manual:false})),
+    ...ocsManual.filter(oc=>!ocsProcesadas.includes(oc.purchaseorder_id)).map(oc=>({...oc,_manual:true})),
+  ];
+  window._zohoOCs=todasOCs;
+  window._zohoProyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  // form carga manual (siempre visible arriba)
+  let html=`<div style="margin-bottom:16px;">
+    <button class="btn btn-ghost" onclick="toggleEl('form-oc-manual')" style="margin-bottom:8px;">+ Cargar OC manual</button>
+    <div id="form-oc-manual" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:18px;">
+      <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:14px;">NUEVA OC MANUAL</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;">
+        <div class="field"><label>Número OC</label><input id="moc-num" placeholder="OC-001" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;width:100%;"></div>
+        <div class="field"><label>Proveedor</label><input id="moc-prov" placeholder="Nombre proveedor" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;width:100%;"></div>
+        <div class="field"><label>Fecha</label><input type="date" id="moc-fecha" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;width:100%;"></div>
+      </div>
+      <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">ÍTEMS</div>
+      <div id="moc-items" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
+        <div class="moc-item-row" style="display:grid;grid-template-columns:1fr 70px 90px auto;gap:8px;align-items:center;">
+          <input placeholder="Nombre del ítem" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;">
+          <input type="number" min="1" value="1" placeholder="Cant." style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;text-align:center;outline:none;">
+          <input placeholder="Unidad" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;">
+          <button onclick="this.closest('.moc-item-row').remove()" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;font-size:12px;">✕</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="agregarFilaItemOC()">+ Ítem</button>
+        <button class="btn btn-primary btn-sm" onclick="guardarOCManual()">Guardar OC</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleEl('form-oc-manual')">Cancelar</button>
+      </div>
+    </div>
+  </div>`;
+  if(!todasOCs.length){
+    html+=`<div style="text-align:center;padding:32px;"><div style="font-size:32px;margin-bottom:12px;">📭</div><div class="mono" style="font-size:12px;color:var(--muted);">Sin OCs de los últimos 90 días.<br>Podés cargar una manualmente arriba.</div></div>`;
     document.getElementById('mat-contenido').innerHTML=html;
-  }catch(e){document.getElementById('mat-contenido').innerHTML=`<div class="mono" style="font-size:11px;color:var(--red);">Error: ${e.message}</div>`;}
+    return;
+  }
+  html+=`<div style="display:flex;flex-direction:column;gap:12px;">`;
+  todasOCs.forEach(oc=>{
+    const fecha=oc.date||oc.created_time||'—';
+    const items=oc.line_items||[];
+    const badgeManual=oc._manual?`<span class="pill" style="font-size:9px;color:var(--blue);border:1px solid rgba(91,141,239,.4);background:rgba(91,141,239,.08);">Manual</span>`:'';
+    html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;" id="oc-card-${oc.purchaseorder_id}">
+      <div style="padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="mono" style="font-size:12px;font-weight:700;color:var(--amber);">${oc.purchaseorder_number||oc.purchaseorder_id}</span>
+            <span style="font-size:13px;font-weight:600;">${oc.vendor_name||'—'}</span>
+            ${badgeManual}
+          </div>
+          <div class="mono" style="font-size:10px;color:var(--muted);margin-top:3px;">${fecha} · ${items.length} ítem${items.length!==1?'s':''}</div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary btn-sm" onclick="confirmarRecibirOCCompleta('${oc.purchaseorder_id}')">✓ Recibir OC completa</button>
+          <button class="btn btn-ghost btn-sm" onclick="abrirRecepcionParcial('${oc.purchaseorder_id}')">Recepción parcial</button>
+        </div>
+      </div>
+      <div style="padding:12px 18px;">
+        ${items.map(li=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(37,40,54,.4);">
+          <span style="font-size:12px;">${li.name||li.description||'—'}</span>
+          <span class="mono" style="font-size:11px;color:var(--muted);">${li.quantity||1} ${li.unit||''}</span>
+        </div>`).join('')}
+      </div>
+      <div id="oc-panel-${oc.purchaseorder_id}" style="display:none;"></div>
+    </div>`;
+  });
+  html+=`</div>`;
+  document.getElementById('mat-contenido').innerHTML=html;
+}
+
+function agregarFilaItemOC(){
+  const row=document.createElement('div');
+  row.className='moc-item-row';
+  row.style.cssText='display:grid;grid-template-columns:1fr 70px 90px auto;gap:8px;align-items:center;';
+  row.innerHTML=`
+    <input placeholder="Nombre del ítem" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;">
+    <input type="number" min="1" value="1" placeholder="Cant." style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;text-align:center;outline:none;">
+    <input placeholder="Unidad" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;">
+    <button onclick="this.closest('.moc-item-row').remove()" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;font-size:12px;">✕</button>`;
+  document.getElementById('moc-items').appendChild(row);
+}
+
+function guardarOCManual(){
+  const num=document.getElementById('moc-num')?.value?.trim();
+  const prov=document.getElementById('moc-prov')?.value?.trim();
+  const fecha=document.getElementById('moc-fecha')?.value||new Date().toISOString().slice(0,10);
+  if(!num){alert('Ingresá un número de OC');return;}
+  const rows=[...document.querySelectorAll('#moc-items .moc-item-row')];
+  const line_items=rows.map(row=>{
+    const inputs=row.querySelectorAll('input');
+    return{name:inputs[0]?.value?.trim()||'',quantity:Number(inputs[1]?.value)||1,unit:inputs[2]?.value?.trim()||'unidades'};
+  }).filter(li=>li.name);
+  if(!line_items.length){alert('Agregá al menos un ítem');return;}
+  const oc={
+    purchaseorder_id:'manual_'+Date.now(),
+    purchaseorder_number:num,
+    vendor_name:prov||'—',
+    date:fecha,
+    line_items,
+    _manual:true,
+  };
+  const lista=JSON.parse(localStorage.getItem('ocs_manuales')||'[]');
+  lista.push(oc);
+  localStorage.setItem('ocs_manuales',JSON.stringify(lista));
+  renderMatTabOCs();
 }
 
 function confirmarRecibirOCCompleta(ocId){
