@@ -1223,12 +1223,20 @@ function renderTiempos() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MATERIALES (global) — OCs de Zoho Books
+// MATERIALES (global) — OCs Zoho + Por Proyecto
 // ═══════════════════════════════════════════════════════════════════════════
 let ocsProcesadas = JSON.parse(localStorage.getItem('ocsProcesadas')||'[]');
+let matTabActual = 'ocs';
 
 async function renderMateriales() {
-  document.getElementById('mat-tabs').innerHTML='';
+  document.getElementById('mat-tabs').innerHTML=`
+    <button class="btn ${matTabActual==='ocs'?'btn-primary':'btn-ghost'}" onclick="matTabActual='ocs';renderMateriales();">📋 OCs Pendientes</button>
+    <button class="btn ${matTabActual==='proyecto'?'btn-primary':'btn-ghost'}" onclick="matTabActual='proyecto';renderMateriales();">📦 Por Proyecto</button>`;
+  if(matTabActual==='ocs') await renderMatTabOCs();
+  else renderMatTabPorProyecto();
+}
+
+async function renderMatTabOCs() {
   document.getElementById('mat-contenido').innerHTML=`<div class="mono" style="font-size:11px;color:var(--muted);padding:16px;">Cargando OCs de Zoho Books...</div>`;
   try{
     const token=await zohoTokenAdmin();
@@ -1236,101 +1244,236 @@ async function renderMateriales() {
     const data=await zohoFetchAdmin('purchaseorders?status=open');
     const ocs=(data?.purchaseorders||[]).filter(oc=>!ocsProcesadas.includes(oc.purchaseorder_id));
     if(!ocs.length){document.getElementById('mat-contenido').innerHTML=`<div style="text-align:center;padding:32px;"><div style="font-size:32px;margin-bottom:12px;">✓</div><div class="mono" style="font-size:12px;color:var(--green);">Sin OCs pendientes de recibir</div></div>`;return;}
-    const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
+    window._zohoOCs=ocs;
+    window._zohoProyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
     let html=`<div style="display:flex;flex-direction:column;gap:12px;">`;
     ocs.forEach(oc=>{
       const fecha=oc.date||oc.created_time||'—';
-      html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
-        <div style="padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      const items=oc.line_items||[];
+      html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;" id="oc-card-${oc.purchaseorder_id}">
+        <div style="padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
           <div>
             <div style="display:flex;align-items:center;gap:10px;">
               <span class="mono" style="font-size:12px;font-weight:700;color:var(--amber);">${oc.purchaseorder_number||oc.purchaseorder_id}</span>
               <span style="font-size:13px;font-weight:600;">${oc.vendor_name||'—'}</span>
             </div>
-            <div class="mono" style="font-size:10px;color:var(--muted);margin-top:3px;">${fecha} · ${(oc.line_items||[]).length} ítems</div>
+            <div class="mono" style="font-size:10px;color:var(--muted);margin-top:3px;">${fecha} · ${items.length} ítems</div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="abrirRecibirOC('${oc.purchaseorder_id}')">Recibir OC</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary btn-sm" onclick="confirmarRecibirOCCompleta('${oc.purchaseorder_id}')">✓ Recibir OC completa</button>
+            <button class="btn btn-ghost btn-sm" onclick="abrirRecepcionParcial('${oc.purchaseorder_id}')">Recepción parcial</button>
+          </div>
         </div>
         <div style="padding:12px 18px;">
-          ${(oc.line_items||[]).slice(0,4).map(li=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(37,40,54,.4);">
+          ${items.map(li=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(37,40,54,.4);">
             <span style="font-size:12px;">${li.name||li.description||'—'}</span>
             <span class="mono" style="font-size:11px;color:var(--muted);">${li.quantity||1} ${li.unit||''}</span>
           </div>`).join('')}
-          ${(oc.line_items||[]).length>4?`<div class="mono" style="font-size:10px;color:var(--muted);padding-top:6px;">+${oc.line_items.length-4} más...</div>`:''}
         </div>
+        <div id="oc-panel-${oc.purchaseorder_id}" style="display:none;"></div>
       </div>`;
     });
     html+=`</div>`;
-    // panel recibir OC (oculto inicialmente)
-    html+=`<div id="panel-recibir-oc" style="display:none;"></div>`;
     document.getElementById('mat-contenido').innerHTML=html;
-    // guardar OCs en memoria para el panel
-    window._zohoOCs=ocs;
-    window._zohoProyStorage=proyStorage;
   }catch(e){document.getElementById('mat-contenido').innerHTML=`<div class="mono" style="font-size:11px;color:var(--red);">Error: ${e.message}</div>`;}
 }
 
-function abrirRecibirOC(ocId){
+function confirmarRecibirOCCompleta(ocId){
   const oc=window._zohoOCs?.find(o=>o.purchaseorder_id===ocId);
   if(!oc)return;
-  const proyStorage=window._zohoProyStorage||[];
-  const items=oc.line_items||[];
-  // opciones de proyecto+mueble
-  let muebleOpts='<option value="">— sin asignar —</option>';
-  proyStorage.forEach(p=>{(p.muebles||[]).forEach(m=>{muebleOpts+=`<option value="${p.id}|||${m.id}">${p.obra||p.nombre} › ${m.codigo} ${m.nombre}</option>`;});});
-  let html=`<div class="card" style="margin-top:12px;border-color:rgba(91,141,239,.3);">
-    <div class="sec-title" style="margin-bottom:14px;">Recibir OC ${oc.purchaseorder_number||ocId}</div>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
-    ${items.map((li,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--faint);border-radius:6px;flex-wrap:wrap;">
-      <div style="flex:1;min-width:160px;">
-        <div style="font-size:13px;font-weight:600;">${li.name||li.description||'—'}</div>
-        <div class="mono" style="font-size:10px;color:var(--muted);">${li.quantity||1} ${li.unit||''}</div>
-      </div>
-      <select id="oc-mueble-${i}" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:11px;outline:none;min-width:200px;">${muebleOpts}</select>
-    </div>`).join('')}
-    </div>
+  const panel=document.getElementById('oc-panel-'+ocId);
+  panel.innerHTML=`<div style="padding:14px 18px;background:rgba(61,214,140,.05);border-top:1px solid rgba(61,214,140,.2);">
+    <div style="font-size:13px;font-weight:600;margin-bottom:12px;">¿Confirmar recepción de ${oc.purchaseorder_number||ocId} completa?</div>
     <div style="display:flex;gap:8px;">
-      <button class="btn btn-success" onclick="confirmarRecibirOC('${ocId}',${JSON.stringify(items).replace(/"/g,'&quot;')})">Confirmar recepción</button>
-      <button class="btn btn-ghost" onclick="document.getElementById('panel-recibir-oc').style.display='none'">Cancelar</button>
+      <button class="btn btn-success btn-sm" onclick="ejecutarRecibirOCCompleta('${ocId}')">✓ Confirmar</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('oc-panel-${ocId}').style.display='none'">Cancelar</button>
     </div>
   </div>`;
-  const panel=document.getElementById('panel-recibir-oc');
-  panel.innerHTML=html;panel.style.display='block';
-  panel.scrollIntoView({behavior:'smooth',block:'start'});
+  panel.style.display='block';
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
-function confirmarRecibirOC(ocId,items){
+function _cruzarItemsConMuebles(lineItems,proyStorage){
+  let matActualizados=0;
+  const mueblesDesbloqueados=[];
+  lineItems.forEach(li=>{
+    const nombre=(li.name||li.description||'').toLowerCase().trim();
+    const qty=Number(li.quantity)||1;
+    proyStorage.forEach(p=>{
+      (p.muebles||[]).forEach(m=>{
+        (m.mats||[]).forEach(mat=>{
+          const mn=mat.nombre.toLowerCase().trim();
+          if(mn&&nombre&&(mn.includes(nombre)||nombre.includes(mn))){
+            const antes=mat.recibido||0;
+            mat.recibido=Math.min(mat.requerido,antes+qty);
+            if(mat.recibido>antes)matActualizados++;
+          }
+        });
+      });
+    });
+  });
+  // recalcular semáforo
+  proyStorage.forEach(p=>{
+    (p.muebles||[]).forEach(m=>{
+      const mats=m.mats||[];
+      if(!mats.length)return;
+      const critPend=mats.filter(mat=>mat.critico&&(mat.recibido||0)<mat.requerido);
+      const allPend=mats.filter(mat=>(mat.recibido||0)<mat.requerido);
+      if(!critPend.length&&!allPend.length&&m.estado!=='listo'){
+        m.estado='listo';
+        mueblesDesbloqueados.push({prNombre:p.obra||p.nombre,mNombre:(m.codigo||'')+(m.nombre?' – '+m.nombre:''),prId:p.id});
+      }
+    });
+  });
+  return {matActualizados,mueblesDesbloqueados};
+}
+
+function _mostrarResumenOC(ocId,matActualizados,mueblesDesbloqueados,parcial=false){
+  const panel=document.getElementById('oc-panel-'+ocId);
+  let html=`<div style="padding:14px 18px;background:rgba(61,214,140,.05);border-top:1px solid rgba(61,214,140,.2);">
+    <div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:${mueblesDesbloqueados.length?'8':'0'}px;">✓ ${parcial?'Recepción parcial registrada':'OC recibida'}. ${matActualizados} material${matActualizados!==1?'es':''} actualizado${matActualizados!==1?'s':''}. ${mueblesDesbloqueados.length} mueble${mueblesDesbloqueados.length!==1?'s':''} desbloqueado${mueblesDesbloqueados.length!==1?'s':''}.</div>`;
+  if(mueblesDesbloqueados.length){
+    html+=`<div style="display:flex;flex-direction:column;gap:3px;margin-top:6px;">`;
+    mueblesDesbloqueados.forEach(mu=>{html+=`<div style="font-size:11px;">🟢 <a href="#" onclick="abrirDetallePr('${mu.prId}');return false;" style="color:var(--green);">${mu.prNombre}</a> › ${mu.mNombre}</div>`;});
+    html+=`</div>`;
+  }
+  html+=`</div>`;
+  panel.innerHTML=html;panel.style.display='block';
+}
+
+function ejecutarRecibirOCCompleta(ocId){
+  const oc=window._zohoOCs?.find(o=>o.purchaseorder_id===ocId);
+  if(!oc)return;
   const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
-  items.forEach((li,i)=>{
-    const val=document.getElementById('oc-mueble-'+i)?.value;
-    if(!val)return;
-    const [prId,mId]=val.split('|||');
-    const pr=proyStorage.find(p=>p.id===prId);
-    const m=pr?.muebles?.find(x=>x.id===mId);
-    if(!m)return;
-    if(!m.mats)m.mats=[];
-    // intentar actualizar mat existente por nombre
-    const existing=m.mats.find(mat=>mat.nombre===(li.name||li.description||''));
-    if(existing){existing.recibido=Math.min(existing.requerido,(existing.recibido||0)+(li.quantity||1));}
-    else{m.mats.push({id:'mat_'+Date.now()+'_'+i,nombre:li.name||li.description||'',unidad:li.unit||'unidades',requerido:li.quantity||1,recibido:li.quantity||1,critico:false,manual:false,soOrigen:''});}
-  });
+  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(oc.line_items||[],proyStorage);
   localStorage.setItem('proyectos',JSON.stringify(proyStorage));
-  // también actualizar PROYECTOS en memoria
-  items.forEach((li,i)=>{
-    const val=document.getElementById('oc-mueble-'+i)?.value;
-    if(!val)return;
-    const [prId,mId]=val.split('|||');
-    const pr=PROYECTOS.find(p=>p.id===prId);
-    const m=pr?.muebles?.find(x=>x.id===mId);
-    if(!m)return;
-    if(!m.mats)m.mats=[];
-    const existing=m.mats.find(mat=>mat.nombre===(li.name||li.description||''));
-    if(existing){existing.recibido=Math.min(existing.requerido,(existing.recibido||0)+(li.quantity||1));}
-    else{m.mats.push({id:'mat_'+Date.now()+'_'+i+'b',nombre:li.name||li.description||'',unidad:li.unit||'unidades',requerido:li.quantity||1,recibido:li.quantity||1,critico:false,manual:false,soOrigen:''});}
-  });
+  PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
   ocsProcesadas.push(ocId);
   localStorage.setItem('ocsProcesadas',JSON.stringify(ocsProcesadas));
-  renderMateriales();
+  const card=document.getElementById('oc-card-'+ocId);
+  if(card)card.style.opacity='0.55';
+  _mostrarResumenOC(ocId,matActualizados,mueblesDesbloqueados,false);
+}
+
+function abrirRecepcionParcial(ocId){
+  const oc=window._zohoOCs?.find(o=>o.purchaseorder_id===ocId);
+  if(!oc)return;
+  const items=oc.line_items||[];
+  const panel=document.getElementById('oc-panel-'+ocId);
+  panel.innerHTML=`<div style="padding:14px 18px;background:var(--faint);border-top:1px solid var(--border);">
+    <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:12px;">RECEPCIÓN PARCIAL</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+      ${items.map((li,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--card);border-radius:6px;flex-wrap:wrap;">
+        <input type="checkbox" id="parcial-chk-${ocId}-${i}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--green);" checked>
+        <span style="flex:1;font-size:12px;">${li.name||li.description||'—'}</span>
+        <span class="mono" style="font-size:10px;color:var(--muted);">${li.unit||''}</span>
+        <input type="number" id="parcial-qty-${ocId}-${i}" value="${li.quantity||1}" min="0" max="${li.quantity||1}" style="width:60px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 6px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;text-align:center;outline:none;">
+      </div>`).join('')}
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-success btn-sm" onclick="ejecutarRecepcionParcial('${ocId}',${items.length})">✓ Confirmar parcial</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('oc-panel-${ocId}').style.display='none'">Cancelar</button>
+    </div>
+  </div>`;
+  panel.style.display='block';
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function ejecutarRecepcionParcial(ocId,itemCount){
+  const oc=window._zohoOCs?.find(o=>o.purchaseorder_id===ocId);
+  if(!oc)return;
+  const allItems=oc.line_items||[];
+  const selItems=[];
+  for(let i=0;i<itemCount;i++){
+    const chk=document.getElementById(`parcial-chk-${ocId}-${i}`);
+    if(!chk?.checked)continue;
+    const qty=Number(document.getElementById(`parcial-qty-${ocId}-${i}`)?.value)||0;
+    if(qty<=0)continue;
+    const li=allItems[i];
+    if(li)selItems.push({...li,quantity:qty});
+  }
+  const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(selItems,proyStorage);
+  localStorage.setItem('proyectos',JSON.stringify(proyStorage));
+  PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
+  _mostrarResumenOC(ocId,matActualizados,mueblesDesbloqueados,true);
+}
+
+function renderMatTabPorProyecto(){
+  const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  if(!proyStorage.length){document.getElementById('mat-contenido').innerHTML=`<div class="mono" style="font-size:11px;color:var(--muted);text-align:center;padding:32px;">Sin proyectos cargados</div>`;return;}
+  let html=`<div style="display:flex;flex-direction:column;gap:16px;">`;
+  proyStorage.forEach(p=>{
+    if(!(p.muebles||[]).some(m=>(m.mats||[]).length))return;
+    html+=`<div class="card"><div class="sec-title" style="margin-bottom:12px;">${p.obra||p.nombre}</div>`;
+    (p.muebles||[]).forEach(m=>{
+      const mats=m.mats||[];
+      if(!mats.length)return;
+      html+=`<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span class="mono" style="font-size:11px;font-weight:700;color:var(--amber);">${m.codigo||'—'}</span>
+          <span style="font-size:13px;font-weight:600;">${m.nombre||'—'}</span>
+        </div>
+        ${mats.map(mat=>{
+          const pctV=mat.requerido>0?Math.min(100,Math.round((mat.recibido||0)/mat.requerido*100)):0;
+          const over=pctV>=100;
+          const badgeManual=mat.manual?`<span class="pill" style="font-size:9px;color:var(--muted);border:1px solid var(--border);margin-left:4px;">Manual</span>`:'';
+          const isCrit=!!mat.critico;
+          return`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(37,40,54,.3);flex-wrap:wrap;">
+            <span style="flex:1;min-width:120px;font-size:12px;">${mat.nombre||'—'}${badgeManual}</span>
+            <span class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap;">${mat.recibido||0}/${mat.requerido} ${mat.unidad||''}</span>
+            <div style="width:70px;">${bar(mat.recibido||0,mat.requerido||1,over?'var(--green)':'var(--amber)',5)}</div>
+            <button onclick="toggleCriticoMat('${p.id}','${m.id}','${mat.id}')" title="${isCrit?'Quitar crítico':'Marcar crítico'}" style="padding:3px 8px;border:1px solid ${isCrit?'rgba(240,92,92,.6)':'var(--border)'};border-radius:4px;background:${isCrit?'rgba(240,92,92,.12)':'transparent'};color:${isCrit?'var(--red)':'var(--muted)'};cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;white-space:nowrap;">🔴 ${isCrit?'●':'○'}</button>
+            <button onclick="recibirMatMueble('${p.id}','${m.id}','${mat.id}')" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;">+ Recibir</button>
+          </div>`;
+        }).join('')}
+      </div>`;
+    });
+    html+=`</div>`;
+  });
+  html+=`</div>`;
+  document.getElementById('mat-contenido').innerHTML=html;
+}
+
+function toggleCriticoMat(prId,mId,matId){
+  const stored=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const p=stored.find(x=>x.id===prId);
+  const m=p?.muebles?.find(x=>x.id===mId);
+  const mat=m?.mats?.find(x=>x.id===matId);
+  if(!mat)return;
+  mat.critico=!mat.critico;
+  // recalcular semáforo
+  const mats=m.mats||[];
+  const critPend=mats.filter(x=>x.critico&&(x.recibido||0)<x.requerido);
+  const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
+  if(!critPend.length&&!allPend.length)m.estado='listo';
+  localStorage.setItem('proyectos',JSON.stringify(stored));
+  const inMem=PROYECTOS.find(x=>x.id===prId);
+  if(inMem)inMem.muebles=p.muebles;
+  renderMatTabPorProyecto();
+}
+
+function recibirMatMueble(prId,mId,matId){
+  const stored=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const p=stored.find(x=>x.id===prId);
+  const m=p?.muebles?.find(x=>x.id===mId);
+  const mat=m?.mats?.find(x=>x.id===matId);
+  if(!mat)return;
+  const pendiente=mat.requerido-(mat.recibido||0);
+  if(pendiente<=0)return;
+  const cant=Number(prompt(`Cantidad a recibir para "${mat.nombre}" (pendiente: ${pendiente} ${mat.unidad||''}):`)||0);
+  if(!cant||cant<=0)return;
+  mat.recibido=Math.min(mat.requerido,(mat.recibido||0)+cant);
+  mat.manual=true;
+  // recalcular semáforo
+  const mats=m.mats||[];
+  const critPend=mats.filter(x=>x.critico&&(x.recibido||0)<x.requerido);
+  const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
+  if(!critPend.length&&!allPend.length)m.estado='listo';
+  localStorage.setItem('proyectos',JSON.stringify(stored));
+  const inMem=PROYECTOS.find(x=>x.id===prId);
+  if(inMem)inMem.muebles=p.muebles;
+  renderMatTabPorProyecto();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
