@@ -142,32 +142,38 @@
 
   <!-- ══ PASO 1 ══ -->
   <div id="pane-1">
-    <div class="info-box">Subí el Remito ODF para importar muebles, y una o más Órdenes SO para los materiales. También podés continuar sin PDFs.</div>
-    <div class="g2">
-      <div class="card">
-        <div class="card-title">Remito ODF — Muebles</div>
-        <div class="dropzone" id="dz-odf" ondragover="drag(event,'dz-odf',1)" ondragleave="drag(event,'dz-odf',0)" ondrop="drop(event,'odf')">
-          <input type="file" accept=".pdf" onchange="fileIn(event,'odf')">
-          <span style="font-size:24px;" id="icon-odf">📄</span>
-          <div><div style="font-size:13px;font-weight:600;" id="title-odf">Remito ODF</div><div style="font-size:11px;color:var(--muted);" id="sub-odf">Arrastrá o clic · PDF</div></div>
+    <div class="info-box">Buscá el número de ODF en Zoho Books para importar muebles automáticamente. Agregá una o más SOs para los materiales. También podés continuar sin Zoho.</div>
+
+    <div class="card">
+      <div class="card-title">Remito ODF — Muebles</div>
+      <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px;">
+        <div class="field" style="flex:1;margin:0;">
+          <label>Número ODF</label>
+          <input id="zoho-odf-num" placeholder="ODF-2385" onkeydown="if(event.key==='Enter')buscarODF()"/>
         </div>
-        <div class="proc-msg" id="proc-odf"><span class="spinner"></span><span id="proc-odf-txt">Procesando...</span></div>
-        <div class="err-msg" id="err-odf"></div>
+        <button class="btn btn-primary" onclick="buscarODF()">Buscar</button>
       </div>
-      <div class="card">
-        <div class="card-title">Órdenes SO — Materiales <span style="color:var(--muted);font-weight:400;font-size:9px;">(múltiples)</span></div>
-        <div id="so-list"></div>
-        <div class="dropzone" id="dz-so" ondragover="drag(event,'dz-so',1)" ondragleave="drag(event,'dz-so',0)" ondrop="drop(event,'so')">
-          <input type="file" accept=".pdf" onchange="fileIn(event,'so')">
-          <span style="font-size:24px;">➕</span>
-          <div><div style="font-size:13px;font-weight:600;">Agregar SO</div><div style="font-size:11px;color:var(--muted);">Los materiales se acumulan</div></div>
-        </div>
-        <div class="proc-msg" id="proc-so"><span class="spinner"></span><span id="proc-so-txt">Procesando...</span></div>
-        <div class="err-msg" id="err-so"></div>
-      </div>
+      <div class="proc-msg" id="proc-odf"><span class="spinner"></span><span id="proc-odf-txt">Buscando...</span></div>
+      <div class="err-msg" id="err-odf"></div>
+      <div id="odf-result"></div>
     </div>
+
+    <div class="card">
+      <div class="card-title">Órdenes SO — Materiales <span style="color:var(--muted);font-weight:400;font-size:9px;">(múltiples)</span></div>
+      <div id="so-list"></div>
+      <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px;">
+        <div class="field" style="flex:1;margin:0;">
+          <label>Número SO</label>
+          <input id="zoho-so-num" placeholder="SO-1234" onkeydown="if(event.key==='Enter')buscarSO()"/>
+        </div>
+        <button class="btn btn-primary" onclick="buscarSO()">Buscar</button>
+      </div>
+      <div class="proc-msg" id="proc-so"><span class="spinner"></span><span id="proc-so-txt">Buscando...</span></div>
+      <div class="err-msg" id="err-so"></div>
+    </div>
+
     <div style="display:flex;gap:10px;justify-content:flex-end;">
-      <button class="btn btn-ghost" onclick="goStep(2)">Continuar sin PDF →</button>
+      <button class="btn btn-ghost" onclick="goStep(2)">Continuar sin Zoho →</button>
       <button class="btn btn-primary" onclick="goStep(2)">Siguiente →</button>
     </div>
   </div>
@@ -302,57 +308,79 @@ function goStep(n){
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// PDF
+// ZOHO BOOKS
 // ══════════════════════════════════════════════════════════════════════════
-function drag(e,id,on){e.preventDefault();document.getElementById(id)?.classList.toggle('drag',!!on);}
-function drop(e,t){e.preventDefault();document.getElementById('dz-'+t)?.classList.remove('drag');const f=e.dataTransfer.files[0];if(f)procPDF(f,t);}
-function fileIn(e,t){const f=e.target.files[0];if(f)procPDF(f,t);}
+async function getZohoToken(){
+  const res=await fetch('/api/zoho-token');
+  const data=await res.json();
+  if(!data.access_token)throw new Error('No se obtuvo access token: '+JSON.stringify(data));
+  return data.access_token;
+}
 
-async function procPDF(file,tipo){
-  if(!file.name.toLowerCase().endsWith('.pdf')){showErr(tipo,'Solo PDF.');return;}
-  showErr(tipo,'',0);showProc(tipo,1,'LEYENDO PDF...');
-  const b64=await toB64(file);
-  showProc(tipo,1,'ANALIZANDO CON IA...');
-  const esOdf=tipo==='odf';
-  const prompt=esOdf
-    ?`Analizá este remito de carpintería. SOLO JSON, sin markdown:
-{"numero":"","obra":"","cliente":"","muebles":[{"codigo":"C01","nombre":"","cant":1,"flujos_extra":[],"placas":4,"dif":2}]}
-flujos_extra: ["tapiceria"] tapicería, ["herreria"] hierro/chapa, ["lustre"] lustre, ["electricidad"] electricidad, ["madera_maciza"] madera maciza/itauba/cedro.
-placas: por medidas. >3m→12, 2-3m→8, 1-2m→4, <1m→2, sin dato→4. dif: 1-4.`
-    :`Analizá esta orden de venta/compra. SOLO JSON sin markdown:
-{"numero":"","obra":"","cliente":"","materiales":[{"nombre":"","unidad":"unidades","cantidad":1}]}
-unidad: planchas, unidades, pares, metros, ml, kg, litros, m². cantidad: el número del documento.`;
+async function buscarODF(){
+  const num=document.getElementById('zoho-odf-num').value.trim();
+  if(!num)return;
+  showErr('odf','',0);showProc('odf',1,'OBTENIENDO TOKEN...');
   try{
-    const testRes=await fetch('/api/anthropic',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:10,messages:[{role:'user',content:'hola'}]})});
-    const testData=await testRes.json();
-    console.log('TEST API:',JSON.stringify(testData));
-    const res=await fetch('/api/anthropic',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,messages:[{role:'user',content:[{type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},{type:'text',text:prompt}]}]})});
+    const token=await getZohoToken();
+    showProc('odf',1,'BUSCANDO INVOICE...');
+    const res=await fetch(`/api/zoho-books?endpoint=invoices?invoice_number=${encodeURIComponent(num)}&token=${token}`);
     const data=await res.json();
-    const rawText=data.content?.[0]?.text||'';
-    console.log('RAW TEXT:',rawText);
-    const parsed=parseJ(rawText);
-    showProc(tipo,0);
-    if(parsed.numero&&!gv('f-num'))sv('f-num',parsed.numero);
-    if(parsed.obra&&!gv('f-obra'))sv('f-obra',parsed.obra);
-    if(parsed.cliente&&!gv('f-cliente'))sv('f-cliente',parsed.cliente);
-    if(esOdf&&parsed.muebles?.length){
-      muebles=parsed.muebles.map((m,i)=>({
-        id:'mf_'+Date.now()+'_'+i,codigo:m.codigo||'C'+(i+1).toString().padStart(2,'0'),
-        nombre:m.nombre||'',cant:m.cant||1,flujos:m.flujos_extra||[],
-        hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},
-        placas:m.placas||4,dif:m.dif||2,horas:calcHoras(m.placas||4,m.dif||2)
-      }));
-      document.getElementById('dz-odf').classList.add('done');
-      document.getElementById('icon-odf').textContent='✅';
-      document.getElementById('title-odf').textContent=file.name;
-      document.getElementById('sub-odf').textContent=parsed.muebles.length+' muebles';
-    }
-    if(!esOdf&&parsed.materiales?.length){
-      materiales=[...materiales,...parsed.materiales.map((m,i)=>({id:'mat_'+Date.now()+'_'+i,nombre:m.nombre||'',unidad:m.unidad||'unidades',requerido:m.cantidad||0,recibido:0}))];
-      sosCargadas.push({nombre:file.name,numero:parsed.numero||file.name,count:parsed.materiales.length});
-      renderSoList();
-    }
-  }catch(err){showProc(tipo,0);showErr(tipo,'Error: '+err.message);}
+    showProc('odf',0);
+    const inv=data.invoices?.[0]||data.invoice;
+    if(!inv){showErr('odf','No se encontró el documento '+num);return;}
+    if(!gv('f-num'))sv('f-num',inv.invoice_number||num);
+    if(!gv('f-obra'))sv('f-obra',inv.subject||inv.reference_number||'');
+    if(!gv('f-cliente'))sv('f-cliente',inv.customer_name||'');
+    const items=inv.line_items||[];
+    muebles=items.map((item,i)=>({
+      id:'mf_'+Date.now()+'_'+i,
+      codigo:item.sku||('MF'+(i+1).toString().padStart(2,'0')),
+      nombre:item.name||item.description||'',
+      cant:item.quantity||1,
+      flujos:[],
+      hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},
+      placas:4,dif:2,horas:calcHoras(4,2)
+    }));
+    document.getElementById('odf-result').innerHTML=`
+      <div style="background:rgba(61,214,140,.05);border:1px solid rgba(61,214,140,.2);border-radius:6px;padding:12px;margin-top:4px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span class="mono" style="color:var(--green);font-weight:700;">${inv.invoice_number||num}</span>
+          <span class="mono" style="color:var(--muted);font-size:11px;">${items.length} muebles</span>
+        </div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:2px;">${inv.customer_name||'—'}</div>
+        <div style="font-size:12px;color:var(--muted);">${inv.subject||inv.reference_number||''}</div>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">
+          ${items.slice(0,5).map(item=>`<div style="font-size:12px;color:var(--muted);display:flex;justify-content:space-between;"><span>${item.name||item.description||'—'}</span><span class="mono">×${item.quantity}</span></div>`).join('')}
+          ${items.length>5?`<div style="font-size:11px;color:var(--muted);">...y ${items.length-5} más</div>`:''}
+        </div>
+      </div>`;
+  }catch(err){showProc('odf',0);showErr('odf','Error: '+err.message);}
+}
+
+async function buscarSO(){
+  const num=document.getElementById('zoho-so-num').value.trim();
+  if(!num)return;
+  showErr('so','',0);showProc('so',1,'BUSCANDO SO...');
+  try{
+    const token=await getZohoToken();
+    const res=await fetch(`/api/zoho-books?endpoint=salesorders?salesorder_number=${encodeURIComponent(num)}&token=${token}`);
+    const data=await res.json();
+    showProc('so',0);
+    const so=data.salesorders?.[0]||data.salesorder;
+    if(!so){showErr('so','No se encontró la SO '+num);return;}
+    const items=so.line_items||[];
+    materiales=[...materiales,...items.map((item,i)=>({
+      id:'mat_'+Date.now()+'_'+i,
+      nombre:item.name||item.description||'',
+      unidad:'unidades',
+      requerido:item.quantity||0,
+      recibido:0
+    }))];
+    sosCargadas.push({nombre:num,numero:so.salesorder_number||num,count:items.length});
+    renderSoList();
+    document.getElementById('zoho-so-num').value='';
+  }catch(err){showProc('so',0);showErr('so','Error: '+err.message);}
 }
 
 function renderSoList(){
@@ -580,8 +608,6 @@ function gv(id){return document.getElementById(id)?.value||'';}
 function sv(id,v){const el=document.getElementById(id);if(el)el.value=v;}
 function showProc(t,show,txt){const el=document.getElementById('proc-'+t);if(!el)return;el.style.display=show?'block':'none';const tx=document.getElementById('proc-'+t+'-txt');if(tx&&txt)tx.textContent=txt;}
 function showErr(t,msg,show=1){const el=document.getElementById('err-'+t);if(!el)return;el.textContent=msg;el.style.display=show?'block':'none';}
-function toB64(f){return new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f);});}
-function parseJ(raw){try{return JSON.parse(raw.trim());}catch(e1){const m=raw.match(/\{[\s\S]*\}/);if(m)try{return JSON.parse(m[0]);}catch(e2){throw new Error('JSON inválido: '+e2.message+' | RAW: '+raw);}throw new Error('JSON inválido: '+e1.message+' | RAW: '+raw);}}
 
 document.getElementById('f-inicio').value=new Date().toISOString().split('T')[0];
 </script>
