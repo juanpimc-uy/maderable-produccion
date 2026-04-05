@@ -380,11 +380,12 @@ async function cargarListaODFs(){
   try{
     _odfToken=await getZohoToken();
     document.getElementById('odf-load-msg').textContent='Cargando facturas...';
-    const ep=encodeURIComponent('invoices?status=sent,draft,overdue&per_page=200');
+    const ep=encodeURIComponent('invoices?per_page=200&sort_column=date&sort_order=D');
     const r=await fetch('/api/zoho-books?endpoint='+ep+'&token='+encodeURIComponent(_odfToken));
     const d=await r.json();
     console.log('invoices raw:', JSON.stringify(d).slice(0,300));
-    _odfLista=d.invoices||[];
+    const EXCLUIR=new Set(['paid','void']);
+    _odfLista=(d.invoices||[]).filter(inv=>!EXCLUIR.has(inv.status));
     stLoad.style.display='none';
     stList.style.display='block';
     filtrarODFs('');
