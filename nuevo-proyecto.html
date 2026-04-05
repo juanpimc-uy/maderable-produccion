@@ -753,6 +753,10 @@ async function catBuscar(q){
     const r1=await fetch(url1);
     const d1=await r1.json();
     console.log('[catBuscar] search_text respuesta completa:', JSON.stringify(d1));
+    if(d1._proxy_error){
+      setRes(`<div class="cat-status" style="text-align:left;padding:14px;color:var(--red);">Error del proxy (HTTP ${d1.status})<br><span style="color:var(--muted);font-size:10px;word-break:break-all;">${d1.raw||''}</span></div>`);
+      return;
+    }
     let items=d1.items||[];
 
     // Intento 2: name_contains (si search_text devuelve vacío)
@@ -763,7 +767,7 @@ async function catBuscar(q){
       const r2=await fetch(url2);
       const d2=await r2.json();
       console.log('[catBuscar] name_contains respuesta completa:', JSON.stringify(d2));
-      items=d2.items||[];
+      if(!d2._proxy_error) items=d2.items||[];
     }
 
     // Intento 3: sin filtro para ver estructura
@@ -773,6 +777,7 @@ async function catBuscar(q){
       setDbg(ep3+' [sin filtro - debug estructura]');
       const r3=await fetch(url3);
       const d3=await r3.json();
+      if(d3._proxy_error){setRes(`<div class="cat-status" style="color:var(--red);">Error proxy (HTTP ${d3.status}): el token no tiene acceso a items o hay un problema de scope.<br><span style="font-size:10px;color:var(--muted);">${d3.raw||''}</span></div>`);return;}
       const sample=d3.items?.[0];
       console.log('[catBuscar] sin filtro - keys del primer ítem:', sample?Object.keys(sample):'(vacío)', '- respuesta:', JSON.stringify(d3).slice(0,600));
       setRes(`<div class="cat-status" style="text-align:left;padding:14px;">

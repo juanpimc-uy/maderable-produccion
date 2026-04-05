@@ -14,7 +14,13 @@ export default async function handler(req) {
   const res = await fetch(zohoUrl, {
     headers: { 'Authorization': `Zoho-oauthtoken ${token}` }
   });
-  const data = await res.json();
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { _proxy_error: true, status: res.status, raw: text.slice(0, 1000) };
+  }
   return new Response(JSON.stringify(data), {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
   });
