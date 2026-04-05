@@ -95,6 +95,32 @@
   .nota-box { background:rgba(91,141,239,.08); border:1px solid rgba(91,141,239,.25); border-radius:6px; padding:10px 12px; font-size:12px; color:var(--blue); line-height:1.5; margin-top:8px; }
   /* back btn */
   .back-btn { background:var(--faint); border:none; color:var(--muted); border-radius:5px; padding:6px 12px; cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; }
+  /* ── Ajustes / Fórmula ── */
+  .coef-grid-f{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:12px;}
+  .coef-box-f{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:16px 10px;text-align:center;}
+  .coef-icon-f{font-size:20px;margin-bottom:6px;}
+  .coef-label-f{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;margin-bottom:10px;display:block;}
+  .coef-input-f{width:100%;background:var(--card);border:1px solid var(--border);border-radius:5px;padding:8px 4px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;text-align:center;outline:none;transition:border-color .2s;}
+  .coef-input-f:focus{border-color:var(--amber);}
+  .coef-unit-f{font-size:10px;color:var(--muted);margin-top:5px;font-family:'JetBrains Mono',monospace;}
+  .dif-grid-f{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;}
+  .dif-box-f{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:16px 14px;}
+  .dif-num-f{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--amber);margin-bottom:4px;}
+  .dif-name-f{font-size:13px;font-weight:600;margin-bottom:6px;}
+  .dif-desc-f{font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5;}
+  .dif-input-f{width:100%;background:var(--card);border:1px solid var(--border);border-radius:5px;padding:8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;text-align:center;outline:none;transition:border-color .2s;}
+  .dif-input-f:focus{border-color:var(--amber);}
+  .preview-table-f{width:100%;border-collapse:collapse;font-size:12px;}
+  .preview-table-f th{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.8px;color:var(--muted);padding:7px 8px;text-align:center;border-bottom:1px solid var(--border);background:var(--faint);}
+  .preview-table-f th.row-h{text-align:left;}
+  .preview-table-f th.dif-h{color:var(--amber);}
+  .preview-table-f td{padding:6px 8px;text-align:center;border-bottom:1px solid rgba(37,40,54,.5);font-family:'JetBrains Mono',monospace;font-size:11px;}
+  .preview-table-f td.pl{font-weight:700;color:var(--text);text-align:left;border-right:1px solid var(--border);}
+  .preview-table-f td.sep{border-left:1px solid var(--border);}
+  .preview-table-f tr:hover td{background:var(--faint);}
+  .formula-display-f{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:16px 20px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text);text-align:center;margin-bottom:12px;line-height:2;}
+  .ok-banner-f{background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.3);border-radius:8px;padding:12px 18px;font-size:13px;color:var(--green);margin-bottom:16px;display:none;}
+  .ok-banner-f.show{display:block;}
 </style>
 </head>
 <body>
@@ -110,6 +136,7 @@
     <div class="nav-item" onclick="navTo('tiempos')"><span class="nav-icon">⬗</span> Tiempos</div>
     <div class="nav-item" onclick="navTo('materiales')"><span class="nav-icon">▣</span> Materiales</div>
     <a href="tercerizados.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">🧵</span> Tercerizados</div></a>
+    <div class="nav-item" onclick="navTo('ajustes')"><span class="nav-icon" style="display:inline-flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Ajustes</div>
   </div>
   <div style="padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);">
     <div class="mono" style="font-size:10px;margin-bottom:4px;">VISTA PLANTA</div>
@@ -178,6 +205,45 @@
     <div class="view" id="v-materiales">
       <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;" id="mat-tabs"></div>
       <div id="mat-contenido"></div>
+    </div>
+
+    <!-- ══ AJUSTES ════════════════════════════════════════════════════════ -->
+    <div class="view" id="v-ajustes">
+      <div class="sub-tabs"><button class="sub-tab active">Fórmula de tiempos</button></div>
+      <div class="ok-banner-f" id="ok-banner-f">✓ Fórmula guardada correctamente.</div>
+      <div style="background:rgba(91,141,239,.06);border:1px solid rgba(91,141,239,.2);border-radius:8px;padding:14px 18px;font-size:13px;color:var(--blue);margin-bottom:20px;line-height:1.6;">
+        Esta configuración es <strong>global</strong> — aplica a todos los proyectos activos y futuros. Las horas estimadas se calculan como: <strong>Placas × Coeficiente del centro × Factor de dificultad</strong>.
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="sec-title">Fórmula</div>
+        <div class="formula-display-f">
+          Horas<sub style="font-size:10px;">centro</sub> =
+          <span style="color:var(--amber);font-weight:700;">Placas</span> ×
+          <span style="color:var(--amber);font-weight:700;">Coef<sub style="font-size:10px;">centro</sub></span> ×
+          <span style="color:var(--amber);font-weight:700;">Factor<sub style="font-size:10px;">dificultad</sub></span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);text-align:center;">
+          Ejemplo con 8 placas, dificultad 3 → Armado = 8 × <span id="f-ej-coef" style="color:var(--amber);">0.80</span> × <span id="f-ej-dif" style="color:var(--amber);">1.5</span> = <span id="f-ej-result" style="color:var(--green);font-weight:700;">9.6h</span>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="sec-title">Coeficiente de horas por placa · por centro de trabajo</div>
+        <div class="coef-grid-f" id="f-coef-grid"></div>
+        <div style="font-size:11px;color:var(--muted);">Un valor de 0.50 significa que cada placa requiere 0.50h en ese centro (con dificultad base 2).</div>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div class="sec-title">Factores de dificultad</div>
+        <div class="dif-grid-f" id="f-dif-grid"></div>
+      </div>
+      <div class="card" style="margin-bottom:20px;">
+        <div class="sec-title">Tabla de referencia · Horas estimadas</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Horas totales (suma de todos los centros) según cantidad de placas y dificultad.</div>
+        <div style="overflow-x:auto;"><table class="preview-table-f" id="f-preview-table"></table></div>
+      </div>
+      <div style="display:flex;gap:12px;justify-content:flex-end;">
+        <button class="btn btn-ghost" onclick="fResetear()">Restaurar defaults</button>
+        <button class="btn btn-primary" onclick="fGuardar()">✓ Guardar Fórmula</button>
+      </div>
     </div>
 
   </div><!-- /content -->
@@ -383,7 +449,7 @@ setInterval(() => {
 // NAVEGACIÓN
 // ═══════════════════════════════════════════════════════════════════════════
 let currentView = 'dashboard';
-const VIEW_LABELS = {dashboard:'Dashboard',proyectos:'Proyectos',operarios:'Operarios',tiempos:'Tiempos',materiales:'Materiales'};
+const VIEW_LABELS = {dashboard:'Dashboard',proyectos:'Proyectos',operarios:'Operarios',tiempos:'Tiempos',materiales:'Materiales',ajustes:'Ajustes'};
 
 function navTo(v) {
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
@@ -406,6 +472,7 @@ function renderView(v) {
   if(v==='operarios')  renderOperarios();
   if(v==='tiempos')    renderTiempos();
   if(v==='materiales') renderMateriales();
+  if(v==='ajustes')    fInit();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2342,6 +2409,101 @@ function confirmarModulo(prId){
   renderDetallePr(pr,'módulos');
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AJUSTES — FÓRMULA DE TIEMPOS
+// ═══════════════════════════════════════════════════════════════════════════
+const F_CENTROS      = ['corte','enchapado','armado','revision','empaquetado'];
+const F_CENTRO_LABEL = {corte:'Corte',enchapado:'Enchapado/Perf.',armado:'Armado',revision:'Revisión',empaquetado:'Empaquetado'};
+const F_CENTRO_ICON  = {corte:'⬡',enchapado:'◈',armado:'⬗',revision:'◎',empaquetado:'▣'};
+const F_CENTRO_COLOR = {corte:'var(--amber)',enchapado:'var(--blue)',armado:'var(--purple)',revision:'var(--teal)',empaquetado:'var(--green)'};
+const F_COEF_DEF = {corte:0.50,enchapado:0.30,armado:0.80,revision:0.20,empaquetado:0.20};
+const F_DIF_DEF  = {1:0.7,2:1.0,3:1.5,4:2.2};
+const F_DIF_NAMES = {1:'Simple',2:'Medio',3:'Complejo',4:'Muy complejo'};
+const F_DIF_DESC  = {
+  1:'Cortes rectos sin detalles especiales. Sin herrajes complejos.',
+  2:'Cantos ABS, bisagras estándar, cajones simples.',
+  3:'Molduras, puertas proyectantes, brazo a gas, múltiples mecanismos.',
+  4:'Formas irregulares, curvas, múltiples terminaciones simultáneas.'
+};
+
+function fReadCurrent(){
+  const coef={},dif={};
+  F_CENTROS.forEach(c=>{const el=document.getElementById('f-coef-'+c);coef[c]=el?parseFloat(el.value)||F_COEF_DEF[c]:F_COEF_DEF[c];});
+  [1,2,3,4].forEach(d=>{const el=document.getElementById('f-dif-'+d);dif[d]=el?parseFloat(el.value)||F_DIF_DEF[d]:F_DIF_DEF[d];});
+  return{coef,dif};
+}
+
+function fOnInput(){
+  const{coef,dif}=fReadCurrent();
+  const ejC=coef['armado']||0.80,ejD=dif[3]||1.5;
+  const ec=document.getElementById('f-ej-coef'),ed=document.getElementById('f-ej-dif'),er=document.getElementById('f-ej-result');
+  if(ec)ec.textContent=ejC.toFixed(2);
+  if(ed)ed.textContent=ejD.toFixed(1);
+  if(er)er.textContent=(8*ejC*ejD).toFixed(1)+'h';
+  fRenderTable();
+}
+
+function fRenderTable(){
+  const{coef,dif}=fReadCurrent();
+  const ejemplos=[2,4,6,8,10,14,18,24];
+  let html=`<thead><tr>
+    <th class="row-h" rowspan="2">Placas</th>
+    ${[1,2,3,4].map(d=>`<th class="dif-h" colspan="2" style="border-left:1px solid var(--border);">DIF ${d} — ${F_DIF_NAMES[d]}<br><span style="font-weight:400;color:var(--muted);">×${(dif[d]||1).toFixed(1)}</span></th>`).join('')}
+  </tr><tr>
+    ${[1,2,3,4].map(()=>`<th style="border-left:1px solid var(--border);">Total</th><th>Corte</th>`).join('')}
+  </tr></thead><tbody>`;
+  ejemplos.forEach((p,ri)=>{
+    html+=`<tr style="background:${ri%2===0?'transparent':'rgba(32,36,58,.5)'}"><td class="pl">${p}</td>`;
+    [1,2,3,4].forEach(d=>{
+      const f=dif[d]||1;
+      const total=F_CENTROS.reduce((a,c)=>a+(coef[c]||0)*p*f,0);
+      const corte=(coef['corte']||0)*p*f;
+      html+=`<td class="sep" style="color:var(--amber);font-weight:700;">${total.toFixed(1)}h</td><td style="color:var(--muted);">${corte.toFixed(1)}h</td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</tbody>';
+  const t=document.getElementById('f-preview-table');
+  if(t)t.innerHTML=html;
+}
+
+function fInit(){
+  const COEF=JSON.parse(localStorage.getItem('coef')||JSON.stringify(F_COEF_DEF));
+  const DIF=JSON.parse(localStorage.getItem('dif')||JSON.stringify(F_DIF_DEF));
+  const cg=document.getElementById('f-coef-grid');
+  if(cg)cg.innerHTML=F_CENTROS.map(c=>`
+    <div class="coef-box-f">
+      <div class="coef-icon-f" style="color:${F_CENTRO_COLOR[c]}">${F_CENTRO_ICON[c]}</div>
+      <span class="coef-label-f" style="color:${F_CENTRO_COLOR[c]}">${F_CENTRO_LABEL[c].toUpperCase()}</span>
+      <input class="coef-input-f" type="number" step="0.05" min="0.05" max="5" value="${COEF[c]}" id="f-coef-${c}" oninput="fOnInput()"/>
+      <div class="coef-unit-f">h / placa</div>
+    </div>`).join('');
+  const dg=document.getElementById('f-dif-grid');
+  if(dg)dg.innerHTML=[1,2,3,4].map(d=>`
+    <div class="dif-box-f">
+      <div class="dif-num-f">${d}</div>
+      <div class="dif-name-f">${F_DIF_NAMES[d]}</div>
+      <div class="dif-desc-f">${F_DIF_DESC[d]}</div>
+      <input class="dif-input-f" type="number" step="0.1" min="0.1" max="10" value="${DIF[d]}" id="f-dif-${d}" oninput="fOnInput()"/>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:'JetBrains Mono',monospace;">multiplicador</div>
+    </div>`).join('');
+  fOnInput();
+}
+
+function fGuardar(){
+  const{coef,dif}=fReadCurrent();
+  localStorage.setItem('coef',JSON.stringify(coef));
+  localStorage.setItem('dif',JSON.stringify(dif));
+  const b=document.getElementById('ok-banner-f');
+  if(b){b.classList.add('show');setTimeout(()=>b.classList.remove('show'),3000);}
+}
+
+function fResetear(){
+  if(!confirm('¿Restaurar valores por defecto?'))return;
+  localStorage.removeItem('coef');localStorage.removeItem('dif');
+  fInit();
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INIT
