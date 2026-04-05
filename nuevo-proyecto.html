@@ -158,20 +158,53 @@
 
   <!-- ══ PASO 1 ══ -->
   <div id="pane-1">
-    <div class="info-box">Buscá el número de ODF en Zoho Books para importar muebles automáticamente. Agregá una o más SOs para los materiales. También podés continuar sin Zoho.</div>
-
     <div class="card">
-      <div class="card-title">Remito ODF — Muebles</div>
-      <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px;">
-        <div class="field" style="flex:1;margin:0;">
-          <label>Número ODF <span style="font-weight:400;color:var(--muted);font-size:9px;letter-spacing:0;">Ingresá el número — con o sin prefijo (ej: 2385 o ODF-2385)</span></label>
-          <input id="zoho-odf-num" placeholder="Ej: 2385 o ODF-2385" onkeydown="if(event.key==='Enter')buscarODF()"/>
-        </div>
-        <button class="btn btn-primary" onclick="buscarODF()">Buscar</button>
+      <div class="card-title">Seleccionar ODF</div>
+
+      <!-- estado: cargando -->
+      <div id="odf-load-state" style="display:flex;align-items:center;gap:10px;padding:14px 0;color:var(--muted);font-size:13px;">
+        <span class="spinner"></span>
+        <span id="odf-load-msg">Obteniendo token...</span>
       </div>
-      <div class="proc-msg" id="proc-odf"><span class="spinner"></span><span id="proc-odf-txt">Buscando...</span></div>
-      <div class="err-msg" id="err-odf"></div>
-      <div id="odf-result"></div>
+
+      <!-- estado: error -->
+      <div id="odf-error-state" style="display:none;padding:8px 0;">
+        <div style="font-size:13px;color:var(--red);margin-bottom:10px;" id="odf-err-txt">Error al cargar facturas</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="cargarListaODFs()">↺ Reintentar</button>
+          <button class="btn btn-ghost btn-sm" onclick="mostrarBuscadorManual()">Buscar manualmente</button>
+        </div>
+      </div>
+
+      <!-- estado: lista -->
+      <div id="odf-list-state" style="display:none;">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <input id="odf-filtro" placeholder="Buscar por número, obra o cliente..."
+            oninput="filtrarODFs(this.value)"
+            style="flex:1;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:13px;outline:none;"/>
+          <span id="odf-count" class="mono" style="font-size:10px;color:var(--muted);white-space:nowrap;"></span>
+        </div>
+        <div id="odf-items" style="border:1px solid var(--border);border-radius:6px;max-height:420px;overflow-y:auto;"></div>
+        <div style="margin-top:8px;text-align:right;">
+          <button class="btn btn-ghost btn-sm" onclick="mostrarBuscadorManual()">¿No encontrás? Buscar manualmente</button>
+        </div>
+      </div>
+
+      <!-- estado: búsqueda manual (fallback) -->
+      <div id="odf-manual-state" style="display:none;">
+        <div class="info-box" style="margin-bottom:12px;">Ingresá el número de ODF para buscar directamente en Zoho.</div>
+        <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px;">
+          <div class="field" style="flex:1;margin:0;">
+            <label>Número ODF <span style="font-weight:400;color:var(--muted);font-size:9px;letter-spacing:0;">con o sin prefijo (ej: 2385 o ODF-2385)</span></label>
+            <input id="zoho-odf-num" placeholder="Ej: 2385 o ODF-2385" onkeydown="if(event.key==='Enter')buscarODF()"/>
+          </div>
+          <button class="btn btn-primary" onclick="buscarODF()">Buscar</button>
+        </div>
+        <div class="proc-msg" id="proc-odf"><span class="spinner"></span><span id="proc-odf-txt">Buscando...</span></div>
+        <div class="err-msg" id="err-odf"></div>
+        <div id="odf-result"></div>
+        <button class="btn btn-ghost btn-sm" onclick="mostrarListaODFs()" style="margin-top:10px;">← Ver lista completa</button>
+      </div>
     </div>
 
     <div style="display:flex;gap:10px;justify-content:flex-end;">
@@ -333,6 +366,119 @@ async function getZohoToken(){
   return data.access_token;
 }
 
+// ── Carga automática de lista de ODFs ────────────────────────────────────
+let _odfLista=[];
+let _odfToken=null;
+
+async function cargarListaODFs(){
+  const stLoad=document.getElementById('odf-load-state');
+  const stErr=document.getElementById('odf-error-state');
+  const stList=document.getElementById('odf-list-state');
+  const stManual=document.getElementById('odf-manual-state');
+  stLoad.style.display='flex';stErr.style.display='none';stList.style.display='none';stManual.style.display='none';
+  document.getElementById('odf-load-msg').textContent='Obteniendo token...';
+  try{
+    _odfToken=await getZohoToken();
+    document.getElementById('odf-load-msg').textContent='Cargando facturas...';
+    const ep=encodeURIComponent('invoices?status=sent,draft,overdue&per_page=200');
+    const r=await fetch('/api/zoho-books?endpoint='+ep+'&token='+encodeURIComponent(_odfToken));
+    const d=await r.json();
+    console.log('invoices raw:', JSON.stringify(d).slice(0,300));
+    _odfLista=d.invoices||[];
+    stLoad.style.display='none';
+    stList.style.display='block';
+    filtrarODFs('');
+  }catch(err){
+    stLoad.style.display='none';
+    stErr.style.display='block';
+    document.getElementById('odf-err-txt').textContent='Error: '+err.message;
+  }
+}
+
+function filtrarODFs(query){
+  const q=(query||'').trim().toLowerCase();
+  const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const yaIds=new Set(proyStorage.map(p=>p.odfId).filter(Boolean));
+  const yaNums=new Set(proyStorage.map(p=>p.numero||'').filter(Boolean).map(s=>s.toLowerCase()));
+  const lista=q?_odfLista.filter(inv=>{
+    return (inv.invoice_number||'').toLowerCase().includes(q)
+        ||(inv.subject||inv.reference_number||'').toLowerCase().includes(q)
+        ||(inv.customer_name||'').toLowerCase().includes(q);
+  }):_odfLista;
+  document.getElementById('odf-count').textContent=lista.length+' facturas';
+  if(!lista.length){
+    document.getElementById('odf-items').innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:12px;">Sin resultados</div>';
+    return;
+  }
+  const html=lista.map(inv=>{
+    const esCarg=yaIds.has(inv.invoice_id)||yaNums.has((inv.invoice_number||'').toLowerCase());
+    const fecha=inv.date?new Date(inv.date).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';
+    const obra=inv.subject||inv.reference_number||'—';
+    const numEsc=(inv.invoice_number||'').replace(/'/g,"\\'");
+    return`<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);${esCarg?'opacity:.65':''}">
+      <span style="font-size:15px;flex-shrink:0;color:${esCarg?'var(--green)':'var(--muted)'};">${esCarg?'✓':'○'}</span>
+      <span class="mono" style="font-size:12px;font-weight:700;color:${esCarg?'var(--green)':'var(--amber)'};min-width:88px;">${inv.invoice_number||'—'}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${obra}</div>
+        <div style="font-size:11px;color:var(--muted);">${inv.customer_name||'—'}</div>
+      </div>
+      <span class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap;">${fecha}</span>
+      ${esCarg
+        ?`<span class="pill" style="color:var(--green);background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.2);font-size:9px;">Ya cargada</span>`
+        :`<button class="btn btn-primary btn-sm" onclick="seleccionarODF('${inv.invoice_id}','${numEsc}',this)">Cargar →</button>`}
+    </div>`;
+  }).join('');
+  document.getElementById('odf-items').innerHTML=html;
+}
+
+async function seleccionarODF(invoiceId,numFallback,btn){
+  if(btn){btn.textContent='...';btn.disabled=true;}
+  try{
+    const token=_odfToken||await getZohoToken();
+    const r=await fetch('/api/zoho-books?endpoint='+encodeURIComponent('invoices/'+invoiceId)+'&token='+encodeURIComponent(token));
+    const d=await r.json();
+    console.log('invoice detail:', JSON.stringify(d).slice(0,400));
+    const invoice=d.invoice;
+    if(!invoice)throw new Error('Sin detalle de factura');
+    const items=invoice.line_items||[];
+    sv('f-num',invoice.invoice_number||numFallback||'');
+    sv('f-obra',invoice.subject||invoice.reference_number||'');
+    sv('f-cliente',invoice.customer_name||'');
+    if(invoice.date)sv('f-inicio',invoice.date);
+    muebles=items.map((item,i)=>({
+      id:'mf_'+i,
+      codigo:item.item_code||item.sku||('MF'+(i+1).toString().padStart(2,'0')),
+      nombre:item.name||item.description||'',
+      cant:item.quantity||1,
+      flujos:[],
+      hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},
+      placas:4,dif:2,horas:calcHoras(4,2),mats:[],
+      odfId:invoiceId
+    }));
+    goStep(2);
+  }catch(err){
+    if(btn){btn.textContent='Cargar →';btn.disabled=false;}
+    alert('Error al cargar ODF: '+err.message);
+  }
+}
+
+function mostrarBuscadorManual(){
+  document.getElementById('odf-load-state').style.display='none';
+  document.getElementById('odf-error-state').style.display='none';
+  document.getElementById('odf-list-state').style.display='none';
+  document.getElementById('odf-manual-state').style.display='block';
+}
+
+function mostrarListaODFs(){
+  document.getElementById('odf-manual-state').style.display='none';
+  if(_odfLista.length){
+    document.getElementById('odf-list-state').style.display='block';
+  }else{
+    cargarListaODFs();
+  }
+}
+
+// ── Búsqueda manual (fallback) ───────────────────────────────────────────
 async function buscarODF(){
   const raw=document.getElementById('zoho-odf-num').value.trim();
   const base=raw.replace(/^(ODF-|odf-|SO-|so-)/i,'').trim();
@@ -621,6 +767,7 @@ function showProc(t,show,txt){const el=document.getElementById('proc-'+t);if(!el
 function showErr(t,msg,show=1){const el=document.getElementById('err-'+t);if(!el)return;el.textContent=msg;el.style.display=show?'block':'none';}
 
 document.getElementById('f-inicio').value=new Date().toISOString().split('T')[0];
+cargarListaODFs();
 </script>
 </body>
 </html>
