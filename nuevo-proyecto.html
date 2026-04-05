@@ -798,7 +798,8 @@ async function catBuscar(q){
 }
 
 function catMostrarItems(items){
-  document.getElementById('cat-results').innerHTML=items.map(it=>{
+  const wrap=document.getElementById('cat-results');
+  wrap.innerHTML=items.map((it,idx)=>{
     const sku=it.sku||it.item_id;
     const unit=it.unit||'unidad';
     const stock=it.stock_on_hand!=null?`· Stock: ${it.stock_on_hand}`:'';
@@ -807,14 +808,22 @@ function catMostrarItems(items){
         <div class="cat-item-name">${it.name}</div>
         <div class="cat-item-meta">SKU: ${sku} · Unidad: ${unit} ${stock}</div>
       </div>
-      <button class="cat-add-btn" onclick="catAgregar(${JSON.stringify(it.name)},${JSON.stringify(sku)},${JSON.stringify(unit)})">+ Agregar</button>
+      <button class="cat-add-btn" data-idx="${idx}" onclick="catAgregar(this)">+ Agregar</button>
     </div>`;
   }).join('');
+  // guardar items en el DOM para acceso seguro sin serialización
+  wrap._catItems=items;
 }
 
-function catAgregar(nombre,sku,unidad){
-  // si ya existe por SKU, incrementar cantidad
-  const existe=materiales.find(m=>m.sku===sku);
+function catAgregar(btn){
+  const wrap=document.getElementById('cat-results');
+  const items=wrap._catItems||[];
+  const it=items[parseInt(btn.dataset.idx)];
+  if(!it)return;
+  const nombre=it.name||'';
+  const sku=it.sku||it.item_id||'';
+  const unidad=it.unit||'unidad';
+  const existe=materiales.find(m=>m.sku&&m.sku===sku);
   if(existe){
     existe.requerido=(existe.requerido||0)+1;
   }else{
