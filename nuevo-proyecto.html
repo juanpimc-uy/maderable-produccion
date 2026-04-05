@@ -101,6 +101,24 @@
   .mat-in.mono{font-family:'JetBrains Mono',monospace;}
   .mat-in:focus{border-color:var(--amber);}
 
+  /* modal catálogo */
+  .cat-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center;}
+  .cat-overlay.open{display:flex;}
+  .cat-modal{background:var(--panel);border:1px solid var(--borderL,#2E3247);border-radius:10px;padding:24px;width:560px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;gap:14px;}
+  .cat-modal-title{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
+  .cat-search{background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:10px 14px;color:var(--text);font-family:'Sora',sans-serif;font-size:14px;outline:none;width:100%;}
+  .cat-search:focus{border-color:var(--amber);}
+  .cat-results{flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:6px;min-height:160px;max-height:360px;}
+  .cat-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid rgba(37,40,54,.6);transition:background .1s;}
+  .cat-item:last-child{border-bottom:none;}
+  .cat-item:hover{background:var(--faint);}
+  .cat-item-info{flex:1;min-width:0;}
+  .cat-item-name{font-size:13px;font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cat-item-meta{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);}
+  .cat-add-btn{flex-shrink:0;padding:5px 12px;background:var(--faint);border:1px solid var(--border);border-radius:5px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--green);white-space:nowrap;transition:background .15s;}
+  .cat-add-btn:hover{background:rgba(61,214,140,.12);border-color:var(--green);}
+  .cat-status{padding:20px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);}
+
   .res-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
   .res-row:last-child{border-bottom:none;}
 
@@ -273,22 +291,22 @@
       <div id="so4-result"></div>
     </div>
 
-    <!-- Agregar material manual (colapsable) -->
-    <details style="margin-bottom:16px;">
-      <summary style="cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);padding:10px 14px;background:var(--faint);border:1px solid var(--border);border-radius:6px;list-style:none;">+ Agregar material manual</summary>
-      <div style="background:var(--card);border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;padding:14px;">
-        <div class="warn-box">Los materiales manuales no se vinculan automáticamente con las OCs de Zoho</div>
-        <div class="mat-hdr">
-          <span class="mono" style="font-size:9px;color:var(--muted);">MATERIAL</span>
-          <span class="mono" style="font-size:9px;color:var(--muted);">UNIDAD</span>
-          <span class="mono" style="font-size:9px;color:var(--muted);">CANTIDAD</span>
-          <span class="mono" style="font-size:9px;color:var(--muted);">SO</span>
-          <span></span>
-        </div>
-        <div id="mat-list"></div>
-        <button class="btn btn-ghost btn-sm" onclick="addMat()" style="margin-top:8px;">+ Agregar ítem</button>
+    <!-- Materiales del proyecto -->
+    <div class="card fu" style="margin-bottom:16px;">
+      <div class="card-title">Materiales del proyecto</div>
+      <div class="mat-hdr">
+        <span class="mono" style="font-size:9px;color:var(--muted);">MATERIAL</span>
+        <span class="mono" style="font-size:9px;color:var(--muted);">UNIDAD</span>
+        <span class="mono" style="font-size:9px;color:var(--muted);">CANTIDAD</span>
+        <span class="mono" style="font-size:9px;color:var(--muted);">SO</span>
+        <span></span>
       </div>
-    </details>
+      <div id="mat-list"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="abrirCatalogo()">+ Agregar ítem</button>
+        <button class="btn btn-ghost btn-sm" onclick="addMat()">+ Agregar manual</button>
+      </div>
+    </div>
 
     <div style="display:flex;gap:10px;justify-content:flex-end;">
       <button class="btn btn-ghost" onclick="goStep(3)">← Atrás</button>
@@ -674,12 +692,17 @@ function delM(id){muebles=muebles.filter(m=>m.id!==id);renderMuebles();}
 const UNIDS=['planchas','unidades','pares','metros','ml','kg','litros','m²'];
 function renderMats(){
   const list=document.getElementById('mat-list');if(!list)return;list.innerHTML='';
-  if(!materiales.length){list.innerHTML='<div style="color:var(--muted);font-size:12px;padding:10px 0;line-height:1.6;">Sin materiales manuales. Usá el buscador de SOs arriba.</div>';return;}
+  if(!materiales.length){list.innerHTML='<div style="color:var(--muted);font-size:12px;padding:10px 0;line-height:1.6;">Sin materiales agregados. Usá "+ Agregar ítem" para buscar en el catálogo de Zoho.</div>';return;}
   materiales.forEach((m,i)=>{
     const row=document.createElement('div');row.className='mat-row';
+    const skuBadge=m.sku?`<span class="mono" style="font-size:9px;color:var(--muted);margin-left:4px;">${m.sku}</span>`:'';
+    const allUnids=UNIDS.includes(m.unidad)?UNIDS:[m.unidad,...UNIDS];
     row.innerHTML=`
-      <input class="mat-in" value="${m.nombre}" placeholder="Material" onchange="materiales[${i}].nombre=this.value"/>
-      <select class="mat-in" onchange="materiales[${i}].unidad=this.value">${UNIDS.map(u=>`<option value="${u}" ${m.unidad===u?'selected':''}>${u}</option>`).join('')}</select>
+      <div style="display:flex;align-items:center;gap:4px;min-width:0;">
+        <input class="mat-in" style="flex:1;" value="${m.nombre}" placeholder="Material" onchange="materiales[${i}].nombre=this.value"/>
+        ${skuBadge}
+      </div>
+      <select class="mat-in" onchange="materiales[${i}].unidad=this.value">${allUnids.map(u=>`<option value="${u}" ${m.unidad===u?'selected':''}>${u}</option>`).join('')}</select>
       <input class="mat-in mono" type="number" min="0" value="${m.requerido}" onchange="materiales[${i}].requerido=+this.value"/>
       <span class="mono" style="font-size:10px;color:var(--muted);padding:0 4px;">${m.soOrigen||'—'}</span>
       <button onclick="materiales.splice(${i},1);renderMats();" style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:6px;cursor:pointer;color:var(--red);font-weight:700;font-size:13px;">×</button>`;
@@ -687,6 +710,75 @@ function renderMats(){
   });
 }
 function addMat(){materiales.push({id:'mat_'+Date.now(),nombre:'',unidad:'planchas',requerido:0,recibido:0,soOrigen:''});renderMats();}
+
+// ══════════════════════════════════════════════════════════════════════════
+// CATÁLOGO ZOHO — modal de artículos
+// ══════════════════════════════════════════════════════════════════════════
+let _catTimer=null;
+
+function abrirCatalogo(){
+  document.getElementById('cat-overlay').classList.add('open');
+  const inp=document.getElementById('cat-search-input');
+  inp.value='';
+  document.getElementById('cat-results').innerHTML='<div class="cat-status">Escribí para buscar en el catálogo de Zoho</div>';
+  setTimeout(()=>inp.focus(),80);
+}
+
+function cerrarCatalogo(){
+  document.getElementById('cat-overlay').classList.remove('open');
+  clearTimeout(_catTimer);
+}
+
+function catDebounce(q){
+  clearTimeout(_catTimer);
+  const trimmed=q.trim();
+  if(!trimmed){
+    document.getElementById('cat-results').innerHTML='<div class="cat-status">Escribí para buscar en el catálogo de Zoho</div>';
+    return;
+  }
+  document.getElementById('cat-results').innerHTML='<div class="cat-status"><span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(245,166,35,.3);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;"></span>Buscando...</div>';
+  _catTimer=setTimeout(()=>catBuscar(trimmed),400);
+}
+
+async function catBuscar(q){
+  try{
+    const token=await getZohoToken();
+    const ep=encodeURIComponent('items?search_text='+encodeURIComponent(q)+'&per_page=50');
+    const r=await fetch('/api/zoho-books?endpoint='+ep+'&token='+encodeURIComponent(token));
+    const d=await r.json();
+    const items=d.items||[];
+    if(!items.length){
+      document.getElementById('cat-results').innerHTML=`<div class="cat-status">Sin resultados en Zoho.<br><a href="#" onclick="cerrarCatalogo();addMat();return false;" style="color:var(--amber);">¿Querés agregarlo manualmente?</a></div>`;
+      return;
+    }
+    document.getElementById('cat-results').innerHTML=items.map(it=>{
+      const sku=it.sku||it.item_id;
+      const unit=it.unit||'unidad';
+      const stock=it.stock_on_hand!=null?`· Stock: ${it.stock_on_hand}`:'';
+      return `<div class="cat-item">
+        <div class="cat-item-info">
+          <div class="cat-item-name">${it.name}</div>
+          <div class="cat-item-meta">SKU: ${sku} · Unidad: ${unit} ${stock}</div>
+        </div>
+        <button class="cat-add-btn" onclick="catAgregar(${JSON.stringify(it.name)},${JSON.stringify(sku)},${JSON.stringify(unit)})">+ Agregar</button>
+      </div>`;
+    }).join('');
+  }catch(err){
+    document.getElementById('cat-results').innerHTML=`<div class="cat-status" style="color:var(--red);">Error: ${err.message}</div>`;
+  }
+}
+
+function catAgregar(nombre,sku,unidad){
+  // si ya existe por SKU, incrementar cantidad
+  const existe=materiales.find(m=>m.sku===sku);
+  if(existe){
+    existe.requerido=(existe.requerido||0)+1;
+  }else{
+    materiales.push({id:'mat_'+Date.now(),nombre,sku,unidad,requerido:1,recibido:0,soOrigen:''});
+  }
+  renderMats();
+  cerrarCatalogo();
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 // RESUMEN
@@ -769,5 +861,21 @@ function showErr(t,msg,show=1){const el=document.getElementById('err-'+t);if(!el
 document.getElementById('f-inicio').value=new Date().toISOString().split('T')[0];
 cargarListaODFs();
 </script>
+
+<!-- ══ MODAL CATÁLOGO ZOHO ══════════════════════════════════════════════ -->
+<div class="cat-overlay" id="cat-overlay" onclick="if(event.target===this)cerrarCatalogo()">
+  <div class="cat-modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div class="cat-modal-title">Buscar artículo en Zoho</div>
+      <button onclick="cerrarCatalogo()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <input class="cat-search" id="cat-search-input" placeholder="🔍 Buscar artículo..." oninput="catDebounce(this.value)" autocomplete="off"/>
+    <div class="cat-results" id="cat-results">
+      <div class="cat-status">Escribí para buscar en el catálogo de Zoho</div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);text-align:center;">¿No encontrás el artículo? <a href="#" onclick="cerrarCatalogo();addMat();return false;" style="color:var(--amber);">Agregar manualmente</a></div>
+  </div>
+</div>
+
 </body>
 </html>
