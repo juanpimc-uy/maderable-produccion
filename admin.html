@@ -194,13 +194,15 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // DATOS
 // ═══════════════════════════════════════════════════════════════════════════
-const OPERARIOS = [
+const _OPERARIOS_SEED = [
   {id:'op1',nombre:'Carlos Méndez', avatar:'CM',especialidad:'CNC'     },
   {id:'op2',nombre:'Diego Suárez',  avatar:'DS',especialidad:'Armado'  },
   {id:'op3',nombre:'Martín Pérez',  avatar:'MP',especialidad:'Revisión'},
   {id:'op4',nombre:'Ariel Fontana', avatar:'AF',especialidad:'CNC'     },
   {id:'op5',nombre:'Roberto Vega',  avatar:'RV',especialidad:'Armado'  },
 ];
+let OPERARIOS = (()=>{ const s=JSON.parse(localStorage.getItem('operarios')||'[]'); return s.length?s:_OPERARIOS_SEED; })();
+function guardarOperariosLS(){ localStorage.setItem('operarios',JSON.stringify(OPERARIOS)); }
 
 const FLUJOS_CONF = {
   lustre:       {label:'LUS',color:'var(--teal)'},
@@ -344,6 +346,8 @@ actualizarReloj();
 setInterval(() => {
   SESIONES  = JSON.parse(localStorage.getItem('sesiones')  || JSON.stringify(SESIONES));
   HISTORIAL = JSON.parse(localStorage.getItem('historial') || JSON.stringify(HISTORIAL));
+  const _opLS = JSON.parse(localStorage.getItem('operarios')||'[]');
+  if(_opLS.length) OPERARIOS.splice(0,OPERARIOS.length,..._opLS);
   renderCurrentView();
 }, 5000);
 
@@ -1246,20 +1250,28 @@ function _renderOpEstado() {
 }
 
 function _renderOpGestion() {
-  let html = '';
+  let html = `<div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+    <button class="btn btn-primary btn-sm" onclick="abrirModalOperario(null)">+ Nuevo Operario</button>
+  </div>`;
   OPERARIOS.forEach(op=>{
     const hist=HISTORIAL.filter(h=>h.operarioId===op.id);
     const totalH=hist.reduce((a,h)=>a+msH(h.fin-h.inicio),0);
     const ses=SESIONES.find(s=>s.operarioId===op.id);
     const exp=_opHistExpanded[op.id];
-    html+=`<div class="op-row" style="flex-direction:column;gap:0;padding:0;overflow:hidden;">
-      <div onclick="toggleOpHistorial('${op.id}')" style="cursor:pointer;display:flex;align-items:center;gap:16px;padding:16px 20px;user-select:none;">
-        <div class="av ${ses?'active':'idle'}" style="width:40px;height:40px;font-size:14px;flex-shrink:0;">${op.avatar}</div>
-        <div style="flex:1;">
-          <div style="font-size:15px;font-weight:700;">${op.nombre}</div>
-          <div style="font-size:11px;color:var(--muted);">${op.especialidad} · ${hist.length} sesiones · ${fmtH(totalH)} totales</div>
+    html+=`<div class="op-row" style="flex-direction:column;gap:0;padding:0;overflow:hidden;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;padding:14px 20px;gap:14px;">
+        <div onclick="toggleOpHistorial('${op.id}')" style="cursor:pointer;display:flex;align-items:center;gap:14px;flex:1;user-select:none;">
+          <div class="av ${ses?'active':'idle'}" style="width:40px;height:40px;font-size:14px;flex-shrink:0;">${op.avatar}</div>
+          <div style="flex:1;">
+            <div style="font-size:15px;font-weight:700;">${op.nombre}</div>
+            <div style="font-size:11px;color:var(--muted);">${op.especialidad} · ${hist.length} sesiones · ${fmtH(totalH)} totales</div>
+          </div>
+          <span style="font-size:13px;color:var(--muted);margin-right:8px;">${exp?'▴':'▾'}</span>
         </div>
-        <span style="font-size:13px;color:var(--muted);">${exp?'▴':'▾'}</span>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button onclick="abrirModalOperario('${op.id}')" title="Editar operario" style="padding:5px 11px;border:1px solid var(--border);border-radius:5px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:12px;">✏</button>
+          <button onclick="eliminarOperario('${op.id}')" title="Eliminar operario" style="padding:5px 11px;border:1px solid rgba(240,92,92,.3);border-radius:5px;background:transparent;color:var(--red);cursor:pointer;font-size:12px;">🗑</button>
+        </div>
       </div>
       <div id="op-hist-${op.id}" style="display:${exp?'block':'none'};border-top:1px solid var(--border);">
         ${exp?_buildHistorialOpHTML(op.id,exp):''}
@@ -1267,6 +1279,67 @@ function _renderOpGestion() {
     </div>`;
   });
   document.getElementById('op-lista').innerHTML = html;
+}
+
+function abrirModalOperario(opId) {
+  const op=opId?OPERARIOS.find(o=>o.id===opId):null;
+  const esps=['CNC','Armado','Revisión','Enchapado','Empaquetado','Lustre','Herrería','General'];
+  abrirModal(op?'EDITAR OPERARIO':'NUEVO OPERARIO',`
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="field" style="margin:0;">
+        <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Nombre completo</label>
+        <input id="mod-op-nombre" value="${op?.nombre||''}" placeholder="Carlos Méndez"
+          style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+      </div>
+      <div style="display:flex;gap:12px;">
+        <div style="flex:0 0 90px;">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Avatar (2 letras)</label>
+          <input id="mod-op-avatar" value="${op?.avatar||''}" placeholder="CM" maxlength="2"
+            style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;outline:none;width:100%;text-align:center;text-transform:uppercase;">
+        </div>
+        <div style="flex:1;">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Especialidad</label>
+          <select id="mod-op-esp"
+            style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+            ${esps.map(e=>`<option value="${e}" ${(op?.especialidad||''===e)?'selected':''}>${e}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+        <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarOperario('${opId||''}')">Guardar</button>
+      </div>
+    </div>`);
+  // pre-select especialidad after render
+  if(op){const el=document.getElementById('mod-op-esp');if(el)el.value=op.especialidad||'CNC';}
+}
+
+function guardarOperario(opId) {
+  const nombre=(document.getElementById('mod-op-nombre')?.value||'').trim();
+  const avatar=(document.getElementById('mod-op-avatar')?.value||'').trim().toUpperCase().slice(0,2);
+  const especialidad=document.getElementById('mod-op-esp')?.value||'General';
+  if(!nombre){alert('El nombre es obligatorio');return;}
+  if(!avatar){alert('El avatar es obligatorio (2 letras)');return;}
+  if(opId){
+    const op=OPERARIOS.find(o=>o.id===opId);
+    if(op){op.nombre=nombre;op.avatar=avatar;op.especialidad=especialidad;}
+  }else{
+    OPERARIOS.push({id:'op'+Date.now(),nombre,avatar,especialidad});
+  }
+  guardarOperariosLS();
+  cerrarModal();
+  _renderOpGestion();
+}
+
+function eliminarOperario(opId) {
+  const op=OPERARIOS.find(o=>o.id===opId);
+  if(!op)return;
+  const activas=SESIONES.filter(s=>s.operarioId===opId);
+  if(activas.length){alert(`No se puede eliminar a ${op.nombre}: tiene ${activas.length} sesión(es) activa(s).`);return;}
+  if(!confirm(`¿Eliminar a ${op.nombre}?\nEl historial de sesiones se conserva.`))return;
+  OPERARIOS.splice(OPERARIOS.findIndex(o=>o.id===opId),1);
+  guardarOperariosLS();
+  _renderOpGestion();
 }
 
 function toggleOpHistorial(opId) {
