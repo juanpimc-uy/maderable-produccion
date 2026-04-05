@@ -1264,7 +1264,8 @@ function _renderOpGestion() {
           <div class="av ${ses?'active':'idle'}" style="width:40px;height:40px;font-size:14px;flex-shrink:0;">${op.avatar}</div>
           <div style="flex:1;">
             <div style="font-size:15px;font-weight:700;">${op.nombre}</div>
-            <div style="font-size:11px;color:var(--muted);">${op.especialidad} · ${hist.length} sesiones · ${fmtH(totalH)} totales</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">${op.especialidad} · ${hist.length} sesiones · ${fmtH(totalH)} totales</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">${(op.centros&&op.centros.length?op.centros:_CENTROS_DEFAULT).map(cid=>{const c=CENTROS.find(x=>x.id===cid);return c?`<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:1px 6px;border-radius:3px;color:${c.color};background:${c.color}12;border:1px solid ${c.color}44;">${c.icon} ${c.label}</span>`:''}).join('')}</div>
           </div>
           <span style="font-size:13px;color:var(--muted);margin-right:8px;">${exp?'▴':'▾'}</span>
         </div>
@@ -1281,9 +1282,19 @@ function _renderOpGestion() {
   document.getElementById('op-lista').innerHTML = html;
 }
 
+const _CENTROS_DEFAULT=['corte','enchapado','armado','empaquetado']; // revision requiere asignación explícita
+
 function abrirModalOperario(opId) {
   const op=opId?OPERARIOS.find(o=>o.id===opId):null;
   const esps=['CNC','Armado','Revisión','Enchapado','Empaquetado','Lustre','Herrería','General'];
+  const centrosOp=op?.centros&&op.centros.length?op.centros:_CENTROS_DEFAULT;
+  const centrosChk=CENTROS.map(c=>{
+    const chk=centrosOp.includes(c.id);
+    return`<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 10px;border:1px solid ${chk?c.color+'66':'var(--border)'};border-radius:6px;background:${chk?c.color+'12':'transparent'};transition:all .15s;">
+      <input type="checkbox" id="mod-op-c-${c.id}" ${chk?'checked':''} style="width:15px;height:15px;accent-color:${c.color};cursor:pointer;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${chk?c.color:'var(--muted)'};">${c.icon} ${c.label}</span>
+    </label>`;
+  }).join('');
   abrirModal(op?'EDITAR OPERARIO':'NUEVO OPERARIO',`
     <div style="display:flex;flex-direction:column;gap:14px;">
       <div class="field" style="margin:0;">
@@ -1301,16 +1312,19 @@ function abrirModalOperario(opId) {
           <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Especialidad</label>
           <select id="mod-op-esp"
             style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
-            ${esps.map(e=>`<option value="${e}" ${(op?.especialidad||''===e)?'selected':''}>${e}</option>`).join('')}
+            ${esps.map(e=>`<option value="${e}">${e}</option>`).join('')}
           </select>
         </div>
+      </div>
+      <div>
+        <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:8px;">Centros habilitados</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">${centrosChk}</div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
         <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
         <button class="btn btn-primary" onclick="guardarOperario('${opId||''}')">Guardar</button>
       </div>
     </div>`);
-  // pre-select especialidad after render
   if(op){const el=document.getElementById('mod-op-esp');if(el)el.value=op.especialidad||'CNC';}
 }
 
@@ -1318,13 +1332,15 @@ function guardarOperario(opId) {
   const nombre=(document.getElementById('mod-op-nombre')?.value||'').trim();
   const avatar=(document.getElementById('mod-op-avatar')?.value||'').trim().toUpperCase().slice(0,2);
   const especialidad=document.getElementById('mod-op-esp')?.value||'General';
+  const centros=CENTROS.map(c=>c.id).filter(id=>document.getElementById('mod-op-c-'+id)?.checked);
   if(!nombre){alert('El nombre es obligatorio');return;}
   if(!avatar){alert('El avatar es obligatorio (2 letras)');return;}
+  if(!centros.length){alert('Habilitá al menos un centro de trabajo');return;}
   if(opId){
     const op=OPERARIOS.find(o=>o.id===opId);
-    if(op){op.nombre=nombre;op.avatar=avatar;op.especialidad=especialidad;}
+    if(op){op.nombre=nombre;op.avatar=avatar;op.especialidad=especialidad;op.centros=centros;}
   }else{
-    OPERARIOS.push({id:'op'+Date.now(),nombre,avatar,especialidad});
+    OPERARIOS.push({id:'op'+Date.now(),nombre,avatar,especialidad,centros});
   }
   guardarOperariosLS();
   cerrarModal();

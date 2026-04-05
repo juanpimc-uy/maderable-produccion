@@ -397,10 +397,20 @@ function nombreDesc(nombre){
   return idx>=0?nombre.slice(idx+3):'';
 }
 
+const _OP_CENTROS_DEFAULT=['corte','enchapado','armado','empaquetado'];
+
 function renderOperarios() {
   const grid = document.getElementById('op-grid');
   grid.innerHTML = '';
-  OPERARIOS.forEach(op => {
+  const habilitados=OPERARIOS.filter(op=>{
+    const centsOp=op.centros&&op.centros.length?op.centros:_OP_CENTROS_DEFAULT;
+    return centsOp.includes(centroActual);
+  });
+  if(!habilitados.length){
+    grid.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;">Ningún operario habilitado para este centro</div>`;
+    return;
+  }
+  habilitados.forEach(op => {
     const ses = SESIONES.find(s => s.operarioId === op.id);
     const busy = !!ses;
     const div = document.createElement('div');
