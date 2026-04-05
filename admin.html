@@ -921,6 +921,7 @@ function guardarProyecto(prId, sub) {
 // ═══════════════════════════════════════════════════════════════════════════
 function toggleEl(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'block':'none';}
 function toggleTiemposRow(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'table-row':'none';}
+function toggleTiemposItem(itId){const el=document.getElementById('tiem-exp-'+itId);if(el)el.style.display=el.style.display==='none'?'block':'none';}
 function toggleAddMatForm(prId,mId){toggleEl('add-mat-form-'+mId);}
 
 function guardarMueblesLS(prId, pr){
@@ -946,7 +947,7 @@ function setPlacasInline(prId,mId,val){
   m.placas=Number(val)||1;
   // recalculate horas using stored coef/dif
   const COEF_DEF={corte:0.5,enchapado:0.3,armado:0.8,revision:0.2,empaquetado:0.15};
-  const DIF_DEF={1:0.7,2:1,3:1.4,4:1.8};
+  const DIF_DEF={1:0.7,2:1.0,3:1.5,4:2.2};
   const coef=JSON.parse(localStorage.getItem('coef')||JSON.stringify(COEF_DEF));
   const dif=JSON.parse(localStorage.getItem('dif')||JSON.stringify(DIF_DEF));
   const f=dif[m.dif||2]||1;
@@ -964,7 +965,7 @@ function setDifInline(prId,mId,dif){
   if(!m)return;
   m.dif=dif;
   const COEF_DEF={corte:0.5,enchapado:0.3,armado:0.8,revision:0.2,empaquetado:0.15};
-  const DIF_DEF={1:0.7,2:1,3:1.4,4:1.8};
+  const DIF_DEF={1:0.7,2:1.0,3:1.5,4:2.2};
   const coef=JSON.parse(localStorage.getItem('coef')||JSON.stringify(COEF_DEF));
   const dif_map=JSON.parse(localStorage.getItem('dif')||JSON.stringify(DIF_DEF));
   const f=dif_map[dif]||1;
@@ -1054,11 +1055,15 @@ async function buscarSOParaMueble(prId,mId){
     const items=salesorder?.line_items||[];
     if(!m.mats)m.mats=[];
     const soNum='SO-'+raw.trim().replace(/^SO-?/i,'');
+    let importados=0;
     items.forEach(item=>{
-      m.mats.push({id:'mat_'+Date.now()+'_'+Math.random().toString(36).slice(2,4),nombre:item.name||'',unidad:item.unit||'unidades',requerido:item.quantity||1,recibido:0,critico:false,manual:false,fuente:soNum});
+      const nombre=item.name||'';
+      if(m.mats.some(x=>x.nombre===nombre&&x.fuente===soNum))return;
+      m.mats.push({id:'mat_'+Date.now()+'_'+Math.random().toString(36).slice(2,4),nombre,unidad:item.unit||'unidades',requerido:item.quantity||1,recibido:0,critico:false,manual:false,fuente:soNum});
+      importados++;
     });
     guardarMueblesLS(prId,pr);
-    msgEl.textContent=items.length+' materiales importados';msgEl.style.color='var(--green)';
+    msgEl.textContent=importados+' materiales importados'+(importados<items.length?` (${items.length-importados} ya existían)`:'');msgEl.style.color='var(--green)';
     setTimeout(()=>renderDetallePr(pr,'materiales'),800);
   }catch(e){msgEl.textContent='Error: '+e.message;msgEl.style.color='var(--red)';}
 }
@@ -1098,7 +1103,9 @@ function confirmarSOBulk(prId,soNum,items){
     const m=pr.muebles?.find(x=>x.id===mId);
     if(!m)return;
     if(!m.mats)m.mats=[];
-    m.mats.push({id:'mat_'+Date.now()+'_'+i,nombre:item.name||item.description||'',unidad:item.unit||'unidades',requerido:item.quantity||1,recibido:0,critico:false,manual:false,soOrigen:soNum});
+    const nombre=item.name||item.description||'';
+    if(m.mats.some(x=>x.nombre===nombre&&x.soOrigen===soNum))return;
+    m.mats.push({id:'mat_'+Date.now()+'_'+i,nombre,unidad:item.unit||'unidades',requerido:item.quantity||1,recibido:0,critico:false,manual:false,soOrigen:soNum});
   });
   guardarMueblesLS(prId,pr);
   renderDetallePr(pr,'materiales');
@@ -1193,6 +1200,7 @@ function renderTiempos() {
   const tItems = (pr.muebles&&pr.muebles.length) ? pr.muebles : pr.items;
   tItems.forEach(it=>{
     const hA2=hAcumIt(pr.id,it.id);
+    const hRet=hRetrabajoIt(pr.id,it.id);
     const hEst2=it.hEst||Object.values(it.horas||{}).reduce((a,v)=>a+Number(v||0),0)*(it.cant||1)||0;
     const sesAct=SESIONES.filter(s=>s.proyectoId===pr.id&&s.itemId===it.id);
     // split código+nombre corto vs descripción larga
@@ -1200,8 +1208,29 @@ function renderTiempos() {
     const dashIdx = codigoNombre.indexOf(' – ');
     const nombreCorto = dashIdx>=0 ? codigoNombre.slice(0,dashIdx) : codigoNombre;
     const descLarga   = dashIdx>=0 ? codigoNombre.slice(dashIdx+3) : '';
-    html+=`<div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border);">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+    // build sessions panel
+    const allSes=[
+      ...HISTORIAL.filter(s=>s.proyectoId===pr.id&&s.itemId===it.id),
+      ...SESIONES.filter(s=>s.proyectoId===pr.id&&s.itemId===it.id).map(s=>({...s,fin:Date.now(),activa:true}))
+    ].sort((a,b)=>b.inicio-a.inicio);
+    const sesHTML=allSes.length?allSes.map(s=>{
+      const op=OPERARIOS.find(o=>o.id===s.operarioId);
+      const c=CENTROS.find(x=>x.id===s.centroId);
+      const esRet=s.tipo==='retrabajo';
+      const dur=msH((s.fin||Date.now())-s.inicio);
+      const dStr=new Date(s.inicio).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+new Date(s.inicio).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'});
+      return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(37,40,54,.3);flex-wrap:wrap;">
+        <div class="av ${s.activa?'active':'idle'}" style="width:26px;height:26px;font-size:9px;flex-shrink:0;">${op?.avatar||'?'}</div>
+        <span style="font-size:12px;flex:1;min-width:100px;">${op?.nombre||'—'}</span>
+        <span style="font-size:11px;color:${c?.color||'var(--muted)'};">${c?.icon||''} ${c?.label||'—'}</span>
+        ${esRet
+          ?`<span class="pill" style="font-size:9px;color:var(--red);background:rgba(240,92,92,.12);border:1px solid rgba(240,92,92,.3);">⚠ RETRABAJO</span>`
+          :`<span class="mono" style="font-size:11px;color:var(--amber);">${s.activa?'En curso':fmtH(dur)}</span>`}
+        <span style="font-size:10px;color:var(--muted);white-space:nowrap;">${dStr}</span>
+      </div>`;
+    }).join(''):`<div class="mono" style="font-size:11px;color:var(--muted);padding:8px 0;">Sin sesiones registradas</div>`;
+    html+=`<div style="margin-bottom:4px;">
+      <div onclick="toggleTiemposItem('${it.id}')" style="cursor:pointer;display:flex;justify-content:space-between;align-items:flex-start;padding:14px 0 8px;user-select:none;">
         <div style="min-width:0;flex:1;margin-right:12px;">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <span style="font-size:14px;font-weight:600;color:var(--text);">${nombreCorto}</span>
@@ -1212,9 +1241,14 @@ function renderTiempos() {
         <div style="text-align:right;flex-shrink:0;">
           <span class="mono" style="font-size:15px;color:${hA2>hEst2?'var(--red)':'var(--amber)'};font-weight:700;">${fmtH(hA2)}</span>
           <span style="font-size:11px;color:var(--muted);"> / ${fmtH(hEst2)}</span>
+          ${hRet>0?`<div style="font-size:10px;color:var(--red);">⚠ +${fmtH(hRet)} retrabajo</div>`:''}
         </div>
       </div>
-      ${bar(hA2,hEst2||1,hA2>hEst2?'var(--red)':'var(--green)',7)}
+      <div style="margin-bottom:6px;">${bar(hA2,hEst2||1,hA2>hEst2?'var(--red)':'var(--green)',7)}</div>
+      <div id="tiem-exp-${it.id}" style="display:none;background:var(--panel);border-radius:6px;padding:10px 14px;margin-bottom:8px;border:1px solid var(--border);">
+        <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">─── Sesiones — ${nombreCorto} ───</div>
+        ${sesHTML}
+      </div>
     </div>`;
   });
   html+=`</div>`;
@@ -1264,13 +1298,36 @@ function renderMatTabOCs() {
     <div style="display:flex;flex-direction:column;gap:8px;">
       ${ocsSistema.map(o=>{
         const isPend=o.estado==='pendiente';
-        return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--faint);border-radius:7px;border:1px solid ${isPend?'rgba(245,166,35,.3)':'rgba(61,214,140,.3)'};flex-wrap:wrap;gap:8px;">
-          <div>
-            <span class="mono" style="font-size:12px;font-weight:700;color:var(--amber);">${o.numero}</span>
-            <span style="font-size:12px;color:var(--muted);margin-left:10px;">${o.proveedor} · ${fmtFecha(o.fecha)}</span>
-            <span class="pill" style="margin-left:8px;font-size:9px;color:${isPend?'var(--amber)':'var(--green)'};border:1px solid ${isPend?'rgba(245,166,35,.4)':'rgba(61,214,140,.4)'};background:${isPend?'rgba(245,166,35,.08)':'rgba(61,214,140,.08)'};">${isPend?'PENDIENTE':'RECIBIDA'}</span>
+        const totalItems=o.items?o.items.length:0;
+        const recibidosItems=o.items?o.items.filter(i=>(i.recibido||0)>=i.cantidad).length:0;
+        const pct=totalItems?Math.round(recibidosItems/totalItems*100):0;
+        return`<div style="background:var(--faint);border-radius:7px;border:1px solid ${isPend?'rgba(245,166,35,.3)':'rgba(61,214,140,.3)'};overflow:hidden;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;flex-wrap:wrap;gap:8px;">
+            <div>
+              <span class="mono" style="font-size:12px;font-weight:700;color:var(--amber);">${o.numero}</span>
+              <span style="font-size:12px;color:var(--muted);margin-left:10px;">${o.proveedor} · ${fmtFecha(o.fecha)}</span>
+              <span class="pill" style="margin-left:8px;font-size:9px;color:${isPend?'var(--amber)':'var(--green)'};border:1px solid ${isPend?'rgba(245,166,35,.4)':'rgba(61,214,140,.4)'};background:${isPend?'rgba(245,166,35,.08)':'rgba(61,214,140,.08)'};">${isPend?'PENDIENTE':'RECIBIDA'}</span>
+            </div>
+            ${isPend?`<div style="display:flex;gap:6px;">
+              <button class="btn btn-success btn-sm" onclick="recibirOCRegistrada('${o.id}')">✓ Recibir OC completa</button>
+              <button class="btn btn-ghost btn-sm" onclick="toggleParcialOCSistema('${o.id}')">Recepción parcial</button>
+            </div>`:''}
           </div>
-          ${isPend?`<button class="btn btn-success btn-sm" onclick="recibirOCRegistrada('${o.id}')">✓ Recibir OC</button>`:''}
+          ${isPend&&totalItems?`<div style="padding:0 14px 8px;">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px;"><span>Ítems recibidos</span><span>${recibidosItems}/${totalItems}</span></div>
+            <div style="height:3px;background:var(--border);border-radius:2px;"><div style="height:100%;width:${pct}%;background:var(--green);border-radius:2px;transition:.3s;"></div></div>
+          </div>`:''}
+          <div id="oc-sys-parcial-${o.id}" style="display:none;padding:10px 14px;border-top:1px solid var(--border);">
+            <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">RECEPCIÓN PARCIAL</div>
+            ${(o.items||[]).map((it,idx)=>`<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;margin-bottom:6px;">
+              <div style="font-size:12px;">${it.nombre}${it.sku?`<span style="color:var(--muted);font-size:10px;margin-left:6px;">${it.sku}</span>`:''}
+                <span style="color:var(--muted);font-size:11px;margin-left:4px;">(${it.recibido||0}/${it.cantidad} ${it.unidad||''})</span>
+              </div>
+              <input type="number" id="parcial-qty-${o.id}-${idx}" min="0" max="${it.cantidad}" value="${it.cantidad-(it.recibido||0)}" style="width:70px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 7px;color:var(--text);font-size:12px;text-align:center;">
+              <input type="checkbox" id="parcial-chk-${o.id}-${idx}" checked style="width:16px;height:16px;accent-color:var(--green);">
+            </div>`).join('')}
+            <button class="btn btn-success btn-sm" style="margin-top:8px;" onclick="confirmarParcialOCSistema('${o.id}',${totalItems})">Confirmar recepción parcial</button>
+          </div>
         </div>`;
       }).join('')}
     </div>
@@ -1497,6 +1554,43 @@ function abrirRecepcionParcialActual(){
   abrirRecepcionParcial(oc.purchaseorder_id);
 }
 
+function toggleParcialOCSistema(ocId){
+  const el=document.getElementById('oc-sys-parcial-'+ocId);
+  if(!el)return;
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+
+function confirmarParcialOCSistema(ocId,itemCount){
+  const lista=JSON.parse(localStorage.getItem('ocs_sistema')||'[]');
+  const ocReg=lista.find(o=>o.id===ocId);
+  if(!ocReg)return;
+  for(let idx=0;idx<itemCount;idx++){
+    const chk=document.getElementById('parcial-chk-'+ocId+'-'+idx);
+    const qty=document.getElementById('parcial-qty-'+ocId+'-'+idx);
+    if(!chk||!qty)continue;
+    if(chk.checked){
+      const cant=parseFloat(qty.value)||0;
+      ocReg.items[idx].recibido=(ocReg.items[idx].recibido||0)+cant;
+    }
+  }
+  const todoRecibido=ocReg.items.every(i=>(i.recibido||0)>=i.cantidad);
+  if(todoRecibido){
+    const lineItems=ocReg.items.map(i=>({name:i.nombre,sku:i.sku,quantity:i.cantidad,unit:i.unidad}));
+    const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
+    const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(lineItems,proyStorage);
+    localStorage.setItem('proyectos',JSON.stringify(proyStorage));
+    PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
+    ocReg.estado='recibida';
+    ocReg.fechaRecepcion=new Date().toISOString();
+    alert(`✓ OC recibida completamente. ${matActualizados} materiales actualizados. ${mueblesDesbloqueados.length} muebles desbloqueados.`);
+  } else {
+    const recibidos=ocReg.items.filter(i=>(i.recibido||0)>=i.cantidad).length;
+    alert(`Recepción parcial guardada. ${recibidos}/${ocReg.items.length} ítems completos.`);
+  }
+  localStorage.setItem('ocs_sistema',JSON.stringify(lista));
+  renderMatTabOCs();
+}
+
 function agregarFilaItemOC(){
   const row=document.createElement('div');
   row.className='moc-item-row';
@@ -1665,8 +1759,12 @@ function renderMatTabPorProyecto(){
     (p.muebles||[]).forEach(m=>{
       const mats=m.mats||[];
       if(!mats.length)return;
+      const critPendM=mats.filter(x=>x.critico&&(x.recibido||0)<x.requerido);
+      const allPendM=mats.filter(x=>(x.recibido||0)<x.requerido);
+      const semM=!mats.length?'🟢':critPendM.length?'🔴':allPendM.length?'🟡':'🟢';
       html+=`<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="font-size:16px;">${semM}</span>
           <span class="mono" style="font-size:11px;font-weight:700;color:var(--amber);">${m.codigo||'—'}</span>
           <span style="font-size:13px;font-weight:600;">${m.nombre||'—'}</span>
         </div>
@@ -1679,7 +1777,7 @@ function renderMatTabPorProyecto(){
             <span style="flex:1;min-width:120px;font-size:12px;">${mat.nombre||'—'}${badgeManual}</span>
             <span class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap;">${mat.recibido||0}/${mat.requerido} ${mat.unidad||''}</span>
             <div style="width:70px;">${bar(mat.recibido||0,mat.requerido||1,over?'var(--green)':'var(--amber)',5)}</div>
-            <button onclick="toggleCriticoMat('${p.id}','${m.id}','${mat.id}')" title="${isCrit?'Quitar crítico':'Marcar crítico'}" style="padding:3px 8px;border:1px solid ${isCrit?'rgba(240,92,92,.6)':'var(--border)'};border-radius:4px;background:${isCrit?'rgba(240,92,92,.12)':'transparent'};color:${isCrit?'var(--red)':'var(--muted)'};cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;white-space:nowrap;">🔴 ${isCrit?'●':'○'}</button>
+            <button onclick="toggleCriticoMat('${p.id}','${m.id}','${mat.id}')" style="padding:3px 10px;border:1px solid ${isCrit?'rgba(240,92,92,.5)':'transparent'};border-radius:4px;background:${isCrit?'rgba(240,92,92,.12)':'transparent'};color:${isCrit?'var(--red)':'var(--muted)'};cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;white-space:nowrap;font-weight:${isCrit?'700':'400'};">${isCrit?'🔴 CRÍTICO':'⚪ Crítico'}</button>
             <button onclick="recibirMatMueble('${p.id}','${m.id}','${mat.id}')" style="padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;">+ Recibir</button>
           </div>`;
         }).join('')}
@@ -1702,7 +1800,7 @@ function toggleCriticoMat(prId,mId,matId){
   const mats=m.mats||[];
   const critPend=mats.filter(x=>x.critico&&(x.recibido||0)<x.requerido);
   const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
-  if(!critPend.length&&!allPend.length)m.estado='listo';
+  m.semaforo=critPend.length?'rojo':allPend.length?'amarillo':'verde';
   localStorage.setItem('proyectos',JSON.stringify(stored));
   const inMem=PROYECTOS.find(x=>x.id===prId);
   if(inMem)inMem.muebles=p.muebles;
