@@ -10,7 +10,7 @@
     --bg:#0E0F14; --panel:#14161D; --card:#1A1D27; --border:#252836; --borderL:#2E3247;
     --text:#E8EAF2; --muted:#5A5F78; --faint:#20243A;
     --amber:#F5A623; --green:#3DD68C; --red:#F05C5C;
-    --blue:#5B8DEF; --purple:#9B6DFF; --teal:#2EC4B6;
+    --blue:#5B8DEF; --purple:#9B6DFF; --teal:#2EC4B6; --orange:#F5820A;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   body { background:var(--bg); color:var(--text); font-family:'Sora',sans-serif; min-height:100vh; }
@@ -82,6 +82,8 @@
   /* live dot */
   .live-dot { width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; display:inline-block; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  @keyframes barPulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+  .bar-pulse { animation:barPulse .9s ease-in-out infinite; }
   /* sub tabs */
   .sub-tabs { display:flex; gap:4px; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:12px; }
   .sub-tab { padding:5px 16px; border:none; border-radius:5px; cursor:pointer; background:transparent; color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; text-transform:capitalize; }
@@ -306,6 +308,32 @@ function bar(val, max, color, h=6) {
   return `<div style="display:flex;align-items:center;gap:8px;"><div class="bar-track"><div class="bar-fill" style="width:${p}%;background:${p>=100?'var(--red)':color}"></div></div><span class="mono" style="font-size:10px;color:${p>=100?'var(--red)':color};white-space:nowrap;">${p}%</span></div>`;
 }
 
+// ─── indicadores real vs estimado ──────────────────────────────────────────
+function excessColor(real, est) {
+  if(!est) return 'var(--green)';
+  const p = real / est * 100;
+  if(p < 100)  return 'var(--green)';
+  if(p < 150)  return 'var(--amber)';
+  if(p < 200)  return 'var(--orange)';
+  return 'var(--red)';
+}
+function fmtExceso(real, est) {
+  if(!est) return '';
+  const p = real / est * 100;
+  if(p < 200) return Math.round(p) + '%';
+  const multiplo = Math.round(p / 50) / 2;
+  return '×' + multiplo;
+}
+function barHoras(real, est, h=6) {
+  if(!est) return bar(real, 1, 'var(--green)', h);
+  const p = real / est * 100;
+  const color = excessColor(real, est);
+  const w = Math.min(100, p);
+  const pulseClass = p >= 200 ? ' bar-pulse' : '';
+  const label = fmtExceso(real, est);
+  return `<div style="display:flex;align-items:center;gap:8px;"><div class="bar-track"><div class="bar-fill${pulseClass}" style="width:${w}%;background:${color};"></div></div><span class="mono" style="font-size:10px;color:${color};white-space:nowrap;">${label}</span></div>`;
+}
+
 function hAcumPr(prId) {
   const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId);
   return all.reduce((a,s)=>a+msH(s.fin-s.inicio),0);
@@ -461,8 +489,8 @@ function renderDashboard() {
           ${matP>0?pill(matP+' mat. pend.','var(--red)'):''}
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
-          <span class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap;">${fmtH(hA)}/${fmtH(hE)}</span>
-          ${bar(hA,hE,hA>hE?'var(--red)':'var(--amber)')}
+          <span class="mono" style="font-size:11px;color:${excessColor(hA,hE)};white-space:nowrap;">${fmtH(hA)}/${fmtH(hE)} <span style="font-size:9px;">${fmtExceso(hA,hE)}</span></span>
+          ${barHoras(hA,hE)}
         </div>
       </div>`;
   });
@@ -489,8 +517,9 @@ function renderProyectos() {
         <div style="margin-bottom:12px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
             <span class="mono" style="font-size:10px;color:var(--muted);">HORAS ${fmtH(hA)} / ${fmtH(hE)}</span>
+            <span class="mono" style="font-size:10px;color:${excessColor(hA,hE)};">${fmtExceso(hA,hE)}</span>
           </div>
-          ${bar(hA,hE,hA>hE?'var(--red)':'var(--amber)',5)}
+          ${barHoras(hA,hE,5)}
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           ${pill(pr.items.length+' ítems','var(--blue)')}
@@ -527,7 +556,7 @@ function renderDetallePr(pr, sub) {
     : `<div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${pr.clienteNombre}</div><div style="font-size:22px;font-weight:700;">${pr.nombre}</div>`;
   const hdrButtons = editMode
     ? `<button class="btn btn-success btn-sm" onclick="guardarProyecto('${pr.id}','${sub}')">Guardar cambios</button><button class="btn btn-ghost btn-sm" onclick="editMode=false;renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${sub}')">Cancelar</button>`
-    : `<div style="text-align:right;margin-right:8px;"><div class="mono" style="font-size:13px;color:${hA>hE?'var(--red)':'var(--amber)'};">${fmtH(hA)} / ${fmtH(hE)}</div><div style="font-size:10px;color:var(--muted);">real / estimado</div></div><button class="btn btn-ghost btn-sm" onclick="editMode=true;renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${sub}')">✏ Editar</button>`;
+    : `<div style="text-align:right;margin-right:8px;"><div class="mono" style="font-size:13px;color:${excessColor(hA,hE)};">${fmtH(hA)} / ${fmtH(hE)} <span style="font-size:11px;">${fmtExceso(hA,hE)}</span></div><div style="font-size:10px;color:var(--muted);">real / estimado</div></div><button class="btn btn-ghost btn-sm" onclick="editMode=true;renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${sub}')">✏ Editar</button>`;
 
   let html = `
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
@@ -620,8 +649,8 @@ function renderDetallePr(pr, sub) {
             <div style="font-size:22px;">${sem}</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
-            <span class="mono" style="font-size:11px;color:${hA2>hEst?'var(--red)':'var(--muted)'};white-space:nowrap;">${fmtH(hA2)} / ${fmtH(hEst)}</span>
-            ${bar(hA2,hEst||1,hA2>hEst?'var(--red)':'var(--amber)')}
+            <span class="mono" style="font-size:11px;color:${excessColor(hA2,hEst)};white-space:nowrap;">${fmtH(hA2)} / ${fmtH(hEst)} <span style="font-size:9px;">${fmtExceso(hA2,hEst)}</span></span>
+            ${barHoras(hA2,hEst)}
           </div>
           ${sesAct.length?`<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px;">${sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);const c=CENTROS.find(x=>x.id===s.centroId);const tid='t-it-'+s.id;return`<div style="display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:5px;padding:4px 9px;border:1px solid rgba(245,166,35,.3);"><div class="av active" style="width:20px;height:20px;font-size:9px;">${op?.avatar}</div><span style="font-size:11px;">${op?.nombre}</span><span class="mono" style="font-size:11px;color:var(--amber);" id="${tid}">–</span></div>`;}).join('')}</div>`:''}
         </div>`;
@@ -639,11 +668,11 @@ function renderDetallePr(pr, sub) {
               <div style="display:flex;gap:6px;flex-wrap:wrap;">${it.centros.map(cId=>{const c=CENTROS.find(x=>x.id===cId);return`<span class="pill" style="color:${c?.color};border:1px solid ${c?.color}33;background:${c?.color}10">${c?.label}</span>`;}).join('')}</div>
             </div>
             <div style="text-align:right;">
-              <div class="mono" style="font-size:20px;font-weight:700;color:${hA2>it.hEst?'var(--red)':'var(--amber)'};">${fmtH(hA2)}</div>
-              <div style="font-size:11px;color:var(--muted);">de ${fmtH(it.hEst)} est.</div>
+              <div class="mono" style="font-size:20px;font-weight:700;color:${excessColor(hA2,it.hEst)};">${fmtH(hA2)}</div>
+              <div style="font-size:11px;color:var(--muted);">de ${fmtH(it.hEst)} est. <span class="mono" style="color:${excessColor(hA2,it.hEst)};font-size:10px;">${fmtExceso(hA2,it.hEst)}</span></div>
             </div>
           </div>
-          ${bar(hA2,it.hEst||1,hA2>it.hEst?'var(--red)':'var(--green)',5)}
+          ${barHoras(hA2,it.hEst||0,5)}
           ${it.nota?`<div class="nota-box" style="margin-top:12px;">${it.nota}</div>`:''}
           ${sesAct.length?`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">${sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);const c=CENTROS.find(x=>x.id===s.centroId);const tid='t-it-'+s.id;return`<div style="display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:5px;padding:5px 10px;border:1px solid rgba(245,166,35,.3);"><div class="av active" style="width:22px;height:22px;font-size:9px;">${op?.avatar}</div><span style="font-size:11px;">${op?.nombre}</span><span style="font-size:11px;color:${c?.color};">${c?.icon}</span><span class="mono" style="font-size:11px;color:var(--amber);" id="${tid}">–</span></div>`;}).join('')}</div>`:''}
         </div>`;
@@ -847,9 +876,9 @@ function renderDetallePr(pr, sub) {
           return`<tr style="cursor:pointer;" onclick="toggleTiemposRow('${expId}')">
             ${pr.muebles&&pr.muebles.length?`<td class="mono" style="font-size:11px;color:var(--amber);">${row.codigo||'—'}</td>`:''}
             <td style="font-size:13px;font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${row.nombre||'—'}</td>
-            <td class="mono" style="text-align:right;color:${over?'var(--red)':'var(--amber)'};">${fmtH(hA2)}</td>
+            <td class="mono" style="text-align:right;color:${excessColor(hA2,hEst)};">${fmtH(hA2)}</td>
             <td class="mono" style="text-align:right;color:var(--muted);">${hEst?fmtH(hEst):'—'}</td>
-            <td style="text-align:right;">${hEst?pill(p+'%',over?'var(--red)':'var(--green)'):'—'}</td>
+            <td style="text-align:right;">${hEst?pill(fmtExceso(hA2,hEst),excessColor(hA2,hEst)):'—'}</td>
             <td class="mono" style="text-align:right;color:${hRet>0?'var(--red)':'var(--muted)'}">${hRet>0?fmtH(hRet):'—'}</td>
             <td>${ops||'—'}</td>
           </tr>
@@ -1657,12 +1686,13 @@ function renderTiempos() {
           ${descLarga?`<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px;">${descLarga}</div>`:''}
         </div>
         <div style="text-align:right;flex-shrink:0;">
-          <span class="mono" style="font-size:15px;color:${hA2>hEst2?'var(--red)':'var(--amber)'};font-weight:700;">${fmtH(hA2)}</span>
+          <span class="mono" style="font-size:15px;color:${excessColor(hA2,hEst2)};font-weight:700;">${fmtH(hA2)}</span>
           <span style="font-size:11px;color:var(--muted);"> / ${fmtH(hEst2)}</span>
+          <span class="mono" style="font-size:11px;color:${excessColor(hA2,hEst2)};margin-left:4px;">${fmtExceso(hA2,hEst2)}</span>
           ${hRet>0?`<div style="font-size:10px;color:var(--red);">⚠ +${fmtH(hRet)} retrabajo</div>`:''}
         </div>
       </div>
-      <div style="margin-bottom:6px;">${bar(hA2,hEst2||1,hA2>hEst2?'var(--red)':'var(--green)',7)}</div>
+      <div style="margin-bottom:6px;">${barHoras(hA2,hEst2||0,7)}</div>
       <div id="tiem-exp-${it.id}" style="display:none;background:var(--panel);border-radius:6px;padding:10px 14px;margin-bottom:8px;border:1px solid var(--border);">
         <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">─── Sesiones — ${nombreCorto} ───</div>
         ${sesHTML}
