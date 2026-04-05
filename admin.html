@@ -158,7 +158,11 @@
 
     <!-- ══ OPERARIOS ════════════════════════════════════════════════════════ -->
     <div class="view" id="v-operarios">
-      <div class="sec-title">Operarios — Estado en Tiempo Real</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;gap:8px;" id="op-subtabs"></div>
+        <button class="btn btn-ghost" onclick="toggleReporteHoras()">📊 Reporte</button>
+      </div>
+      <div id="op-reporte-panel" style="display:none;"></div>
       <div id="op-lista" style="display:flex;flex-direction:column;gap:12px;"></div>
     </div>
 
@@ -650,51 +654,74 @@ function renderDetallePr(pr, sub) {
   // ── MATERIALES ──
   if(sub==='materiales'){
     if(pr.muebles && pr.muebles.length){
-      html+=`<div style="display:flex;flex-direction:column;gap:16px;">`;
+      if(!window._matExp)window._matExp=new Set();
+      html+=`<div style="display:flex;flex-direction:column;gap:10px;">`;
       pr.muebles.forEach(m=>{
         const mats=m.mats||[];
+        const critPend=mats.filter(x=>x.critico&&(x.recibido||0)<x.requerido);
+        const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
+        const recibidos=mats.filter(x=>(x.recibido||0)>=x.requerido).length;
+        const sem=!mats.length?'⚪':critPend.length?'🔴':allPend.length?'🟡':'🟢';
+        const pctM=mats.length?Math.round(recibidos/mats.length*100):0;
+        const expanded=window._matExp.has(m.id);
         html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
-          <div style="padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
-            <div style="display:flex;align-items:center;gap:10px;">
-              <span class="mono" style="font-size:11px;font-weight:700;color:var(--amber);">${m.codigo||'—'}</span>
-              <span style="font-size:13px;font-weight:600;">${m.nombre||'—'}</span>
-              <span class="mono" style="font-size:10px;color:var(--muted);">×${m.cant||1}</span>
-            </div>
-            <button class="btn btn-ghost btn-sm" onclick="toggleAddMatForm('${pr.id}','${m.id}')">+ Material</button>
+          <div onclick="toggleMatMueble('${m.id}')" style="cursor:pointer;padding:13px 18px;background:var(--panel);display:flex;align-items:center;gap:10px;user-select:none;">
+            <span style="font-size:16px;">${sem}</span>
+            <span class="mono" style="font-size:11px;font-weight:700;color:var(--amber);">${m.codigo||'—'}</span>
+            <span style="font-size:13px;font-weight:600;flex:1;">${m.nombre||'—'}</span>
+            <span class="mono" style="font-size:10px;color:var(--muted);white-space:nowrap;">${recibidos}/${mats.length} mat. · ${pctM}%</span>
+            <span style="font-size:12px;color:var(--muted);margin-left:6px;">${expanded?'▴':'▾'}</span>
           </div>
-          <div id="add-mat-form-${m.id}" style="display:none;padding:14px 18px;border-bottom:1px solid var(--border);background:rgba(91,141,239,.04);">
-            <div style="display:grid;grid-template-columns:1fr 100px 70px auto auto;gap:8px;align-items:end;margin-bottom:8px;">
-              <div class="field"><label style="font-size:9px;">Nombre</label><input id="nm-n-${m.id}" placeholder="Ej: MDF 18mm" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;width:100%;"></div>
-              <div class="field"><label style="font-size:9px;">Unidad</label><select id="nm-u-${m.id}" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;width:100%;"><option>planchas</option><option>metros</option><option>unidades</option><option>kg</option><option>litros</option></select></div>
-              <div class="field"><label style="font-size:9px;">Cant.</label><input type="number" id="nm-r-${m.id}" placeholder="0" min="1" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;width:100%;text-align:center;"></div>
-              <div class="field" style="justify-content:flex-end;"><label style="font-size:9px;">Crítico</label><input type="checkbox" id="nm-c-${m.id}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--red);"></div>
-              <button class="btn btn-primary btn-sm" onclick="agregarMatManual('${pr.id}','${m.id}')">Agregar</button>
+          <div id="mat-body-${m.id}" style="display:${expanded?'block':'none'};">
+            <div id="add-mat-form-${m.id}" style="display:none;padding:14px 18px;border-bottom:1px solid var(--border);background:rgba(91,141,239,.04);">
+              <div style="display:grid;grid-template-columns:1fr 100px 70px auto auto;gap:8px;align-items:end;margin-bottom:8px;">
+                <div class="field"><label style="font-size:9px;">Nombre</label><input id="nm-n-${m.id}" placeholder="Ej: MDF 18mm" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;width:100%;"></div>
+                <div class="field"><label style="font-size:9px;">Unidad</label><select id="nm-u-${m.id}" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;width:100%;"><option>planchas</option><option>metros</option><option>unidades</option><option>kg</option><option>litros</option></select></div>
+                <div class="field"><label style="font-size:9px;">Cant.</label><input type="number" id="nm-r-${m.id}" placeholder="0" min="1" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;width:100%;text-align:center;"></div>
+                <div class="field" style="justify-content:flex-end;"><label style="font-size:9px;">Crítico</label><input type="checkbox" id="nm-c-${m.id}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--red);"></div>
+                <button class="btn btn-primary btn-sm" onclick="agregarMatManual('${pr.id}','${m.id}')">Agregar</button>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input id="so-mat-${m.id}" placeholder="Nº SO (ej: 1234)" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;width:160px;">
+                <button class="btn btn-ghost btn-sm" onclick="buscarSOParaMueble('${pr.id}','${m.id}')">Buscar SO en Zoho</button>
+                <span id="so-mat-msg-${m.id}" style="font-size:11px;color:var(--muted);"></span>
+              </div>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <input id="so-mat-${m.id}" placeholder="Nº SO (ej: 1234)" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;width:160px;">
-              <button class="btn btn-ghost btn-sm" onclick="buscarSOParaMueble('${pr.id}','${m.id}')">Buscar SO en Zoho</button>
-              <span id="so-mat-msg-${m.id}" style="font-size:11px;color:var(--muted);"></span>
+            <div style="padding:14px 18px;">
+              <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+                <button class="btn btn-ghost btn-sm" onclick="toggleAddMatForm('${pr.id}','${m.id}')">+ Material</button>
+              </div>
+              ${mats.length===0?`<div class="mono" style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0;">Sin materiales cargados</div>`:''}
+              ${mats.map((mat,matIdx)=>{
+                const ok=(mat.recibido||0)>=mat.requerido;
+                const isCrit=!!mat.critico;
+                let r='';
+                r+=`<div style="padding:9px 0;border-bottom:1px solid rgba(37,40,54,.4);">`;
+                r+=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">`;
+                r+=`<div style="flex:1;min-width:120px;">`;
+                r+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">`;
+                r+=`<span style="font-size:13px;font-weight:600;">${mat.nombre}</span>`;
+                if(ok)r+=`<span class="pill" style="color:var(--green);background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.3);font-size:9px;">✓ RECIBIDO</span>`;
+                if(mat.manual)r+=`<span class="pill" style="color:var(--muted);background:rgba(90,95,120,.15);border:1px solid var(--border);font-size:9px;">Manual</span>`;
+                r+=`</div>`;
+                r+=`<span class="mono" style="font-size:11px;color:${ok?'var(--green)':'var(--amber)'};white-space:nowrap;">${mat.recibido||0}/${mat.requerido} ${mat.unidad||''}</span>`;
+                r+=`</div>`;
+                r+=`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">`;
+                r+=`<button onclick="toggleCriticoInline('${pr.id}','${m.id}','${mat.id}')" style="padding:3px 10px;border:1px solid ${isCrit?'rgba(240,92,92,.6)':'var(--border)'};border-radius:4px;background:${isCrit?'rgba(240,92,92,.15)':'transparent'};color:${isCrit?'var(--red)':'var(--muted)'};cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:${isCrit?700:400};">${isCrit?'🔴 CRÍTICO':'⚪ No crítico'}</button>`;
+                if(!ok)r+=`<button onclick="toggleRecibir('${m.id}','${matIdx}')" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;">+ Recibir</button>`;
+                r+=`</div>`;
+                r+=`</div>`;
+                r+=`<div id="recv-inline-${m.id}-${matIdx}" style="display:none;margin-top:8px;padding:10px 12px;background:var(--panel);border-radius:6px;border:1px solid var(--border);">`;
+                r+=`<div style="font-size:11px;color:var(--muted);margin-bottom:7px;">Recibir manualmente:</div>`;
+                r+=`<div style="display:flex;align-items:center;gap:8px;">`;
+                r+=`<span style="font-size:11px;">Cantidad:</span>`;
+                r+=`<input type="number" id="recv-qty-${m.id}-${matIdx}" min="0.01" step="0.01" value="${mat.requerido-(mat.recibido||0)}" style="width:80px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;text-align:center;outline:none;">`;
+                r+=`<button class="btn btn-success btn-sm" onclick="confirmarRecibirInline('${pr.id}','${m.id}','${mat.id}','${matIdx}')">✓ Confirmar</button>`;
+                r+=`<button onclick="toggleRecibir('${m.id}','${matIdx}')" style="padding:4px 10px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;font-size:11px;">Cancelar</button>`;
+                r+=`</div></div></div>`;
+                return r;
+              }).join('')}
             </div>
-          </div>
-          <div style="padding:14px 18px;">
-            ${mats.length===0?`<div class="mono" style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0;">Sin materiales cargados</div>`:''}
-            ${mats.map(mat=>{
-              const ok=(mat.recibido||0)>=mat.requerido;
-              return`<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid rgba(37,40,54,.5);">
-                <div style="flex:1;min-width:0;">
-                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-                    <span style="font-size:13px;font-weight:600;">${mat.nombre}</span>
-                    ${mat.critico?`<span class="pill" style="color:var(--red);background:rgba(240,92,92,.1);border:1px solid rgba(240,92,92,.3);font-size:9px;">CRÍTICO</span>`:''}
-                    ${mat.manual?`<span class="pill" style="color:var(--muted);background:rgba(90,95,120,.15);border:1px solid var(--border);font-size:9px;">Manual</span>`:''}
-                  </div>
-                  <div style="display:flex;align-items:center;gap:8px;">
-                    <span class="mono" style="font-size:11px;color:${ok?'var(--green)':'var(--amber)'};white-space:nowrap;">${mat.recibido||0}/${mat.requerido} ${mat.unidad||''}</span>
-                    ${bar(mat.recibido||0,mat.requerido,ok?'var(--green)':'var(--amber)',4)}
-                  </div>
-                </div>
-                ${ok?pill('✓','var(--green)'):''}
-              </div>`;
-            }).join('')}
           </div>
         </div>`;
       });
@@ -924,6 +951,64 @@ function toggleTiemposRow(id){const el=document.getElementById(id);if(el)el.styl
 function toggleTiemposItem(itId){const el=document.getElementById('tiem-exp-'+itId);if(el)el.style.display=el.style.display==='none'?'block':'none';}
 function toggleAddMatForm(prId,mId){toggleEl('add-mat-form-'+mId);}
 
+function toggleMatMueble(mId){
+  if(!window._matExp)window._matExp=new Set();
+  const el=document.getElementById('mat-body-'+mId);
+  if(window._matExp.has(mId)){window._matExp.delete(mId);if(el)el.style.display='none';}
+  else{window._matExp.add(mId);if(el)el.style.display='block';}
+}
+
+function toggleRecibir(mId,matIdx){
+  const el=document.getElementById('recv-inline-'+mId+'-'+matIdx);
+  if(el)el.style.display=el.style.display==='none'?'block':'none';
+}
+
+function confirmarRecibirInline(prId,mId,matId,matIdx){
+  const qty=parseFloat(document.getElementById('recv-qty-'+mId+'-'+matIdx)?.value||0);
+  if(!qty||qty<=0){alert('Cantidad inválida');return;}
+  const stored=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const p=stored.find(x=>x.id===prId);
+  const m=p?.muebles?.find(x=>x.id===mId);
+  const mat=m?.mats?.find(x=>x.id===matId);
+  if(!mat)return;
+  mat.recibido=Math.min(mat.requerido,(mat.recibido||0)+qty);
+  mat.manual=true;
+  // recalcular semáforo
+  const mats=m.mats||[];
+  const critPend=mats.filter(x=>x.critico&&(x.recibido||0)<x.requerido);
+  const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
+  m.semaforo=critPend.length?'rojo':allPend.length?'amarillo':'verde';
+  localStorage.setItem('proyectos',JSON.stringify(stored));
+  const inMem=PROYECTOS.find(x=>x.id===prId);
+  if(inMem)inMem.muebles=p.muebles;
+  // banner si críticos completos
+  if(!critPend.length&&allPend.length===0){
+    const banner=document.createElement('div');
+    banner.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(61,214,140,.15);border:1px solid rgba(61,214,140,.5);color:var(--green);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:999;';
+    banner.textContent=`🟢 ${m.codigo||m.nombre} listo para producción`;
+    document.body.appendChild(banner);
+    setTimeout(()=>banner.remove(),3000);
+  }
+  renderDetallePr(PROYECTOS.find(x=>x.id===prId),'materiales');
+}
+
+function toggleCriticoInline(prId,mId,matId){
+  const stored=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const p=stored.find(x=>x.id===prId);
+  const m=p?.muebles?.find(x=>x.id===mId);
+  const mat=m?.mats?.find(x=>x.id===matId);
+  if(!mat)return;
+  mat.critico=!mat.critico;
+  const mats=m.mats||[];
+  const critPend=mats.filter(x=>x.critico&&(x.recibido||0)<x.requerido);
+  const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
+  m.semaforo=critPend.length?'rojo':allPend.length?'amarillo':'verde';
+  localStorage.setItem('proyectos',JSON.stringify(stored));
+  const inMem=PROYECTOS.find(x=>x.id===prId);
+  if(inMem)inMem.muebles=p.muebles;
+  renderDetallePr(PROYECTOS.find(x=>x.id===prId),'materiales');
+}
+
 function guardarMueblesLS(prId, pr){
   const stored=JSON.parse(localStorage.getItem('proyectos')||'[]');
   const idx=stored.findIndex(p=>p.id===prId);
@@ -1114,41 +1199,285 @@ function confirmarSOBulk(prId,soNum,items){
 // ═══════════════════════════════════════════════════════════════════════════
 // OPERARIOS
 // ═══════════════════════════════════════════════════════════════════════════
+let _opSubTab = 'estado';
+let _opHistExpanded = {}; // opId → rango actual ('hoy','semana','mes','todo')
+
 function renderOperarios() {
   clearTimers();
+  // sub-tabs
+  document.getElementById('op-subtabs').innerHTML =
+    ['estado','gestion'].map(t=>`<button class="btn ${_opSubTab===t?'btn-primary':'btn-ghost'}" onclick="_opSubTab='${t}';renderOperarios();">${t==='estado'?'⚡ Estado Real':'🔧 Gestión'}</button>`).join('');
+  if(_opSubTab==='estado') _renderOpEstado();
+  else _renderOpGestion();
+}
+
+function _renderOpEstado() {
   let html = '';
   OPERARIOS.forEach(op=>{
     const ses=SESIONES.find(s=>s.operarioId===op.id);
     const c=ses?CENTROS.find(x=>x.id===ses.centroId):null;
     const pr=ses?PROYECTOS.find(p=>p.id===ses.proyectoId):null;
-    const it=ses&&pr?pr.items.find(i=>i.id===ses.itemId):null;
+    const it=ses&&pr?(pr.muebles||pr.items).find(i=>i.id===ses.itemId):null;
     const hist=HISTORIAL.filter(h=>h.operarioId===op.id);
     const totalH=hist.reduce((a,h)=>a+msH(h.fin-h.inicio),0)+(ses?msH(Date.now()-ses.inicio):0);
     const tid=`t-op-${op.id}`;
-    html+=`
-      <div class="op-row ${ses?'busy':''}">
-        <div style="flex-shrink:0;text-align:center;">
-          <div class="av ${ses?'active':'idle'}" style="width:48px;height:48px;font-size:16px;">${op.avatar}</div>
-          <div class="mono" style="font-size:10px;color:var(--muted);margin-top:6px;">${fmtH(totalH)}</div>
+    html+=`<div class="op-row ${ses?'busy':''}">
+      <div style="flex-shrink:0;text-align:center;">
+        <div class="av ${ses?'active':'idle'}" style="width:48px;height:48px;font-size:16px;">${op.avatar}</div>
+        <div class="mono" style="font-size:10px;color:var(--muted);margin-top:6px;">${fmtH(totalH)}</div>
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:16px;font-weight:700;margin-bottom:2px;">${op.nombre}</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">${op.especialidad}</div>
+        ${ses?`<div style="background:var(--panel);border:1px solid rgba(245,166,35,.25);border-radius:7px;padding:12px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px;">
+          <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">CENTRO</div><div style="font-size:13px;color:${c?.color};font-weight:600;">${c?.icon} ${c?.label}</div></div>
+          <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">PROYECTO</div><div style="font-size:13px;">${pr?.nombre}</div></div>
+          <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">ÍTEM</div><div style="font-size:13px;">${it?.nombre||'—'}</div></div>
+          <div style="margin-left:auto;text-align:right;"><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">TIEMPO</div><span class="mono" style="font-size:13px;color:var(--amber);font-weight:700;" id="${tid}">–</span></div>
+        </div>`:`<div style="margin-bottom:10px;">${pill('Sin tarea activa','var(--muted)')}</div>`}
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          ${hist.slice(-3).reverse().map(h=>{const hc=CENTROS.find(x=>x.id===h.centroId);const hp=PROYECTOS.find(x=>x.id===h.proyectoId);const hi=(hp?.muebles||hp?.items||[]).find(x=>x.id===h.itemId);return`<div style="font-size:11px;color:var(--muted);display:flex;gap:10px;"><span style="color:${hc?.color}">${hc?.icon}</span><span>${hp?.nombre||'—'} · ${hi?.nombre||'—'}</span><span style="margin-left:auto;font-family:'JetBrains Mono',monospace;">${fmtH(msH(h.fin-h.inicio))}</span></div>`;}).join('')}
         </div>
-        <div style="flex:1;">
-          <div style="font-size:16px;font-weight:700;margin-bottom:2px;">${op.nombre}</div>
-          <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">${op.especialidad}</div>
-          ${ses?`
-            <div style="background:var(--panel);border:1px solid rgba(245,166,35,.25);border-radius:7px;padding:12px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px;">
-              <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">CENTRO</div><div style="font-size:13px;color:${c?.color};font-weight:600;">${c?.icon} ${c?.label}</div></div>
-              <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">PROYECTO</div><div style="font-size:13px;">${pr?.nombre}</div></div>
-              <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">ÍTEM</div><div style="font-size:13px;">${it?.nombre}</div></div>
-              <div style="margin-left:auto;text-align:right;"><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">TIEMPO</div><span class="mono" style="font-size:13px;color:var(--amber);font-weight:700;" id="${tid}">–</span></div>
-            </div>`:`<div style="margin-bottom:10px;">${pill('Sin tarea activa','var(--muted)')}</div>`}
-          <div style="display:flex;flex-direction:column;gap:4px;">
-            ${hist.slice(-3).reverse().map(h=>{const hc=CENTROS.find(x=>x.id===h.centroId);const hp=PROYECTOS.find(x=>x.id===h.proyectoId);const hi=hp?.items.find(x=>x.id===h.itemId);return`<div style="font-size:11px;color:var(--muted);display:flex;gap:10px;"><span style="color:${hc?.color}">${hc?.icon}</span><span>${hp?.nombre} · ${hi?.nombre}</span><span style="margin-left:auto;font-family:'JetBrains Mono',monospace;">${fmtH(msH(h.fin-h.inicio))}</span></div>`;}).join('')}
-          </div>
-        </div>
-      </div>`;
+      </div>
+    </div>`;
   });
   document.getElementById('op-lista').innerHTML = html;
   SESIONES.forEach(s=>liveTimer(`t-op-${s.operarioId}`,s.inicio));
+}
+
+function _renderOpGestion() {
+  let html = '';
+  OPERARIOS.forEach(op=>{
+    const hist=HISTORIAL.filter(h=>h.operarioId===op.id);
+    const totalH=hist.reduce((a,h)=>a+msH(h.fin-h.inicio),0);
+    const ses=SESIONES.find(s=>s.operarioId===op.id);
+    const exp=_opHistExpanded[op.id];
+    html+=`<div class="op-row" style="flex-direction:column;gap:0;padding:0;overflow:hidden;">
+      <div onclick="toggleOpHistorial('${op.id}')" style="cursor:pointer;display:flex;align-items:center;gap:16px;padding:16px 20px;user-select:none;">
+        <div class="av ${ses?'active':'idle'}" style="width:40px;height:40px;font-size:14px;flex-shrink:0;">${op.avatar}</div>
+        <div style="flex:1;">
+          <div style="font-size:15px;font-weight:700;">${op.nombre}</div>
+          <div style="font-size:11px;color:var(--muted);">${op.especialidad} · ${hist.length} sesiones · ${fmtH(totalH)} totales</div>
+        </div>
+        <span style="font-size:13px;color:var(--muted);">${exp?'▴':'▾'}</span>
+      </div>
+      <div id="op-hist-${op.id}" style="display:${exp?'block':'none'};border-top:1px solid var(--border);">
+        ${exp?_buildHistorialOpHTML(op.id,exp):''}
+      </div>
+    </div>`;
+  });
+  document.getElementById('op-lista').innerHTML = html;
+}
+
+function toggleOpHistorial(opId) {
+  if(_opHistExpanded[opId]) {
+    delete _opHistExpanded[opId];
+  } else {
+    _opHistExpanded[opId]='hoy';
+  }
+  _renderOpGestion();
+}
+
+function setOpHistRango(opId, rango) {
+  _opHistExpanded[opId]=rango;
+  const el=document.getElementById('op-hist-'+opId);
+  if(el) el.innerHTML=_buildHistorialOpHTML(opId,rango);
+}
+
+function _buildHistorialOpHTML(opId, rango) {
+  const ahora=Date.now();
+  const inicioHoy=new Date(); inicioHoy.setHours(0,0,0,0);
+  const inicioSemana=new Date(inicioHoy); inicioSemana.setDate(inicioHoy.getDate()-inicioHoy.getDay());
+  const inicioMes=new Date(inicioHoy); inicioMes.setDate(1);
+  const filtros={hoy:inicioHoy.getTime(),semana:inicioSemana.getTime(),mes:inicioMes.getTime(),todo:0};
+  const desde=filtros[rango]||0;
+  const sesiones=HISTORIAL.filter(h=>h.operarioId===opId&&h.inicio>=desde).sort((a,b)=>b.inicio-a.inicio);
+  // group by day
+  const byDay={};
+  sesiones.forEach(s=>{
+    const d=new Date(s.inicio);d.setHours(0,0,0,0);
+    const k=d.getTime();
+    if(!byDay[k])byDay[k]=[];
+    byDay[k].push(s);
+  });
+  const rangos=['hoy','semana','mes','todo'];
+  const labels={'hoy':'Hoy','semana':'Esta semana','mes':'Este mes','todo':'Todo'};
+  let h=`<div style="padding:12px 20px;display:flex;gap:6px;border-bottom:1px solid var(--border);">
+    ${rangos.map(r=>`<button onclick="setOpHistRango('${opId}','${r}')" style="padding:3px 10px;border:1px solid ${r===rango?'var(--amber)':'var(--border)'};border-radius:20px;background:${r===rango?'rgba(245,166,35,.12)':'transparent'};color:${r===rango?'var(--amber)':'var(--muted)'};cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace;">${labels[r]}</button>`).join('')}
+  </div>`;
+  if(!sesiones.length){
+    return h+`<div class="mono" style="font-size:11px;color:var(--muted);padding:16px 20px;">Sin sesiones en este período</div>`;
+  }
+  Object.keys(byDay).sort((a,b)=>b-a).forEach(dayTs=>{
+    const daySes=byDay[dayTs];
+    const totalDia=daySes.reduce((a,s)=>a+msH(s.fin-s.inicio),0);
+    const fecha=new Date(Number(dayTs)).toLocaleDateString('es-UY',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
+    h+=`<div style="padding:10px 20px;background:var(--panel);border-bottom:1px solid var(--border);">
+      <span style="font-size:12px;font-weight:600;text-transform:capitalize;">${fecha}</span>
+      <span class="mono" style="font-size:11px;color:var(--amber);margin-left:12px;">Total: ${fmtH(totalDia)}</span>
+    </div>`;
+    daySes.forEach(s=>{
+      const pr=PROYECTOS.find(p=>p.id===s.proyectoId);
+      const it=(pr?.muebles||pr?.items||[]).find(i=>i.id===s.itemId);
+      const c=CENTROS.find(x=>x.id===s.centroId);
+      const inicio=new Date(s.inicio).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'});
+      const fin=new Date(s.fin).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'});
+      const dur=msH(s.fin-s.inicio);
+      const esRet=s.tipo==='retrabajo';
+      const ajustado=s._ajustado?'*':'';
+      h+=`<div style="display:flex;align-items:center;gap:10px;padding:9px 20px;border-bottom:1px solid rgba(37,40,54,.3);flex-wrap:wrap;">
+        <span class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap;min-width:110px;">${inicio} → ${fin}${ajustado}</span>
+        <span style="font-size:12px;flex:1;min-width:120px;">${it?.nombre||'—'} · <span style="color:var(--muted);">${pr?.nombre||'—'}</span></span>
+        <span style="font-size:11px;color:${c?.color||'var(--muted)'};">${c?.icon||''} ${c?.label||'—'}</span>
+        ${esRet?`<span class="pill" style="font-size:9px;color:var(--red);background:rgba(240,92,92,.12);border:1px solid rgba(240,92,92,.3);">⚠ RETRABAJO</span>`:''}
+        <span class="mono" style="font-size:11px;color:var(--amber);">${fmtH(dur)}</span>
+        <button onclick="editarSesionOp('${s.id||s.inicio+'_'+s.operarioId}')" style="padding:2px 7px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;font-size:10px;">✏</button>
+      </div>`;
+    });
+  });
+  return h;
+}
+
+function editarSesionOp(sesId) {
+  const s=HISTORIAL.find(h=>(h.id||h.inicio+'_'+h.operarioId)===sesId);
+  if(!s)return;
+  const inicioFmt=new Date(s.inicio).toISOString().slice(0,16);
+  const finFmt=new Date(s.fin).toISOString().slice(0,16);
+  const ni=prompt('Hora inicio (YYYY-MM-DDTHH:MM):',inicioFmt);
+  if(!ni)return;
+  const nf=prompt('Hora fin (YYYY-MM-DDTHH:MM):',finFmt);
+  if(!nf)return;
+  const niMs=new Date(ni).getTime();
+  const nfMs=new Date(nf).getTime();
+  if(isNaN(niMs)||isNaN(nfMs)||nfMs<=niMs){alert('Fechas inválidas');return;}
+  s.inicio=niMs;s.fin=nfMs;s._ajustado=true;
+  localStorage.setItem('historial',JSON.stringify(HISTORIAL));
+  const opId=s.operarioId;
+  const rango=_opHistExpanded[opId]||'hoy';
+  const el=document.getElementById('op-hist-'+opId);
+  if(el)el.innerHTML=_buildHistorialOpHTML(opId,rango);
+}
+
+// REPORTE DE HORAS
+function toggleReporteHoras() {
+  const el=document.getElementById('op-reporte-panel');
+  if(!el)return;
+  if(el.style.display==='none'){
+    el.style.display='block';
+    el.innerHTML=_buildReportePanel();
+  } else {
+    el.style.display='none';
+  }
+}
+
+function _buildReportePanel() {
+  const hoy=new Date().toISOString().slice(0,10);
+  const hace7=new Date(Date.now()-7*86400000).toISOString().slice(0,10);
+  const opOpts=`<option value="">Todos</option>`+OPERARIOS.map(o=>`<option value="${o.id}">${o.nombre}</option>`).join('');
+  return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:18px;margin-bottom:20px;">
+    <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:14px;">REPORTE DE HORAS</div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;">
+      <div class="field"><label style="font-size:10px;">Operario</label><select id="rpt-op" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;">${opOpts}</select></div>
+      <div class="field"><label style="font-size:10px;">Desde</label><input type="date" id="rpt-desde" value="${hace7}" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;"></div>
+      <div class="field"><label style="font-size:10px;">Hasta</label><input type="date" id="rpt-hasta" value="${hoy}" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:12px;outline:none;"></div>
+      <button class="btn btn-primary btn-sm" onclick="generarReporte()">Generar</button>
+    </div>
+    <div id="rpt-resultado"></div>
+  </div>`;
+}
+
+function generarReporte() {
+  const opId=document.getElementById('rpt-op')?.value||'';
+  const desde=new Date(document.getElementById('rpt-desde')?.value||'').getTime();
+  const hasta=new Date(document.getElementById('rpt-hasta')?.value||'').getTime()+86400000;
+  let sesiones=HISTORIAL.filter(s=>s.inicio>=desde&&s.inicio<=hasta);
+  if(opId)sesiones=sesiones.filter(s=>s.operarioId===opId);
+  sesiones.sort((a,b)=>a.inicio-b.inicio);
+  if(!sesiones.length){document.getElementById('rpt-resultado').innerHTML=`<div class="mono" style="font-size:11px;color:var(--muted);padding:12px 0;">Sin datos para el período seleccionado</div>`;return;}
+  // build rows
+  const rows=sesiones.map(s=>{
+    const op=OPERARIOS.find(o=>o.id===s.operarioId);
+    const ini=new Date(s.inicio).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'});
+    const fin=new Date(s.fin).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'});
+    const fecha=new Date(s.inicio).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit'});
+    const dur=msH(s.fin-s.inicio);
+    const aj=s._ajustado?'*':'';
+    return{op:op?.nombre||'—',fecha,ini:ini+aj,fin:fin+aj,dur,ajustado:!!s._ajustado};
+  });
+  // totales por operario
+  const totales={};
+  rows.forEach(r=>{totales[r.op]=(totales[r.op]||0)+r.dur;});
+  window._rptRows=rows;window._rptTotales=totales;
+  window._rptDesde=document.getElementById('rpt-desde')?.value;
+  window._rptHasta=document.getElementById('rpt-hasta')?.value;
+  const hayAjustados=rows.some(r=>r.ajustado);
+  let t=`<div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;" id="rpt-tabla">
+      <thead><tr style="border-bottom:2px solid var(--border);">
+        <th style="text-align:left;padding:7px 10px;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">OPERARIO</th>
+        <th style="text-align:left;padding:7px 10px;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">FECHA</th>
+        <th style="text-align:left;padding:7px 10px;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">ENTRADA</th>
+        <th style="text-align:left;padding:7px 10px;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">SALIDA</th>
+        <th style="text-align:right;padding:7px 10px;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">TOTAL</th>
+      </tr></thead><tbody>`;
+  rows.forEach(r=>{
+    t+=`<tr style="border-bottom:1px solid rgba(37,40,54,.3);">
+      <td style="padding:7px 10px;">${r.op}</td>
+      <td style="padding:7px 10px;font-family:'JetBrains Mono',monospace;">${r.fecha}</td>
+      <td style="padding:7px 10px;font-family:'JetBrains Mono',monospace;">${r.ini}</td>
+      <td style="padding:7px 10px;font-family:'JetBrains Mono',monospace;">${r.fin}</td>
+      <td style="padding:7px 10px;text-align:right;font-family:'JetBrains Mono',monospace;color:var(--amber);font-weight:700;">${fmtH(r.dur)}</td>
+    </tr>`;
+  });
+  // totales
+  Object.entries(totales).forEach(([nombre,h])=>{
+    t+=`<tr style="border-top:2px solid var(--border);background:var(--panel);">
+      <td style="padding:7px 10px;font-weight:700;">${nombre}</td>
+      <td colspan="3" style="padding:7px 10px;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">TOTAL</td>
+      <td style="padding:7px 10px;text-align:right;font-family:'JetBrains Mono',monospace;color:var(--green);font-weight:700;">${fmtH(h)}</td>
+    </tr>`;
+  });
+  t+=`</tbody></table></div>`;
+  if(hayAjustados)t+=`<div style="font-size:10px;color:var(--muted);margin-top:8px;">* Horario ajustado manualmente</div>`;
+  t+=`<div style="display:flex;gap:8px;margin-top:12px;">
+    <button class="btn btn-ghost btn-sm" onclick="imprimirReporte()">🖨 Imprimir</button>
+    <button class="btn btn-ghost btn-sm" onclick="copiarReporte()">📋 Copiar tabla</button>
+  </div>`;
+  document.getElementById('rpt-resultado').innerHTML=t;
+}
+
+function imprimirReporte() {
+  if(!window._rptRows)return;
+  const periodo=`${window._rptDesde||''} — ${window._rptHasta||''}`;
+  let body=`<html><head><title>Reporte Maderable</title><style>
+    body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:32px;}
+    h1{font-size:22px;margin-bottom:4px;}
+    .sub{font-size:12px;color:#666;margin-bottom:24px;}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px;}
+    th{text-align:left;padding:7px 10px;border-bottom:2px solid #111;font-size:10px;text-transform:uppercase;}
+    td{padding:7px 10px;border-bottom:1px solid #ddd;}
+    .tot td{font-weight:700;border-top:2px solid #111;background:#f5f5f5;}
+    .nota{font-size:10px;color:#666;margin-top:8px;}
+    .fecha{font-size:10px;color:#999;margin-top:24px;}
+  </style></head><body>
+  <h1>MADERABLE</h1>
+  <div class="sub">Reporte de Horas · ${periodo}</div>
+  <table><thead><tr><th>Operario</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th style="text-align:right;">Total</th></tr></thead><tbody>`;
+  window._rptRows.forEach(r=>{body+=`<tr><td>${r.op}</td><td>${r.fecha}</td><td>${r.ini}</td><td>${r.fin}</td><td style="text-align:right;">${fmtH(r.dur)}</td></tr>`;});
+  Object.entries(window._rptTotales||{}).forEach(([n,h])=>{body+=`<tr class="tot"><td>${n}</td><td colspan="3">TOTAL</td><td style="text-align:right;">${fmtH(h)}</td></tr>`;});
+  const hayAj=window._rptRows.some(r=>r.ajustado);
+  body+=`</tbody></table>${hayAj?'<p class="nota">* Horario ajustado manualmente</p>':''}<div class="fecha">Generado: ${new Date().toLocaleString('es-UY')}</div></body></html>`;
+  const w=window.open('','_blank','width=800,height=600');
+  w.document.write(body);w.document.close();w.print();
+}
+
+function copiarReporte() {
+  if(!window._rptRows)return;
+  let txt='Operario\tFecha\tEntrada\tSalida\tTotal\n';
+  window._rptRows.forEach(r=>{txt+=`${r.op}\t${r.fecha}\t${r.ini}\t${r.fin}\t${fmtH(r.dur)}\n`;});
+  txt+='\n';
+  Object.entries(window._rptTotales||{}).forEach(([n,h])=>{txt+=`${n}\t\t\tTOTAL\t${fmtH(h)}\n`;});
+  navigator.clipboard.writeText(txt).then(()=>alert('Tabla copiada al portapapeles'));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
