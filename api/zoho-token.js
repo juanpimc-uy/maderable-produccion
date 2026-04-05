@@ -1,7 +1,17 @@
 export const config = { runtime: 'edge' };
 
+let cachedToken = null;
+let tokenExpiry = null;
+
 export default async function handler(req) {
   if (req.method === 'GET') {
+    // Devolver cache si el token vence en más de 60 segundos
+    if (cachedToken && tokenExpiry && tokenExpiry > Date.now() + 60000) {
+      return new Response(JSON.stringify({ access_token: cachedToken }), {
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      });
+    }
+
     const params = new URLSearchParams();
     params.append('client_id', process.env.ZOHO_CLIENT_ID);
     params.append('client_secret', process.env.ZOHO_CLIENT_SECRET);
@@ -13,6 +23,12 @@ export default async function handler(req) {
       body: params,
     });
     const data = await res.json();
+
+    if (data.access_token) {
+      cachedToken = data.access_token;
+      tokenExpiry = Date.now() + ((data.expires_in || 3600) * 1000);
+    }
+
     return new Response(JSON.stringify(data), {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     });
