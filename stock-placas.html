@@ -128,6 +128,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
   <div style="flex:1;padding:8px 0;">
     <div class="nav-item active" id="nav-ingreso" onclick="switchTab('ingreso')">⬆ Ingreso</div>
     <div class="nav-item" id="nav-salida" onclick="switchTab('salida')">⬇ Salida</div>
+    <div class="nav-item" id="nav-inventario" onclick="switchTab('inventario')">▦ Inventario</div>
     <div class="nav-item" id="nav-busqueda" onclick="switchTab('busqueda')">⊙ Búsqueda</div>
     <div class="nav-item" id="nav-estanteria" onclick="switchTab('estanteria')">⬡ Estantería</div>
     <div class="nav-item" id="nav-historial" onclick="switchTab('historial')">📋 Historial</div>
@@ -165,6 +166,34 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
     <input class="cat-search" id="cat-search-input" placeholder="🔍 Buscar artículo..." oninput="catDebounce(this.value)" autocomplete="off"/>
     <div class="cat-results" id="cat-results">
       <div class="cat-status">Escribí para buscar en el catálogo de Zoho</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AGREGAR STOCK MANUAL -->
+<div class="overlay" id="inv-add-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal" style="width:420px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div class="modal-title">Agregar stock manualmente</div>
+      <button onclick="document.getElementById('inv-add-overlay').classList.remove('open')" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="field">
+        <label>SKU del artículo</label>
+        <input id="inv-add-sku" placeholder="Ej: MDFMB1827" autocomplete="off"/>
+      </div>
+      <div class="field">
+        <label>Posición</label>
+        <select id="inv-add-pos" style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:'Space Mono',monospace;font-size:12px;outline:none;width:100%;"></select>
+      </div>
+      <div class="field">
+        <label>Cantidad</label>
+        <input id="inv-add-qty" type="number" min="1" value="1"/>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
+      <button class="btn btn-ghost" onclick="document.getElementById('inv-add-overlay').classList.remove('open')">Cancelar</button>
+      <button class="btn btn-success" id="inv-add-btn" onclick="invConfirmarAgregar()">Agregar</button>
     </div>
   </div>
 </div>
@@ -263,7 +292,18 @@ let ingresoUltimoLote = [];
 
 let salidaMode = 'so';
 let salidaSO = null;
-let salidaItems = [];
+let salidaItems = [];       // legacy (QR mode scan list)
+let salidaSoItems = [];     // new: [{nombre,sku,plate_type_id,cantidadNecesaria,posiciones:[{position_id,disponible,sacar,_order}]}]
+let salidaEnPreview = false;
+let salidaOrdenRetiro = []; // flattened ordered list for preview
+let salidaObraGlobal = '';
+
+// Inventario
+let invData = [];           // all-stock rows
+let invFiltro = '';
+let invFormato = '';
+let invEditando = null;     // stock_id being edited inline
+let invAgregando = false;   // show add-manually modal
 
 let busqResultados = [];
 let busqItem = null;
@@ -317,15 +357,16 @@ function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   document.getElementById('nav-'+tab).classList.add('active');
-  const titles = {ingreso:'INGRESO',salida:'SALIDA',busqueda:'BÚSQUEDA',estanteria:'ESTANTERÍA',historial:'HISTORIAL'};
-  document.getElementById('topbar-title').textContent = titles[tab];
+  const titles = {ingreso:'INGRESO',salida:'SALIDA',inventario:'INVENTARIO',busqueda:'BÚSQUEDA',estanteria:'ESTANTERÍA',historial:'HISTORIAL'};
+  document.getElementById('topbar-title').textContent = titles[tab]||tab.toUpperCase();
   renderTab(tab);
 }
 
 function renderTab(tab) {
   const c = document.getElementById('content');
-  if (tab==='ingreso')    c.innerHTML = tplIngreso();
-  else if (tab==='salida')     c.innerHTML = tplSalida();
+  if      (tab==='ingreso')    c.innerHTML = tplIngreso();
+  else if (tab==='salida')     { c.innerHTML = tplSalida(); attachSalidaDrag(); }
+  else if (tab==='inventario') { c.innerHTML = '<div style="padding:8px 0;color:var(--muted);font-size:12px;">Cargando inventario...</div>'; cargarInventario(); }
   else if (tab==='busqueda')   c.innerHTML = tplBusqueda();
   else if (tab==='estanteria') c.innerHTML = tplEstanteria();
   else if (tab==='historial')  c.innerHTML = tplHistorial();
@@ -1042,20 +1083,167 @@ function imprimirReporteUbicacion() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// TAB 2: SALIDA
 // ═══════════════════════════════════════════════════════════
-function tplSalida() {
-  return `
-  <div class="sec">Salida de stock</div>
-  <div class="mode-toggle">
-    <button class="mode-btn ${salidaMode==='so'?'active':''}" onclick="setSalidaMode('so')">Por SO de Zoho</button>
-    <button class="mode-btn ${salidaMode==='articulo'?'active':''}" onclick="setSalidaMode('articulo')">Por artículo</button>
-  </div>
-  ${salidaMode==='so' ? tplSalidaSO() : tplSalidaArticulo()}
-  ${salidaItems.length ? tplSalidaPreview() : ''}`;
+// TAB INVENTARIO
+// ═══════════════════════════════════════════════════════════
+async function cargarInventario() {
+  try {
+    const data = await fetch(NEON+'?action=all-stock').then(r=>r.json());
+    invData = Array.isArray(data) ? data : [];
+  } catch(e) { invData = []; }
+  document.getElementById('content').innerHTML = tplInventario();
 }
 
-function setSalidaMode(m){ salidaMode=m; salidaItems=[]; salidaSO=null; renderTab('salida'); }
+function tplInventario() {
+  const filtrado = invData.filter(row=>{
+    if(invFormato && row.format !== invFormato) return false;
+    if(invFiltro) {
+      const q = invFiltro.toLowerCase();
+      if(!(row.name||'').toLowerCase().includes(q) && !(row.sku||'').toLowerCase().includes(q) && !row.position_id.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+  const totalPos = new Set(filtrado.map(r=>r.position_id)).size;
+  const totalUnd = filtrado.reduce((a,r)=>a+(r.quantity||0),0);
+
+  const filas = filtrado.map(row=>{
+    if(invEditando===row.stock_id) return tplInvFilaEditar(row);
+    return `<tr>
+      <td class="mono" style="font-weight:700;color:var(--amber);font-size:12px;">${row.position_id}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${row.name||''}">${row.name||'—'}</td>
+      <td class="mono" style="font-size:10px;color:var(--amber);">${row.sku||'—'}</td>
+      <td><span style="font-size:10px;background:rgba(245,166,35,.12);padding:2px 6px;border-radius:3px;font-family:'Space Mono',monospace;">${row.format}</span></td>
+      <td class="mono" style="text-align:right;font-weight:700;">${row.quantity}</td>
+      <td style="white-space:nowrap;">
+        <button onclick="invEditando='${row.stock_id}';renderTab('inventario')" style="background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:11px;padding:3px 8px;margin-right:4px;">✏</button>
+        <button onclick="invEliminar('${row.position_id}',${row.plate_type_id},'${(row.name||'').replace(/'/g,"\\'")}',${row.quantity})" style="background:none;border:1px solid rgba(240,92,92,.3);border-radius:4px;color:var(--red);cursor:pointer;font-size:11px;padding:3px 8px;">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+    <div class="sec" style="margin:0;">Stock en depósito</div>
+    <button class="btn btn-primary btn-sm" onclick="invMostrarAgregar()">+ Agregar stock manualmente</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+    <input placeholder="Buscar artículo o SKU..." value="${invFiltro}"
+      oninput="invFiltro=this.value;document.getElementById('content').innerHTML=tplInventario();"
+      style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:7px 11px;color:var(--text);font-size:13px;outline:none;flex:1;min-width:160px;"/>
+    <select onchange="invFormato=this.value;document.getElementById('content').innerHTML=tplInventario();"
+      style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-family:'Space Mono',monospace;font-size:11px;outline:none;">
+      <option value="" ${!invFormato?'selected':''}>Todos los formatos</option>
+      <option value="A" ${invFormato==='A'?'selected':''}>Formato A</option>
+      <option value="B" ${invFormato==='B'?'selected':''}>Formato B</option>
+    </select>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden;">
+    <table class="tbl">
+      <thead><tr><th>Posición</th><th>Artículo</th><th>SKU</th><th>Formato</th><th style="text-align:right;">Cant.</th><th>Acciones</th></tr></thead>
+      <tbody>${filas||`<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--muted);font-size:13px;">${invData.length?'Sin resultados para ese filtro':'Sin stock registrado'}</td></tr>`}</tbody>
+    </table>
+  </div>
+  <div style="margin-top:12px;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">
+    ${totalPos} posición${totalPos!==1?'es':''} ocupada${totalPos!==1?'s':''} · ${totalUnd} unidad${totalUnd!==1?'es':''} en depósito
+  </div>`;
+}
+
+function tplInvFilaEditar(row) {
+  const posOpts = positions.map(p=>`<option value="${p.id}" ${p.id===row.position_id?'selected':''}>${p.id} (${p.format})</option>`).join('');
+  return `<tr style="background:rgba(245,166,35,.05);">
+    <td>
+      <select id="inv-ed-pos" style="background:var(--faint);border:1px solid var(--amber);border-radius:4px;padding:4px 6px;color:var(--text);font-family:'Space Mono',monospace;font-size:10px;outline:none;">
+        ${posOpts}
+      </select>
+    </td>
+    <td colspan="2" style="color:var(--muted);font-size:12px;">${row.name||'—'} <span class="mono" style="font-size:10px;color:var(--amber);">${row.sku||''}</span></td>
+    <td><span style="font-size:10px;background:rgba(245,166,35,.12);padding:2px 6px;border-radius:3px;font-family:'Space Mono',monospace;">${row.format}</span></td>
+    <td>
+      <input id="inv-ed-qty" type="number" min="0" value="${row.quantity}"
+        style="width:70px;background:var(--faint);border:1px solid var(--amber);border-radius:4px;padding:4px 6px;color:var(--text);font-family:'Space Mono',monospace;font-size:12px;outline:none;text-align:right;"/>
+    </td>
+    <td style="white-space:nowrap;">
+      <button onclick="invGuardar('${row.position_id}',${row.plate_type_id})" style="background:var(--green);border:none;border-radius:4px;color:#0f0f0f;cursor:pointer;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:4px 8px;margin-right:4px;">✓ Guardar</button>
+      <button onclick="invEditando=null;renderTab('inventario')" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;color:var(--muted);cursor:pointer;font-size:11px;padding:3px 8px;">✗</button>
+    </td>
+  </tr>`;
+}
+
+async function invGuardar(origPosId, plate_type_id) {
+  const newPosId = document.getElementById('inv-ed-pos')?.value || origPosId;
+  const qty = parseInt(document.getElementById('inv-ed-qty')?.value)||0;
+  try {
+    await fetch(NEON+'?action=update-stock',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({position_id:newPosId, plate_type_id, quantity:qty})});
+    invEditando = null;
+    await recargarStock();
+    await cargarInventario();
+  } catch(e){ alert('Error: '+e.message); }
+}
+
+async function invEliminar(position_id, plate_type_id, nombre, qty) {
+  if(!confirm(`¿Eliminar registro de stock?\n${nombre} @ ${position_id} — ${qty} unidades`)) return;
+  try {
+    await fetch(NEON+'?action=delete-stock',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({position_id, plate_type_id})});
+    await recargarStock();
+    await cargarInventario();
+  } catch(e){ alert('Error: '+e.message); }
+}
+
+function invMostrarAgregar() {
+  const sel = document.getElementById('inv-add-pos');
+  if(sel) {
+    sel.innerHTML = positions.map(p=>{
+      const qty = stockData.find(s=>s.position_id===p.id)?.quantity||0;
+      return `<option value="${p.id}">${p.id} (${p.format}) · ${qty}/${p.capacity||'?'}</option>`;
+    }).join('') || '<option value="">Sin posiciones — ejecutá Seed DB</option>';
+  }
+  document.getElementById('inv-add-overlay').classList.add('open');
+}
+
+async function invConfirmarAgregar() {
+  const sku     = document.getElementById('inv-add-sku')?.value?.trim();
+  const posId   = document.getElementById('inv-add-pos')?.value;
+  const qty     = parseInt(document.getElementById('inv-add-qty')?.value)||0;
+  if(!sku||!posId||!qty){ alert('Completá todos los campos'); return; }
+  const btn = document.getElementById('inv-add-btn');
+  btn.disabled=true; btn.textContent='Guardando...';
+  try {
+    // Asegurar plate_type existe
+    const ptRes = await fetch(`${NEON}?action=plate-type&sku=${encodeURIComponent(sku)}&name=${encodeURIComponent(sku)}&format=A`);
+    const pt = await ptRes.json();
+    await fetch(NEON+'?action=update-stock',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({position_id:posId, plate_type_id:pt.id, quantity:qty})});
+    document.getElementById('inv-add-overlay').classList.remove('open');
+    await recargarStock();
+    await cargarInventario();
+  } catch(e){ alert('Error: '+e.message); }
+  finally { btn.disabled=false; btn.textContent='Agregar'; }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB 2: SALIDA (refactorizado)
+// ═══════════════════════════════════════════════════════════
+function setSalidaMode(m) {
+  salidaMode=m; salidaItems=[]; salidaSO=null; salidaSoItems=[];
+  salidaEnPreview=false; salidaOrdenRetiro=[]; salidaObraGlobal='';
+  renderTab('salida');
+}
+
+function tplSalida() {
+  if(salidaEnPreview) return tplSalidaPreviewFinal();
+  return `
+  <div class="sec">Salida de stock</div>
+  <div class="mode-toggle" style="max-width:480px;">
+    <button class="mode-btn ${salidaMode==='so'?'active':''}"       onclick="setSalidaMode('so')">Por SO de Zoho</button>
+    <button class="mode-btn ${salidaMode==='articulo'?'active':''}" onclick="setSalidaMode('articulo')">Por artículo</button>
+    <button class="mode-btn ${salidaMode==='qr'?'active':''}"       onclick="setSalidaMode('qr')">Escaneo QR</button>
+  </div>
+  ${salidaMode==='so'      ? tplSalidaSO()      : ''}
+  ${salidaMode==='articulo'? tplSalidaArticulo(): ''}
+  ${salidaMode==='qr'      ? tplSalidaQR()      : ''}`;
+}
 
 function tplSalidaSO() {
   return `
@@ -1069,55 +1257,294 @@ function tplSalidaSO() {
       <button class="btn btn-primary" onclick="buscarSO()">Buscar en Zoho</button>
     </div>
     <div id="so-status" style="margin-top:12px;"></div>
-  </div>`;
+  </div>
+  ${salidaSoItems.length ? tplSalidaSoItems() : ''}`;
 }
 
 function tplSalidaArticulo() {
   return `
   <div class="card">
     <div class="sec">Artículo a retirar</div>
-    <button class="btn btn-primary" onclick="abrirCatalogo(it=>agregarItemSalida(it))">Buscar artículo en Zoho</button>
-  </div>`;
-}
-
-function tplSalidaPreview() {
-  return `
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-      <div class="sec" style="margin:0;">Vista previa de retiro</div>
-      <div style="display:flex;gap:6px;">
-        <button class="btn btn-ghost btn-sm" onclick="imprimirResumen('obra')">Ordenar por Obra</button>
-        <button class="btn btn-ghost btn-sm" onclick="imprimirResumen('posicion')">Ordenar por Posición</button>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="abrirCatalogo(it=>agregarItemSalidaArticulo(it))">Buscar artículo en Zoho</button>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="mono" style="font-size:10px;color:var(--muted);">Obra:</span>
+        <input value="${salidaObraGlobal}" placeholder="Nombre de obra..."
+          onchange="salidaObraGlobal=this.value"
+          style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:13px;outline:none;width:180px;"/>
       </div>
     </div>
+  </div>
+  ${salidaSoItems.length ? tplSalidaSoItems() : ''}`;
+}
+
+function tplSalidaQR() {
+  return `
+  <div class="card">
+    <div class="sec">Escaneá las etiquetas de las placas a retirar</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+      <input id="scan-input" class="scan-input"
+             style="flex:1;min-width:200px;font-size:16px;padding:14px;"
+             placeholder="Esperando escaneo de QR..."
+             onchange="procesarScan(this.value);this.value=''" autofocus/>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="mono" style="font-size:10px;color:var(--muted);">Obra global:</span>
+        <input value="${salidaObraGlobal}" placeholder="Nombre de obra..."
+          onchange="salidaObraGlobal=this.value"
+          style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:13px;outline:none;width:160px;"/>
+      </div>
+    </div>
+    <div id="scan-feedback" style="margin-bottom:10px;"></div>
+    ${salidaItems.length ? `
     <table class="tbl">
-      <thead><tr><th>Artículo</th><th>SKU</th><th>Posición</th><th>Cantidad</th><th>Obra</th><th></th></tr></thead>
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Posición</th><th>Cant.</th><th>Obra</th><th></th></tr></thead>
       <tbody>
         ${salidaItems.map((it,i)=>`<tr>
-          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${it.nombre}">${it.nombre}</td>
-          <td><span class="mono" style="font-size:11px;color:var(--amber);">${it.sku||'—'}</span></td>
-          <td><span class="mono" style="color:var(--amber);font-size:12px;">${it.posicion||'—'}</span>${it._scanned?'<span style="margin-left:6px;color:var(--green);font-size:11px;">✓</span>':''}</td>
-          <td><input type="number" min="1" value="${it.cantidad}" style="width:70px;"
+          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.nombre}</td>
+          <td class="mono" style="font-size:10px;color:var(--amber);">${it.sku||'—'}</td>
+          <td class="mono" style="color:var(--amber);font-size:11px;">${it.posicion||'—'} ${it._scanned?'<span style="color:var(--green);">✓</span>':''}</td>
+          <td><input type="number" min="1" value="${it.cantidad}" style="width:60px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);outline:none;"
                onchange="salidaItems[${i}].cantidad=Math.max(1,+this.value)"/></td>
-          <td><input value="${it.obra||''}" placeholder="Obra..." style="width:120px;"
+          <td><input value="${it.obra||''}" placeholder="Obra..."
+               style="width:110px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);font-size:12px;outline:none;"
                onchange="salidaItems[${i}].obra=this.value"/></td>
-          <td><button onclick="salidaItems.splice(${i},1);renderTab('salida')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;">×</button></td>
+          <td><button onclick="salidaItems.splice(${i},1);renderTab('salida')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;">×</button></td>
         </tr>`).join('')}
       </tbody>
     </table>
-    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
-      <div class="sec">Confirmación</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-        <button class="btn btn-danger" id="btn-confirm-salida" onclick="confirmarSalida()">Confirmar todo</button>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span class="mono" style="font-size:10px;color:var(--muted);">O escanear QR:</span>
-          <input class="scan-input" id="scan-input" style="width:220px;"
-                 placeholder="Escanear etiqueta..." onchange="procesarScan(this.value);this.value=''"/>
+    <div style="margin-top:14px;display:flex;gap:8px;">
+      <button class="btn btn-danger" onclick="confirmarSalidaQR()">✓ Confirmar retiro</button>
+    </div>` : '<div style="font-size:13px;color:var(--muted);">Escaneá etiquetas para agregar ítems.</div>'}`;
+}
+
+function tplSalidaSoItems() {
+  const allReady = salidaSoItems.length>0 && salidaSoItems.every(it=>
+    it.posiciones.reduce((a,p)=>a+p.sacar,0)>0
+  );
+  return `
+  <div style="margin-top:6px;">
+    ${salidaSoItems.map((item,si)=>`
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+        <div>
+          <span style="font-weight:600;font-size:14px;">${item.nombre}</span>
+          <span class="mono" style="font-size:10px;color:var(--amber);margin-left:8px;">${item.sku}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="mono" style="font-size:11px;color:var(--muted);">Necesito: <strong style="color:var(--text);">${item.cantidadNecesaria}</strong></span>
+          ${(()=>{const tot=item.posiciones.reduce((a,p)=>a+p.sacar,0);const ok=tot>=item.cantidadNecesaria;return `<span class="mono" style="font-size:11px;color:${ok?'var(--green)':'var(--red)'};">Seleccionado: ${tot}${ok?' ✓':''}</span>`})()}
         </div>
       </div>
-      <div id="scan-feedback" style="margin-top:10px;"></div>
+      ${item.posiciones.length===0
+        ? `<div class="warn-box">Sin stock disponible para este artículo.</div>`
+        : `<table class="tbl" style="font-size:12px;" id="drag-tbl-${si}">
+          <thead><tr><th style="width:30px;">Orden</th><th style="width:20px;"></th><th>Posición</th><th>Disponible</th><th>Sacar</th></tr></thead>
+          <tbody>
+            ${item.posiciones.map((pos,pi)=>`
+            <tr draggable="true"
+                ondragstart="salidaDragStart(event,${si},${pi})"
+                ondragover="salidaDragOver(event,${si},${pi})"
+                ondrop="salidaDrop(event,${si},${pi})"
+                style="cursor:grab;transition:opacity .15s;" id="drag-row-${si}-${pi}">
+              <td class="mono" style="font-size:11px;color:var(--muted);text-align:center;">
+                <span style="background:var(--faint);border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;">
+                  ${pi+1}
+                </span>
+              </td>
+              <td style="color:var(--muted);font-size:14px;cursor:grab;text-align:center;">⠿</td>
+              <td class="mono" style="font-weight:700;color:var(--amber);">${pos.position_id}</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <div style="width:60px;height:5px;background:var(--faint);border-radius:99px;overflow:hidden;">
+                    <div style="width:${Math.min(100,Math.round(pos.disponible/posCap(positions.find(p=>p.id===pos.position_id)||{})*100))}%;height:100%;background:var(--green);border-radius:99px;"></div>
+                  </div>
+                  <span class="mono" style="font-size:10px;">${pos.disponible}</span>
+                </div>
+              </td>
+              <td>
+                <input type="number" min="0" max="${pos.disponible}" value="${pos.sacar}"
+                  onchange="salidaSoItems[${si}].posiciones[${pi}].sacar=Math.min(${pos.disponible},Math.max(0,+this.value));renderTab('salida')"
+                  style="width:70px;background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:4px 8px;color:var(--text);font-family:'Space Mono',monospace;font-size:12px;outline:none;text-align:right;"/>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`}
+      ${salidaMode==='articulo' ? `
+      <div style="margin-top:8px;display:flex;align-items:center;gap:6px;">
+        <span class="mono" style="font-size:10px;color:var(--muted);">Obra:</span>
+        <input value="${item.obra||salidaObraGlobal}" placeholder="Nombre de obra..."
+          onchange="salidaSoItems[${si}].obra=this.value"
+          style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:5px 8px;color:var(--text);font-size:12px;outline:none;width:180px;"/>
+      </div>` : ''}
+    </div>`).join('')}
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      ${allReady
+        ? `<button class="btn btn-danger" onclick="prepararPreviewSalida()">→ Revisar orden de retiro</button>`
+        : `<button class="btn btn-ghost" disabled>→ Revisar orden de retiro</button>`}
+      <button class="btn btn-ghost btn-sm" onclick="setSalidaMode(salidaMode)">Cancelar</button>
     </div>
   </div>`;
+}
+
+// Drag & drop state
+let _dragSi=-1, _dragPi=-1;
+function salidaDragStart(e,si,pi){ _dragSi=si; _dragPi=pi; e.dataTransfer.effectAllowed='move'; }
+function salidaDragOver(e,si,pi){ e.preventDefault(); e.dataTransfer.dropEffect='move'; }
+function salidaDrop(e,si,pi){
+  e.preventDefault();
+  if(_dragSi!==si||_dragPi===pi) {
+    const arr = salidaSoItems[si].posiciones;
+    const [moved] = arr.splice(_dragPi,1);
+    arr.splice(pi,0,moved);
+    renderTab('salida');
+  }
+}
+function attachSalidaDrag(){ /* drag is inline */ }
+
+function prepararPreviewSalida() {
+  salidaOrdenRetiro = [];
+  salidaSoItems.forEach(item=>{
+    item.posiciones.forEach((pos,pi)=>{
+      if(pos.sacar>0) {
+        salidaOrdenRetiro.push({
+          _order: salidaOrdenRetiro.length+1,
+          position_id: pos.position_id,
+          plate_type_id: item.plate_type_id,
+          nombre: item.nombre,
+          sku: item.sku,
+          cantidad: pos.sacar,
+          obra: item.obra || salidaSO?.reference_number || salidaObraGlobal || '',
+        });
+      }
+    });
+  });
+  salidaEnPreview = true;
+  renderTab('salida');
+}
+
+function tplSalidaPreviewFinal() {
+  const total = salidaOrdenRetiro.reduce((a,r)=>a+r.cantidad,0);
+  return `
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+    <button onclick="salidaEnPreview=false;renderTab('salida')" style="background:var(--faint);border:none;border-radius:5px;padding:5px 12px;color:var(--muted);cursor:pointer;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;">← Volver</button>
+    <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">Orden de retiro</div>
+  </div>
+  <div class="info-box" style="margin-bottom:16px;">
+    El orden de abajo es el orden en que se retiran del depósito. La primera posición queda arriba de la pila. Podés reordenar arrastrando.
+  </div>
+  <div class="card" style="padding:0;overflow:hidden;margin-bottom:16px;">
+    <table class="tbl">
+      <thead><tr><th style="width:50px;">Orden</th><th></th><th>Posición</th><th>Artículo</th><th>Cant.</th><th>Obra</th></tr></thead>
+      <tbody>
+        ${salidaOrdenRetiro.map((row,i)=>`
+        <tr draggable="true"
+            ondragstart="prevDragStart(event,${i})" ondragover="prevDragOver(event,${i})" ondrop="prevDrop(event,${i})"
+            style="cursor:grab;">
+          <td class="mono" style="text-align:center;">
+            <span style="background:var(--faint);border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">
+              ${i+1}
+            </span>
+          </td>
+          <td style="color:var(--muted);font-size:14px;cursor:grab;text-align:center;">⠿</td>
+          <td class="mono" style="font-weight:700;color:var(--amber);">${row.position_id}</td>
+          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${row.nombre}">${row.nombre}</td>
+          <td class="mono" style="font-weight:700;">${row.cantidad}</td>
+          <td style="font-size:12px;color:var(--muted);">${row.obra||'—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+  <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:20px;">
+    Total: <strong style="color:var(--text);">${total} unidades</strong> en ${salidaOrdenRetiro.length} retiro${salidaOrdenRetiro.length!==1?'s':''}
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:520px;">
+    <button onclick="imprimirOrdenRetiro()"
+      style="padding:18px;background:var(--card);border:1px solid var(--amber);border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-family:'Space Mono',monospace;color:var(--amber);"
+      onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
+      <span style="font-size:24px;">🖨</span>
+      <span style="font-size:10px;font-weight:700;letter-spacing:.5px;">IMPRIMIR LISTA</span>
+    </button>
+    <button id="btn-confirm-salida" onclick="confirmarSalidaFinal()"
+      style="padding:18px;background:var(--red);border:none;border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-family:'Space Mono',monospace;color:#fff;"
+      onmouseover="this.style.opacity='.82'" onmouseout="this.style.opacity='1'">
+      <span style="font-size:24px;">✓</span>
+      <span style="font-size:10px;font-weight:700;letter-spacing:.5px;">CONFIRMAR SALIDA</span>
+    </button>
+  </div>`;
+}
+
+let _prevDragI=-1;
+function prevDragStart(e,i){ _prevDragI=i; e.dataTransfer.effectAllowed='move'; }
+function prevDragOver(e,i){ e.preventDefault(); }
+function prevDrop(e,i){
+  e.preventDefault();
+  if(_prevDragI!==i){
+    const [moved]=salidaOrdenRetiro.splice(_prevDragI,1);
+    salidaOrdenRetiro.splice(i,0,moved);
+    renderTab('salida');
+  }
+}
+
+function imprimirOrdenRetiro() {
+  const fecha = new Date().toLocaleDateString('es-AR');
+  const soLabel = salidaSO ? salidaSO.salesorder_number : salidaObraGlobal || 'Salida manual';
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>Orden de retiro</title><style>
+    body{font-family:monospace;padding:24px;color:#000;font-size:12px;}
+    h2{margin-bottom:4px;font-size:16px;}
+    .sub{color:#666;margin-bottom:20px;font-size:11px;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{border:1px solid #ccc;padding:7px 10px;text-align:left;}
+    th{background:#f0f0f0;text-transform:uppercase;font-size:10px;letter-spacing:1px;}
+    .ord{background:#FFD600;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;}
+    @media print{button{display:none;}}
+  </style></head><body>
+    <h2>Orden de retiro — ${soLabel}</h2>
+    <div class="sub">${fecha} · ${salidaOrdenRetiro.reduce((a,r)=>a+r.cantidad,0)} unidades</div>
+    <table>
+      <thead><tr><th>Orden</th><th>Posición</th><th>Artículo</th><th>Cant.</th><th>Obra</th></tr></thead>
+      <tbody>${salidaOrdenRetiro.map((row,i)=>`
+        <tr><td><span class="ord">${i+1}</span></td>
+        <td><strong>${row.position_id}</strong></td>
+        <td>${row.nombre}</td>
+        <td><strong>${row.cantidad}</strong></td>
+        <td>${row.obra||'—'}</td></tr>`).join('')}
+      </tbody>
+    </table>
+    <br/><button onclick="window.print()">Imprimir</button>
+  </body></html>`);
+  w.document.close();
+}
+
+async function confirmarSalidaFinal() {
+  if(!salidaOrdenRetiro.length) return;
+  if(!confirm('¿Confirmar retiro de '+salidaOrdenRetiro.reduce((a,r)=>a+r.cantidad,0)+' unidades?')) return;
+  const btn = document.getElementById('btn-confirm-salida');
+  if(btn){ btn.disabled=true; btn.innerHTML='<span style="font-size:24px;">⏳</span><span style="font-size:10px;font-weight:700;">GUARDANDO...</span>'; }
+  try {
+    const soNum = salidaSO?.salesorder_number||null;
+    await fetch(NEON+'?action=confirm-salida',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({items:salidaOrdenRetiro.map(r=>({position_id:r.position_id,plate_type_id:r.plate_type_id,quantity:r.cantidad,obra:r.obra||null})),so_number:soNum})});
+    await recargarStock();
+    salidaSO=null; salidaItems=[]; salidaSoItems=[]; salidaEnPreview=false; salidaOrdenRetiro=[]; salidaObraGlobal='';
+    renderTab('salida');
+  } catch(e){
+    if(btn){ btn.disabled=false; btn.innerHTML='<span style="font-size:24px;">✓</span><span style="font-size:10px;font-weight:700;">CONFIRMAR SALIDA</span>'; }
+    alert('Error: '+e.message);
+  }
+}
+
+// Legacy confirmarSalida (modo QR)
+async function confirmarSalidaQR() {
+  if(!salidaItems.length) return;
+  if(!confirm('¿Confirmar retiro de '+salidaItems.reduce((a,i)=>a+i.cantidad,0)+' unidades?')) return;
+  try {
+    const soNum = salidaSO?.salesorder_number||null;
+    await fetch(NEON+'?action=confirm-salida',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({items:salidaItems.filter(it=>it.posicion&&it.plate_type_id).map(it=>({position_id:it.posicion,plate_type_id:it.plate_type_id,quantity:it.cantidad,obra:it.obra||salidaObraGlobal||null})),so_number:soNum})});
+    await recargarStock();
+    salidaItems=[]; renderTab('salida');
+  } catch(e){ alert('Error: '+e.message); }
 }
 
 async function buscarSO() {
@@ -1135,17 +1562,58 @@ async function buscarSO() {
     const det = await r2.json();
     salidaSO = det.salesorder||sos[0];
     st.innerHTML='';
-    const obra = salidaSO.reference_number||salidaSO.delivery_address?.address||'';
-    salidaItems = (salidaSO.line_items||[]).map(it=>{
+    // Para cada line_item, buscar posiciones con stock disponible
+    salidaSoItems = await Promise.all((salidaSO.line_items||[]).map(async it=>{
       const sku = it.sku||'';
-      const pt = plateTypes.find(p=>p.sku===sku);
-      const posEntry = pt ? calcPosRetiro(pt) : null;
-      return {nombre:it.name||'—',sku,cantidad:it.quantity||1,posicion:posEntry?.position_id||null,plate_type_id:pt?.id||null,obra,_scanned:false};
-    });
+      const pt  = plateTypes.find(p=>p.sku===sku);
+      let posiciones = [];
+      if(sku) {
+        try {
+          const rows = await fetch(`${NEON}?action=stock-by-sku&sku=${encodeURIComponent(sku)}`).then(r=>r.json());
+          posiciones = (Array.isArray(rows)?rows:[]).map((row,i)=>({
+            position_id: row.position_id,
+            disponible:  row.disponible,
+            sacar:       0,
+            _order:      i,
+          }));
+          // Auto-sugerir: llenar desde el menos stock primero
+          let restante = it.quantity||1;
+          for(const p of posiciones) {
+            const tomar = Math.min(p.disponible, restante);
+            p.sacar = tomar;
+            restante -= tomar;
+            if(restante<=0) break;
+          }
+        } catch(e) {}
+      }
+      return {
+        nombre: it.name||'—',
+        sku,
+        plate_type_id: pt?.id||null,
+        cantidadNecesaria: it.quantity||1,
+        obra: salidaSO.reference_number||'',
+        posiciones,
+      };
+    }));
     renderTab('salida');
   } catch(e) {
     document.getElementById('so-status').innerHTML = `<div style="color:var(--red);font-size:12px;">Error: ${e.message}</div>`;
   }
+}
+
+async function agregarItemSalidaArticulo(item) {
+  const sku = item.sku||item.item_id||'';
+  const pt  = plateTypes.find(p=>p.sku===sku);
+  let posiciones = [];
+  if(sku) {
+    try {
+      const rows = await fetch(`${NEON}?action=stock-by-sku&sku=${encodeURIComponent(sku)}`).then(r=>r.json());
+      posiciones = (Array.isArray(rows)?rows:[]).map((row,i)=>({position_id:row.position_id,disponible:row.disponible,sacar:0,_order:i}));
+    } catch(e) {}
+  }
+  salidaSoItems.push({nombre:item.name||sku,sku,plate_type_id:pt?.id||null,cantidadNecesaria:1,obra:salidaObraGlobal,posiciones});
+  cerrarCatalogo();
+  renderTab('salida');
 }
 
 function calcPosRetiro(pt) {
@@ -1155,74 +1623,19 @@ function calcPosRetiro(pt) {
     .sort((a,b)=>(a.quantity||0)-(b.quantity||0))[0]||null;
 }
 
-function agregarItemSalida(item) {
-  const sku = item.sku||item.item_id||'';
-  const pt = plateTypes.find(p=>p.sku===sku);
-  const pos = calcPosRetiro(pt);
-  salidaItems.push({nombre:item.name,sku,cantidad:1,posicion:pos?.position_id||null,plate_type_id:pt?.id||null,obra:'',_scanned:false});
-  cerrarCatalogo();
-  renderTab('salida');
-}
-
-function imprimirResumen(ordenBy) {
-  const items = [...salidaItems].sort((a,b)=>{
-    const ka = ordenBy==='obra'?(a.obra||''):(a.posicion||'');
-    const kb = ordenBy==='obra'?(b.obra||''):(b.posicion||'');
-    return ka.localeCompare(kb);
-  });
-  const w = window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html><head><title>Retiro de placas</title><style>
-    body{font-family:monospace;padding:24px;color:#000;font-size:12px;}
-    h2{margin-bottom:4px;font-size:16px;}
-    .sub{color:#666;margin-bottom:20px;font-size:11px;}
-    table{width:100%;border-collapse:collapse;}
-    th,td{border:1px solid #ccc;padding:7px 10px;text-align:left;}
-    th{background:#f0f0f0;text-transform:uppercase;font-size:10px;letter-spacing:1px;}
-    @media print{button{display:none;}}
-  </style></head><body>
-    <h2>Retiro de placas</h2>
-    <div class="sub">${new Date().toLocaleDateString('es-AR')} · Ordenado por ${ordenBy}</div>
-    <table>
-      <thead><tr><th>Artículo</th><th>SKU</th><th>Posición</th><th>Cantidad</th><th>Obra</th></tr></thead>
-      <tbody>${items.map(it=>`<tr><td>${it.nombre}</td><td>${it.sku||'—'}</td><td>${it.posicion||'—'}</td><td>${it.cantidad}</td><td>${it.obra||'—'}</td></tr>`).join('')}</tbody>
-    </table>
-    <br/><button onclick="window.print()">Imprimir</button>
-  </body></html>`);
-  w.document.close();
-}
-
-async function confirmarSalida() {
-  if(!salidaItems.length) return;
-  if(!confirm('¿Confirmar retiro de '+salidaItems.reduce((a,i)=>a+i.cantidad,0)+' unidades?')) return;
-  const btn = document.getElementById('btn-confirm-salida');
-  btn.disabled=true; btn.textContent='Confirmando...';
-  try {
-    const ts = new Date().toISOString();
-    const soNum = salidaSO?.salesorder_number||null;
-    for(const it of salidaItems){
-      if(!it.posicion||!it.plate_type_id) continue;
-      await fetch(NEON+'?action=confirm-item',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({position_id:it.posicion,plate_type_id:it.plate_type_id,quantity:it.cantidad,
-          op:'subtract',movement_type:'salida',so_number:soNum,obra:it.obra||null})});
-    }
-    await recargarStock();
-    salidaSO=null; salidaItems=[];
-    renderTab('salida');
-  } catch(e){
-    btn.disabled=false; btn.textContent='Confirmar todo';
-    alert('Error: '+e.message);
-  }
-}
-
 function procesarScan(raw) {
   const parts = raw.trim().split('|');
   if(parts.length<3){ document.getElementById('scan-feedback').innerHTML=`<div class="warn-box">QR inválido: ${raw}</div>`; return; }
-  const [sku,,posicion] = parts;
-  const it = salidaItems.find(i=>i.sku===sku&&i.posicion===posicion);
-  if(!it){ document.getElementById('scan-feedback').innerHTML=`<div class="warn-box">No coincide con ningún ítem de la orden: ${sku} @ ${posicion}</div>`; return; }
-  it._scanned = true;
-  const todos = salidaItems.every(i=>i._scanned);
-  document.getElementById('scan-feedback').innerHTML = `<div class="ok-box">✓ ${sku} @ ${posicion} escaneado.${todos?' <strong>Todos listos. Confirmá el retiro.</strong>':''}</div>`;
+  const [sku,nombre,posicion,tamano,espesor] = parts;
+  const pt = plateTypes.find(p=>p.sku===sku);
+  const existing = salidaItems.find(i=>i.sku===sku&&i.posicion===posicion);
+  if(existing) {
+    existing.cantidad++;
+    existing._scanned = true;
+  } else {
+    salidaItems.push({nombre:nombre||sku,sku,cantidad:1,posicion,plate_type_id:pt?.id||null,obra:salidaObraGlobal,_scanned:true});
+  }
+  document.getElementById('scan-feedback').innerHTML = `<div class="ok-box">✓ ${sku} @ ${posicion} escaneado.</div>`;
   renderTab('salida');
 }
 

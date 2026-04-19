@@ -163,6 +163,109 @@ export default async function handler(req, res) {
       return res.json({ ok: true });
     }
 
+    // GET all-stock: stock completo con JOIN positions + plate_types
+    if (action === 'all-stock' && req.method === 'GET') {
+      const r = await client.query(`
+        SELECT s.id AS stock_id, s.quantity,
+               p.id AS position_id, p.column_id, p.level, p.format, p.capacity,
+               pt.id AS plate_type_id, pt.name, pt.sku, pt.format AS pt_format
+        FROM stock s
+        JOIN positions p ON p.id = s.position_id
+        JOIN plate_types pt ON pt.id = s.plate_type_id
+        WHERE s.quantity > 0
+        ORDER BY p.column_id, p.level, pt.name
+      `);
+      return res.json(r.rows);
+    }
+
+    // POST update-stock: actualizar cantidad de un registro de stock
+    if (action === 'update-stock' && req.method === 'POST') {
+      const { position_id, plate_type_id, quantity } = req.body;
+      if (!position_id || !plate_type_id || quantity == null) {
+        return res.status(400).json({ error: 'Faltan campos' });
+      }
+      const qty = Math.max(0, Number(quantity));
+      const prev = await client.query(
+        'SELECT quantity FROM stock WHERE position_id=$1 AND plate_type_id=$2',
+        [position_id, plate_type_id]
+      );
+      const prevQty = prev.rows[0]?.quantity ?? 0;
+      await client.query(
+        `INSERT INTO stock (position_id, plate_type_id, quantity)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (position_id, plate_type_id)
+         DO UPDATE SET quantity = $3`,
+        [position_id, plate_type_id, qty]
+      );
+      await client.query(
+        `INSERT INTO movements (position_id, plate_type_id, quantity, type, reference, created_at)
+         VALUES ($1, $2, $3, 'ajuste-manual', $4, NOW())`,
+        [position_id, plate_type_id, qty - prevQty, `ajuste: ${prevQty}→${qty}`]
+      );
+      return res.json({ ok: true });
+    }
+
+    // POST delete-stock: eliminar registro de stock
+    if (action === 'delete-stock' && req.method === 'POST') {
+      const { position_id, plate_type_id } = req.body;
+      if (!position_id || !plate_type_id) return res.status(400).json({ error: 'Faltan campos' });
+      const prev = await client.query(
+        'SELECT quantity FROM stock WHERE position_id=$1 AND plate_type_id=$2',
+        [position_id, plate_type_id]
+      );
+      const prevQty = prev.rows[0]?.quantity ?? 0;
+      await client.query(
+        'DELETE FROM stock WHERE position_id=$1 AND plate_type_id=$2',
+        [position_id, plate_type_id]
+      );
+      await client.query(
+        `INSERT INTO movements (position_id, plate_type_id, quantity, type, reference, created_at)
+         VALUES ($1, $2, $3, 'ajuste-manual', 'eliminado manualmente', NOW())`,
+        [position_id, plate_type_id, -prevQty]
+      );
+      return res.json({ ok: true });
+    }
+
+    // GET stock-by-sku: posiciones donde hay stock de un SKU, ordenado por quantity ASC
+    if (action === 'stock-by-sku' && req.method === 'GET') {
+      const { sku } = req.query;
+      if (!sku) return res.status(400).json({ error: 'sku requerido' });
+      const r = await client.query(`
+        SELECT s.quantity AS disponible,
+               p.id AS position_id, p.column_id, p.level, p.format, p.capacity,
+               pt.id AS plate_type_id, pt.name, pt.sku
+        FROM stock s
+        JOIN plate_types pt ON pt.id = s.plate_type_id
+        JOIN positions p ON p.id = s.position_id
+        WHERE pt.sku = $1 AND s.quantity > 0
+        ORDER BY s.quantity ASC
+      `, [sku]);
+      return res.json(r.rows);
+    }
+
+    // POST confirm-salida: restar stock en bloque + registrar movimientos
+    if (action === 'confirm-salida' && req.method === 'POST') {
+      const { items, so_number } = req.body;
+      if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'items requerido' });
+      for (const it of items) {
+        const qty = Math.max(0, Number(it.quantity));
+        if (!qty) continue;
+        await client.query(
+          `INSERT INTO stock (position_id, plate_type_id, quantity)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (position_id, plate_type_id)
+           DO UPDATE SET quantity = GREATEST(0, stock.quantity - $3)`,
+          [it.position_id, it.plate_type_id, qty]
+        );
+        await client.query(
+          `INSERT INTO movements (position_id, plate_type_id, quantity, type, reference, created_at)
+           VALUES ($1, $2, $3, 'salida', $4, NOW())`,
+          [it.position_id, it.plate_type_id, qty, [so_number, it.obra].filter(Boolean).join(' · ') || null]
+        );
+      }
+      return res.json({ ok: true });
+    }
+
     return res.status(400).json({ error: 'Acción no reconocida: ' + action });
 
   } catch (err) {
