@@ -97,7 +97,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
 .shelf-pos.empty{background:#2e2e2e;border-color:#353535;}
 .shelf-pos.partial{border-color:rgba(255,214,0,.35);}
 .shelf-pos.full{background:var(--amber);border-color:var(--amber);}
-.shelf-pos.highlighted{box-shadow:0 0 0 2px #fff;}
+.shelf-pos.highlighted{box-shadow:0 0 0 3px #FFD600, 0 0 14px rgba(255,214,0,.6);}
 .tooltip-box{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:8px 10px;min-width:130px;z-index:20;pointer-events:none;display:none;white-space:nowrap;font-size:11px;}
 .shelf-pos:hover .tooltip-box{display:block;}
 
@@ -161,6 +161,20 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
   </div>
 </div>
 
+<!-- MODAL DETALLE POSICIÓN -->
+<div class="overlay" id="pos-overlay" onclick="if(event.target===this)cerrarDetallePosicion()">
+  <div class="modal" style="max-width:440px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="modal-title">Detalle de posición</div>
+      <button onclick="cerrarDetallePosicion()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div id="pos-modal-content"></div>
+    <div style="margin-top:16px;text-align:right;">
+      <button class="btn btn-ghost" onclick="cerrarDetallePosicion()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <!-- PRINT AREA (etiquetas) -->
 <div id="print-area" style="display:none;"></div>
 
@@ -190,6 +204,7 @@ let salidaSO = null;
 let salidaItems = [];
 
 let busqResultados = [];
+let busqItem = null;
 let highlightedPos = [];
 
 let catCb = null, catTimer = null, catItems = [];
@@ -306,16 +321,26 @@ function tplTablaIngreso() {
 }
 
 async function buscarOC() {
-  const num = document.getElementById('oc-num')?.value?.trim();
-  if(!num) return;
+  const rawNum = document.getElementById('oc-num')?.value?.trim();
+  if(!rawNum) return;
   const st = document.getElementById('oc-status');
   st.innerHTML = '<span class="spinner"></span><span style="font-size:12px;color:var(--muted);">Buscando en Zoho...</span>';
   try {
     const token = await getZohoToken();
-    const r = await fetch('/api/zoho-books?endpoint='+encodeURIComponent('purchaseorders?purchaseorder_number='+num)+'&token='+token);
-    const data = await r.json();
-    const ocs = data.purchaseorders||[];
-    if(!ocs.length){ st.innerHTML=`<div class="warn-box">No se encontró la OC <strong>${num}</strong> en Zoho Books.</div>`; return; }
+    const digits = rawNum.replace(/^OC-?0*/i,'').replace(/^0+/,'') || rawNum;
+    const formats = [
+      'OC-' + digits.padStart(5,'0'),
+      'OC-' + digits,
+      digits
+    ];
+    let ocs = [];
+    for(const fmt of formats) {
+      const r = await fetch('/api/zoho-books?endpoint='+encodeURIComponent('purchaseorders?purchaseorder_number='+fmt)+'&token='+token);
+      const data = await r.json();
+      ocs = data.purchaseorders||[];
+      if(ocs.length) break;
+    }
+    if(!ocs.length){ st.innerHTML=`<div class="warn-box">No se encontró la OC <strong>${rawNum}</strong> en Zoho Books.</div>`; return; }
     const r2 = await fetch('/api/zoho-books?endpoint='+encodeURIComponent('purchaseorders/'+ocs[0].purchaseorder_id)+'&token='+token);
     const det = await r2.json();
     ingresoOC = det.purchaseorder||ocs[0];
@@ -615,36 +640,53 @@ function tplBusqueda() {
   return `
   <div class="sec">Búsqueda por artículo</div>
   <div class="card">
-    <button class="btn btn-primary" onclick="abrirCatalogo(it=>buscarEnStock(it))">Buscar artículo en Zoho</button>
+    <div style="display:flex;gap:10px;align-items:flex-end;">
+      <div class="field" style="flex:1;">
+        <label>Artículo</label>
+        <div style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 11px;font-size:14px;color:${busqItem?'var(--text)':'var(--muted)'};">
+          ${busqItem?`<strong>${busqItem.name}</strong> <span class="mono" style="font-size:11px;color:var(--amber);">${busqItem.sku||busqItem.item_id||''}</span>`:'Sin selección'}
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="abrirCatalogo(it=>buscarEnStock(it))">Buscar artículo</button>
+    </div>
     <div id="busq-res" style="margin-top:16px;">${tplBusqResultado()}</div>
   </div>`;
 }
 
 function tplBusqResultado() {
-  if(!busqResultados.length) return '';
+  if(!busqResultados.length) {
+    if(busqItem) return `<div class="warn-box">Este artículo no tiene stock registrado en depósito.</div>`;
+    return '';
+  }
   const total = busqResultados.reduce((a,r)=>a+(r.quantity||0),0);
   return `
-  <div class="sec">Ubicaciones</div>
-  <table class="tbl">
-    <thead><tr><th>Posición</th><th>Cantidad</th><th>Capacidad</th><th>Ocupación</th></tr></thead>
-    <tbody>
-      ${busqResultados.map(r=>{
-        const pos = positions.find(p=>p.id===r.position_id);
-        const cap = pos ? posCap(pos) : CAP_A;
-        const pct = Math.min(100,Math.round((r.quantity||0)/cap*100));
-        return `<tr>
-          <td><span class="mono" style="color:var(--amber);">${r.position_id}</span></td>
-          <td class="mono">${r.quantity||0}</td>
-          <td class="mono">${cap}</td>
-          <td><span class="bar-wrap"><span class="bar-fill" style="width:${pct}%;"></span></span>
-              <span class="mono" style="font-size:10px;color:var(--muted);margin-left:6px;">${pct}%</span></td>
-        </tr>`;
-      }).join('')}
-    </tbody>
-  </table>
-  <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;">
-    <span class="mono" style="font-size:13px;">TOTAL <strong style="color:var(--amber);">${total}</strong> unidades</span>
-    <button class="btn btn-ghost btn-sm" onclick="verEnEstanteria()">Ver en estantería →</button>
+  <div style="border-top:1px solid var(--border);padding-top:14px;">
+    ${busqItem?`<div style="margin-bottom:14px;">
+      <div style="font-weight:600;font-size:15px;">${busqItem.name}</div>
+      <div class="mono" style="font-size:10px;color:var(--amber);margin-top:3px;">SKU: ${busqItem.sku||busqItem.item_id||'—'}</div>
+      <div class="mono" style="font-size:12px;color:var(--muted);margin-top:4px;">Total en depósito: <strong style="color:var(--text);font-size:14px;">${total}</strong> unidades</div>
+    </div>`:''}
+    <table class="tbl">
+      <thead><tr><th>Posición</th><th>Cantidad</th><th>Ocupación</th></tr></thead>
+      <tbody>
+        ${busqResultados.map(r=>{
+          const pos = positions.find(p=>p.id===r.position_id);
+          const cap = pos ? posCap(pos) : CAP_A;
+          const pct = Math.min(100,Math.round((r.quantity||0)/cap*100));
+          const filled = Math.round(pct/10);
+          const bar = '█'.repeat(filled)+'░'.repeat(10-filled);
+          return `<tr>
+            <td><span class="mono" style="color:var(--amber);">${r.position_id}</span></td>
+            <td class="mono">${r.quantity||0}</td>
+            <td><span class="mono" style="font-size:11px;color:var(--amber);">${bar}</span> <span class="mono" style="font-size:10px;color:var(--muted);">${pct}%</span></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;">
+      <span class="mono" style="font-size:13px;">TOTAL <strong style="color:var(--amber);">${total}</strong> unidades</span>
+      <button class="btn btn-ghost btn-sm" onclick="verEnEstanteria()">Ver en estantería →</button>
+    </div>
   </div>`;
 }
 
@@ -654,15 +696,13 @@ function verEnEstanteria() {
 }
 
 async function buscarEnStock(item) {
+  busqItem = item;
   const sku = item.sku||item.item_id||'';
   const pt = plateTypes.find(p=>p.sku===sku);
   cerrarCatalogo();
   if(!pt){ busqResultados=[]; renderTab('busqueda'); return; }
   busqResultados = stockData.filter(s=>s.plate_type_id===pt.id&&(s.quantity||0)>0);
   renderTab('busqueda');
-  // actualizar solo el div resultado sin re-renderizar todo
-  const el = document.getElementById('busq-res');
-  if(el) el.innerHTML = tplBusqResultado();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -677,7 +717,7 @@ function tplEstanteria() {
     <span>Estantería física</span>
     ${highlightedPos.length?`<button class="btn btn-ghost btn-sm" onclick="highlightedPos=[];renderTab('estanteria')">Limpiar resaltado</button>`:''}
   </div>
-  <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;">
+  <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;overflow-x:auto;padding-bottom:8px;width:100%;">
     <div>
       <div class="mono" style="font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;">Formato A — 122 cm</div>
       <div class="shelf-grid">${colsA}</div>
@@ -692,7 +732,7 @@ function tplEstanteria() {
     <div style="display:flex;align-items:center;gap:6px;"><div style="width:16px;height:16px;background:#2e2e2e;border:1px solid #353535;border-radius:3px;"></div><span style="font-size:11px;color:var(--muted);">Vacía</span></div>
     <div style="display:flex;align-items:center;gap:6px;"><div style="width:16px;height:16px;background:rgba(255,214,0,.3);border:1px solid rgba(255,214,0,.35);border-radius:3px;"></div><span style="font-size:11px;color:var(--muted);">Parcial</span></div>
     <div style="display:flex;align-items:center;gap:6px;"><div style="width:16px;height:16px;background:#FFD600;border-radius:3px;"></div><span style="font-size:11px;color:var(--muted);">Llena</span></div>
-    ${highlightedPos.length?`<div style="display:flex;align-items:center;gap:6px;"><div style="width:16px;height:16px;background:rgba(255,214,0,.3);border:2px solid #fff;border-radius:3px;"></div><span style="font-size:11px;color:var(--muted);">Resaltada</span></div>`:''}
+    ${highlightedPos.length?`<div style="display:flex;align-items:center;gap:6px;"><div style="width:16px;height:16px;background:rgba(255,214,0,.3);border:2px solid #FFD600;border-radius:3px;box-shadow:0 0 8px rgba(255,214,0,.5);"></div><span style="font-size:11px;color:var(--muted);">Resaltada</span></div>`:''}
   </div>`;
 }
 
@@ -711,15 +751,16 @@ function shelfPos(posId, cap) {
   else bg=`rgba(255,214,0,${(0.12+pct*0.6).toFixed(2)})`;
   const textCol = cls==='full'?'#0f0f0f':cls==='empty'?'#555':'rgba(255,214,0,.9)';
   return `<div class="shelf-pos ${cls}${hl?' highlighted':''}"
-    style="width:68px;height:38px;background:${bg};${hl?'box-shadow:0 0 0 2px #fff;':''}">
+    onclick="mostrarDetallePosicion('${posId}')"
+    style="width:90px;height:60px;background:${bg};">
     <div class="tooltip-box">
       <div class="mono" style="font-size:10px;color:var(--amber);margin-bottom:2px;">${posId}</div>
       ${pt?`<div style="font-size:11px;margin-bottom:2px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pt.name}</div>`:'<div style="font-size:11px;color:var(--muted);">Vacía</div>'}
       <div class="mono" style="font-size:10px;color:var(--muted);">${qty} / ${cap}</div>
     </div>
     <div style="text-align:center;line-height:1.2;">
-      <div class="mono" style="font-size:8px;color:${textCol};">${posId}</div>
-      ${qty>0?`<div class="mono" style="font-size:9px;color:${cls==='full'?'#0f0f0f':'#aaa'};">${qty}</div>`:''}
+      <div class="mono" style="font-size:9px;color:${textCol};">${posId}</div>
+      ${qty>0?`<div class="mono" style="font-size:10px;color:${cls==='full'?'#0f0f0f':'#aaa'};">${qty}</div>`:''}
     </div>
   </div>`;
 }
@@ -746,16 +787,17 @@ function shelfColEsp() {
   return `<div class="shelf-col">
     <div class="shelf-col-label">B-ESP</div>
     <div class="shelf-pos ${cls}${hl?' highlighted':''}"
-      style="width:68px;height:211px;background:${bg};${hl?'box-shadow:0 0 0 2px #fff;':''}">
+      onclick="mostrarDetallePosicion('${posId}')"
+      style="width:90px;height:320px;background:${bg};">
       <div class="tooltip-box">
         <div class="mono" style="font-size:10px;color:var(--amber);margin-bottom:2px;">${posId}</div>
         ${pt?`<div style="font-size:11px;margin-bottom:2px;">${pt.name}</div>`:'<div style="font-size:11px;color:var(--muted);">Vacía</div>'}
         <div class="mono" style="font-size:10px;color:var(--muted);">${qty} / ${CAP_BESP}</div>
       </div>
       <div style="text-align:center;line-height:1.4;">
-        <div class="mono" style="font-size:8px;color:${textCol};">B-ESP</div>
-        ${qty>0?`<div class="mono" style="font-size:9px;color:${cls==='full'?'#0f0f0f':'#aaa'};">${qty}</div>`:''}
-        <div class="mono" style="font-size:8px;color:var(--muted);margin-top:2px;">cap.150</div>
+        <div class="mono" style="font-size:9px;color:${textCol};">B-ESP</div>
+        ${qty>0?`<div class="mono" style="font-size:10px;color:${cls==='full'?'#0f0f0f':'#aaa'};">${qty}</div>`:''}
+        <div class="mono" style="font-size:9px;color:var(--muted);margin-top:2px;">cap.150</div>
       </div>
     </div>
   </div>`;
@@ -820,6 +862,44 @@ function catSeleccionar(idx) {
   const cb=catCb;
   cerrarCatalogo();
   cb(it);
+}
+
+// ═══════════════════════════════════════════════════════════
+// DETALLE POSICIÓN
+// ═══════════════════════════════════════════════════════════
+function mostrarDetallePosicion(posId) {
+  const pos = positions.find(p=>p.id===posId);
+  const cap = pos ? posCap(pos) : CAP_A;
+  const items = stockData.filter(s=>s.position_id===posId&&(s.quantity||0)>0);
+  let content;
+  if(!items.length) {
+    content = `<div style="color:var(--muted);font-size:13px;padding:8px 0;">Posición vacía</div>`;
+  } else {
+    content = `<table class="tbl">
+      <thead><tr><th>Nombre</th><th>SKU</th><th>Cantidad</th></tr></thead>
+      <tbody>
+        ${items.map(it=>{
+          const pt = plateTypes.find(p=>p.id===it.plate_type_id);
+          return `<tr>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pt?.name||'—'}</td>
+            <td><span class="mono" style="font-size:11px;color:var(--amber);">${pt?.sku||'—'}</span></td>
+            <td class="mono">${it.quantity}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  }
+  document.getElementById('pos-modal-content').innerHTML = `
+    <div style="margin-bottom:14px;">
+      <div class="mono" style="font-size:15px;color:var(--amber);margin-bottom:4px;">${posId}</div>
+      <div class="mono" style="font-size:10px;color:var(--muted);">Capacidad total: ${cap} unidades</div>
+    </div>
+    ${content}`;
+  document.getElementById('pos-overlay').classList.add('open');
+}
+
+function cerrarDetallePosicion() {
+  document.getElementById('pos-overlay').classList.remove('open');
 }
 
 // ═══════════════════════════════════════════════════════════
