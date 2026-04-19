@@ -5,550 +5,1550 @@
 <link rel="icon" href="data:,">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maderable · Stock Placas</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Sora:wght@400;500;600;700&display=swap');
-  :root {
-    --bg:#0E0F14; --panel:#14161D; --card:#1A1D27; --border:#252836; --borderL:#2E3247;
-    --text:#E8EAF2; --muted:#5A5F78; --faint:#20243A;
-    --amber:#F5A623; --green:#3DD68C; --red:#F05C5C;
-    --blue:#5B8DEF; --purple:#9B6DFF; --teal:#2EC4B6; --orange:#F5820A;
-  }
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { background:var(--bg); color:var(--text); font-family:'Sora',sans-serif; min-height:100vh; }
-  ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
-  .mono { font-family:'JetBrains Mono',monospace; }
-  .shell { display:flex; height:100vh; overflow:hidden; }
-  /* sidebar */
-  .sidebar { width:200px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
-  .sidebar-logo { padding:18px 16px; border-bottom:1px solid var(--border); font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; color:var(--amber); letter-spacing:2px; }
-  .nav-item { display:flex; align-items:center; gap:10px; padding:11px 16px; cursor:pointer; font-size:13px; color:var(--muted); border-left:3px solid transparent; transition:all .15s; text-decoration:none; }
-  .nav-item:hover { background:var(--faint); color:var(--text); }
-  .nav-item.active { background:rgba(245,166,35,.08); color:var(--amber); border-left-color:var(--amber); font-weight:600; }
-  .nav-icon { font-size:15px; width:20px; text-align:center; flex-shrink:0; }
-  /* main */
-  .main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
-  .topbar { background:var(--panel); border-bottom:1px solid var(--border); padding:0 24px; height:52px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
-  .content { flex:1; overflow-y:auto; padding:24px; }
-  /* cards */
-  .card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:20px; margin-bottom:20px; }
-  /* tabs */
-  .tabs { display:flex; gap:4px; margin-bottom:20px; border-bottom:1px solid var(--border); padding-bottom:12px; }
-  .tab { padding:5px 16px; border:none; border-radius:5px; cursor:pointer; background:transparent; color:var(--muted); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; }
-  .tab.active { background:var(--amber); color:#0E0F14; }
-  .view { display:none; } .view.active { display:block; }
-  /* table */
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  th { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); }
-  td { padding:10px 12px; border-bottom:1px solid rgba(37,40,54,.6); vertical-align:middle; }
-  tr:last-child td { border-bottom:none; }
-  tr:hover td { background:var(--faint); }
-  /* buttons */
-  .btn { padding:7px 16px; border:none; border-radius:5px; cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; letter-spacing:.5px; transition:opacity .15s; }
-  .btn:hover { opacity:.8; } .btn:disabled { opacity:.4; cursor:not-allowed; }
-  .btn-primary { background:var(--amber); color:#0E0F14; }
-  .btn-ghost   { background:var(--faint); color:var(--muted); }
-  .btn-success { background:var(--green); color:#0E0F14; }
-  .btn-danger  { background:var(--red);   color:#fff; }
-  .btn-sm { padding:4px 10px; font-size:10px; }
-  /* pill */
-  .pill { display:inline-block; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.8px; padding:2px 8px; border-radius:3px; text-transform:uppercase; white-space:nowrap; }
-  .pill-green  { background:rgba(61,214,140,.15); color:var(--green); }
-  .pill-amber  { background:rgba(245,166,35,.15);  color:var(--amber); }
-  .pill-muted  { background:var(--faint); color:var(--muted); }
-  .pill-red    { background:rgba(240,92,92,.15); color:var(--red); }
-  /* sec title */
-  .sec-title { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; }
-  /* inputs */
-  .field { display:flex; flex-direction:column; gap:5px; }
-  .field label { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; }
-  .field input, .field select { background:var(--faint); border:1px solid var(--border); border-radius:5px; padding:8px 10px; color:var(--text); font-family:'Sora',sans-serif; font-size:13px; outline:none; width:100%; }
-  /* pos badge */
-  .pos-badge { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:var(--teal); }
-  .pos-sin-asignar { color:var(--muted); font-size:11px; }
-  /* alert */
-  .alert { border-radius:6px; padding:10px 14px; font-size:12px; margin-bottom:14px; display:none; }
-  .alert.show { display:block; }
-  .alert-ok  { background:rgba(61,214,140,.1); border:1px solid rgba(61,214,140,.3); color:var(--green); }
-  .alert-err { background:rgba(240,92,92,.1);  border:1px solid rgba(240,92,92,.3); color:var(--red); }
-  /* live dot */
-  .live-dot { width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; display:inline-block; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-  /* seed warning */
-  .seed-banner { background:rgba(245,166,35,.08); border:1px solid rgba(245,166,35,.3); border-radius:8px; padding:14px 18px; margin-bottom:16px; display:none; }
-  .seed-banner.show { display:flex; align-items:center; gap:14px; justify-content:space-between; }
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap');
+:root{
+  --bg:#0f0f0f;--panel:#161616;--card:#1e1e1e;--border:#2a2a2a;
+  --text:#e8e8e8;--muted:#5a5a5a;--faint:#222;
+  --amber:#FFD600;--green:#3DD68C;--red:#F05C5C;--blue:#5B8DEF;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;height:100vh;display:flex;overflow:hidden;}
+.mono{font-family:'Space Mono',monospace;}
+
+/* Sidebar */
+.sidebar{width:190px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
+.sidebar-logo{padding:16px;border-bottom:1px solid var(--border);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--amber);letter-spacing:2px;}
+.nav-item{padding:11px 16px;cursor:pointer;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;border-left:2px solid transparent;transition:all .15s;display:flex;align-items:center;gap:8px;}
+.nav-item:hover{color:var(--text);background:rgba(255,214,0,.04);}
+.nav-item.active{color:var(--amber);border-left-color:var(--amber);background:rgba(255,214,0,.06);}
+
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.content{flex:1;overflow-y:auto;padding:24px 28px 80px;}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
+
+/* Buttons */
+.btn{padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;transition:opacity .15s;white-space:nowrap;}
+.btn:hover{opacity:.82;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn-primary{background:var(--amber);color:#0f0f0f;}
+.btn-ghost{background:var(--faint);color:var(--muted);border:1px solid var(--border);}
+.btn-success{background:var(--green);color:#0f0f0f;}
+.btn-danger{background:var(--red);color:#fff;}
+.btn-sm{padding:4px 10px;font-size:9px;}
+
+/* Mode toggle */
+.mode-toggle{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:3px;margin-bottom:20px;max-width:340px;}
+.mode-btn{flex:1;padding:7px 12px;border:none;border-radius:5px;cursor:pointer;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;background:transparent;color:var(--muted);transition:all .2s;letter-spacing:.5px;}
+.mode-btn.active{background:var(--amber);color:#0f0f0f;}
+
+/* Fields */
+.field{display:flex;flex-direction:column;gap:5px;}
+.field label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+.field input,.field select{background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 11px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;width:100%;transition:border-color .2s;}
+.field input:focus{border-color:var(--amber);}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+
+/* Section label */
+.sec{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;}
+
+/* Tables */
+.tbl{width:100%;border-collapse:collapse;}
+.tbl th{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;padding:6px 10px;text-align:left;border-bottom:1px solid var(--border);}
+.tbl td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px;vertical-align:middle;}
+.tbl tr:hover td{background:rgba(255,255,255,.02);}
+.tbl input{background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text);font-size:13px;outline:none;}
+.tbl input:focus{border-color:var(--amber);}
+
+/* Info boxes */
+.info-box{background:rgba(91,141,239,.06);border:1px solid rgba(91,141,239,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--blue);margin-bottom:14px;line-height:1.5;}
+.warn-box{background:rgba(255,214,0,.06);border:1px solid rgba(255,214,0,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--amber);margin-bottom:10px;}
+.ok-box{background:rgba(61,214,140,.06);border:1px solid rgba(61,214,140,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--green);margin-bottom:10px;}
+
+/* Overlay/Modal */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:100;align-items:center;justify-content:center;}
+.overlay.open{display:flex;}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:26px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+.modal-title{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;}
+
+/* Catalog */
+.cat-search{width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:10px 14px;color:var(--text);font-size:14px;outline:none;margin-bottom:10px;font-family:'DM Sans',sans-serif;}
+.cat-search:focus{border-color:var(--amber);}
+.cat-results{max-height:340px;overflow-y:auto;}
+.cat-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);}
+.cat-item:hover{background:rgba(255,255,255,.02);}
+.cat-item-name{font-size:13px;font-weight:500;margin-bottom:2px;}
+.cat-item-meta{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);}
+.cat-add-btn{padding:5px 12px;background:var(--amber);color:#0f0f0f;border:none;border-radius:5px;cursor:pointer;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;white-space:nowrap;}
+.cat-status{padding:20px;text-align:center;font-size:12px;color:var(--muted);}
+
+/* Shelf */
+.shelf-grid{display:flex;gap:12px;flex-wrap:nowrap;}
+.shelf-col{display:flex;flex-direction:column;gap:5px;}
+.shelf-col-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--amber);text-align:center;margin-bottom:4px;}
+.shelf-pos{border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;position:relative;transition:all .2s;border:1px solid transparent;}
+.shelf-pos:hover{transform:scale(1.04);}
+.shelf-pos.empty{background:#2e2e2e;border-color:#353535;}
+.shelf-pos.partial{border-color:rgba(255,214,0,.35);}
+.shelf-pos.full{background:var(--amber);border-color:var(--amber);}
+.shelf-pos.highlighted{box-shadow:0 0 0 3px #FFD600, 0 0 14px rgba(255,214,0,.6);}
+.tooltip-box{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:8px 10px;min-width:130px;z-index:20;pointer-events:none;display:none;white-space:nowrap;font-size:11px;}
+.shelf-pos:hover .tooltip-box{display:block;}
+
+/* Scan */
+.scan-input{width:100%;background:var(--faint);border:2px solid var(--amber);border-radius:6px;padding:10px 16px;color:var(--text);font-family:'Space Mono',monospace;font-size:15px;outline:none;letter-spacing:1px;}
+
+/* Bar fill */
+.bar-wrap{width:60px;height:6px;background:var(--faint);border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;}
+.bar-fill{height:100%;background:var(--amber);}
+
+@keyframes spin{to{transform:rotate(360deg);}}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,214,0,.3);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
+
+@media print{
+  body *{visibility:hidden;}
+  #print-area,#print-area *{visibility:visible;}
+  #print-area{position:fixed;inset:0;background:white;display:flex;flex-wrap:wrap;gap:3px;padding:3px;align-content:flex-start;}
+  .label-item{width:60mm;height:30mm;border:1px solid #ccc;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2mm;page-break-inside:avoid;background:#fff;}
+  .print-float{display:none!important;}
+}
 </style>
 </head>
 <body>
-<div class="shell">
 
-<!-- ═══ SIDEBAR ══════════════════════════════════════════════════════════ -->
+<!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="sidebar-logo">⬡ MADERABLE</div>
-  <div style="flex:1;padding:8px 0;overflow-y:auto;">
-    <a href="admin.html"     class="nav-item"><span class="nav-icon">◈</span> Dashboard</a>
-    <a href="admin.html"     class="nav-item"><span class="nav-icon">⬡</span> Proyectos</a>
-    <a href="materiales.html" class="nav-item"><span class="nav-icon">▣</span> Materiales</a>
-    <a href="stock-placas.html" class="nav-item active"><span class="nav-icon">⬛</span> Stock Placas</a>
-    <a href="despacho.html"  class="nav-item"><span class="nav-icon">▷</span> Despacho</a>
+  <div style="flex:1;padding:8px 0;">
+    <div class="nav-item active" id="nav-ingreso" onclick="switchTab('ingreso')">⬆ Ingreso</div>
+    <div class="nav-item" id="nav-salida" onclick="switchTab('salida')">⬇ Salida</div>
+    <div class="nav-item" id="nav-busqueda" onclick="switchTab('busqueda')">⊙ Búsqueda</div>
+    <div class="nav-item" id="nav-estanteria" onclick="switchTab('estanteria')">⬡ Estantería</div>
+    <div class="nav-item" id="nav-historial" onclick="switchTab('historial')">📋 Historial</div>
+  </div>
+  <div style="padding:12px 16px;border-top:1px solid var(--border);">
+    <a href="admin.html" style="color:var(--muted);font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-decoration:none;text-transform:uppercase;">← Admin</a>
   </div>
 </aside>
 
-<!-- ═══ MAIN ══════════════════════════════════════════════════════════════ -->
+<!-- MAIN -->
 <div class="main">
   <div class="topbar">
-    <div class="mono" style="font-size:11px;color:var(--muted);letter-spacing:2px;">STOCK · PLACAS</div>
     <div style="display:flex;align-items:center;gap:12px;">
-      <span class="live-dot"></span>
-      <button class="btn btn-ghost btn-sm" onclick="seedPositions()" id="btn-seed" title="Cargar posiciones iniciales en Neon">Seed DB</button>
+      <span class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;" id="topbar-title">INGRESO</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span id="stock-status" class="mono" style="font-size:10px;color:var(--muted);"></span>
+      <button onclick="seedPositions()" class="btn btn-ghost btn-sm" id="btn-seed" title="Inicializar posiciones en Neon (ejecutar una sola vez)">Seed DB</button>
     </div>
   </div>
+  <div id="seed-banner" style="display:none;background:rgba(255,214,0,.08);border-bottom:1px solid rgba(255,214,0,.25);padding:10px 24px;font-family:'Space Mono',monospace;font-size:10px;color:var(--amber);letter-spacing:.5px;display:flex;align-items:center;justify-content:space-between;">
+    <span>⚠ Las posiciones no están cargadas en Neon. Sin ellas la asignación siempre queda en "Sin asignar".</span>
+    <button onclick="seedPositions()" class="btn btn-primary btn-sm">Inicializar ahora</button>
+  </div>
+  <div class="content" id="content"></div>
+</div>
 
-  <div class="content">
-
-    <!-- seed banner -->
-    <div class="seed-banner" id="seed-banner">
-      <span style="font-size:13px;color:var(--amber);">Las posiciones no están cargadas en la base de datos.</span>
-      <button class="btn btn-primary btn-sm" onclick="seedPositions()">Inicializar posiciones</button>
+<!-- MODAL CATÁLOGO ZOHO -->
+<div class="overlay" id="cat-overlay" onclick="if(event.target===this)cerrarCatalogo()">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="modal-title">Buscar artículo en Zoho</div>
+      <button onclick="cerrarCatalogo()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">×</button>
     </div>
-
-    <!-- tabs -->
-    <div class="tabs">
-      <button class="tab active" onclick="switchTab('ingresar')">Ingresar OC</button>
-      <button class="tab" onclick="switchTab('posiciones')">Posiciones</button>
-      <button class="tab" onclick="switchTab('reporte')">Reporte</button>
-    </div>
-
-    <!-- ══ INGRESAR OC ══════════════════════════════════════════════════════ -->
-    <div class="view active" id="v-ingresar">
-      <!-- OC header -->
-      <div class="card" style="margin-bottom:16px;">
-        <div class="sec-title">Orden de Compra</div>
-        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
-          <div class="field" style="flex:1;min-width:160px;">
-            <label>Número de OC</label>
-            <input id="oc-numero" placeholder="Ej: OC-2024-001" />
-          </div>
-          <div class="field" style="flex:1;min-width:160px;">
-            <label>Proveedor</label>
-            <input id="oc-proveedor" placeholder="Nombre proveedor" />
-          </div>
-          <button class="btn btn-primary" onclick="iniciarOC()">Iniciar OC</button>
-        </div>
-      </div>
-
-      <!-- OC activa -->
-      <div id="oc-activa" style="display:none;">
-        <div class="card" style="margin-bottom:16px;">
-          <div class="sec-title">
-            <span id="oc-titulo">OC ─</span>
-            <div style="display:flex;gap:8px;">
-              <button class="btn btn-ghost btn-sm" onclick="agregarItem()">+ Agregar ítem</button>
-              <button class="btn btn-success btn-sm" onclick="switchTab('reporte')">Ver reporte</button>
-            </div>
-          </div>
-          <div id="alert-oc" class="alert"></div>
-          <!-- tabla ítems -->
-          <table>
-            <thead>
-              <tr>
-                <th>SKU</th>
-                <th>Nombre</th>
-                <th>Formato</th>
-                <th style="text-align:right;">Cantidad</th>
-                <th>Posición</th>
-                <th>Estado</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="tabla-items"></tbody>
-          </table>
-          <div id="empty-items" style="text-align:center;padding:32px;color:var(--muted);font-size:13px;">
-            No hay ítems. Haz clic en "Agregar ítem".
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ══ POSICIONES ══════════════════════════════════════════════════════ -->
-    <div class="view" id="v-posiciones">
-      <div class="card">
-        <div class="sec-title">
-          Posiciones disponibles
-          <div style="display:flex;gap:8px;">
-            <select id="filter-formato" onchange="cargarPosiciones()" style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:4px 8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;">
-              <option value="A">Formato A</option>
-              <option value="B">Formato B</option>
-            </select>
-          </div>
-        </div>
-        <table>
-          <thead>
-            <tr><th>ID</th><th>Columna</th><th>Nivel</th><th>Formato</th><th style="text-align:right;">Stock</th><th style="text-align:right;">Capacidad</th><th>Ocupación</th></tr>
-          </thead>
-          <tbody id="tabla-posiciones"></tbody>
-        </table>
-        <div id="empty-posiciones" style="text-align:center;padding:32px;color:var(--muted);font-size:13px;">Cargando...</div>
-      </div>
-    </div>
-
-    <!-- ══ REPORTE ══════════════════════════════════════════════════════════ -->
-    <div class="view" id="v-reporte">
-      <div class="card">
-        <div class="sec-title">
-          Reporte OC
-          <button class="btn btn-ghost btn-sm" onclick="generarReporte()">Actualizar</button>
-        </div>
-        <div id="reporte-oc-info" style="margin-bottom:16px;font-size:13px;color:var(--muted);"></div>
-        <table>
-          <thead>
-            <tr><th>SKU</th><th>Nombre</th><th>Formato</th><th style="text-align:right;">Cantidad</th><th>Posición asignada</th><th>Estado</th></tr>
-          </thead>
-          <tbody id="tabla-reporte"></tbody>
-        </table>
-        <div id="empty-reporte" style="text-align:center;padding:32px;color:var(--muted);font-size:13px;">Sin datos.</div>
-      </div>
-    </div>
-
-  </div><!-- /content -->
-</div><!-- /main -->
-</div><!-- /shell -->
-
-<!-- ══ MODAL: agregar ítem ════════════════════════════════════════════════ -->
-<div class="overlay" id="modal-item" onclick="cerrarModal(event)">
-  <div class="modal" style="background:var(--panel);border:1px solid var(--borderL);border-radius:10px;padding:28px;width:440px;max-width:95vw;">
-    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:20px;">Nuevo ítem</div>
-    <div style="display:flex;flex-direction:column;gap:14px;">
-      <div class="field"><label>SKU</label><input id="item-sku" placeholder="Ej: PL-12MM-2400x1200" /></div>
-      <div class="field"><label>Nombre</label><input id="item-nombre" placeholder="Ej: Placa MDF 12mm" /></div>
-      <div class="field">
-        <label>Formato</label>
-        <select id="item-formato">
-          <option value="A">A — grande (hasta 40 unid.)</option>
-          <option value="B">B — mediano (hasta 25 unid.)</option>
-        </select>
-      </div>
-      <div class="field"><label>Cantidad</label><input id="item-cantidad" type="number" min="1" value="1" /></div>
-    </div>
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
-      <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarItem()">Agregar</button>
+    <input class="cat-search" id="cat-search-input" placeholder="🔍 Buscar artículo..." oninput="catDebounce(this.value)" autocomplete="off"/>
+    <div class="cat-results" id="cat-results">
+      <div class="cat-status">Escribí para buscar en el catálogo de Zoho</div>
     </div>
   </div>
 </div>
 
-<style>
-  .overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:100; align-items:center; justify-content:center; }
-  .overlay.open { display:flex; }
-</style>
+<!-- MODAL GESTIÓN TAMAÑOS/ESPESORES -->
+<div class="overlay" id="gestion-overlay" onclick="if(event.target===this)cerrarGestionOpciones()">
+  <div class="modal" style="width:560px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div class="modal-title">Gestionar tamaños y espesores</div>
+      <button onclick="cerrarGestionOpciones()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div id="gestion-content"></div>
+    <div style="margin-top:18px;text-align:right;">
+      <button class="btn btn-ghost" onclick="cerrarGestionOpciones()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALLE POSICIÓN -->
+<div class="overlay" id="pos-overlay" onclick="if(event.target===this)cerrarDetallePosicion()">
+  <div class="modal" style="max-width:440px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="modal-title">Detalle de posición</div>
+      <button onclick="cerrarDetallePosicion()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div id="pos-modal-content"></div>
+    <div style="margin-top:16px;text-align:right;">
+      <button class="btn btn-ghost" onclick="cerrarDetallePosicion()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRINT AREA (etiquetas) -->
+<div id="print-area" style="display:none;"></div>
 
 <script>
-// ── Estado global ────────────────────────────────────────────────────────────
-let ocActual = null;       // { numero, proveedor, items: [] }
-let itemCounter = 0;
+// ═══════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════
+const NEON = '/api/stock-placas';
 
-// ── Navegación de tabs ───────────────────────────────────────────────────────
-function switchTab(name) {
-  document.querySelectorAll('.tab').forEach((t, i) => {
-    const names = ['ingresar', 'posiciones', 'reporte'];
-    t.classList.toggle('active', names[i] === name);
-  });
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.getElementById('v-' + name).classList.add('active');
-  if (name === 'posiciones') cargarPosiciones();
-  if (name === 'reporte') generarReporte();
+const SHELF_A_COLS = ['A1','A2','A3','A4'];
+const SHELF_B_COLS = ['B1','B2'];
+const LEVELS = [1,2,3,4,5];
+const CAP_A = 40, CAP_B = 25, CAP_BESP = 150;
+
+const LS_FORMATS = 'placas_shelf_formats';
+const DEF_SHELF_FORMATS = {
+  A: { maxWidth: 130, label: 'Estantería 122cm' },
+  B: { maxWidth: 200, label: 'Estantería 180cm' },
+};
+function getShelfFormats() {
+  try { return JSON.parse(localStorage.getItem(LS_FORMATS)) || DEF_SHELF_FORMATS; } catch(e) { return DEF_SHELF_FORMATS; }
+}
+function parseTamano(str) {
+  if(!str) return null;
+  const m = str.replace(',','.').match(/(\d+\.?\d*)\s*[xX×]\s*(\d+\.?\d*)/);
+  if(!m) return null;
+  let a = parseFloat(m[1]), b = parseFloat(m[2]);
+  if(a < 10) a *= 100;
+  if(b < 10) b *= 100;
+  return { w: Math.min(a,b), h: Math.max(a,b) };
+}
+function formatoParaTamano(tamStr) {
+  const dims = parseTamano(tamStr);
+  if(!dims) return null;
+  const fmts = getShelfFormats();
+  if(dims.w <= fmts.A.maxWidth) return 'A';
+  if(dims.w <= fmts.B.maxWidth) return 'B';
+  return null;
+}
+function formatoLabel(tamStr) {
+  const dims = parseTamano(tamStr);
+  const fmts = getShelfFormats();
+  if(!dims) return `<span style="font-size:11px;color:var(--muted);">→ sin tamaño</span>`;
+  const fmt = formatoParaTamano(tamStr);
+  if(fmt) return `<span style="font-size:11px;color:var(--muted);">→ Formato ${fmt} · ${fmts[fmt].label}</span>`;
+  return `<span style="font-size:11px;color:var(--amber);">⚠ Tamaño no reconocido — verificar formato manualmente</span>`;
+}
+function actualizarFormatoMaxWidth(key, val) {
+  const fmts = getShelfFormats();
+  if(fmts[key]) { fmts[key].maxWidth = +val; localStorage.setItem(LS_FORMATS, JSON.stringify(fmts)); }
 }
 
-// ── OC ───────────────────────────────────────────────────────────────────────
-function iniciarOC() {
-  const numero = document.getElementById('oc-numero').value.trim();
-  const proveedor = document.getElementById('oc-proveedor').value.trim();
-  if (!numero) { mostrarAlerta('Ingresá un número de OC', 'error'); return; }
-  ocActual = { numero, proveedor, items: [] };
-  document.getElementById('oc-titulo').textContent = `OC ${numero} · ${proveedor}`;
-  document.getElementById('oc-activa').style.display = 'block';
-  renderItems();
+// ═══════════════════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════════════════
+let currentTab = 'ingreso';
+let plateTypes = [], positions = [], stockData = [];
+
+let ingresoMode = 'oc';
+let ingresoOC = null;
+let ingresoItems = [];
+let ingresoEnConfirmacion = false;
+let ingresoUltimoLote = [];
+
+let salidaMode = 'so';
+let salidaSO = null;
+let salidaItems = [];
+
+let busqResultados = [];
+let busqItem = null;
+let highlightedPos = [];
+
+let catCb = null, catTimer = null, catItems = [];
+let historialCurrentId = null;
+
+const LS_HISTORIAL = 'historial_reportes';
+function getHistorial() { try{return JSON.parse(localStorage.getItem(LS_HISTORIAL))||[];}catch(e){return[];} }
+function guardarEnHistorial(entry) { const h=getHistorial(); h.unshift(entry); localStorage.setItem(LS_HISTORIAL,JSON.stringify(h)); }
+function marcarHistorialFlag(flag) {
+  if(!historialCurrentId) return;
+  const h=getHistorial(); const idx=h.findIndex(r=>r.id===historialCurrentId);
+  if(idx>=0){h[idx][flag]=true;localStorage.setItem(LS_HISTORIAL,JSON.stringify(h));}
 }
 
-// ── Modal ítem ───────────────────────────────────────────────────────────────
-function agregarItem() {
-  document.getElementById('modal-item').classList.add('open');
-  document.getElementById('item-sku').focus();
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+async function init() {
+  try {
+    const [a,b,c] = await Promise.all([
+      fetch(NEON+'?action=plate-types').then(r=>r.json()),
+      fetch(NEON+'?action=positions').then(r=>r.json()),
+      fetch(NEON+'?action=stock').then(r=>r.json()),
+    ]);
+    plateTypes = Array.isArray(a)?a:[];
+    positions  = Array.isArray(b)?b:[];
+    stockData  = Array.isArray(c)?c:[];
+    document.getElementById('stock-status').textContent =
+      plateTypes.length+' tipos · '+positions.length+' posiciones';
+  } catch(e) {
+    console.warn('Error cargando datos base:', e.message);
+  }
+  renderTab('ingreso');
 }
-function cerrarModal(e) {
-  if (!e || e.target === document.getElementById('modal-item')) {
-    document.getElementById('modal-item').classList.remove('open');
+
+async function recargarStock() {
+  try { stockData = await fetch(NEON+'?action=stock').then(r=>r.json()); } catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════════
+// NAVEGACIÓN
+// ═══════════════════════════════════════════════════════════
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  document.getElementById('nav-'+tab).classList.add('active');
+  const titles = {ingreso:'INGRESO',salida:'SALIDA',busqueda:'BÚSQUEDA',estanteria:'ESTANTERÍA',historial:'HISTORIAL'};
+  document.getElementById('topbar-title').textContent = titles[tab];
+  renderTab(tab);
+}
+
+function renderTab(tab) {
+  const c = document.getElementById('content');
+  if (tab==='ingreso')    c.innerHTML = tplIngreso();
+  else if (tab==='salida')     c.innerHTML = tplSalida();
+  else if (tab==='busqueda')   c.innerHTML = tplBusqueda();
+  else if (tab==='estanteria') c.innerHTML = tplEstanteria();
+  else if (tab==='historial')  c.innerHTML = tplHistorial();
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB 1: INGRESO
+// ═══════════════════════════════════════════════════════════
+function tplIngreso() {
+  if(ingresoEnConfirmacion) return tplConfirmacionFinal();
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <div class="sec" style="margin:0;">Ingreso de stock</div>
+    <a href="#" onclick="abrirGestionOpciones();return false;" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-decoration:none;letter-spacing:.5px;" onmouseover="this.style.color='var(--amber)'" onmouseout="this.style.color='var(--muted)'">⚙ Gestionar tamaños y espesores</a>
+  </div>
+  <div class="mode-toggle">
+    <button class="mode-btn ${ingresoMode==='oc'?'active':''}" onclick="setIngresoMode('oc')">Por OC de Zoho</button>
+    <button class="mode-btn ${ingresoMode==='articulo'?'active':''}" onclick="setIngresoMode('articulo')">Por artículo</button>
+  </div>
+  ${ingresoMode==='oc' ? tplIngresoOC() : tplIngresoArticulo()}`;
+}
+
+function setIngresoMode(m){ ingresoMode=m; ingresoItems=[]; ingresoOC=null; ingresoEnConfirmacion=false; renderTab('ingreso'); }
+
+// ── Gestión opciones ──
+let gestionAddingTamano = false, gestionAddingEspesor = false;
+
+function abrirGestionOpciones() {
+  gestionAddingTamano = false; gestionAddingEspesor = false;
+  document.getElementById('gestion-overlay').classList.add('open');
+  renderGestionOpciones();
+}
+function cerrarGestionOpciones() {
+  document.getElementById('gestion-overlay').classList.remove('open');
+}
+function renderGestionOpciones() {
+  const tams = getTamanos(), esps = getEspesores();
+  const tamList = tams.map((t,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:13px;">${t}</span>
+      <button onclick="eliminarTamano(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;line-height:1;" title="Eliminar">✕</button>
+    </div>`).join('');
+  const espList = esps.map((e,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:13px;">${e}</span>
+      <button onclick="eliminarEspesor(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;line-height:1;" title="Eliminar">✕</button>
+    </div>`).join('');
+  const fmts = getShelfFormats();
+  const fmtSection = Object.entries(fmts).map(([key,val])=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:13px;flex:1;">Formato ${key} <span style="color:var(--muted);font-size:12px;">— ${val.label}</span></span>
+      <span class="mono" style="font-size:9px;color:var(--muted);white-space:nowrap;">ancho máx.</span>
+      <input type="number" value="${val.maxWidth}" min="1" max="999"
+        style="width:68px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-family:'Space Mono',monospace;font-size:12px;text-align:right;outline:none;"
+        onchange="actualizarFormatoMaxWidth('${key}',this.value)" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='var(--border)'"/>
+      <span class="mono" style="font-size:9px;color:var(--muted);">cm</span>
+    </div>`).join('');
+  document.getElementById('gestion-content').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div>
+        <div class="mono" style="font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Tamaños</div>
+        ${tamList}
+        ${gestionAddingTamano
+          ? `<div style="margin-top:10px;display:flex;gap:6px;">
+               <input id="new-tam-inp" class="cat-search" style="margin:0;flex:1;" placeholder="Ej: 2.60x1.83" autocomplete="off"
+                 onkeydown="if(event.key==='Enter')confirmarNuevoTamano();if(event.key==='Escape'){gestionAddingTamano=false;renderGestionOpciones();}"/>
+               <button class="btn btn-success btn-sm" onclick="confirmarNuevoTamano()">OK</button>
+             </div>`
+          : `<button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%;"
+               onclick="gestionAddingTamano=true;renderGestionOpciones();setTimeout(()=>document.getElementById('new-tam-inp')?.focus(),50)">+ Agregar tamaño</button>`}
+      </div>
+      <div>
+        <div class="mono" style="font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Espesores</div>
+        ${espList}
+        ${gestionAddingEspesor
+          ? `<div style="margin-top:10px;display:flex;gap:6px;">
+               <input id="new-esp-inp" class="cat-search" style="margin:0;flex:1;" placeholder="Ej: 18mm" autocomplete="off"
+                 onkeydown="if(event.key==='Enter')confirmarNuevoEspesor();if(event.key==='Escape'){gestionAddingEspesor=false;renderGestionOpciones();}"/>
+               <button class="btn btn-success btn-sm" onclick="confirmarNuevoEspesor()">OK</button>
+             </div>`
+          : `<button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%;"
+               onclick="gestionAddingEspesor=true;renderGestionOpciones();setTimeout(()=>document.getElementById('new-esp-inp')?.focus(),50)">+ Agregar espesor</button>`}
+      </div>
+    </div>
+    <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+      <div class="mono" style="font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Formatos de estantería</div>
+      ${fmtSection}
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;">El ancho relevante es el lado menor de la placa (se guarda de canto).</div>
+    </div>`;
+}
+function eliminarTamano(i)  { const a=getTamanos(); a.splice(i,1); localStorage.setItem(LS_TAMANOS,JSON.stringify(a)); renderGestionOpciones(); }
+function eliminarEspesor(i) { const a=getEspesores();a.splice(i,1);localStorage.setItem(LS_ESPESORES,JSON.stringify(a));renderGestionOpciones(); }
+function confirmarNuevoTamano()  { const v=(document.getElementById('new-tam-inp')?.value||'').trim(); if(v)addTamano(v); gestionAddingTamano=false; renderGestionOpciones(); }
+function confirmarNuevoEspesor() { const v=(document.getElementById('new-esp-inp')?.value||'').trim(); if(v)addEspesor(v); gestionAddingEspesor=false; renderGestionOpciones(); }
+
+// ── LocalStorage: tamaños y espesores ──
+const LS_TAMANOS   = 'placas_tamanos';
+const LS_ESPESORES = 'placas_espesores';
+const DEF_TAMANOS  = ['2.60x1.83','2.44x1.83','2.75x1.83','2.60x2.15','22x0.40','23x2.00','50x2.00'];
+const DEF_ESPESORES= ['3mm','9mm','15mm','18mm','25mm','MDF 3mm','MDF 15mm','MDF 18mm','—'];
+function getTamanos()  { try{return JSON.parse(localStorage.getItem(LS_TAMANOS)) ||DEF_TAMANOS; }catch(e){return DEF_TAMANOS;} }
+function getEspesores(){ try{return JSON.parse(localStorage.getItem(LS_ESPESORES))||DEF_ESPESORES;}catch(e){return DEF_ESPESORES;} }
+function addTamano(v)  { const a=getTamanos(); if(!a.includes(v)){a.push(v);localStorage.setItem(LS_TAMANOS,JSON.stringify(a));} }
+function addEspesor(v) { const a=getEspesores();if(!a.includes(v)){a.push(v);localStorage.setItem(LS_ESPESORES,JSON.stringify(a));} }
+function onTamanoChange(i,sel) {
+  if(sel.value==='__nuevo__'){
+    const v=(prompt('Nuevo tamaño (ej: 2.60x1.83):')||'').trim();
+    if(v){addTamano(v);ingresoItems[i].tamano=v;}
+    renderTab('ingreso');
+  } else {
+    ingresoItems[i].tamano=sel.value;
+    const pt=plateTypes.find(p=>p.sku===ingresoItems[i].sku);
+    if(pt){calcPosIngreso(pt,sel.value).then(pos=>{ingresoItems[i].posicion=pos?.id||null;renderTab('ingreso');});}
+    else renderTab('ingreso');
   }
 }
-function guardarItem() {
-  const sku      = document.getElementById('item-sku').value.trim();
-  const nombre   = document.getElementById('item-nombre').value.trim();
-  const formato  = document.getElementById('item-formato').value;
-  const cantidad = parseInt(document.getElementById('item-cantidad').value) || 1;
-  if (!sku) { alert('Ingresá un SKU'); return; }
-
-  const item = {
-    id: ++itemCounter,
-    sku, nombre, formato, cantidad,
-    estado: 'pendiente',
-    posicion: null,
-    posicionAsignada: null,
-  };
-  ocActual.items.push(item);
-  cerrarModal();
-  renderItems();
-
-  // Reset modal
-  ['item-sku','item-nombre','item-cantidad'].forEach(id => {
-    document.getElementById(id).value = id === 'item-cantidad' ? '1' : '';
-  });
+function onEspesorChange(i,sel) {
+  if(sel.value==='__nuevo__'){const v=(prompt('Nuevo espesor (ej: 18mm):')||'').trim();if(v){addEspesor(v);ingresoItems[i].espesor=v;}renderTab('ingreso');}
+  else ingresoItems[i].espesor=sel.value;
 }
 
-// ── Render tabla ítems ───────────────────────────────────────────────────────
-function renderItems() {
-  const tbody = document.getElementById('tabla-items');
-  const empty = document.getElementById('empty-items');
-  const items = ocActual?.items ?? [];
-  empty.style.display = items.length ? 'none' : 'block';
-  tbody.innerHTML = items.map(item => `
-    <tr>
-      <td class="mono" style="font-size:12px;">${item.sku}</td>
-      <td>${item.nombre || '—'}</td>
-      <td><span class="pill pill-amber">${item.formato}</span></td>
-      <td style="text-align:right;" class="mono">${item.cantidad}</td>
-      <td id="pos-${item.id}">
-        ${item.posicion || item.posicionAsignada
-          ? `<span class="pos-badge">${item.posicion || item.posicionAsignada}</span>`
-          : `<span class="pos-sin-asignar">—</span>`}
-      </td>
-      <td>${estadoPill(item.estado)}</td>
-      <td>
-        ${item.estado === 'pendiente'
-          ? `<button class="btn btn-primary btn-sm" onclick="confirmarItem(${item.id})">Confirmar</button>`
-          : `<span class="pill pill-green">✓</span>`}
-      </td>
-    </tr>
-  `).join('');
+function tplIngresoOC() {
+  return `
+  <div class="card">
+    <div style="display:flex;gap:10px;align-items:flex-end;">
+      <div class="field" style="flex:1;">
+        <label>Número de OC</label>
+        <input id="oc-num" placeholder="OC-05441" value="${ingresoOC?.purchaseorder_number||''}"
+               onkeydown="if(event.key==='Enter')buscarOC()"/>
+      </div>
+      <button class="btn btn-primary" onclick="buscarOC()">Buscar en Zoho</button>
+    </div>
+    <div id="oc-status" style="margin-top:12px;"></div>
+  </div>
+  ${ingresoOC && ingresoItems.length ? tplListaIngreso() : ''}`;
 }
 
-function estadoPill(estado) {
-  if (estado === 'confirmado') return '<span class="pill pill-green">confirmado</span>';
-  return '<span class="pill pill-muted">pendiente</span>';
+function tplIngresoArticulo() {
+  return `
+  <div class="card">
+    <div class="sec">Artículo a ingresar</div>
+    <button class="btn btn-primary" onclick="abrirCatalogo(it=>agregarItemIngreso(it))">Buscar artículo en Zoho</button>
+  </div>
+  ${ingresoItems.length ? tplListaIngreso() : ''}`;
 }
 
-// ── CONFIRMAR ÍTEM — flujo completo con debug logs ────────────────────────────
-async function confirmarItem(itemId) {
-  const item = ocActual.items.find(i => i.id === itemId);
-  if (!item) return;
+function tplListaIngreso() {
+  const allDone = ingresoItems.length>0 && ingresoItems.every(it=>it.estado==='confirmado'||it.estado==='rechazado');
+  const header = ingresoOC
+    ? `<div class="sec" style="margin-bottom:16px;">Items OC ${ingresoOC.purchaseorder_number} — ${ingresoOC.vendor_name||''}</div>`
+    : '';
+  return `<div>
+    ${header}
+    ${ingresoItems.map((it,i)=>tplItemIngresoCard(it,i)).join('')}
+    ${allDone ? `<div style="margin-top:16px;">
+      <button class="btn btn-success" style="width:100%;padding:14px;font-size:11px;letter-spacing:1px;border-radius:8px;" onclick="ingresoEnConfirmacion=true;renderTab('ingreso')">Continuar → Revisar y confirmar</button>
+    </div>` : ''}
+    <div style="margin-top:10px;">
+      <button class="btn btn-ghost btn-sm" onclick="ingresoOC=null;ingresoItems=[];ingresoEnConfirmacion=false;renderTab('ingreso')">Cancelar / Nueva OC</button>
+    </div>
+  </div>`;
+}
 
-  console.log('1. Iniciando confirmación ítem:', item.sku, item.formato);
+function tplItemIngresoCard(it, i) {
+  if(it.estado==='confirmado') {
+    return `<div style="background:rgba(61,214,140,.06);border:1px solid rgba(61,214,140,.25);border-radius:8px;padding:14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="font-weight:600;font-size:14px;margin-bottom:3px;">${it.nombre}</div>
+          <div class="mono" style="font-size:10px;color:var(--amber);margin-bottom:6px;">SKU: ${it.sku||'—'}</div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;">
+            <span class="mono" style="font-size:11px;color:var(--muted);">Cant: <strong style="color:var(--text);">${it.cantidad}</strong></span>
+            <span class="mono" style="font-size:11px;color:var(--muted);">Tamaño: <strong style="color:var(--text);">${it.tamano||'—'}</strong></span>
+            <span class="mono" style="font-size:11px;color:var(--muted);">Espesor: <strong style="color:var(--text);">${it.espesor||'—'}</strong></span>
+            ${it._depositoLleno
+              ? `<span class="mono" style="font-size:11px;color:var(--red);font-weight:700;">⚠ Depósito lleno</span>`
+              : `<span class="mono" style="font-size:11px;color:var(--muted);">Pos: <strong style="color:var(--amber);">${it.posicionAsignada||it.posicion||'Sin asignar'}</strong></span>`
+            }
+          </div>
+        </div>
+        <span style="background:var(--green);color:#0f0f0f;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;white-space:nowrap;align-self:flex-start;">✓ CONFIRMADO</span>
+      </div>
+    </div>`;
+  }
+  if(it.estado==='rechazado') {
+    return `<div style="background:rgba(240,92,92,.06);border:1px solid rgba(240,92,92,.2);border-radius:8px;padding:14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div style="font-weight:600;font-size:14px;margin-bottom:3px;">${it.nombre}</div>
+          <div class="mono" style="font-size:10px;color:var(--muted);">SKU: ${it.sku||'—'}</div>
+        </div>
+        <span style="background:var(--red);color:#fff;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;white-space:nowrap;">✗ RECHAZADO</span>
+      </div>
+    </div>`;
+  }
+  // pendiente
+  const tamanos  = getTamanos();
+  const espesores = getEspesores();
+  const tamOpts = tamanos.map(t=>`<option value="${t}" ${it.tamano===t?'selected':''}>${t}</option>`).join('');
+  const espOpts = espesores.map(e=>`<option value="${e}" ${it.espesor===e?'selected':''}>${e}</option>`).join('');
+  return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;">
+    <div style="margin-bottom:10px;">
+      <div style="font-weight:600;font-size:14px;margin-bottom:3px;">${it.nombre}</div>
+      <div class="mono" style="font-size:10px;color:var(--amber);">SKU: ${it.sku||'—'}</div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
+      <div class="field" style="width:80px;">
+        <label>Cantidad</label>
+        <input type="number" min="1" value="${it.cantidad}" style="width:80px;"
+          onchange="ingresoItems[${i}].cantidad=Math.max(1,+this.value)"/>
+      </div>
+      <div class="field" style="min-width:140px;">
+        <label>Tamaño</label>
+        <select onchange="onTamanoChange(${i},this)" style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
+          ${tamOpts}
+          <option value="__nuevo__">+ Nuevo tamaño...</option>
+        </select>
+        <div style="margin-top:4px;">${formatoLabel(it.tamano)}</div>
+      </div>
+      <div class="field" style="min-width:130px;">
+        <label>Espesor</label>
+        <select onchange="onEspesorChange(${i},this)" style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
+          ${espOpts}
+          <option value="__nuevo__">+ Nuevo espesor...</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;padding-bottom:2px;">
+        <span class="mono" style="font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;">Posición</span>
+        <span class="mono" style="font-size:13px;color:var(--amber);line-height:2;">${it.posicion||'Sin asignar'}</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-success" id="btn-confirm-${i}" onclick="confirmarItem(${i})">✓ Confirmar este ítem</button>
+      <button class="btn btn-danger btn-sm" onclick="rechazarItem(${i})">✗ Rechazar</button>
+    </div>
+  </div>`;
+}
 
-  const btn = document.querySelector(`button[onclick="confirmarItem(${itemId})"]`);
-  if (btn) { btn.disabled = true; btn.textContent = '...'; }
-
+async function buscarOC() {
+  const rawNum = document.getElementById('oc-num')?.value?.trim();
+  if(!rawNum) return;
+  const st = document.getElementById('oc-status');
+  st.innerHTML = '<span class="spinner"></span><span style="font-size:12px;color:var(--muted);">Buscando en Zoho...</span>';
   try {
-    // ── 1. Obtener o crear plate_type ────────────────────────────────────────
-    console.log('2. Llamando plate-type...');
-    const ptRes = await fetch(
-      `/api/stock-placas?action=plate-type&sku=${encodeURIComponent(item.sku)}&name=${encodeURIComponent(item.nombre || item.sku)}&format=${item.formato}`
-    );
-    const ptData = await ptRes.json();
-    if (!ptData.plate_type) throw new Error(ptData.error || 'Error obteniendo plate_type');
-    const plateTypeId = ptData.plate_type.id;
-    console.log('3. plate_type recibido:', ptData.plate_type);
-
-    // ── 2. Obtener posiciones del formato ────────────────────────────────────
-    console.log('4. Llamando positions con formato:', item.formato);
-    const posRes = await fetch(
-      `/api/stock-placas?action=positions&format=${item.formato}`
-    );
-    const posData = await posRes.json();
-    const positions = posData.positions || [];
-    console.log('5. Posiciones recibidas:', positions);
-
-    if (positions.length === 0) {
-      document.getElementById('seed-banner').classList.add('show');
-      throw new Error('No hay posiciones en la base de datos. Inicializá la DB primero.');
+    const token = await getZohoToken();
+    const digits = rawNum.replace(/^OC-?0*/i,'').replace(/^0+/,'') || rawNum;
+    const formats = [
+      'OC-' + digits.padStart(5,'0'),
+      'OC-' + digits,
+      digits
+    ];
+    let ocs = [];
+    for(const fmt of formats) {
+      const r = await fetch('/api/zoho-books?endpoint='+encodeURIComponent('purchaseorders?purchaseorder_number='+fmt)+'&token='+token);
+      const data = await r.json();
+      ocs = data.purchaseorders||[];
+      if(ocs.length) break;
     }
+    if(!ocs.length){ st.innerHTML=`<div class="warn-box">No se encontró la OC <strong>${rawNum}</strong> en Zoho Books.</div>`; return; }
+    const r2 = await fetch('/api/zoho-books?endpoint='+encodeURIComponent('purchaseorders/'+ocs[0].purchaseorder_id)+'&token='+token);
+    const det = await r2.json();
+    ingresoOC = det.purchaseorder||ocs[0];
+    st.innerHTML = '';
+    ingresoItems = await Promise.all((ingresoOC.line_items||[]).map(async it=>{
+      const sku = it.sku||'';
+      const pt = plateTypes.find(p=>p.sku===sku);
+      const defTam=getTamanos()[0]||'2.60x1.83', defEsp='18mm';
+      const pos = pt ? await calcPosIngreso(pt, defTam) : null;
+      return {nombre:it.name||it.description||'—',sku,cantidad:it.quantity||1,posicion:pos?.id||null,plate_type_id:pt?.id||null,tamano:defTam,espesor:defEsp,estado:'pendiente'};
+    }));
+    renderTab('ingreso');
+  } catch(e) {
+    document.getElementById('oc-status').innerHTML = `<div style="color:var(--red);font-size:12px;">Error: ${e.message}</div>`;
+  }
+}
 
-    // ── 3. Elegir posición ───────────────────────────────────────────────────
-    // a. Posición que ya tiene este artículo y tiene espacio
-    let posicion = positions.find(p =>
-      p.items && p.items.some(i => i.plate_type_id === plateTypeId) &&
-      p.total_stock < p.capacity
-    );
-    // b. Primera posición vacía del formato
-    if (!posicion) {
-      posicion = positions.find(p => p.total_stock === 0);
+async function agregarItemIngreso(item) {
+  const sku = item.sku||item.item_id||'';
+  const pt = plateTypes.find(p=>p.sku===sku);
+  const defTam=getTamanos()[0]||'2.60x1.83', defEsp='18mm';
+  const pos = pt ? await calcPosIngreso(pt, defTam) : null;
+  ingresoItems.push({nombre:item.name,sku,cantidad:1,posicion:pos?.id||null,plate_type_id:pt?.id||null,tamano:defTam,espesor:defEsp,estado:'pendiente'});
+  cerrarCatalogo();
+  renderTab('ingreso');
+}
+
+async function calcPosIngreso(pt, tamano) {
+  if(!pt) return null;
+  if(pt.fixed_position_id) return positions.find(p=>p.id===pt.fixed_position_id)||null;
+  const fmt = (tamano ? formatoParaTamano(tamano) : null) || pt.format || 'A';
+  const posFormat = positions.filter(p=>p.format===fmt);
+  const withStock = posFormat
+    .map(p=>({p,qty:(stockData.find(s=>s.position_id===p.id&&s.plate_type_id===pt.id)?.quantity||0)}))
+    .filter(x=>x.qty>0&&x.qty<posCap(x.p))
+    .sort((a,b)=>b.qty-a.qty);
+  if(withStock.length) return withStock[0].p;
+  return posFormat.find(p=>!(stockData.find(s=>s.position_id===p.id&&(s.quantity||0)>0)))||null;
+}
+
+function posCap(pos) {
+  if(!pos) return CAP_A;
+  if(pos.id.startsWith('B-ESP')) return CAP_BESP;
+  if(pos.id.startsWith('B')) return CAP_B;
+  return CAP_A;
+}
+
+async function confirmarItem(i) {
+  const it = ingresoItems[i];
+  const btn = document.getElementById('btn-confirm-'+i);
+  if(btn){btn.disabled=true;btn.textContent='Calculando posición...';}
+  console.log('1. Iniciando confirmación ítem:', it.sku, it.tamano, 'plate_type_id previo:', it.plate_type_id);
+  try {
+    // 1. Ensure plate_type exists in Neon
+    let plate_type_id = it.plate_type_id;
+    if(!plate_type_id && it.sku) {
+      const fmt = formatoParaTamano(it.tamano) || 'A';
+      console.log('2. Llamando plate-type para SKU:', it.sku, 'format:', fmt);
+      const resp = await fetch(`${NEON}?action=plate-type&sku=${encodeURIComponent(it.sku)}&name=${encodeURIComponent(it.nombre)}&format=${fmt}`);
+      const created = await resp.json();
+      console.log('3. plate_type recibido:', created);
+      plate_type_id = created.id||null;
+      if(plate_type_id){
+        plateTypes.push({id:plate_type_id,name:it.nombre,sku:it.sku,format:fmt});
+        ingresoItems[i].plate_type_id = plate_type_id;
+      }
+    } else {
+      console.log('2-3. plate_type ya conocido, id:', plate_type_id);
     }
-    // c. Primera con espacio
-    if (!posicion) {
-      posicion = positions.find(p => p.total_stock < p.capacity);
+    // 2. Refresh stock
+    await recargarStock();
+    console.log('4. Stock recargado, total entradas:', stockData.length, '| positions cargadas:', positions.length);
+    // 3. Calculate position with fresh data
+    const pt = plateTypes.find(p=>p.id===plate_type_id)||{id:plate_type_id,format:formatoParaTamano(it.tamano)||'A'};
+    console.log('5. Buscando posición con pt:', pt, 'tamano:', it.tamano);
+    const pos = await calcPosIngreso(pt, it.tamano);
+    const posId = pos?.id||null;
+    console.log('6. Posición asignada:', posId, pos);
+    if(!posId && positions.length===0) {
+      const banner = document.getElementById('seed-banner');
+      if(banner) banner.style.display='flex';
+      console.warn('⚠ positions[] está vacío — la tabla positions en Neon no tiene datos. Ejecutá seed-positions.');
     }
-    if (!posicion) {
-      throw new Error('No hay posiciones disponibles en formato ' + item.formato);
+    ingresoItems[i].posicion = posId;
+    ingresoItems[i].posicionAsignada = posId;
+    ingresoItems[i].estado = 'confirmado';
+    ingresoItems[i]._depositoLleno = !posId && !!plate_type_id;
+    // 4. Recalculate pending items
+    for(let j=0;j<ingresoItems.length;j++){
+      if(ingresoItems[j].estado==='pendiente'){
+        const ptj=plateTypes.find(p=>p.sku===ingresoItems[j].sku);
+        if(ptj){const posj=await calcPosIngreso(ptj,ingresoItems[j].tamano);ingresoItems[j].posicion=posj?.id||null;}
+      }
     }
-    console.log('6. Posición asignada:', posicion.id, posicion);
+    renderTab('ingreso');
+  } catch(e){
+    if(btn){btn.disabled=false;btn.textContent='✓ Confirmar este ítem';}
+    alert('Error al confirmar: '+e.message);
+  }
+}
 
-    // ── 4. Guardar posición en el objeto item ────────────────────────────────
-    item.posicion = posicion.id;
-    item.posicionAsignada = posicion.id;
+function rechazarItem(i) {
+  ingresoItems[i].estado = 'rechazado';
+  renderTab('ingreso');
+}
 
-    // ── 5. Actualizar UI inmediatamente ──────────────────────────────────────
-    const posCell = document.getElementById('pos-' + item.id);
-    if (posCell) posCell.innerHTML = `<span class="pos-badge">${posicion.id}</span>`;
+function imprimirEtiquetasItem(i) {
+  abrirVentanaEtiquetas([ingresoItems[i]]);
+}
 
-    // ── 6. POST confirmar en Neon ────────────────────────────────────────────
-    const confRes = await fetch('/api/stock-placas?action=confirm-item', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        position_id:   posicion.id,
-        plate_type_id: plateTypeId,
-        quantity:      item.cantidad,
-        oc_number:     ocActual.numero,
-      }),
+function imprimirTodasEtiquetas() {
+  const confirmados = ingresoItems.filter(it=>it.estado==='confirmado');
+  if(confirmados.length){ abrirVentanaEtiquetas(confirmados); marcarHistorialFlag('etiquetasImpresas'); }
+}
+
+function abrirVentanaEtiquetas(items) {
+  const w = window.open('','_blank');
+  let labelsHtml='', qrScripts='', idx=0;
+  items.forEach(it=>{
+    const n=it.cantidad||1;
+    for(let k=0;k<n;k++){
+      const uid='qlb-'+idx++;
+      const posEtiq=it.posicionAsignada||it.posicion||'';
+      const qrText=(it.sku||'')+'|'+it.nombre+'|'+posEtiq+'|'+(it.tamano||'')+'|'+(it.espesor||'');
+      labelsHtml+=`<div class="label-item"><div id="${uid}" class="qr-slot"></div>
+        <div class="sku">${it.sku||'—'}</div>
+        <div class="name">${it.nombre}</div>
+        <div class="pos">${posEtiq||'Sin pos.'}</div>
+        <div class="meta">${[it.tamano,it.espesor].filter(Boolean).join(' · ')||'—'}</div></div>`;
+      qrScripts+=`try{new QRCode(document.getElementById('${uid}'),{text:${JSON.stringify(qrText)},width:48,height:48});}catch(e){}`;
+    }
+  });
+  w.document.write(`<!DOCTYPE html><html><head><title>Etiquetas</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#fff;padding:4mm;font-family:monospace;}
+    .wrap{display:flex;flex-wrap:wrap;gap:2mm;}
+    .label-item{width:60mm;height:30mm;border:.5px solid #999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.5mm;page-break-inside:avoid;}
+    .qr-slot{line-height:0;}
+    .sku{font-size:8pt;font-weight:700;margin-top:1mm;}
+    .name{font-size:6pt;color:#333;max-width:56mm;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+    .pos{font-size:8pt;font-weight:700;margin-top:.5mm;}
+    .meta{font-size:5.5pt;color:#555;}
+    .no-print{margin:6mm;display:flex;gap:6mm;}
+    @media print{.no-print{display:none;}body{padding:2mm;}}
+  </style></head><body>
+  <div class="no-print">
+    <button onclick="window.print()" style="padding:8px 18px;background:#FFD600;border:none;border-radius:5px;font-family:monospace;font-weight:700;font-size:11px;cursor:pointer;">🖨 Imprimir</button>
+    <button onclick="window.close()" style="padding:8px 14px;background:#333;color:#aaa;border:none;border-radius:5px;font-family:monospace;font-size:11px;cursor:pointer;">Cerrar</button>
+  </div>
+  <div class="wrap">${labelsHtml}</div>
+  <script>window.onload=function(){${qrScripts}};<\/script>
+  </body></html>`);
+  w.document.close();
+}
+
+function tplConfirmacionFinal() {
+  const confirmados = ingresoItems.filter(it=>it.estado==='confirmado');
+  const rechazados  = ingresoItems.filter(it=>it.estado==='rechazado');
+  const sorted = [...confirmados].sort((a,b)=>(a.posicionAsignada||a.posicion||'').localeCompare(b.posicionAsignada||b.posicion||''));
+  const ocLabel = ingresoOC
+    ? `${ingresoOC.purchaseorder_number}${ingresoOC.vendor_name?' · '+ingresoOC.vendor_name:''}`
+    : 'Ingreso manual';
+  const fecha = new Date().toLocaleDateString('es-AR');
+  return `
+  <div style="max-width:820px;">
+    <div style="border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:20px;">
+      <div class="mono" style="font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Confirmar ingreso</div>
+      <div style="font-size:17px;font-weight:600;">${ocLabel} <span style="color:var(--muted);font-weight:400;font-size:13px;">· ${fecha}</span></div>
+    </div>
+
+    <table class="tbl" style="margin-bottom:20px;">
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Tamaño</th><th>Espesor</th><th>Cant.</th><th>Posición</th></tr></thead>
+      <tbody>
+        ${sorted.map(it=>`<tr>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${it.nombre}">${it.nombre}</td>
+          <td><span class="mono" style="font-size:11px;color:var(--amber);">${it.sku||'—'}</span></td>
+          <td class="mono" style="font-size:11px;">${it.tamano||'—'}</td>
+          <td class="mono" style="font-size:11px;">${it.espesor||'—'}</td>
+          <td class="mono">${it.cantidad}</td>
+          <td><span class="mono" style="color:var(--amber);">${it.posicionAsignada||it.posicion||'Sin asignar'}</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+
+    ${rechazados.length ? `
+    <div style="background:rgba(240,92,92,.06);border:1px solid rgba(240,92,92,.2);border-radius:8px;padding:12px 14px;margin-bottom:20px;">
+      <div class="mono" style="font-size:9px;letter-spacing:1px;color:var(--red);text-transform:uppercase;margin-bottom:8px;">✗ Rechazados (${rechazados.length})</div>
+      ${rechazados.map(it=>`<div style="font-size:13px;color:var(--muted);padding:2px 0;">${it.nombre} <span class="mono" style="font-size:10px;color:var(--red);">${it.sku||''}</span></div>`).join('')}
+    </div>` : ''}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <button onclick="imprimirTodasEtiquetas()"
+        style="min-height:120px;background:#FFD600;border:none;border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px;transition:opacity .15s;"
+        onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+        <span style="font-size:30px;">🖨</span>
+        <span style="font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:#0f0f0f;letter-spacing:.5px;">IMPRIMIR ETIQUETAS</span>
+        <span style="font-family:'Space Mono',monospace;font-size:9px;color:#555;">(una por unidad)</span>
+      </button>
+      <button onclick="imprimirReporteUbicacion()"
+        style="min-height:120px;background:var(--card);border:1px solid var(--amber);border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px;transition:opacity .15s;"
+        onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+        <span style="font-size:30px;">📄</span>
+        <span style="font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--amber);letter-spacing:.5px;">IMPRIMIR INFORME</span>
+        <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">DE UBICACIÓN</span>
+        <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">(ordenado por posición)</span>
+      </button>
+    </div>
+
+    <button id="btn-guardar-ingreso" onclick="guardarIngreso()"
+      style="width:100%;padding:18px;background:var(--green);border:none;border-radius:8px;cursor:pointer;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:#0f0f0f;letter-spacing:1px;transition:opacity .15s;"
+      onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+      ✓ CONFIRMAR Y GUARDAR INGRESO
+    </button>
+
+    <div style="margin-top:14px;">
+      <a href="#" onclick="ingresoEnConfirmacion=false;renderTab('ingreso');return false;"
+        style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-decoration:none;letter-spacing:.5px;"
+        onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">← Volver a revisar</a>
+    </div>
+  </div>`;
+}
+
+async function guardarIngreso() {
+  const btn = document.getElementById('btn-guardar-ingreso');
+  if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+  try {
+    const ts = new Date().toISOString();
+    const ocNum = ingresoOC?.purchaseorder_number||null;
+    const confirmados = ingresoItems.filter(it=>it.estado==='confirmado');
+    for(const it of confirmados) {
+      const pos = it.posicionAsignada||it.posicion||null;
+      if(!pos||!it.plate_type_id) continue;
+      await fetch(NEON+'?action=confirm-item',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({position_id:pos,plate_type_id:it.plate_type_id,quantity:it.cantidad,
+          op:'add',movement_type:'ingreso',oc_number:ocNum,tamano:it.tamano||null,espesor:it.espesor||null})});
+    }
+    await recargarStock();
+    ingresoUltimoLote = confirmados;
+    const savedOC = ingresoOC;
+    // Guardar en historial
+    const hEntry = {
+      id: Date.now(),
+      tipo: 'ingreso',
+      fecha: new Date().toISOString(),
+      oc: savedOC?.purchaseorder_number||null,
+      proveedor: savedOC?.vendor_name||null,
+      items: confirmados.map(it=>({
+        nombre:it.nombre, sku:it.sku, tamano:it.tamano||null, espesor:it.espesor||null,
+        cantidad:it.cantidad, posicionAsignada:it.posicionAsignada||it.posicion||null,
+        _depositoLleno:!!it._depositoLleno
+      })),
+      etiquetasImpresas: false,
+      informeImpreso: false,
+    };
+    guardarEnHistorial(hEntry);
+    historialCurrentId = hEntry.id;
+    ingresoOC=null; ingresoItems=[]; ingresoEnConfirmacion=false;
+    document.getElementById('content').innerHTML = tplIngresoExito(savedOC, ingresoUltimoLote);
+  } catch(e) {
+    if(btn){btn.disabled=false;btn.textContent='✓ CONFIRMAR Y GUARDAR INGRESO';}
+    alert('Error al guardar: '+e.message);
+  }
+}
+
+function tplIngresoExito(oc, items) {
+  const n = items.length;
+  const ocLabel = oc ? `OC ${oc.purchaseorder_number}` : 'Ingreso manual';
+  return `
+  <div style="text-align:center;padding:60px 20px;">
+    <div style="font-size:52px;margin-bottom:16px;color:var(--green);">✓</div>
+    <div class="mono" style="font-size:11px;letter-spacing:2px;color:var(--green);text-transform:uppercase;margin-bottom:8px;">Ingreso guardado</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">${ocLabel}</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:28px;">${n} ítem${n!==1?'s':''} registrado${n!==1?'s':''} en Neon</div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="ingresoOC=null;ingresoItems=[];ingresoEnConfirmacion=false;renderTab('ingreso')">Nueva OC</button>
+      <button class="btn btn-ghost" onclick="abrirVentanaEtiquetas(ingresoUltimoLote)">🖨 Reimprimir etiquetas</button>
+    </div>
+  </div>`;
+}
+
+function imprimirReporteUbicacion() {
+  marcarHistorialFlag('informeImpreso');
+  const items = (ingresoEnConfirmacion ? ingresoItems : ingresoUltimoLote).filter(it=>it.estado==='confirmado');
+  const sorted = [...items].sort((a,b)=>(a.posicionAsignada||a.posicion||'').localeCompare(b.posicionAsignada||b.posicion||''));
+  const oc = ingresoEnConfirmacion ? ingresoOC : null;
+  const ocLabel = oc
+    ? `OC ${oc.purchaseorder_number}${oc.vendor_name?' — '+oc.vendor_name:''}`
+    : 'Ingreso manual';
+  const fecha = new Date().toLocaleDateString('es-AR');
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>Reporte Ingreso</title><style>
+    body{font-family:monospace;padding:24px;color:#000;font-size:12px;}
+    h2{margin-bottom:4px;font-size:16px;}
+    .sub{color:#666;margin-bottom:20px;font-size:11px;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{border:1px solid #ccc;padding:7px 10px;text-align:left;}
+    th{background:#f0f0f0;text-transform:uppercase;font-size:10px;letter-spacing:1px;}
+    @media print{button{display:none;}}
+  </style></head><body>
+    <h2>Reporte de Ingreso</h2>
+    <div class="sub">${ocLabel} — ${fecha} · Ordenado por posición</div>
+    <table>
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Tamaño</th><th>Espesor</th><th>Cant.</th><th>Posición</th></tr></thead>
+      <tbody>${sorted.map(it=>`<tr>
+        <td>${it.nombre}</td><td>${it.sku||'—'}</td><td>${it.tamano||'—'}</td>
+        <td>${it.espesor||'—'}</td><td>${it.cantidad}</td><td>${it.posicionAsignada||it.posicion||'Sin asignar'}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <br/><button onclick="window.print()">Imprimir</button>
+  </body></html>`);
+  w.document.close();
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB 2: SALIDA
+// ═══════════════════════════════════════════════════════════
+function tplSalida() {
+  return `
+  <div class="sec">Salida de stock</div>
+  <div class="mode-toggle">
+    <button class="mode-btn ${salidaMode==='so'?'active':''}" onclick="setSalidaMode('so')">Por SO de Zoho</button>
+    <button class="mode-btn ${salidaMode==='articulo'?'active':''}" onclick="setSalidaMode('articulo')">Por artículo</button>
+  </div>
+  ${salidaMode==='so' ? tplSalidaSO() : tplSalidaArticulo()}
+  ${salidaItems.length ? tplSalidaPreview() : ''}`;
+}
+
+function setSalidaMode(m){ salidaMode=m; salidaItems=[]; salidaSO=null; renderTab('salida'); }
+
+function tplSalidaSO() {
+  return `
+  <div class="card">
+    <div style="display:flex;gap:10px;align-items:flex-end;">
+      <div class="field" style="flex:1;">
+        <label>Número de SO</label>
+        <input id="so-num" placeholder="SO-01905" value="${salidaSO?.salesorder_number||''}"
+               onkeydown="if(event.key==='Enter')buscarSO()"/>
+      </div>
+      <button class="btn btn-primary" onclick="buscarSO()">Buscar en Zoho</button>
+    </div>
+    <div id="so-status" style="margin-top:12px;"></div>
+  </div>`;
+}
+
+function tplSalidaArticulo() {
+  return `
+  <div class="card">
+    <div class="sec">Artículo a retirar</div>
+    <button class="btn btn-primary" onclick="abrirCatalogo(it=>agregarItemSalida(it))">Buscar artículo en Zoho</button>
+  </div>`;
+}
+
+function tplSalidaPreview() {
+  return `
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div class="sec" style="margin:0;">Vista previa de retiro</div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="imprimirResumen('obra')">Ordenar por Obra</button>
+        <button class="btn btn-ghost btn-sm" onclick="imprimirResumen('posicion')">Ordenar por Posición</button>
+      </div>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Posición</th><th>Cantidad</th><th>Obra</th><th></th></tr></thead>
+      <tbody>
+        ${salidaItems.map((it,i)=>`<tr>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${it.nombre}">${it.nombre}</td>
+          <td><span class="mono" style="font-size:11px;color:var(--amber);">${it.sku||'—'}</span></td>
+          <td><span class="mono" style="color:var(--amber);font-size:12px;">${it.posicion||'—'}</span>${it._scanned?'<span style="margin-left:6px;color:var(--green);font-size:11px;">✓</span>':''}</td>
+          <td><input type="number" min="1" value="${it.cantidad}" style="width:70px;"
+               onchange="salidaItems[${i}].cantidad=Math.max(1,+this.value)"/></td>
+          <td><input value="${it.obra||''}" placeholder="Obra..." style="width:120px;"
+               onchange="salidaItems[${i}].obra=this.value"/></td>
+          <td><button onclick="salidaItems.splice(${i},1);renderTab('salida')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;">×</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+      <div class="sec">Confirmación</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-danger" id="btn-confirm-salida" onclick="confirmarSalida()">Confirmar todo</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="mono" style="font-size:10px;color:var(--muted);">O escanear QR:</span>
+          <input class="scan-input" id="scan-input" style="width:220px;"
+                 placeholder="Escanear etiqueta..." onchange="procesarScan(this.value);this.value=''"/>
+        </div>
+      </div>
+      <div id="scan-feedback" style="margin-top:10px;"></div>
+    </div>
+  </div>`;
+}
+
+async function buscarSO() {
+  const num = document.getElementById('so-num')?.value?.trim();
+  if(!num) return;
+  const st = document.getElementById('so-status');
+  st.innerHTML = '<span class="spinner"></span><span style="font-size:12px;color:var(--muted);">Buscando en Zoho...</span>';
+  try {
+    const token = await getZohoToken();
+    const r = await fetch('/api/zoho-books?endpoint='+encodeURIComponent('salesorders?salesorder_number='+num)+'&token='+token);
+    const data = await r.json();
+    const sos = data.salesorders||[];
+    if(!sos.length){ st.innerHTML=`<div class="warn-box">No se encontró la SO <strong>${num}</strong> en Zoho Books.</div>`; return; }
+    const r2 = await fetch('/api/zoho-books?endpoint='+encodeURIComponent('salesorders/'+sos[0].salesorder_id)+'&token='+token);
+    const det = await r2.json();
+    salidaSO = det.salesorder||sos[0];
+    st.innerHTML='';
+    const obra = salidaSO.reference_number||salidaSO.delivery_address?.address||'';
+    salidaItems = (salidaSO.line_items||[]).map(it=>{
+      const sku = it.sku||'';
+      const pt = plateTypes.find(p=>p.sku===sku);
+      const posEntry = pt ? calcPosRetiro(pt) : null;
+      return {nombre:it.name||'—',sku,cantidad:it.quantity||1,posicion:posEntry?.position_id||null,plate_type_id:pt?.id||null,obra,_scanned:false};
     });
-    const confData = await confRes.json();
-    if (!confData.ok) throw new Error(confData.error || 'Error al confirmar en Neon');
-
-    // ── 7. Marcar confirmado y re-render ─────────────────────────────────────
-    item.estado = 'confirmado';
-    renderItems();
-    mostrarAlerta(`Ítem ${item.sku} asignado a posición ${posicion.id}`, 'ok');
-
-  } catch (err) {
-    console.error('[confirmarItem] Error:', err);
-    mostrarAlerta(err.message, 'error');
-    if (btn) { btn.disabled = false; btn.textContent = 'Confirmar'; }
+    renderTab('salida');
+  } catch(e) {
+    document.getElementById('so-status').innerHTML = `<div style="color:var(--red);font-size:12px;">Error: ${e.message}</div>`;
   }
 }
 
-// ── Cargar posiciones (tab Posiciones) ───────────────────────────────────────
-async function cargarPosiciones() {
-  const formato = document.getElementById('filter-formato').value;
-  const tbody = document.getElementById('tabla-posiciones');
-  const empty = document.getElementById('empty-posiciones');
-  tbody.innerHTML = '';
-  empty.textContent = 'Cargando...';
-  empty.style.display = 'block';
+function calcPosRetiro(pt) {
+  if(!pt) return null;
+  return stockData
+    .filter(s=>s.plate_type_id===pt.id&&(s.quantity||0)>0)
+    .sort((a,b)=>(a.quantity||0)-(b.quantity||0))[0]||null;
+}
 
+function agregarItemSalida(item) {
+  const sku = item.sku||item.item_id||'';
+  const pt = plateTypes.find(p=>p.sku===sku);
+  const pos = calcPosRetiro(pt);
+  salidaItems.push({nombre:item.name,sku,cantidad:1,posicion:pos?.position_id||null,plate_type_id:pt?.id||null,obra:'',_scanned:false});
+  cerrarCatalogo();
+  renderTab('salida');
+}
+
+function imprimirResumen(ordenBy) {
+  const items = [...salidaItems].sort((a,b)=>{
+    const ka = ordenBy==='obra'?(a.obra||''):(a.posicion||'');
+    const kb = ordenBy==='obra'?(b.obra||''):(b.posicion||'');
+    return ka.localeCompare(kb);
+  });
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>Retiro de placas</title><style>
+    body{font-family:monospace;padding:24px;color:#000;font-size:12px;}
+    h2{margin-bottom:4px;font-size:16px;}
+    .sub{color:#666;margin-bottom:20px;font-size:11px;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{border:1px solid #ccc;padding:7px 10px;text-align:left;}
+    th{background:#f0f0f0;text-transform:uppercase;font-size:10px;letter-spacing:1px;}
+    @media print{button{display:none;}}
+  </style></head><body>
+    <h2>Retiro de placas</h2>
+    <div class="sub">${new Date().toLocaleDateString('es-AR')} · Ordenado por ${ordenBy}</div>
+    <table>
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Posición</th><th>Cantidad</th><th>Obra</th></tr></thead>
+      <tbody>${items.map(it=>`<tr><td>${it.nombre}</td><td>${it.sku||'—'}</td><td>${it.posicion||'—'}</td><td>${it.cantidad}</td><td>${it.obra||'—'}</td></tr>`).join('')}</tbody>
+    </table>
+    <br/><button onclick="window.print()">Imprimir</button>
+  </body></html>`);
+  w.document.close();
+}
+
+async function confirmarSalida() {
+  if(!salidaItems.length) return;
+  if(!confirm('¿Confirmar retiro de '+salidaItems.reduce((a,i)=>a+i.cantidad,0)+' unidades?')) return;
+  const btn = document.getElementById('btn-confirm-salida');
+  btn.disabled=true; btn.textContent='Confirmando...';
   try {
-    const res = await fetch(`/api/stock-placas?action=positions&format=${formato}`);
-    const data = await res.json();
-    const positions = data.positions || [];
-    console.log('[posiciones] Respuesta completa:', data);
-
-    if (positions.length === 0) {
-      empty.textContent = 'Sin posiciones. Usá "Seed DB" para inicializarlas.';
-      document.getElementById('seed-banner').classList.add('show');
-      return;
+    const ts = new Date().toISOString();
+    const soNum = salidaSO?.salesorder_number||null;
+    for(const it of salidaItems){
+      if(!it.posicion||!it.plate_type_id) continue;
+      await fetch(NEON+'?action=confirm-item',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({position_id:it.posicion,plate_type_id:it.plate_type_id,quantity:it.cantidad,
+          op:'subtract',movement_type:'salida',so_number:soNum,obra:it.obra||null})});
     }
-    empty.style.display = 'none';
-
-    tbody.innerHTML = positions.map(p => {
-      const pct = Math.round((p.total_stock / p.capacity) * 100);
-      const barColor = pct > 85 ? 'var(--red)' : pct > 60 ? 'var(--orange)' : 'var(--green)';
-      return `
-        <tr>
-          <td class="mono" style="font-weight:700;color:var(--teal);">${p.id}</td>
-          <td class="mono">${p.column_id}</td>
-          <td class="mono">${p.level}</td>
-          <td><span class="pill pill-amber">${p.format}</span></td>
-          <td style="text-align:right;" class="mono">${p.total_stock}</td>
-          <td style="text-align:right;" class="mono">${p.capacity}</td>
-          <td style="min-width:100px;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <div style="flex:1;height:6px;background:var(--faint);border-radius:99px;overflow:hidden;">
-                <div style="width:${pct}%;height:100%;background:${barColor};border-radius:99px;"></div>
-              </div>
-              <span class="mono" style="font-size:10px;color:var(--muted);">${pct}%</span>
-            </div>
-          </td>
-        </tr>`;
-    }).join('');
-  } catch (err) {
-    empty.textContent = 'Error: ' + err.message;
-    console.error('[cargarPosiciones]', err);
+    await recargarStock();
+    salidaSO=null; salidaItems=[];
+    renderTab('salida');
+  } catch(e){
+    btn.disabled=false; btn.textContent='Confirmar todo';
+    alert('Error: '+e.message);
   }
 }
 
-// ── Reporte ──────────────────────────────────────────────────────────────────
-function generarReporte() {
-  const tbody = document.getElementById('tabla-reporte');
-  const empty = document.getElementById('empty-reporte');
-  const info  = document.getElementById('reporte-oc-info');
-
-  if (!ocActual) {
-    empty.textContent = 'No hay OC activa.';
-    empty.style.display = 'block';
-    tbody.innerHTML = '';
-    return;
-  }
-
-  info.innerHTML = `<span class="mono" style="color:var(--amber);font-weight:700;">${ocActual.numero}</span>
-    &nbsp;·&nbsp; ${ocActual.proveedor || ''}
-    &nbsp;·&nbsp; <span style="color:var(--muted);">${ocActual.items.length} ítems</span>`;
-
-  const items = ocActual.items;
-  if (items.length === 0) {
-    empty.textContent = 'Sin ítems en la OC.';
-    empty.style.display = 'block';
-    tbody.innerHTML = '';
-    return;
-  }
-
-  empty.style.display = 'none';
-  tbody.innerHTML = items.map(item => {
-    // Leer posición de ambas propiedades para no perder datos
-    const pos = item.posicion || item.posicionAsignada;
-    return `
-      <tr>
-        <td class="mono" style="font-size:12px;">${item.sku}</td>
-        <td>${item.nombre || '—'}</td>
-        <td><span class="pill pill-amber">${item.formato}</span></td>
-        <td style="text-align:right;" class="mono">${item.cantidad}</td>
-        <td>
-          ${pos
-            ? `<span class="pos-badge">${pos}</span>`
-            : `<span class="pos-sin-asignar" style="color:var(--muted);font-size:11px;">Sin asignar</span>`}
-        </td>
-        <td>${estadoPill(item.estado)}</td>
-      </tr>`;
-  }).join('');
+function procesarScan(raw) {
+  const parts = raw.trim().split('|');
+  if(parts.length<3){ document.getElementById('scan-feedback').innerHTML=`<div class="warn-box">QR inválido: ${raw}</div>`; return; }
+  const [sku,,posicion] = parts;
+  const it = salidaItems.find(i=>i.sku===sku&&i.posicion===posicion);
+  if(!it){ document.getElementById('scan-feedback').innerHTML=`<div class="warn-box">No coincide con ningún ítem de la orden: ${sku} @ ${posicion}</div>`; return; }
+  it._scanned = true;
+  const todos = salidaItems.every(i=>i._scanned);
+  document.getElementById('scan-feedback').innerHTML = `<div class="ok-box">✓ ${sku} @ ${posicion} escaneado.${todos?' <strong>Todos listos. Confirmá el retiro.</strong>':''}</div>`;
+  renderTab('salida');
 }
 
-// ── Seed DB ──────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// TAB 3: BÚSQUEDA
+// ═══════════════════════════════════════════════════════════
+function tplBusqueda() {
+  return `
+  <div class="sec">Búsqueda por artículo</div>
+  <div class="card">
+    <div style="display:flex;gap:10px;align-items:flex-end;">
+      <div class="field" style="flex:1;">
+        <label>Artículo</label>
+        <div style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 11px;font-size:14px;color:${busqItem?'var(--text)':'var(--muted)'};">
+          ${busqItem?`<strong>${busqItem.name}</strong> <span class="mono" style="font-size:11px;color:var(--amber);">${busqItem.sku||busqItem.item_id||''}</span>`:'Sin selección'}
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="abrirCatalogo(it=>buscarEnStock(it))">Buscar artículo</button>
+    </div>
+    <div id="busq-res" style="margin-top:16px;">${tplBusqResultado()}</div>
+  </div>`;
+}
+
+function tplBusqResultado() {
+  if(!busqResultados.length) {
+    if(busqItem) return `<div class="warn-box">Este artículo no tiene stock registrado en depósito.</div>`;
+    return '';
+  }
+  const total = busqResultados.reduce((a,r)=>a+(r.quantity||0),0);
+  return `
+  <div style="border-top:1px solid var(--border);padding-top:14px;">
+    ${busqItem?`<div style="margin-bottom:14px;">
+      <div style="font-weight:600;font-size:15px;">${busqItem.name}</div>
+      <div class="mono" style="font-size:10px;color:var(--amber);margin-top:3px;">SKU: ${busqItem.sku||busqItem.item_id||'—'}</div>
+      <div class="mono" style="font-size:12px;color:var(--muted);margin-top:4px;">Total en depósito: <strong style="color:var(--text);font-size:14px;">${total}</strong> unidades</div>
+    </div>`:''}
+    <table class="tbl">
+      <thead><tr><th>Posición</th><th>Cantidad</th><th>Ocupación</th></tr></thead>
+      <tbody>
+        ${busqResultados.map(r=>{
+          const pos = positions.find(p=>p.id===r.position_id);
+          const cap = pos ? posCap(pos) : CAP_A;
+          const pct = Math.min(100,Math.round((r.quantity||0)/cap*100));
+          const filled = Math.round(pct/10);
+          const bar = '█'.repeat(filled)+'░'.repeat(10-filled);
+          return `<tr>
+            <td><span class="mono" style="color:var(--amber);">${r.position_id}</span></td>
+            <td class="mono">${r.quantity||0}</td>
+            <td><span class="mono" style="font-size:11px;color:var(--amber);">${bar}</span> <span class="mono" style="font-size:10px;color:var(--muted);">${pct}%</span></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;">
+      <span class="mono" style="font-size:13px;">TOTAL <strong style="color:var(--amber);">${total}</strong> unidades</span>
+      <button class="btn btn-ghost btn-sm" onclick="verEnEstanteria()">Ver en estantería →</button>
+    </div>
+  </div>`;
+}
+
+function verEnEstanteria() {
+  highlightedPos = busqResultados.map(r=>r.position_id);
+  switchTab('estanteria');
+}
+
+async function buscarEnStock(item) {
+  busqItem = item;
+  const sku = item.sku||item.item_id||'';
+  const pt = plateTypes.find(p=>p.sku===sku);
+  cerrarCatalogo();
+  if(!pt){ busqResultados=[]; renderTab('busqueda'); return; }
+  busqResultados = stockData.filter(s=>s.plate_type_id===pt.id&&(s.quantity||0)>0);
+  renderTab('busqueda');
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB 4: ESTANTERÍA
+// ═══════════════════════════════════════════════════════════
+function tplEstanteria() {
+  const colsA = SHELF_A_COLS.map(c=>shelfCol(c,'A',CAP_A)).join('');
+  const colsB = SHELF_B_COLS.map(c=>shelfCol(c,'B',CAP_B)).join('');
+  const colBEsp = shelfColEsp();
+  return `
+  <div class="sec" style="display:flex;justify-content:space-between;align-items:center;">
+    <span>Estantería física</span>
+    ${highlightedPos.length?`<button class="btn btn-ghost btn-sm" onclick="highlightedPos=[];renderTab('estanteria')">Limpiar resaltado</button>`:''}
+  </div>
+  <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;overflow-x:auto;padding-bottom:8px;width:100%;">
+    <div>
+      <div class="mono" style="font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;">Formato A — 122 cm</div>
+      <div class="shelf-grid">${colsA}</div>
+    </div>
+    <div style="width:1px;background:var(--border);align-self:stretch;min-height:100px;"></div>
+    <div>
+      <div class="mono" style="font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;">Formato B — 180 cm</div>
+      <div class="shelf-grid">${colsB}${colBEsp}</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:16px;margin-top:20px;">
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:16px;height:16px;background:#2e2e2e;border:1px solid #353535;border-radius:3px;"></div><span style="font-size:11px;color:var(--muted);">Vacía</span></div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:16px;height:16px;background:rgba(255,214,0,.3);border:1px solid rgba(255,214,0,.35);border-radius:3px;"></div><span style="font-size:11px;color:var(--muted);">Parcial</span></div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:16px;height:16px;background:#FFD600;border-radius:3px;"></div><span style="font-size:11px;color:var(--muted);">Llena</span></div>
+    ${highlightedPos.length?`<div style="display:flex;align-items:center;gap:6px;"><div style="width:16px;height:16px;background:rgba(255,214,0,.3);border:2px solid #FFD600;border-radius:3px;box-shadow:0 0 8px rgba(255,214,0,.5);"></div><span style="font-size:11px;color:var(--muted);">Resaltada</span></div>`:''}
+  </div>`;
+}
+
+function shelfPos(posId, cap) {
+  const s = stockData.find(x=>x.position_id===posId);
+  const qty = s?.quantity||0;
+  const ptId = s?.plate_type_id;
+  const pt = plateTypes.find(p=>p.id===ptId);
+  const pct = qty/cap;
+  const cls = qty===0?'empty':(pct>=1?'full':'partial');
+  const hl = highlightedPos.includes(posId);
+  const lvl = posId.split('-').pop();
+  let bg;
+  if(cls==='empty') bg='#2e2e2e';
+  else if(cls==='full') bg='#FFD600';
+  else bg=`rgba(255,214,0,${(0.12+pct*0.6).toFixed(2)})`;
+  const textCol = cls==='full'?'#0f0f0f':cls==='empty'?'#555':'rgba(255,214,0,.9)';
+  return `<div class="shelf-pos ${cls}${hl?' highlighted':''}"
+    onclick="mostrarDetallePosicion('${posId}')"
+    style="width:90px;height:60px;background:${bg};">
+    <div class="tooltip-box">
+      <div class="mono" style="font-size:10px;color:var(--amber);margin-bottom:2px;">${posId}</div>
+      ${pt?`<div style="font-size:11px;margin-bottom:2px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pt.name}</div>`:'<div style="font-size:11px;color:var(--muted);">Vacía</div>'}
+      <div class="mono" style="font-size:10px;color:var(--muted);">${qty} / ${cap}</div>
+    </div>
+    <div style="text-align:center;line-height:1.2;">
+      <div class="mono" style="font-size:9px;color:${textCol};">${posId}</div>
+      ${qty>0?`<div class="mono" style="font-size:10px;color:${cls==='full'?'#0f0f0f':'#aaa'};">${qty}</div>`:''}
+    </div>
+  </div>`;
+}
+
+function shelfCol(col, fmt, cap) {
+  const cells = [...LEVELS].reverse().map(lvl=>shelfPos(col+'-'+lvl, cap)).join('');
+  return `<div class="shelf-col">
+    <div class="shelf-col-label">${col}</div>
+    ${cells}
+  </div>`;
+}
+
+function shelfColEsp() {
+  const posId = 'B-ESP-1';
+  const s = stockData.find(x=>x.position_id===posId);
+  const qty = s?.quantity||0;
+  const ptId = s?.plate_type_id;
+  const pt = plateTypes.find(p=>p.id===ptId);
+  const pct = qty/CAP_BESP;
+  const cls = qty===0?'empty':(pct>=1?'full':'partial');
+  const hl = highlightedPos.includes(posId);
+  let bg = cls==='empty'?'#2e2e2e':cls==='full'?'#FFD600':`rgba(255,214,0,${(0.12+pct*0.6).toFixed(2)})`;
+  const textCol = cls==='full'?'#0f0f0f':cls==='empty'?'#555':'rgba(255,214,0,.9)';
+  return `<div class="shelf-col">
+    <div class="shelf-col-label">B-ESP</div>
+    <div class="shelf-pos ${cls}${hl?' highlighted':''}"
+      onclick="mostrarDetallePosicion('${posId}')"
+      style="width:90px;height:320px;background:${bg};">
+      <div class="tooltip-box">
+        <div class="mono" style="font-size:10px;color:var(--amber);margin-bottom:2px;">${posId}</div>
+        ${pt?`<div style="font-size:11px;margin-bottom:2px;">${pt.name}</div>`:'<div style="font-size:11px;color:var(--muted);">Vacía</div>'}
+        <div class="mono" style="font-size:10px;color:var(--muted);">${qty} / ${CAP_BESP}</div>
+      </div>
+      <div style="text-align:center;line-height:1.4;">
+        <div class="mono" style="font-size:9px;color:${textCol};">B-ESP</div>
+        ${qty>0?`<div class="mono" style="font-size:10px;color:${cls==='full'?'#0f0f0f':'#aaa'};">${qty}</div>`:''}
+        <div class="mono" style="font-size:9px;color:var(--muted);margin-top:2px;">cap.150</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// CATÁLOGO ZOHO
+// ═══════════════════════════════════════════════════════════
+function abrirCatalogo(cb) {
+  catCb=cb; catItems=[];
+  document.getElementById('cat-overlay').classList.add('open');
+  const inp = document.getElementById('cat-search-input');
+  inp.value='';
+  document.getElementById('cat-results').innerHTML='<div class="cat-status">Escribí para buscar en el catálogo de Zoho</div>';
+  setTimeout(()=>inp.focus(),80);
+}
+
+function cerrarCatalogo() {
+  document.getElementById('cat-overlay').classList.remove('open');
+  clearTimeout(catTimer);
+  catCb=null;
+}
+
+function catDebounce(q) {
+  clearTimeout(catTimer);
+  const t=q.trim();
+  if(!t){ document.getElementById('cat-results').innerHTML='<div class="cat-status">Escribí para buscar en el catálogo de Zoho</div>'; return; }
+  document.getElementById('cat-results').innerHTML='<div class="cat-status"><span class="spinner"></span>Buscando...</div>';
+  catTimer=setTimeout(()=>catBuscar(t),400);
+}
+
+async function catBuscar(q) {
+  try {
+    const token = await getZohoToken();
+    let items=[];
+    const ep1='items?search_text='+encodeURIComponent(q)+'&per_page=50';
+    const d1 = await fetch('/api/zoho-books?endpoint='+encodeURIComponent(ep1)+'&token='+token).then(r=>r.json());
+    items = d1.items||[];
+    if(!items.length){
+      const ep2='items?name_contains='+encodeURIComponent(q)+'&per_page=50';
+      const d2 = await fetch('/api/zoho-books?endpoint='+encodeURIComponent(ep2)+'&token='+token).then(r=>r.json());
+      items = d2.items||[];
+    }
+    catItems=items;
+    if(!items.length){ document.getElementById('cat-results').innerHTML=`<div class="cat-status">Sin resultados para "${q}"</div>`; return; }
+    document.getElementById('cat-results').innerHTML = items.map((it,i)=>`
+      <div class="cat-item">
+        <div>
+          <div class="cat-item-name">${it.name}</div>
+          <div class="cat-item-meta">SKU: ${it.sku||it.item_id||'—'} · ${it.unit||'unidad'}${it.stock_on_hand!=null?' · Stock: '+it.stock_on_hand:''}</div>
+        </div>
+        <button class="cat-add-btn" onclick="catSeleccionar(${i})">+ Agregar</button>
+      </div>`).join('');
+  } catch(e) {
+    document.getElementById('cat-results').innerHTML=`<div class="cat-status" style="color:var(--red);">Error: ${e.message}</div>`;
+  }
+}
+
+function catSeleccionar(idx) {
+  const it=catItems[idx];
+  if(!it||!catCb) return;
+  const cb=catCb;
+  cerrarCatalogo();
+  cb(it);
+}
+
+// ═══════════════════════════════════════════════════════════
+// DETALLE POSICIÓN
+// ═══════════════════════════════════════════════════════════
+function mostrarDetallePosicion(posId) {
+  const pos = positions.find(p=>p.id===posId);
+  const cap = pos ? posCap(pos) : CAP_A;
+  const items = stockData.filter(s=>s.position_id===posId&&(s.quantity||0)>0);
+  let content;
+  if(!items.length) {
+    content = `<div style="color:var(--muted);font-size:13px;padding:8px 0;">Posición vacía</div>`;
+  } else {
+    content = `<table class="tbl">
+      <thead><tr><th>Nombre</th><th>SKU</th><th>Cantidad</th></tr></thead>
+      <tbody>
+        ${items.map(it=>{
+          const pt = plateTypes.find(p=>p.id===it.plate_type_id);
+          return `<tr>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pt?.name||'—'}</td>
+            <td><span class="mono" style="font-size:11px;color:var(--amber);">${pt?.sku||'—'}</span></td>
+            <td class="mono">${it.quantity}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  }
+  document.getElementById('pos-modal-content').innerHTML = `
+    <div style="margin-bottom:14px;">
+      <div class="mono" style="font-size:15px;color:var(--amber);margin-bottom:4px;">${posId}</div>
+      <div class="mono" style="font-size:10px;color:var(--muted);">Capacidad total: ${cap} unidades</div>
+    </div>
+    ${content}`;
+  document.getElementById('pos-overlay').classList.add('open');
+}
+
+function cerrarDetallePosicion() {
+  document.getElementById('pos-overlay').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════════
+// ZOHO TOKEN
+// ═══════════════════════════════════════════════════════════
+// TAB 5: HISTORIAL
+// ═══════════════════════════════════════════════════════════
+let historialViewIdx = null;
+
+function tplHistorial() {
+  if(historialViewIdx !== null) {
+    const h = getHistorial();
+    const r = h[historialViewIdx];
+    if(r) return tplDetalleHistorial(r, historialViewIdx);
+    historialViewIdx = null;
+  }
+  const h = getHistorial();
+  if(!h.length) return `
+  <div style="text-align:center;padding:60px 20px;color:var(--muted);">
+    <div style="font-size:36px;margin-bottom:12px;">📋</div>
+    <div class="mono" style="font-size:10px;letter-spacing:2px;">SIN REGISTROS</div>
+    <div style="font-size:13px;margin-top:8px;">Los ingresos guardados aparecerán aquí.</div>
+  </div>`;
+  return `
+  <div style="max-width:820px;">
+    <div class="sec" style="margin-bottom:16px;">Historial de ingresos</div>
+    ${h.map((r,i)=>{
+      const fecha = new Date(r.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      const ocLabel = r.oc ? `OC ${r.oc}` : 'Manual';
+      const proveedor = r.proveedor || '';
+      const n = r.items?.length||0;
+      const badgeEt = r.etiquetasImpresas
+        ? `<span style="background:rgba(61,214,140,.15);color:var(--green);border:1px solid rgba(61,214,140,.3);font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:3px;">Etiquetas ✓</span>`
+        : '';
+      const badgeInf = r.informeImpreso
+        ? `<span style="background:rgba(255,214,0,.1);color:var(--amber);border:1px solid rgba(255,214,0,.25);font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:3px;">Informe ✓</span>`
+        : '';
+      return `<div onclick="historialViewIdx=${i};renderTab('historial')" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:8px;cursor:pointer;transition:border-color .15s;"
+        onmouseover="this.style.borderColor='var(--amber)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:13px;font-weight:600;margin-bottom:3px;">${ocLabel}${proveedor?' · <span style="font-weight:400;color:var(--muted);">'+proveedor+'</span>':''}</div>
+            <div class="mono" style="font-size:10px;color:var(--muted);">${fecha} · ${n} ítem${n!==1?'s':''}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${badgeEt}${badgeInf}</div>
+        </div>
+      </div>`;
+    }).join('')}
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);">
+      <button class="btn btn-ghost btn-sm" onclick="limpiarHistorial()" style="color:var(--red);">🗑 Limpiar historial</button>
+    </div>
+  </div>`;
+}
+
+function limpiarHistorial() {
+  if(!confirm('¿Borrar todo el historial de reportes?')) return;
+  localStorage.removeItem(LS_HISTORIAL);
+  renderTab('historial');
+}
+
+function tplDetalleHistorial(r, idx) {
+  const fecha = new Date(r.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const ocLabel = r.oc ? `OC ${r.oc}` : 'Ingreso manual';
+  const sorted = [...(r.items||[])].sort((a,b)=>(a.posicionAsignada||'').localeCompare(b.posicionAsignada||''));
+  return `
+  <div style="max-width:820px;">
+    <div style="margin-bottom:16px;">
+      <a href="#" onclick="historialViewIdx=null;renderTab('historial');return false;"
+        style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-decoration:none;letter-spacing:.5px;"
+        onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">← Volver al historial</a>
+    </div>
+    <div style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px;">
+      <div class="mono" style="font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Detalle de ingreso</div>
+      <div style="font-size:17px;font-weight:600;">${ocLabel}${r.proveedor?' <span style="color:var(--muted);font-weight:400;font-size:13px;">· '+r.proveedor+'</span>':''}</div>
+      <div class="mono" style="font-size:10px;color:var(--muted);margin-top:4px;">${fecha}</div>
+    </div>
+
+    <table class="tbl" style="margin-bottom:20px;">
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Tamaño</th><th>Espesor</th><th>Cant.</th><th>Posición</th></tr></thead>
+      <tbody>
+        ${sorted.map(it=>`<tr>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${it.nombre}">${it.nombre}</td>
+          <td><span class="mono" style="font-size:11px;color:var(--amber);">${it.sku||'—'}</span></td>
+          <td class="mono" style="font-size:11px;">${it.tamano||'—'}</td>
+          <td class="mono" style="font-size:11px;">${it.espesor||'—'}</td>
+          <td class="mono">${it.cantidad}</td>
+          <td>${it._depositoLleno
+            ? `<span class="mono" style="font-size:11px;color:var(--red);">⚠ Lleno</span>`
+            : `<span class="mono" style="color:var(--amber);">${it.posicionAsignada||'Sin asignar'}</span>`
+          }</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <button onclick="reimprEtiquetas(${idx})"
+        style="min-height:90px;background:#FFD600;border:none;border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px;transition:opacity .15s;"
+        onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+        <span style="font-size:24px;">🖨</span>
+        <span style="font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:#0f0f0f;letter-spacing:.5px;">REIMPRIMIR ETIQUETAS</span>
+      </button>
+      <button onclick="reimprInforme(${idx})"
+        style="min-height:90px;background:var(--card);border:1px solid var(--amber);border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px;transition:opacity .15s;"
+        onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+        <span style="font-size:24px;">📄</span>
+        <span style="font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:var(--amber);letter-spacing:.5px;">REIMPRIMIR INFORME</span>
+      </button>
+    </div>
+  </div>`;
+}
+
+function reimprEtiquetas(idx) {
+  const h = getHistorial();
+  const r = h[idx]; if(!r) return;
+  // Convert historial items to format abrirVentanaEtiquetas expects
+  const items = r.items.map(it=>({...it, estado:'confirmado'}));
+  abrirVentanaEtiquetas(items);
+  h[idx].etiquetasImpresas = true;
+  localStorage.setItem(LS_HISTORIAL, JSON.stringify(h));
+}
+
+function reimprInforme(idx) {
+  const h = getHistorial();
+  const r = h[idx]; if(!r) return;
+  const sorted = [...r.items].sort((a,b)=>(a.posicionAsignada||'').localeCompare(b.posicionAsignada||''));
+  const ocLabel = r.oc ? `OC ${r.oc}${r.proveedor?' — '+r.proveedor:''}` : 'Ingreso manual';
+  const fecha = new Date(r.fecha).toLocaleDateString('es-AR');
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>Reporte Ingreso</title><style>
+    body{font-family:monospace;padding:24px;color:#000;font-size:12px;}
+    h2{margin-bottom:4px;font-size:16px;}
+    .sub{color:#666;margin-bottom:20px;font-size:11px;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{border:1px solid #ccc;padding:7px 10px;text-align:left;}
+    th{background:#f0f0f0;text-transform:uppercase;font-size:10px;letter-spacing:1px;}
+    @media print{button{display:none;}}
+  </style></head><body>
+    <h2>Reporte de Ingreso</h2>
+    <div class="sub">${ocLabel} — ${fecha} · Ordenado por posición</div>
+    <table>
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Tamaño</th><th>Espesor</th><th>Cant.</th><th>Posición</th></tr></thead>
+      <tbody>${sorted.map(it=>`<tr>
+        <td>${it.nombre}</td><td>${it.sku||'—'}</td><td>${it.tamano||'—'}</td>
+        <td>${it.espesor||'—'}</td><td>${it.cantidad}</td>
+        <td>${it._depositoLleno?'⚠ Lleno':it.posicionAsignada||'Sin asignar'}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <br/><button onclick="window.print()">Imprimir</button>
+  </body></html>`);
+  w.document.close();
+  h[idx].informeImpreso = true;
+  localStorage.setItem(LS_HISTORIAL, JSON.stringify(h));
+}
+
+// ═══════════════════════════════════════════════════════════
+async function getZohoToken() {
+  const data = await fetch('/api/zoho-token').then(r=>r.json());
+  if(!data.access_token) throw new Error('No se obtuvo access token');
+  return data.access_token;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SEED POSITIONS
+// ═══════════════════════════════════════════════════════════
 async function seedPositions() {
   const btn = document.getElementById('btn-seed');
-  btn.disabled = true;
-  btn.textContent = 'Cargando...';
+  if(btn){btn.disabled=true;btn.textContent='Cargando...';}
   try {
-    const res = await fetch('/api/stock-placas?action=seed-positions');
+    const res = await fetch(NEON+'?action=seed-positions');
     const data = await res.json();
-    console.log('[seed]', data);
-    if (data.ok) {
-      document.getElementById('seed-banner').classList.remove('show');
-      alert('Posiciones cargadas correctamente.');
-      cargarPosiciones();
+    console.log('[seed-positions]', data);
+    if(data.ok) {
+      alert('Posiciones cargadas: '+data.positions+' posiciones en Neon.');
+      const banner = document.getElementById('seed-banner');
+      if(banner) banner.style.display='none';
+      // Recargar datos
+      const [a,b,c] = await Promise.all([
+        fetch(NEON+'?action=plate-types').then(r=>r.json()),
+        fetch(NEON+'?action=positions').then(r=>r.json()),
+        fetch(NEON+'?action=stock').then(r=>r.json()),
+      ]);
+      plateTypes = Array.isArray(a)?a:[];
+      positions  = Array.isArray(b)?b:[];
+      stockData  = Array.isArray(c)?c:[];
+      document.getElementById('stock-status').textContent =
+        plateTypes.length+' tipos · '+positions.length+' posiciones';
+      renderTab(currentTab||'ingreso');
     } else {
-      alert('Error: ' + (data.error || JSON.stringify(data)));
+      alert('Error seed: '+(data.error||JSON.stringify(data)));
     }
-  } catch (err) {
-    alert('Error seed: ' + err.message);
+  } catch(e) {
+    alert('Error seed: '+e.message);
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Seed DB';
+    if(btn){btn.disabled=false;btn.textContent='Seed DB';}
   }
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function mostrarAlerta(msg, tipo) {
-  const el = document.getElementById('alert-oc');
-  if (!el) return;
-  el.textContent = msg;
-  el.className = 'alert show ' + (tipo === 'ok' ? 'alert-ok' : 'alert-err');
-  setTimeout(() => el.classList.remove('show'), 5000);
-}
+// ═══════════════════════════════════════════════════════════
+// START
+// ═══════════════════════════════════════════════════════════
+init();
 </script>
 </body>
 </html>
