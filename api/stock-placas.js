@@ -140,6 +140,17 @@ export default async function handler(req, res) {
       return res.json({ ok: true, positions: Number(countPos.rows[0].count) });
     }
 
+    // POST set-fixed-position: guardar o borrar posición fija de un plate_type
+    if (action === 'set-fixed-position' && req.method === 'POST') {
+      const { sku, position_id } = req.body;
+      if (!sku) return res.status(400).json({ error: 'sku requerido' });
+      await client.query(
+        'UPDATE plate_types SET fixed_position_id = $1 WHERE sku = $2',
+        [position_id || null, sku]
+      );
+      return res.json({ ok: true });
+    }
+
     return res.status(400).json({ error: 'Acción no reconocida: ' + action });
 
   } catch (err) {

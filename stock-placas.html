@@ -272,8 +272,12 @@ let highlightedPos = [];
 let catCb = null, catTimer = null, catItems = [];
 let historialCurrentId = null;
 
-const LS_HISTORIAL = 'historial_reportes';
+const LS_HISTORIAL   = 'historial_reportes';
+const LS_POS_FIJAS   = 'placas_pos_fijas';
 function getHistorial() { try{return JSON.parse(localStorage.getItem(LS_HISTORIAL))||[];}catch(e){return[];} }
+function getPosFijas()  { try{return JSON.parse(localStorage.getItem(LS_POS_FIJAS))||{};}catch(e){return{};} }
+function setPosFijaLocal(sku, posId) { const d=getPosFijas(); d[sku]=posId; localStorage.setItem(LS_POS_FIJAS,JSON.stringify(d)); }
+function deletePosFijaLocal(sku) { const d=getPosFijas(); delete d[sku]; localStorage.setItem(LS_POS_FIJAS,JSON.stringify(d)); }
 function guardarEnHistorial(entry) { const h=getHistorial(); h.unshift(entry); localStorage.setItem(LS_HISTORIAL,JSON.stringify(h)); }
 function marcarHistorialFlag(flag) {
   if(!historialCurrentId) return;
@@ -357,6 +361,30 @@ function abrirGestionOpciones() {
 function cerrarGestionOpciones() {
   document.getElementById('gestion-overlay').classList.remove('open');
 }
+function tplGestionPosFijas() {
+  const fijas = getPosFijas();
+  const entradas = Object.entries(fijas);
+  if(!entradas.length) {
+    return `<div style="font-size:12px;color:var(--muted);padding:8px 0;">Sin posiciones fijas configuradas. Al confirmar un ítem elegí posición manual y marcá "Usar siempre".</div>`;
+  }
+  const rows = entradas.map(([sku, posId])=>{
+    const pt = plateTypes.find(p=>p.sku===sku);
+    const nombre = pt?.name || '—';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span class="mono" style="font-size:10px;color:var(--amber);flex-shrink:0;min-width:100px;">${sku}</span>
+      <span style="font-size:12px;flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${nombre}">${nombre}</span>
+      <span style="background:rgba(245,166,35,.15);border:1px solid rgba(245,166,35,.35);border-radius:4px;padding:2px 8px;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:var(--amber);flex-shrink:0;">${posId}</span>
+      <button onclick="eliminarPosFijaGestion('${sku}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;line-height:1;flex-shrink:0;" title="Eliminar posición fija">✕</button>
+    </div>`;
+  }).join('');
+  return `<div style="max-height:220px;overflow-y:auto;">${rows}</div>`;
+}
+
+async function eliminarPosFijaGestion(sku) {
+  await eliminarPosFija(sku);
+  renderGestionOpciones();
+}
+
 function renderGestionOpciones() {
   const tams = getTamanos(), esps = getEspesores();
   const tamList = tams.map((t,i)=>`
@@ -410,6 +438,10 @@ function renderGestionOpciones() {
       <div class="mono" style="font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Formatos de estantería</div>
       ${fmtSection}
       <div style="font-size:11px;color:var(--muted);margin-top:8px;">El ancho relevante es el lado menor de la placa (se guarda de canto).</div>
+    </div>
+    <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+      <div class="mono" style="font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">📌 Posiciones fijas por artículo</div>
+      ${tplGestionPosFijas()}
     </div>`;
 }
 function eliminarTamano(i)  { const a=getTamanos(); a.splice(i,1); localStorage.setItem(LS_TAMANOS,JSON.stringify(a)); renderGestionOpciones(); }
@@ -485,6 +517,104 @@ function tplListaIngreso() {
   </div>`;
 }
 
+function tplPosControl(it, i) {
+  const mode = it.posicionMode || 'auto';
+  const fmt  = formatoParaTamano(it.tamano);
+  const posFormat = fmt ? positions.filter(p=>p.format===fmt) : positions;
+
+  const btnStyle = (active) => active
+    ? 'padding:4px 10px;border:none;border-radius:4px;cursor:pointer;font-family:"Space Mono",monospace;font-size:9px;font-weight:700;background:var(--amber);color:#0f0f0f;'
+    : 'padding:4px 10px;border:1px solid var(--border);border-radius:4px;cursor:pointer;font-family:"Space Mono",monospace;font-size:9px;font-weight:700;background:var(--faint);color:var(--muted);';
+
+  const toggleBar = `<div style="display:flex;gap:3px;">
+    <button style="${btnStyle(mode==='auto'||mode==='fija')}" onclick="setPosMode(${i},'auto')">🤖 Auto</button>
+    <button style="${btnStyle(mode==='manual')}"               onclick="setPosMode(${i},'manual')">📍 Elegir</button>
+  </div>`;
+
+  if(mode === 'fija') {
+    const posFija = it.posicionManual || '—';
+    return `${toggleBar}
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span style="background:rgba(245,166,35,.15);border:1px solid rgba(245,166,35,.4);border-radius:4px;padding:2px 8px;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--amber);">📌 ${posFija}</span>
+      <span style="font-size:10px;color:var(--muted);">Fija</span>
+    </div>`;
+  }
+
+  if(mode === 'manual') {
+    const posOpts = posFormat.map(p=>{
+      const qty = stockData.find(s=>s.position_id===p.id&&(s.quantity||0)>0)?.quantity||0;
+      const cap = posCap(p);
+      const full = qty>=cap;
+      const pct = Math.round(qty/cap*100);
+      const lbl = full
+        ? `${p.id} · ${qty}/${cap} LLENA`
+        : qty===0
+          ? `${p.id} · vacía (0/${cap})`
+          : `${p.id} · ${qty}/${cap} (${pct}%)`;
+      const sel = it.posicionManual===p.id?'selected':'';
+      const style = full?'color:#888':'';
+      return `<option value="${p.id}" ${sel} style="${style}">${lbl}</option>`;
+    }).join('');
+    const noFmt = posFormat.length===0 ? `<div style="font-size:10px;color:var(--red);margin-top:3px;">Sin posiciones para formato ${fmt||'?'} — seed DB primero</div>` : '';
+    const fijaCheck = `<label style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);margin-top:5px;cursor:pointer;">
+      <input type="checkbox" ${it.posicionFijaCheck?'checked':''} onchange="onPosFijaCheck(${i},this.checked)" style="accent-color:var(--amber);cursor:pointer;"/>
+      Usar siempre para <span style="color:var(--amber);font-family:'Space Mono',monospace;font-size:9px;">${it.sku||'este SKU'}</span>
+    </label>`;
+    return `${toggleBar}
+    <select onchange="onPosManualChange(${i},this.value)"
+      style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:5px 8px;color:var(--text);font-family:'Space Mono',monospace;font-size:10px;outline:none;width:100%;max-width:200px;">
+      <option value="">— elegir posición —</option>
+      ${posOpts}
+    </select>
+    ${noFmt}
+    ${fijaCheck}`;
+  }
+
+  // auto
+  const posLabel = it.posicion
+    ? `<span class="mono" style="font-size:12px;color:var(--amber);">${it.posicion}</span>`
+    : `<span style="font-size:11px;color:var(--muted);">Se calculará al confirmar</span>`;
+  return `${toggleBar}${posLabel}`;
+}
+
+function setPosMode(i, mode) {
+  ingresoItems[i].posicionMode = mode;
+  if(mode==='auto') ingresoItems[i].posicionManual = null;
+  renderTab('ingreso');
+}
+
+function onPosManualChange(i, posId) {
+  ingresoItems[i].posicionManual = posId || null;
+  ingresoItems[i].posicion = posId || null;
+}
+
+function onPosFijaCheck(i, checked) {
+  ingresoItems[i].posicionFijaCheck = checked;
+}
+
+async function guardarPosFija(sku, posId, plate_type_id) {
+  setPosFijaLocal(sku, posId);
+  try {
+    await fetch(NEON+'?action=set-fixed-position', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({sku, position_id: posId}),
+    });
+  } catch(e) { console.warn('No se pudo guardar posición fija en Neon:', e.message); }
+}
+
+async function eliminarPosFija(sku) {
+  deletePosFijaLocal(sku);
+  try {
+    await fetch(NEON+'?action=set-fixed-position', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({sku, position_id: null}),
+    });
+  } catch(e) { console.warn('No se pudo borrar posición fija en Neon:', e.message); }
+  renderGestionOpciones();
+}
+
 function tplItemIngresoCard(it, i) {
   if(it.estado==='confirmado') {
     return `<div style="background:rgba(61,214,140,.06);border:1px solid rgba(61,214,140,.25);border-radius:8px;padding:14px;margin-bottom:10px;">
@@ -548,9 +678,9 @@ function tplItemIngresoCard(it, i) {
           <option value="__nuevo__">+ Nuevo espesor...</option>
         </select>
       </div>
-      <div style="display:flex;flex-direction:column;gap:3px;padding-bottom:2px;">
+      <div style="display:flex;flex-direction:column;gap:5px;padding-bottom:2px;min-width:180px;">
         <span class="mono" style="font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;">Posición</span>
-        <span class="mono" style="font-size:13px;color:var(--amber);line-height:2;">${it.posicion||'Sin asignar'}</span>
+        ${tplPosControl(it, i)}
       </div>
     </div>
     <div style="display:flex;gap:8px;">
@@ -589,8 +719,10 @@ async function buscarOC() {
       const sku = it.sku||'';
       const pt = plateTypes.find(p=>p.sku===sku);
       const defTam=getTamanos()[0]||'2.60x1.83', defEsp='18mm';
-      const pos = pt ? await calcPosIngreso(pt, defTam) : null;
-      return {nombre:it.name||it.description||'—',sku,cantidad:it.quantity||1,posicion:pos?.id||null,plate_type_id:pt?.id||null,tamano:defTam,espesor:defEsp,estado:'pendiente'};
+      const posFija = getPosFijas()[sku] || pt?.fixed_position_id || null;
+      const posicionMode = posFija ? 'fija' : 'auto';
+      const pos = posFija ? positions.find(p=>p.id===posFija)||null : (pt ? await calcPosIngreso(pt, defTam) : null);
+      return {nombre:it.name||it.description||'—',sku,cantidad:it.quantity||1,posicion:pos?.id||null,plate_type_id:pt?.id||null,tamano:defTam,espesor:defEsp,estado:'pendiente',posicionMode,posicionManual:posFija||null,posicionFijaCheck:false};
     }));
     renderTab('ingreso');
   } catch(e) {
@@ -602,8 +734,10 @@ async function agregarItemIngreso(item) {
   const sku = item.sku||item.item_id||'';
   const pt = plateTypes.find(p=>p.sku===sku);
   const defTam=getTamanos()[0]||'2.60x1.83', defEsp='18mm';
-  const pos = pt ? await calcPosIngreso(pt, defTam) : null;
-  ingresoItems.push({nombre:item.name,sku,cantidad:1,posicion:pos?.id||null,plate_type_id:pt?.id||null,tamano:defTam,espesor:defEsp,estado:'pendiente'});
+  const posFija = getPosFijas()[sku] || pt?.fixed_position_id || null;
+  const posicionMode = posFija ? 'fija' : 'auto';
+  const pos = posFija ? positions.find(p=>p.id===posFija)||null : (pt ? await calcPosIngreso(pt, defTam) : null);
+  ingresoItems.push({nombre:item.name,sku,cantidad:1,posicion:pos?.id||null,plate_type_id:pt?.id||null,tamano:defTam,espesor:defEsp,estado:'pendiente',posicionMode,posicionManual:posFija||null,posicionFijaCheck:false});
   cerrarCatalogo();
   renderTab('ingreso');
 }
@@ -653,12 +787,18 @@ async function confirmarItem(i) {
     // 2. Refresh stock
     await recargarStock();
     console.log('4. Stock recargado, total entradas:', stockData.length, '| positions cargadas:', positions.length);
-    // 3. Calculate position with fresh data
+    // 3. Calculate or use manual position
     const pt = plateTypes.find(p=>p.id===plate_type_id)||{id:plate_type_id,format:formatoParaTamano(it.tamano)||'A'};
-    console.log('5. Buscando posición con pt:', pt, 'tamano:', it.tamano);
-    const pos = await calcPosIngreso(pt, it.tamano);
-    const posId = pos?.id||null;
-    console.log('6. Posición asignada:', posId, pos);
+    let posId;
+    if(it.posicionMode==='manual'||it.posicionMode==='fija') {
+      posId = it.posicionManual||null;
+      console.log('5. Posición manual/fija usada:', posId);
+    } else {
+      console.log('5. Buscando posición automática con pt:', pt, 'tamano:', it.tamano);
+      const pos = await calcPosIngreso(pt, it.tamano);
+      posId = pos?.id||null;
+    }
+    console.log('6. Posición asignada:', posId);
     if(!posId && positions.length===0) {
       const banner = document.getElementById('seed-banner');
       if(banner) banner.style.display='flex';
@@ -666,6 +806,11 @@ async function confirmarItem(i) {
     }
     ingresoItems[i].posicion = posId;
     ingresoItems[i].posicionAsignada = posId;
+    // 3b. Guardar posición fija si el checkbox estaba marcado
+    if(it.posicionFijaCheck && posId && it.sku) {
+      await guardarPosFija(it.sku, posId, plate_type_id);
+      ingresoItems[i].posicionMode = 'fija';
+    }
     ingresoItems[i].estado = 'confirmado';
     ingresoItems[i]._depositoLleno = !posId && !!plate_type_id;
     // 4. Recalculate pending items
