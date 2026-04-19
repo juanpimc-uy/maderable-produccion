@@ -15,11 +15,21 @@
     --tap:var(--purple);--lus:var(--teal);
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100vh;}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;height:100vh;overflow:hidden;}
   .mono{font-family:'JetBrains Mono',monospace;}
-  .topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 24px;height:54px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:50;}
+  /* shell / sidebar */
+  .shell{display:flex;height:100vh;overflow:hidden;}
+  .sidebar{width:200px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
+  .sidebar-logo{padding:18px 16px;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;font-size:13px;color:var(--muted);border-left:3px solid transparent;transition:all .15s;text-decoration:none;}
+  .nav-item:hover{background:var(--faint);color:var(--text);}
+  .nav-item.active{background:rgba(245,166,35,.08);color:var(--amber);border-left-color:var(--amber);font-weight:600;}
+  .nav-icon{font-size:15px;width:20px;text-align:center;flex-shrink:0;}
+  /* main */
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+  .topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;gap:14px;flex-shrink:0;}
   .logo{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
-  .page{max-width:1000px;margin:0 auto;padding:24px 20px 80px;}
+  .page{padding:24px 28px 80px;overflow-y:auto;flex:1;}
   .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
   .sec{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;}
   .pill{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.8px;padding:2px 8px;border-radius:3px;text-transform:uppercase;white-space:nowrap;}
@@ -90,14 +100,29 @@
 </style>
 </head>
 <body>
+<div class="shell">
 
-<div class="topbar">
-  <span class="logo">⬡ MADERABLE</span>
-  <span class="mono" style="font-size:11px;color:var(--muted);">/ TERCERIZADOS</span>
-  <div style="margin-left:auto;display:flex;gap:10px;align-items:center;">
-    <a href="admin.html" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-decoration:none;">← Admin</a>
+<aside class="sidebar">
+  <div class="sidebar-logo"><a href="admin.html" style="text-decoration:none;color:inherit;">⬡ MADERABLE</a></div>
+  <div style="flex:1;padding:8px 0;overflow-y:auto;">
+    <a href="admin.html" class="nav-item"><span class="nav-icon">◈</span> Dashboard</a>
+    <a href="admin.html" class="nav-item"><span class="nav-icon">⬡</span> Proyectos</a>
+    <a href="admin.html" class="nav-item"><span class="nav-icon">◎</span> Operarios</a>
+    <a href="admin.html" class="nav-item"><span class="nav-icon">⬗</span> Tiempos</a>
+    <a href="materiales.html" class="nav-item"><span class="nav-icon">▣</span> Materiales</a>
+    <a href="tercerizados.html" class="nav-item active"><span class="nav-icon">🧵</span> Tercerizados</a>
+    <a href="stock-placas.html" class="nav-item"><span class="nav-icon">⬛</span> Stock Placas</a>
+    <a href="admin.html#ajustes" class="nav-item"><span class="nav-icon">⚙</span> Ajustes</a>
   </div>
-</div>
+  <div style="padding:12px 16px;border-top:1px solid var(--border);">
+    <a href="planta.html" target="_blank" style="color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-decoration:none;">Abrir tablet →</a>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <span class="mono" style="font-size:11px;color:var(--muted);letter-spacing:2px;">TERCERIZADOS</span>
+  </div>
 
 <div class="page">
 
@@ -589,5 +614,8 @@ function hoy() { return new Date().toISOString().split('T')[0]; }
 loadProvs();
 render();
 </script>
+</div><!-- /page -->
+</div><!-- /main -->
+</div><!-- /shell -->
 </body>
 </html>
