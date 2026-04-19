@@ -581,7 +581,7 @@ async function buscarOC() {
     ingresoItems = await Promise.all((ingresoOC.line_items||[]).map(async it=>{
       const sku = it.sku||'';
       const pt = plateTypes.find(p=>p.sku===sku);
-      const defTam=getTamanos()[0]||'2.60x1.83', defEsp=getEspesores()[0]||'18mm';
+      const defTam=getTamanos()[0]||'2.60x1.83', defEsp='18mm';
       const pos = pt ? await calcPosIngreso(pt, defTam) : null;
       return {nombre:it.name||it.description||'—',sku,cantidad:it.quantity||1,posicion:pos?.id||null,plate_type_id:pt?.id||null,tamano:defTam,espesor:defEsp,estado:'pendiente'};
     }));
@@ -594,7 +594,7 @@ async function buscarOC() {
 async function agregarItemIngreso(item) {
   const sku = item.sku||item.item_id||'';
   const pt = plateTypes.find(p=>p.sku===sku);
-  const defTam=getTamanos()[0]||'2.60x1.83', defEsp=getEspesores()[0]||'18mm';
+  const defTam=getTamanos()[0]||'2.60x1.83', defEsp='18mm';
   const pos = pt ? await calcPosIngreso(pt, defTam) : null;
   ingresoItems.push({nombre:item.name,sku,cantidad:1,posicion:pos?.id||null,plate_type_id:pt?.id||null,tamano:defTam,espesor:defEsp,estado:'pendiente'});
   cerrarCatalogo();

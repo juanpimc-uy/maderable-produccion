@@ -13,9 +13,11 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const { action } = req.query;
-  const client = await pool.connect();
+  let client;
 
   try {
+    client = await pool.connect();
+
     // GET all plate types
     if (action === 'plate-types' && req.method === 'GET') {
       const r = await client.query('SELECT * FROM plate_types ORDER BY name');
@@ -52,7 +54,7 @@ export default async function handler(req, res) {
     if (action === 'confirm-item' && req.method === 'POST') {
       const {
         position_id, plate_type_id, quantity, op,
-        movement_type, oc_number, so_number, tamano, espesor, obra,
+        movement_type, oc_number, so_number,
       } = req.body;
 
       const qty = Number(quantity);
@@ -66,21 +68,22 @@ export default async function handler(req, res) {
         [position_id, plate_type_id, delta]
       );
 
-      const reference = oc_number || so_number || null;
+      const reference = oc_number || so_number || '';
       await client.query(
         `INSERT INTO movements (position_id, plate_type_id, quantity, type, reference, created_at)
          VALUES ($1, $2, $3, $4, $5, NOW())`,
-        [position_id, plate_type_id, qty, movement_type || 'ingreso', reference || '']
+        [position_id, plate_type_id, qty, movement_type || 'ingreso', reference]
       );
 
       return res.json({ ok: true });
     }
 
     return res.status(400).json({ error: 'Acción no reconocida: ' + action });
+
   } catch (err) {
-    console.error('stock-placas error:', err);
-    return res.status(500).json({ error: err.message });
+    console.error('Error completo:', err);
+    return res.status(500).json({ error: err.message, stack: err.stack });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 }
