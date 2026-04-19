@@ -161,6 +161,20 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
   </div>
 </div>
 
+<!-- MODAL GESTIÓN TAMAÑOS/ESPESORES -->
+<div class="overlay" id="gestion-overlay" onclick="if(event.target===this)cerrarGestionOpciones()">
+  <div class="modal" style="width:560px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div class="modal-title">Gestionar tamaños y espesores</div>
+      <button onclick="cerrarGestionOpciones()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div id="gestion-content"></div>
+    <div style="margin-top:18px;text-align:right;">
+      <button class="btn btn-ghost" onclick="cerrarGestionOpciones()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL DETALLE POSICIÓN -->
 <div class="overlay" id="pos-overlay" onclick="if(event.target===this)cerrarDetallePosicion()">
   <div class="modal" style="max-width:440px;">
@@ -259,7 +273,10 @@ function renderTab(tab) {
 // ═══════════════════════════════════════════════════════════
 function tplIngreso() {
   return `
-  <div class="sec">Ingreso de stock</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <div class="sec" style="margin:0;">Ingreso de stock</div>
+    <a href="#" onclick="abrirGestionOpciones();return false;" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-decoration:none;letter-spacing:.5px;" onmouseover="this.style.color='var(--amber)'" onmouseout="this.style.color='var(--muted)'">⚙ Gestionar tamaños y espesores</a>
+  </div>
   <div class="mode-toggle">
     <button class="mode-btn ${ingresoMode==='oc'?'active':''}" onclick="setIngresoMode('oc')">Por OC de Zoho</button>
     <button class="mode-btn ${ingresoMode==='articulo'?'active':''}" onclick="setIngresoMode('articulo')">Por artículo</button>
@@ -268,6 +285,62 @@ function tplIngreso() {
 }
 
 function setIngresoMode(m){ ingresoMode=m; ingresoItems=[]; ingresoOC=null; renderTab('ingreso'); }
+
+// ── Gestión opciones ──
+let gestionAddingTamano = false, gestionAddingEspesor = false;
+
+function abrirGestionOpciones() {
+  gestionAddingTamano = false; gestionAddingEspesor = false;
+  document.getElementById('gestion-overlay').classList.add('open');
+  renderGestionOpciones();
+}
+function cerrarGestionOpciones() {
+  document.getElementById('gestion-overlay').classList.remove('open');
+}
+function renderGestionOpciones() {
+  const tams = getTamanos(), esps = getEspesores();
+  const tamList = tams.map((t,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:13px;">${t}</span>
+      <button onclick="eliminarTamano(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;line-height:1;" title="Eliminar">✕</button>
+    </div>`).join('');
+  const espList = esps.map((e,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:13px;">${e}</span>
+      <button onclick="eliminarEspesor(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;line-height:1;" title="Eliminar">✕</button>
+    </div>`).join('');
+  document.getElementById('gestion-content').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div>
+        <div class="mono" style="font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Tamaños</div>
+        ${tamList}
+        ${gestionAddingTamano
+          ? `<div style="margin-top:10px;display:flex;gap:6px;">
+               <input id="new-tam-inp" class="cat-search" style="margin:0;flex:1;" placeholder="Ej: 2.60x1.83" autocomplete="off"
+                 onkeydown="if(event.key==='Enter')confirmarNuevoTamano();if(event.key==='Escape'){gestionAddingTamano=false;renderGestionOpciones();}"/>
+               <button class="btn btn-success btn-sm" onclick="confirmarNuevoTamano()">OK</button>
+             </div>`
+          : `<button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%;"
+               onclick="gestionAddingTamano=true;renderGestionOpciones();setTimeout(()=>document.getElementById('new-tam-inp')?.focus(),50)">+ Agregar tamaño</button>`}
+      </div>
+      <div>
+        <div class="mono" style="font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Espesores</div>
+        ${espList}
+        ${gestionAddingEspesor
+          ? `<div style="margin-top:10px;display:flex;gap:6px;">
+               <input id="new-esp-inp" class="cat-search" style="margin:0;flex:1;" placeholder="Ej: 18mm" autocomplete="off"
+                 onkeydown="if(event.key==='Enter')confirmarNuevoEspesor();if(event.key==='Escape'){gestionAddingEspesor=false;renderGestionOpciones();}"/>
+               <button class="btn btn-success btn-sm" onclick="confirmarNuevoEspesor()">OK</button>
+             </div>`
+          : `<button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%;"
+               onclick="gestionAddingEspesor=true;renderGestionOpciones();setTimeout(()=>document.getElementById('new-esp-inp')?.focus(),50)">+ Agregar espesor</button>`}
+      </div>
+    </div>`;
+}
+function eliminarTamano(i)  { const a=getTamanos(); a.splice(i,1); localStorage.setItem(LS_TAMANOS,JSON.stringify(a)); renderGestionOpciones(); }
+function eliminarEspesor(i) { const a=getEspesores();a.splice(i,1);localStorage.setItem(LS_ESPESORES,JSON.stringify(a));renderGestionOpciones(); }
+function confirmarNuevoTamano()  { const v=(document.getElementById('new-tam-inp')?.value||'').trim(); if(v)addTamano(v); gestionAddingTamano=false; renderGestionOpciones(); }
+function confirmarNuevoEspesor() { const v=(document.getElementById('new-esp-inp')?.value||'').trim(); if(v)addEspesor(v); gestionAddingEspesor=false; renderGestionOpciones(); }
 
 // ── LocalStorage: tamaños y espesores ──
 const LS_TAMANOS   = 'placas_tamanos';
@@ -338,7 +411,7 @@ function tplItemIngresoCard(it, i) {
             <span class="mono" style="font-size:11px;color:var(--muted);">Cant: <strong style="color:var(--text);">${it.cantidad}</strong></span>
             <span class="mono" style="font-size:11px;color:var(--muted);">Tamaño: <strong style="color:var(--text);">${it.tamano||'—'}</strong></span>
             <span class="mono" style="font-size:11px;color:var(--muted);">Espesor: <strong style="color:var(--text);">${it.espesor||'—'}</strong></span>
-            <span class="mono" style="font-size:11px;color:var(--muted);">Pos: <strong style="color:var(--amber);">${it.posicion||'Sin asignar'}</strong></span>
+            <span class="mono" style="font-size:11px;color:var(--muted);">Pos: <strong style="color:var(--amber);">${it.posicionAsignada||it.posicion||'Sin asignar'}</strong></span>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
@@ -479,13 +552,15 @@ async function confirmarItem(i) {
   try {
     const ts = new Date().toISOString();
     const ocNum = ingresoOC?.purchaseorder_number||null;
-    if(it.posicion && it.plate_type_id) {
+    const posUsada = it.posicion||null;
+    if(posUsada && it.plate_type_id) {
       await fetch(NEON+'/api/stock',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({position_id:it.posicion,plate_type_id:it.plate_type_id,quantity:it.cantidad,op:'add'})});
+        body:JSON.stringify({position_id:posUsada,plate_type_id:it.plate_type_id,quantity:it.cantidad,op:'add'})});
       await fetch(NEON+'/api/movements',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({type:'ingreso',position_id:it.posicion,plate_type_id:it.plate_type_id,
+        body:JSON.stringify({type:'ingreso',position_id:posUsada,plate_type_id:it.plate_type_id,
           quantity:it.cantidad,oc_number:ocNum,tamano:it.tamano||null,espesor:it.espesor||null,timestamp:ts})});
     }
+    ingresoItems[i].posicionAsignada = posUsada;
     ingresoItems[i].estado = 'confirmado';
     await recargarStock();
     // Recalcular posiciones para ítems pendientes
@@ -560,7 +635,7 @@ function abrirVentanaEtiquetas(items) {
 function tplResumenFinal() {
   const confirmados = ingresoItems.filter(it=>it.estado==='confirmado');
   const rechazados  = ingresoItems.filter(it=>it.estado==='rechazado');
-  const sorted = [...confirmados].sort((a,b)=>(a.posicion||'').localeCompare(b.posicion||''));
+  const sorted = [...confirmados].sort((a,b)=>(a.posicionAsignada||a.posicion||'').localeCompare(b.posicionAsignada||b.posicion||''));
   const ocLabel = ingresoOC
     ? `OC ${ingresoOC.purchaseorder_number}${ingresoOC.vendor_name?' — '+ingresoOC.vendor_name:''}`
     : 'Ingreso manual';
@@ -585,7 +660,7 @@ function tplResumenFinal() {
           <td class="mono" style="font-size:11px;">${it.tamano||'—'}</td>
           <td class="mono" style="font-size:11px;">${it.espesor||'—'}</td>
           <td class="mono">${it.cantidad}</td>
-          <td><span class="mono" style="color:var(--amber);">${it.posicion||'Sin asignar'}</span></td>
+          <td><span class="mono" style="color:var(--amber);">${it.posicionAsignada||it.posicion||'Sin asignar'}</span></td>
         </tr>`).join('')}
       </tbody>
     </table>
@@ -594,7 +669,7 @@ function tplResumenFinal() {
 
 function imprimirReporteUbicacion() {
   const sorted = [...ingresoItems.filter(it=>it.estado==='confirmado')]
-    .sort((a,b)=>(a.posicion||'').localeCompare(b.posicion||''));
+    .sort((a,b)=>(a.posicionAsignada||a.posicion||'').localeCompare(b.posicionAsignada||b.posicion||''));
   const ocLabel = ingresoOC
     ? `OC ${ingresoOC.purchaseorder_number}${ingresoOC.vendor_name?' — '+ingresoOC.vendor_name:''}`
     : 'Ingreso manual';
@@ -615,7 +690,7 @@ function imprimirReporteUbicacion() {
       <thead><tr><th>Artículo</th><th>SKU</th><th>Tamaño</th><th>Espesor</th><th>Cant.</th><th>Posición</th></tr></thead>
       <tbody>${sorted.map(it=>`<tr>
         <td>${it.nombre}</td><td>${it.sku||'—'}</td><td>${it.tamano||'—'}</td>
-        <td>${it.espesor||'—'}</td><td>${it.cantidad}</td><td>${it.posicion||'Sin asignar'}</td>
+        <td>${it.espesor||'—'}</td><td>${it.cantidad}</td><td>${it.posicionAsignada||it.posicion||'Sin asignar'}</td>
       </tr>`).join('')}</tbody>
     </table>
     <br/><button onclick="window.print()">Imprimir</button>
