@@ -203,6 +203,44 @@ const SHELF_B_COLS = ['B1','B2'];
 const LEVELS = [1,2,3,4,5];
 const CAP_A = 40, CAP_B = 25, CAP_BESP = 150;
 
+const LS_FORMATS = 'placas_shelf_formats';
+const DEF_SHELF_FORMATS = {
+  A: { maxWidth: 130, label: 'Estantería 122cm' },
+  B: { maxWidth: 200, label: 'Estantería 180cm' },
+};
+function getShelfFormats() {
+  try { return JSON.parse(localStorage.getItem(LS_FORMATS)) || DEF_SHELF_FORMATS; } catch(e) { return DEF_SHELF_FORMATS; }
+}
+function parseTamano(str) {
+  if(!str) return null;
+  const m = str.replace(',','.').match(/(\d+\.?\d*)\s*[xX×]\s*(\d+\.?\d*)/);
+  if(!m) return null;
+  let a = parseFloat(m[1]), b = parseFloat(m[2]);
+  if(a < 10) a *= 100;
+  if(b < 10) b *= 100;
+  return { w: Math.min(a,b), h: Math.max(a,b) };
+}
+function formatoParaTamano(tamStr) {
+  const dims = parseTamano(tamStr);
+  if(!dims) return null;
+  const fmts = getShelfFormats();
+  if(dims.w <= fmts.A.maxWidth) return 'A';
+  if(dims.w <= fmts.B.maxWidth) return 'B';
+  return null;
+}
+function formatoLabel(tamStr) {
+  const dims = parseTamano(tamStr);
+  const fmts = getShelfFormats();
+  if(!dims) return `<span style="font-size:11px;color:var(--muted);">→ sin tamaño</span>`;
+  const fmt = formatoParaTamano(tamStr);
+  if(fmt) return `<span style="font-size:11px;color:var(--muted);">→ Formato ${fmt} · ${fmts[fmt].label}</span>`;
+  return `<span style="font-size:11px;color:var(--amber);">⚠ Tamaño no reconocido — verificar formato manualmente</span>`;
+}
+function actualizarFormatoMaxWidth(key, val) {
+  const fmts = getShelfFormats();
+  if(fmts[key]) { fmts[key].maxWidth = +val; localStorage.setItem(LS_FORMATS, JSON.stringify(fmts)); }
+}
+
 // ═══════════════════════════════════════════════════════════
 // ESTADO
 // ═══════════════════════════════════════════════════════════
@@ -312,6 +350,16 @@ function renderGestionOpciones() {
       <span style="font-size:13px;">${e}</span>
       <button onclick="eliminarEspesor(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;line-height:1;" title="Eliminar">✕</button>
     </div>`).join('');
+  const fmts = getShelfFormats();
+  const fmtSection = Object.entries(fmts).map(([key,val])=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:13px;flex:1;">Formato ${key} <span style="color:var(--muted);font-size:12px;">— ${val.label}</span></span>
+      <span class="mono" style="font-size:9px;color:var(--muted);white-space:nowrap;">ancho máx.</span>
+      <input type="number" value="${val.maxWidth}" min="1" max="999"
+        style="width:68px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-family:'Space Mono',monospace;font-size:12px;text-align:right;outline:none;"
+        onchange="actualizarFormatoMaxWidth('${key}',this.value)" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='var(--border)'"/>
+      <span class="mono" style="font-size:9px;color:var(--muted);">cm</span>
+    </div>`).join('');
   document.getElementById('gestion-content').innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
       <div>
@@ -338,6 +386,11 @@ function renderGestionOpciones() {
           : `<button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%;"
                onclick="gestionAddingEspesor=true;renderGestionOpciones();setTimeout(()=>document.getElementById('new-esp-inp')?.focus(),50)">+ Agregar espesor</button>`}
       </div>
+    </div>
+    <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+      <div class="mono" style="font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">Formatos de estantería</div>
+      ${fmtSection}
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;">El ancho relevante es el lado menor de la placa (se guarda de canto).</div>
     </div>`;
 }
 function eliminarTamano(i)  { const a=getTamanos(); a.splice(i,1); localStorage.setItem(LS_TAMANOS,JSON.stringify(a)); renderGestionOpciones(); }
@@ -355,8 +408,16 @@ function getEspesores(){ try{return JSON.parse(localStorage.getItem(LS_ESPESORES
 function addTamano(v)  { const a=getTamanos(); if(!a.includes(v)){a.push(v);localStorage.setItem(LS_TAMANOS,JSON.stringify(a));} }
 function addEspesor(v) { const a=getEspesores();if(!a.includes(v)){a.push(v);localStorage.setItem(LS_ESPESORES,JSON.stringify(a));} }
 function onTamanoChange(i,sel) {
-  if(sel.value==='__nuevo__'){const v=(prompt('Nuevo tamaño (ej: 2.60x1.83):')||'').trim();if(v){addTamano(v);ingresoItems[i].tamano=v;}renderTab('ingreso');}
-  else ingresoItems[i].tamano=sel.value;
+  if(sel.value==='__nuevo__'){
+    const v=(prompt('Nuevo tamaño (ej: 2.60x1.83):')||'').trim();
+    if(v){addTamano(v);ingresoItems[i].tamano=v;}
+    renderTab('ingreso');
+  } else {
+    ingresoItems[i].tamano=sel.value;
+    const pt=plateTypes.find(p=>p.sku===ingresoItems[i].sku);
+    if(pt){calcPosIngreso(pt,sel.value).then(pos=>{ingresoItems[i].posicion=pos?.id||null;renderTab('ingreso');});}
+    else renderTab('ingreso');
+  }
 }
 function onEspesorChange(i,sel) {
   if(sel.value==='__nuevo__'){const v=(prompt('Nuevo espesor (ej: 18mm):')||'').trim();if(v){addEspesor(v);ingresoItems[i].espesor=v;}renderTab('ingreso');}
@@ -456,6 +517,7 @@ function tplItemIngresoCard(it, i) {
           ${tamOpts}
           <option value="__nuevo__">+ Nuevo tamaño...</option>
         </select>
+        <div style="margin-top:4px;">${formatoLabel(it.tamano)}</div>
       </div>
       <div class="field" style="min-width:130px;">
         <label>Espesor</label>
@@ -504,8 +566,8 @@ async function buscarOC() {
     ingresoItems = await Promise.all((ingresoOC.line_items||[]).map(async it=>{
       const sku = it.sku||'';
       const pt = plateTypes.find(p=>p.sku===sku);
-      const pos = pt ? await calcPosIngreso(pt) : null;
       const defTam=getTamanos()[0]||'2.60x1.83', defEsp=getEspesores()[0]||'18mm';
+      const pos = pt ? await calcPosIngreso(pt, defTam) : null;
       return {nombre:it.name||it.description||'—',sku,cantidad:it.quantity||1,posicion:pos?.id||null,plate_type_id:pt?.id||null,tamano:defTam,espesor:defEsp,estado:'pendiente'};
     }));
     renderTab('ingreso');
@@ -517,26 +579,23 @@ async function buscarOC() {
 async function agregarItemIngreso(item) {
   const sku = item.sku||item.item_id||'';
   const pt = plateTypes.find(p=>p.sku===sku);
-  const pos = pt ? await calcPosIngreso(pt) : null;
   const defTam=getTamanos()[0]||'2.60x1.83', defEsp=getEspesores()[0]||'18mm';
+  const pos = pt ? await calcPosIngreso(pt, defTam) : null;
   ingresoItems.push({nombre:item.name,sku,cantidad:1,posicion:pos?.id||null,plate_type_id:pt?.id||null,tamano:defTam,espesor:defEsp,estado:'pendiente'});
   cerrarCatalogo();
   renderTab('ingreso');
 }
 
-async function calcPosIngreso(pt) {
+async function calcPosIngreso(pt, tamano) {
   if(!pt) return null;
-  // 1. Posición fija
   if(pt.fixed_position_id) return positions.find(p=>p.id===pt.fixed_position_id)||null;
-  const fmt = pt.format||'A';
+  const fmt = (tamano ? formatoParaTamano(tamano) : null) || pt.format || 'A';
   const posFormat = positions.filter(p=>p.format===fmt);
-  // 2. Posición con stock del mismo artículo y espacio
   const withStock = posFormat
     .map(p=>({p,qty:(stockData.find(s=>s.position_id===p.id&&s.plate_type_id===pt.id)?.quantity||0)}))
     .filter(x=>x.qty>0&&x.qty<posCap(x.p))
     .sort((a,b)=>b.qty-a.qty);
   if(withStock.length) return withStock[0].p;
-  // 3. Primera posición vacía del formato
   return posFormat.find(p=>!(stockData.find(s=>s.position_id===p.id&&(s.quantity||0)>0)))||null;
 }
 
@@ -554,7 +613,7 @@ async function confirmarItem(i) {
   for(let j=0;j<ingresoItems.length;j++){
     if(ingresoItems[j].estado==='pendiente'){
       const pt=plateTypes.find(p=>p.sku===ingresoItems[j].sku);
-      if(pt){const pos=await calcPosIngreso(pt);ingresoItems[j].posicion=pos?.id||null;}
+      if(pt){const pos=await calcPosIngreso(pt,ingresoItems[j].tamano);ingresoItems[j].posicion=pos?.id||null;}
     }
   }
   renderTab('ingreso');
