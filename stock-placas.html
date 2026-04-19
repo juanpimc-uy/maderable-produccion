@@ -197,7 +197,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
 // ═══════════════════════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════════════════════
-const NEON = 'https://gestion-placas.vercel.app';
+const NEON = '/api/stock-placas';
 
 const SHELF_A_COLS = ['A1','A2','A3','A4'];
 const SHELF_B_COLS = ['B1','B2'];
@@ -280,9 +280,9 @@ function marcarHistorialFlag(flag) {
 async function init() {
   try {
     const [a,b,c] = await Promise.all([
-      fetch(NEON+'/api/plate-types').then(r=>r.json()),
-      fetch(NEON+'/api/positions').then(r=>r.json()),
-      fetch(NEON+'/api/stock').then(r=>r.json()),
+      fetch(NEON+'?action=plate-types').then(r=>r.json()),
+      fetch(NEON+'?action=positions').then(r=>r.json()),
+      fetch(NEON+'?action=stock').then(r=>r.json()),
     ]);
     plateTypes = Array.isArray(a)?a:[];
     positions  = Array.isArray(b)?b:[];
@@ -296,7 +296,7 @@ async function init() {
 }
 
 async function recargarStock() {
-  try { stockData = await fetch(NEON+'/api/stock').then(r=>r.json()); } catch(e){}
+  try { stockData = await fetch(NEON+'?action=stock').then(r=>r.json()); } catch(e){}
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -630,11 +630,9 @@ async function confirmarItem(i) {
     let plate_type_id = it.plate_type_id;
     if(!plate_type_id && it.sku) {
       const fmt = formatoParaTamano(it.tamano) || 'A';
-      const resp = await fetch(NEON+'/api/plate-types',{method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({name:it.nombre,sku:it.sku,format:fmt})});
+      const resp = await fetch(`${NEON}?action=plate-type&sku=${encodeURIComponent(it.sku)}&name=${encodeURIComponent(it.nombre)}&format=${fmt}`);
       const created = await resp.json();
-      plate_type_id = created.id||created[0]?.id||null;
+      plate_type_id = created.id||null;
       if(plate_type_id){
         plateTypes.push({id:plate_type_id,name:it.nombre,sku:it.sku,format:fmt});
         ingresoItems[i].plate_type_id = plate_type_id;
@@ -797,11 +795,9 @@ async function guardarIngreso() {
     for(const it of confirmados) {
       const pos = it.posicionAsignada||it.posicion||null;
       if(!pos||!it.plate_type_id) continue;
-      await fetch(NEON+'/api/stock',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({position_id:pos,plate_type_id:it.plate_type_id,quantity:it.cantidad,op:'add'})});
-      await fetch(NEON+'/api/movements',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({type:'ingreso',position_id:pos,plate_type_id:it.plate_type_id,
-          quantity:it.cantidad,oc_number:ocNum,tamano:it.tamano||null,espesor:it.espesor||null,timestamp:ts})});
+      await fetch(NEON+'?action=confirm-item',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({position_id:pos,plate_type_id:it.plate_type_id,quantity:it.cantidad,
+          op:'add',movement_type:'ingreso',oc_number:ocNum,tamano:it.tamano||null,espesor:it.espesor||null})});
     }
     await recargarStock();
     ingresoUltimoLote = confirmados;
@@ -1040,10 +1036,9 @@ async function confirmarSalida() {
     const soNum = salidaSO?.salesorder_number||null;
     for(const it of salidaItems){
       if(!it.posicion||!it.plate_type_id) continue;
-      await fetch(NEON+'/api/stock',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({position_id:it.posicion,plate_type_id:it.plate_type_id,quantity:it.cantidad,op:'subtract'})});
-      await fetch(NEON+'/api/movements',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({type:'salida',position_id:it.posicion,plate_type_id:it.plate_type_id,quantity:it.cantidad,so_number:soNum,obra:it.obra,timestamp:ts})});
+      await fetch(NEON+'?action=confirm-item',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({position_id:it.posicion,plate_type_id:it.plate_type_id,quantity:it.cantidad,
+          op:'subtract',movement_type:'salida',so_number:soNum,obra:it.obra||null})});
     }
     await recargarStock();
     salidaSO=null; salidaItems=[];
