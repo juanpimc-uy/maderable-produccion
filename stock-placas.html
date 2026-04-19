@@ -130,6 +130,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
     <div class="nav-item" id="nav-salida" onclick="switchTab('salida')">⬇ Salida</div>
     <div class="nav-item" id="nav-busqueda" onclick="switchTab('busqueda')">⊙ Búsqueda</div>
     <div class="nav-item" id="nav-estanteria" onclick="switchTab('estanteria')">⬡ Estantería</div>
+    <div class="nav-item" id="nav-historial" onclick="switchTab('historial')">📋 Historial</div>
   </div>
   <div style="padding:12px 16px;border-top:1px solid var(--border);">
     <a href="admin.html" style="color:var(--muted);font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-decoration:none;text-transform:uppercase;">← Admin</a>
@@ -262,6 +263,16 @@ let busqItem = null;
 let highlightedPos = [];
 
 let catCb = null, catTimer = null, catItems = [];
+let historialCurrentId = null;
+
+const LS_HISTORIAL = 'historial_reportes';
+function getHistorial() { try{return JSON.parse(localStorage.getItem(LS_HISTORIAL))||[];}catch(e){return[];} }
+function guardarEnHistorial(entry) { const h=getHistorial(); h.unshift(entry); localStorage.setItem(LS_HISTORIAL,JSON.stringify(h)); }
+function marcarHistorialFlag(flag) {
+  if(!historialCurrentId) return;
+  const h=getHistorial(); const idx=h.findIndex(r=>r.id===historialCurrentId);
+  if(idx>=0){h[idx][flag]=true;localStorage.setItem(LS_HISTORIAL,JSON.stringify(h));}
+}
 
 // ═══════════════════════════════════════════════════════════
 // INIT
@@ -295,7 +306,7 @@ function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   document.getElementById('nav-'+tab).classList.add('active');
-  const titles = {ingreso:'INGRESO',salida:'SALIDA',busqueda:'BÚSQUEDA',estanteria:'ESTANTERÍA'};
+  const titles = {ingreso:'INGRESO',salida:'SALIDA',busqueda:'BÚSQUEDA',estanteria:'ESTANTERÍA',historial:'HISTORIAL'};
   document.getElementById('topbar-title').textContent = titles[tab];
   renderTab(tab);
 }
@@ -306,6 +317,7 @@ function renderTab(tab) {
   else if (tab==='salida')     c.innerHTML = tplSalida();
   else if (tab==='busqueda')   c.innerHTML = tplBusqueda();
   else if (tab==='estanteria') c.innerHTML = tplEstanteria();
+  else if (tab==='historial')  c.innerHTML = tplHistorial();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -477,7 +489,10 @@ function tplItemIngresoCard(it, i) {
             <span class="mono" style="font-size:11px;color:var(--muted);">Cant: <strong style="color:var(--text);">${it.cantidad}</strong></span>
             <span class="mono" style="font-size:11px;color:var(--muted);">Tamaño: <strong style="color:var(--text);">${it.tamano||'—'}</strong></span>
             <span class="mono" style="font-size:11px;color:var(--muted);">Espesor: <strong style="color:var(--text);">${it.espesor||'—'}</strong></span>
-            <span class="mono" style="font-size:11px;color:var(--muted);">Pos: <strong style="color:var(--amber);">${it.posicionAsignada||it.posicion||'Sin asignar'}</strong></span>
+            ${it._depositoLleno
+              ? `<span class="mono" style="font-size:11px;color:var(--red);font-weight:700;">⚠ Depósito lleno</span>`
+              : `<span class="mono" style="font-size:11px;color:var(--muted);">Pos: <strong style="color:var(--amber);">${it.posicionAsignada||it.posicion||'Sin asignar'}</strong></span>`
+            }
           </div>
         </div>
         <span style="background:var(--green);color:#0f0f0f;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;white-space:nowrap;align-self:flex-start;">✓ CONFIRMADO</span>
@@ -607,16 +622,46 @@ function posCap(pos) {
 }
 
 async function confirmarItem(i) {
-  ingresoItems[i].posicionAsignada = ingresoItems[i].posicion||null;
-  ingresoItems[i].estado = 'confirmado';
-  // Recalcular posiciones para ítems pendientes restantes
-  for(let j=0;j<ingresoItems.length;j++){
-    if(ingresoItems[j].estado==='pendiente'){
-      const pt=plateTypes.find(p=>p.sku===ingresoItems[j].sku);
-      if(pt){const pos=await calcPosIngreso(pt,ingresoItems[j].tamano);ingresoItems[j].posicion=pos?.id||null;}
+  const it = ingresoItems[i];
+  const btn = document.getElementById('btn-confirm-'+i);
+  if(btn){btn.disabled=true;btn.textContent='Calculando posición...';}
+  try {
+    // 1. Ensure plate_type exists in Neon
+    let plate_type_id = it.plate_type_id;
+    if(!plate_type_id && it.sku) {
+      const fmt = formatoParaTamano(it.tamano) || 'A';
+      const resp = await fetch(NEON+'/api/plate-types',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({name:it.nombre,sku:it.sku,format:fmt})});
+      const created = await resp.json();
+      plate_type_id = created.id||created[0]?.id||null;
+      if(plate_type_id){
+        plateTypes.push({id:plate_type_id,name:it.nombre,sku:it.sku,format:fmt});
+        ingresoItems[i].plate_type_id = plate_type_id;
+      }
     }
+    // 2. Refresh stock
+    await recargarStock();
+    // 3. Calculate position with fresh data
+    const pt = plateTypes.find(p=>p.id===plate_type_id)||{id:plate_type_id,format:formatoParaTamano(it.tamano)||'A'};
+    const pos = await calcPosIngreso(pt, it.tamano);
+    const posId = pos?.id||null;
+    ingresoItems[i].posicion = posId;
+    ingresoItems[i].posicionAsignada = posId;
+    ingresoItems[i].estado = 'confirmado';
+    ingresoItems[i]._depositoLleno = !posId && !!plate_type_id;
+    // 4. Recalculate pending items
+    for(let j=0;j<ingresoItems.length;j++){
+      if(ingresoItems[j].estado==='pendiente'){
+        const ptj=plateTypes.find(p=>p.sku===ingresoItems[j].sku);
+        if(ptj){const posj=await calcPosIngreso(ptj,ingresoItems[j].tamano);ingresoItems[j].posicion=posj?.id||null;}
+      }
+    }
+    renderTab('ingreso');
+  } catch(e){
+    if(btn){btn.disabled=false;btn.textContent='✓ Confirmar este ítem';}
+    alert('Error al confirmar: '+e.message);
   }
-  renderTab('ingreso');
 }
 
 function rechazarItem(i) {
@@ -630,7 +675,7 @@ function imprimirEtiquetasItem(i) {
 
 function imprimirTodasEtiquetas() {
   const confirmados = ingresoItems.filter(it=>it.estado==='confirmado');
-  if(confirmados.length) abrirVentanaEtiquetas(confirmados);
+  if(confirmados.length){ abrirVentanaEtiquetas(confirmados); marcarHistorialFlag('etiquetasImpresas'); }
 }
 
 function abrirVentanaEtiquetas(items) {
@@ -761,6 +806,23 @@ async function guardarIngreso() {
     await recargarStock();
     ingresoUltimoLote = confirmados;
     const savedOC = ingresoOC;
+    // Guardar en historial
+    const hEntry = {
+      id: Date.now(),
+      tipo: 'ingreso',
+      fecha: new Date().toISOString(),
+      oc: savedOC?.purchaseorder_number||null,
+      proveedor: savedOC?.vendor_name||null,
+      items: confirmados.map(it=>({
+        nombre:it.nombre, sku:it.sku, tamano:it.tamano||null, espesor:it.espesor||null,
+        cantidad:it.cantidad, posicionAsignada:it.posicionAsignada||it.posicion||null,
+        _depositoLleno:!!it._depositoLleno
+      })),
+      etiquetasImpresas: false,
+      informeImpreso: false,
+    };
+    guardarEnHistorial(hEntry);
+    historialCurrentId = hEntry.id;
     ingresoOC=null; ingresoItems=[]; ingresoEnConfirmacion=false;
     document.getElementById('content').innerHTML = tplIngresoExito(savedOC, ingresoUltimoLote);
   } catch(e) {
@@ -786,6 +848,7 @@ function tplIngresoExito(oc, items) {
 }
 
 function imprimirReporteUbicacion() {
+  marcarHistorialFlag('informeImpreso');
   const items = (ingresoEnConfirmacion ? ingresoItems : ingresoUltimoLote).filter(it=>it.estado==='confirmado');
   const sorted = [...items].sort((a,b)=>(a.posicionAsignada||a.posicion||'').localeCompare(b.posicionAsignada||b.posicion||''));
   const oc = ingresoEnConfirmacion ? ingresoOC : null;
@@ -1274,6 +1337,156 @@ function cerrarDetallePosicion() {
 
 // ═══════════════════════════════════════════════════════════
 // ZOHO TOKEN
+// ═══════════════════════════════════════════════════════════
+// TAB 5: HISTORIAL
+// ═══════════════════════════════════════════════════════════
+let historialViewIdx = null;
+
+function tplHistorial() {
+  if(historialViewIdx !== null) {
+    const h = getHistorial();
+    const r = h[historialViewIdx];
+    if(r) return tplDetalleHistorial(r, historialViewIdx);
+    historialViewIdx = null;
+  }
+  const h = getHistorial();
+  if(!h.length) return `
+  <div style="text-align:center;padding:60px 20px;color:var(--muted);">
+    <div style="font-size:36px;margin-bottom:12px;">📋</div>
+    <div class="mono" style="font-size:10px;letter-spacing:2px;">SIN REGISTROS</div>
+    <div style="font-size:13px;margin-top:8px;">Los ingresos guardados aparecerán aquí.</div>
+  </div>`;
+  return `
+  <div style="max-width:820px;">
+    <div class="sec" style="margin-bottom:16px;">Historial de ingresos</div>
+    ${h.map((r,i)=>{
+      const fecha = new Date(r.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      const ocLabel = r.oc ? `OC ${r.oc}` : 'Manual';
+      const proveedor = r.proveedor || '';
+      const n = r.items?.length||0;
+      const badgeEt = r.etiquetasImpresas
+        ? `<span style="background:rgba(61,214,140,.15);color:var(--green);border:1px solid rgba(61,214,140,.3);font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:3px;">Etiquetas ✓</span>`
+        : '';
+      const badgeInf = r.informeImpreso
+        ? `<span style="background:rgba(255,214,0,.1);color:var(--amber);border:1px solid rgba(255,214,0,.25);font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:3px;">Informe ✓</span>`
+        : '';
+      return `<div onclick="historialViewIdx=${i};renderTab('historial')" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:8px;cursor:pointer;transition:border-color .15s;"
+        onmouseover="this.style.borderColor='var(--amber)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:13px;font-weight:600;margin-bottom:3px;">${ocLabel}${proveedor?' · <span style="font-weight:400;color:var(--muted);">'+proveedor+'</span>':''}</div>
+            <div class="mono" style="font-size:10px;color:var(--muted);">${fecha} · ${n} ítem${n!==1?'s':''}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${badgeEt}${badgeInf}</div>
+        </div>
+      </div>`;
+    }).join('')}
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);">
+      <button class="btn btn-ghost btn-sm" onclick="limpiarHistorial()" style="color:var(--red);">🗑 Limpiar historial</button>
+    </div>
+  </div>`;
+}
+
+function limpiarHistorial() {
+  if(!confirm('¿Borrar todo el historial de reportes?')) return;
+  localStorage.removeItem(LS_HISTORIAL);
+  renderTab('historial');
+}
+
+function tplDetalleHistorial(r, idx) {
+  const fecha = new Date(r.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const ocLabel = r.oc ? `OC ${r.oc}` : 'Ingreso manual';
+  const sorted = [...(r.items||[])].sort((a,b)=>(a.posicionAsignada||'').localeCompare(b.posicionAsignada||''));
+  return `
+  <div style="max-width:820px;">
+    <div style="margin-bottom:16px;">
+      <a href="#" onclick="historialViewIdx=null;renderTab('historial');return false;"
+        style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-decoration:none;letter-spacing:.5px;"
+        onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">← Volver al historial</a>
+    </div>
+    <div style="border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:20px;">
+      <div class="mono" style="font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:6px;">Detalle de ingreso</div>
+      <div style="font-size:17px;font-weight:600;">${ocLabel}${r.proveedor?' <span style="color:var(--muted);font-weight:400;font-size:13px;">· '+r.proveedor+'</span>':''}</div>
+      <div class="mono" style="font-size:10px;color:var(--muted);margin-top:4px;">${fecha}</div>
+    </div>
+
+    <table class="tbl" style="margin-bottom:20px;">
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Tamaño</th><th>Espesor</th><th>Cant.</th><th>Posición</th></tr></thead>
+      <tbody>
+        ${sorted.map(it=>`<tr>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${it.nombre}">${it.nombre}</td>
+          <td><span class="mono" style="font-size:11px;color:var(--amber);">${it.sku||'—'}</span></td>
+          <td class="mono" style="font-size:11px;">${it.tamano||'—'}</td>
+          <td class="mono" style="font-size:11px;">${it.espesor||'—'}</td>
+          <td class="mono">${it.cantidad}</td>
+          <td>${it._depositoLleno
+            ? `<span class="mono" style="font-size:11px;color:var(--red);">⚠ Lleno</span>`
+            : `<span class="mono" style="color:var(--amber);">${it.posicionAsignada||'Sin asignar'}</span>`
+          }</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <button onclick="reimprEtiquetas(${idx})"
+        style="min-height:90px;background:#FFD600;border:none;border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px;transition:opacity .15s;"
+        onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+        <span style="font-size:24px;">🖨</span>
+        <span style="font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:#0f0f0f;letter-spacing:.5px;">REIMPRIMIR ETIQUETAS</span>
+      </button>
+      <button onclick="reimprInforme(${idx})"
+        style="min-height:90px;background:var(--card);border:1px solid var(--amber);border-radius:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px;transition:opacity .15s;"
+        onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+        <span style="font-size:24px;">📄</span>
+        <span style="font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:var(--amber);letter-spacing:.5px;">REIMPRIMIR INFORME</span>
+      </button>
+    </div>
+  </div>`;
+}
+
+function reimprEtiquetas(idx) {
+  const h = getHistorial();
+  const r = h[idx]; if(!r) return;
+  // Convert historial items to format abrirVentanaEtiquetas expects
+  const items = r.items.map(it=>({...it, estado:'confirmado'}));
+  abrirVentanaEtiquetas(items);
+  h[idx].etiquetasImpresas = true;
+  localStorage.setItem(LS_HISTORIAL, JSON.stringify(h));
+}
+
+function reimprInforme(idx) {
+  const h = getHistorial();
+  const r = h[idx]; if(!r) return;
+  const sorted = [...r.items].sort((a,b)=>(a.posicionAsignada||'').localeCompare(b.posicionAsignada||''));
+  const ocLabel = r.oc ? `OC ${r.oc}${r.proveedor?' — '+r.proveedor:''}` : 'Ingreso manual';
+  const fecha = new Date(r.fecha).toLocaleDateString('es-AR');
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>Reporte Ingreso</title><style>
+    body{font-family:monospace;padding:24px;color:#000;font-size:12px;}
+    h2{margin-bottom:4px;font-size:16px;}
+    .sub{color:#666;margin-bottom:20px;font-size:11px;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{border:1px solid #ccc;padding:7px 10px;text-align:left;}
+    th{background:#f0f0f0;text-transform:uppercase;font-size:10px;letter-spacing:1px;}
+    @media print{button{display:none;}}
+  </style></head><body>
+    <h2>Reporte de Ingreso</h2>
+    <div class="sub">${ocLabel} — ${fecha} · Ordenado por posición</div>
+    <table>
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Tamaño</th><th>Espesor</th><th>Cant.</th><th>Posición</th></tr></thead>
+      <tbody>${sorted.map(it=>`<tr>
+        <td>${it.nombre}</td><td>${it.sku||'—'}</td><td>${it.tamano||'—'}</td>
+        <td>${it.espesor||'—'}</td><td>${it.cantidad}</td>
+        <td>${it._depositoLleno?'⚠ Lleno':it.posicionAsignada||'Sin asignar'}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <br/><button onclick="window.print()">Imprimir</button>
+  </body></html>`);
+  w.document.close();
+  h[idx].informeImpreso = true;
+  localStorage.setItem(LS_HISTORIAL, JSON.stringify(h));
+}
+
 // ═══════════════════════════════════════════════════════════
 async function getZohoToken() {
   const data = await fetch('/api/zoho-token').then(r=>r.json());
