@@ -1,16 +1,28 @@
 import pkg from 'pg';
 const { Pool } = pkg;
 
-const pool = new Pool({
-  connectionString: process.env.NEON_DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
+const connectionString =
+  process.env.NEON_DATABASE_URL ||
+  process.env.DATABASE_URL       ||
+  process.env.POSTGRES_URL       ||
+  process.env.NEON_URL;
+
+const pool = connectionString
+  ? new Pool({ connectionString, ssl: { rejectUnauthorized: false } })
+  : null;
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  if (!pool) {
+    return res.status(500).json({
+      error: 'NEON_DATABASE_URL no configurada en variables de entorno de Vercel',
+      hint: 'Configurar NEON_DATABASE_URL (o DATABASE_URL / POSTGRES_URL) en Settings → Environment Variables',
+    });
+  }
 
   const { action } = req.query;
   let client;
