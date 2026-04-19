@@ -269,6 +269,24 @@ function tplIngreso() {
 
 function setIngresoMode(m){ ingresoMode=m; ingresoItems=[]; ingresoOC=null; renderTab('ingreso'); }
 
+// ── LocalStorage: tamaños y espesores ──
+const LS_TAMANOS   = 'placas_tamanos';
+const LS_ESPESORES = 'placas_espesores';
+const DEF_TAMANOS  = ['2.60x1.83','2.44x1.83','2.75x1.83','2.60x2.15','22x0.40','23x2.00','50x2.00'];
+const DEF_ESPESORES= ['3mm','9mm','15mm','18mm','25mm','MDF 3mm','MDF 15mm','MDF 18mm','—'];
+function getTamanos()  { try{return JSON.parse(localStorage.getItem(LS_TAMANOS)) ||DEF_TAMANOS; }catch(e){return DEF_TAMANOS;} }
+function getEspesores(){ try{return JSON.parse(localStorage.getItem(LS_ESPESORES))||DEF_ESPESORES;}catch(e){return DEF_ESPESORES;} }
+function addTamano(v)  { const a=getTamanos(); if(!a.includes(v)){a.push(v);localStorage.setItem(LS_TAMANOS,JSON.stringify(a));} }
+function addEspesor(v) { const a=getEspesores();if(!a.includes(v)){a.push(v);localStorage.setItem(LS_ESPESORES,JSON.stringify(a));} }
+function onTamanoChange(i,sel) {
+  if(sel.value==='__nuevo__'){const v=(prompt('Nuevo tamaño (ej: 2.60x1.83):')||'').trim();if(v){addTamano(v);ingresoItems[i].tamano=v;}renderTab('ingreso');}
+  else ingresoItems[i].tamano=sel.value;
+}
+function onEspesorChange(i,sel) {
+  if(sel.value==='__nuevo__'){const v=(prompt('Nuevo espesor (ej: 18mm):')||'').trim();if(v){addEspesor(v);ingresoItems[i].espesor=v;}renderTab('ingreso');}
+  else ingresoItems[i].espesor=sel.value;
+}
+
 function tplIngresoOC() {
   return `
   <div class="card">
@@ -282,7 +300,7 @@ function tplIngresoOC() {
     </div>
     <div id="oc-status" style="margin-top:12px;"></div>
   </div>
-  ${ingresoOC && ingresoItems.length ? tplTablaIngreso() : ''}`;
+  ${ingresoOC && ingresoItems.length ? tplListaIngreso() : ''}`;
 }
 
 function tplIngresoArticulo() {
@@ -290,32 +308,95 @@ function tplIngresoArticulo() {
   <div class="card">
     <div class="sec">Artículo a ingresar</div>
     <button class="btn btn-primary" onclick="abrirCatalogo(it=>agregarItemIngreso(it))">Buscar artículo en Zoho</button>
-    ${ingresoItems.length ? tplTablaIngreso() : ''}
+  </div>
+  ${ingresoItems.length ? tplListaIngreso() : ''}`;
+}
+
+function tplListaIngreso() {
+  const allDone = ingresoItems.length>0 && ingresoItems.every(it=>it.estado==='confirmado'||it.estado==='rechazado');
+  const header = ingresoOC
+    ? `<div class="sec" style="margin-bottom:16px;">Items OC ${ingresoOC.purchaseorder_number} — ${ingresoOC.vendor_name||''}</div>`
+    : '';
+  return `<div>
+    ${header}
+    ${ingresoItems.map((it,i)=>tplItemIngresoCard(it,i)).join('')}
+    ${allDone ? tplResumenFinal() : ''}
+    <div style="margin-top:10px;">
+      <button class="btn btn-ghost btn-sm" onclick="ingresoOC=null;ingresoItems=[];renderTab('ingreso')">Cancelar / Nueva OC</button>
+    </div>
   </div>`;
 }
 
-function tplTablaIngreso() {
-  const header = ingresoOC
-    ? `<div class="sec" style="margin-bottom:12px;">Items OC ${ingresoOC.purchaseorder_number} — ${ingresoOC.vendor_name||''}</div>`
-    : '';
-  return `
-  <div ${ingresoMode==='oc'?'class="card"':''} style="${ingresoMode==='articulo'?'margin-top:16px;':''}">
-    ${header}
-    <table class="tbl">
-      <thead><tr><th>Artículo</th><th>SKU</th><th>Cantidad</th><th>Posición asignada</th></tr></thead>
-      <tbody>
-        ${ingresoItems.map((it,i)=>`<tr>
-          <td>${it.nombre}</td>
-          <td><span class="mono" style="font-size:11px;color:var(--amber);">${it.sku||'—'}</span></td>
-          <td><input type="number" min="1" value="${it.cantidad}" style="width:75px;"
-               onchange="ingresoItems[${i}].cantidad=Math.max(1,+this.value)"/></td>
-          <td><span class="mono" style="color:var(--amber);font-size:12px;">${it.posicion||'Sin asignar'}</span></td>
-        </tr>`).join('')}
-      </tbody>
-    </table>
-    <div style="margin-top:14px;display:flex;gap:10px;">
-      <button class="btn btn-success" id="btn-confirm-ingreso" onclick="confirmarIngreso()">Confirmar ingreso</button>
-      <button class="btn btn-ghost" onclick="ingresoOC=null;ingresoItems=[];renderTab('ingreso')">Cancelar</button>
+function tplItemIngresoCard(it, i) {
+  if(it.estado==='confirmado') {
+    return `<div style="background:rgba(61,214,140,.06);border:1px solid rgba(61,214,140,.25);border-radius:8px;padding:14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="font-weight:600;font-size:14px;margin-bottom:3px;">${it.nombre}</div>
+          <div class="mono" style="font-size:10px;color:var(--amber);margin-bottom:6px;">SKU: ${it.sku||'—'}</div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;">
+            <span class="mono" style="font-size:11px;color:var(--muted);">Cant: <strong style="color:var(--text);">${it.cantidad}</strong></span>
+            <span class="mono" style="font-size:11px;color:var(--muted);">Tamaño: <strong style="color:var(--text);">${it.tamano||'—'}</strong></span>
+            <span class="mono" style="font-size:11px;color:var(--muted);">Espesor: <strong style="color:var(--text);">${it.espesor||'—'}</strong></span>
+            <span class="mono" style="font-size:11px;color:var(--muted);">Pos: <strong style="color:var(--amber);">${it.posicion||'Sin asignar'}</strong></span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+          <span style="background:var(--green);color:#0f0f0f;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;white-space:nowrap;">✓ CONFIRMADO</span>
+          <button class="btn btn-ghost btn-sm" onclick="imprimirEtiquetasItem(${i})">🖨 Etiquetas</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(it.estado==='rechazado') {
+    return `<div style="background:rgba(240,92,92,.06);border:1px solid rgba(240,92,92,.2);border-radius:8px;padding:14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div style="font-weight:600;font-size:14px;margin-bottom:3px;">${it.nombre}</div>
+          <div class="mono" style="font-size:10px;color:var(--muted);">SKU: ${it.sku||'—'}</div>
+        </div>
+        <span style="background:var(--red);color:#fff;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;white-space:nowrap;">✗ RECHAZADO</span>
+      </div>
+    </div>`;
+  }
+  // pendiente
+  const tamanos  = getTamanos();
+  const espesores = getEspesores();
+  const tamOpts = tamanos.map(t=>`<option value="${t}" ${it.tamano===t?'selected':''}>${t}</option>`).join('');
+  const espOpts = espesores.map(e=>`<option value="${e}" ${it.espesor===e?'selected':''}>${e}</option>`).join('');
+  return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;">
+    <div style="margin-bottom:10px;">
+      <div style="font-weight:600;font-size:14px;margin-bottom:3px;">${it.nombre}</div>
+      <div class="mono" style="font-size:10px;color:var(--amber);">SKU: ${it.sku||'—'}</div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
+      <div class="field" style="width:80px;">
+        <label>Cantidad</label>
+        <input type="number" min="1" value="${it.cantidad}" style="width:80px;"
+          onchange="ingresoItems[${i}].cantidad=Math.max(1,+this.value)"/>
+      </div>
+      <div class="field" style="min-width:140px;">
+        <label>Tamaño</label>
+        <select onchange="onTamanoChange(${i},this)" style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
+          ${tamOpts}
+          <option value="__nuevo__">+ Nuevo tamaño...</option>
+        </select>
+      </div>
+      <div class="field" style="min-width:130px;">
+        <label>Espesor</label>
+        <select onchange="onEspesorChange(${i},this)" style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;">
+          ${espOpts}
+          <option value="__nuevo__">+ Nuevo espesor...</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;padding-bottom:2px;">
+        <span class="mono" style="font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;">Posición</span>
+        <span class="mono" style="font-size:13px;color:var(--amber);line-height:2;">${it.posicion||'Sin asignar'}</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-success" id="btn-confirm-${i}" onclick="confirmarItem(${i})">✓ Confirmar este ítem</button>
+      <button class="btn btn-danger btn-sm" onclick="rechazarItem(${i})">✗ Rechazar</button>
     </div>
   </div>`;
 }
@@ -349,7 +430,8 @@ async function buscarOC() {
       const sku = it.sku||'';
       const pt = plateTypes.find(p=>p.sku===sku);
       const pos = pt ? await calcPosIngreso(pt) : null;
-      return {nombre:it.name||it.description||'—',sku,cantidad:it.quantity||1,posicion:pos?.id||null,plate_type_id:pt?.id||null};
+      const defTam=getTamanos()[0]||'2.60x1.83', defEsp=getEspesores()[0]||'18mm';
+      return {nombre:it.name||it.description||'—',sku,cantidad:it.quantity||1,posicion:pos?.id||null,plate_type_id:pt?.id||null,tamano:defTam,espesor:defEsp,estado:'pendiente'};
     }));
     renderTab('ingreso');
   } catch(e) {
@@ -361,7 +443,8 @@ async function agregarItemIngreso(item) {
   const sku = item.sku||item.item_id||'';
   const pt = plateTypes.find(p=>p.sku===sku);
   const pos = pt ? await calcPosIngreso(pt) : null;
-  ingresoItems.push({nombre:item.name,sku,cantidad:1,posicion:pos?.id||null,plate_type_id:pt?.id||null});
+  const defTam=getTamanos()[0]||'2.60x1.83', defEsp=getEspesores()[0]||'18mm';
+  ingresoItems.push({nombre:item.name,sku,cantidad:1,posicion:pos?.id||null,plate_type_id:pt?.id||null,tamano:defTam,espesor:defEsp,estado:'pendiente'});
   cerrarCatalogo();
   renderTab('ingreso');
 }
@@ -389,62 +472,155 @@ function posCap(pos) {
   return CAP_A;
 }
 
-async function confirmarIngreso() {
-  if(!ingresoItems.length) return;
-  const btn = document.getElementById('btn-confirm-ingreso');
-  btn.disabled=true; btn.textContent='Confirmando...';
+async function confirmarItem(i) {
+  const it = ingresoItems[i];
+  const btn = document.getElementById('btn-confirm-'+i);
+  if(btn){btn.disabled=true;btn.textContent='Confirmando...';}
   try {
     const ts = new Date().toISOString();
     const ocNum = ingresoOC?.purchaseorder_number||null;
-    for(const it of ingresoItems) {
-      if(!it.posicion||!it.plate_type_id) continue;
+    if(it.posicion && it.plate_type_id) {
       await fetch(NEON+'/api/stock',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({position_id:it.posicion,plate_type_id:it.plate_type_id,quantity:it.cantidad,op:'add'})});
       await fetch(NEON+'/api/movements',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({type:'ingreso',position_id:it.posicion,plate_type_id:it.plate_type_id,quantity:it.cantidad,oc_number:ocNum,timestamp:ts})});
+        body:JSON.stringify({type:'ingreso',position_id:it.posicion,plate_type_id:it.plate_type_id,
+          quantity:it.cantidad,oc_number:ocNum,tamano:it.tamano||null,espesor:it.espesor||null,timestamp:ts})});
     }
+    ingresoItems[i].estado = 'confirmado';
     await recargarStock();
-    generarEtiquetas(ingresoItems);
-    ingresoOC=null; ingresoItems=[];
+    // Recalcular posiciones para ítems pendientes
+    for(let j=0;j<ingresoItems.length;j++){
+      if(ingresoItems[j].estado==='pendiente'){
+        const pt=plateTypes.find(p=>p.sku===ingresoItems[j].sku);
+        if(pt){const pos=await calcPosIngreso(pt);ingresoItems[j].posicion=pos?.id||null;}
+      }
+    }
     renderTab('ingreso');
   } catch(e) {
-    btn.disabled=false; btn.textContent='Confirmar ingreso';
+    if(btn){btn.disabled=false;btn.textContent='✓ Confirmar este ítem';}
     alert('Error: '+e.message);
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-// ETIQUETAS
-// ═══════════════════════════════════════════════════════════
-function generarEtiquetas(items) {
-  const area = document.getElementById('print-area');
-  area.innerHTML = '';
-  area.style.display = 'flex';
-  let idx = 0;
+function rechazarItem(i) {
+  ingresoItems[i].estado = 'rechazado';
+  renderTab('ingreso');
+}
+
+function imprimirEtiquetasItem(i) {
+  abrirVentanaEtiquetas([ingresoItems[i]]);
+}
+
+function imprimirTodasEtiquetas() {
+  const confirmados = ingresoItems.filter(it=>it.estado==='confirmado');
+  if(confirmados.length) abrirVentanaEtiquetas(confirmados);
+}
+
+function abrirVentanaEtiquetas(items) {
+  const w = window.open('','_blank');
+  let labelsHtml='', qrScripts='', idx=0;
   items.forEach(it=>{
-    const n = it.cantidad||1;
-    for(let i=0;i<n;i++){
-      const qrText = (it.sku||'')+'|'+it.nombre+'|'+(it.posicion||'');
-      const uid = 'qr-'+idx++;
-      const div = document.createElement('div');
-      div.className = 'label-item';
-      div.innerHTML = `
-        <div id="${uid}"></div>
-        <div style="font-family:'Space Mono',monospace;font-size:10pt;font-weight:700;color:#000;margin-top:1mm;">${it.sku||'—'}</div>
-        <div style="font-size:7pt;color:#333;max-width:56mm;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${it.nombre}</div>
-        <div style="font-family:'Space Mono',monospace;font-size:9pt;font-weight:700;color:#000;margin-top:1mm;">${it.posicion||'—'}</div>`;
-      area.appendChild(div);
-      try{ new QRCode(document.getElementById(uid),{text:qrText,width:52,height:52}); }catch(e){}
+    const n=it.cantidad||1;
+    for(let k=0;k<n;k++){
+      const uid='qlb-'+idx++;
+      const qrText=(it.sku||'')+'|'+it.nombre+'|'+(it.posicion||'')+'|'+(it.tamano||'')+'|'+(it.espesor||'');
+      labelsHtml+=`<div class="label-item"><div id="${uid}" class="qr-slot"></div>
+        <div class="sku">${it.sku||'—'}</div>
+        <div class="name">${it.nombre}</div>
+        <div class="pos">${it.posicion||'Sin pos.'}</div>
+        <div class="meta">${[it.tamano,it.espesor].filter(Boolean).join(' · ')||'—'}</div></div>`;
+      qrScripts+=`try{new QRCode(document.getElementById('${uid}'),{text:${JSON.stringify(qrText)},width:48,height:48});}catch(e){}`;
     }
   });
-  // Botones flotantes
-  const flt = document.createElement('div');
-  flt.className = 'print-float';
-  flt.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:999;display:flex;gap:10px;';
-  flt.innerHTML = `
-    <button onclick="window.print()" style="padding:10px 20px;background:#FFD600;color:#000;border:none;border-radius:6px;font-family:'Space Mono',monospace;font-weight:700;font-size:11px;cursor:pointer;">Imprimir etiquetas</button>
-    <button onclick="document.getElementById('print-area').style.display='none';this.parentNode.remove()" style="padding:10px 16px;background:#333;color:#aaa;border:none;border-radius:6px;font-family:'Space Mono',monospace;font-size:11px;cursor:pointer;">Cerrar</button>`;
-  document.body.appendChild(flt);
+  w.document.write(`<!DOCTYPE html><html><head><title>Etiquetas</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#fff;padding:4mm;font-family:monospace;}
+    .wrap{display:flex;flex-wrap:wrap;gap:2mm;}
+    .label-item{width:60mm;height:30mm;border:.5px solid #999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1.5mm;page-break-inside:avoid;}
+    .qr-slot{line-height:0;}
+    .sku{font-size:8pt;font-weight:700;margin-top:1mm;}
+    .name{font-size:6pt;color:#333;max-width:56mm;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+    .pos{font-size:8pt;font-weight:700;margin-top:.5mm;}
+    .meta{font-size:5.5pt;color:#555;}
+    .no-print{margin:6mm;display:flex;gap:6mm;}
+    @media print{.no-print{display:none;}body{padding:2mm;}}
+  </style></head><body>
+  <div class="no-print">
+    <button onclick="window.print()" style="padding:8px 18px;background:#FFD600;border:none;border-radius:5px;font-family:monospace;font-weight:700;font-size:11px;cursor:pointer;">🖨 Imprimir</button>
+    <button onclick="window.close()" style="padding:8px 14px;background:#333;color:#aaa;border:none;border-radius:5px;font-family:monospace;font-size:11px;cursor:pointer;">Cerrar</button>
+  </div>
+  <div class="wrap">${labelsHtml}</div>
+  <script>window.onload=function(){${qrScripts}};<\/script>
+  </body></html>`);
+  w.document.close();
+}
+
+function tplResumenFinal() {
+  const confirmados = ingresoItems.filter(it=>it.estado==='confirmado');
+  const rechazados  = ingresoItems.filter(it=>it.estado==='rechazado');
+  const sorted = [...confirmados].sort((a,b)=>(a.posicion||'').localeCompare(b.posicion||''));
+  const ocLabel = ingresoOC
+    ? `OC ${ingresoOC.purchaseorder_number}${ingresoOC.vendor_name?' — '+ingresoOC.vendor_name:''}`
+    : 'Ingreso manual';
+  return `
+  <div style="margin-top:20px;background:var(--panel);border:1px solid rgba(61,214,140,.3);border-radius:10px;padding:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div class="mono" style="font-size:10px;color:var(--green);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">✓ Ingreso completado</div>
+        <div style="font-size:13px;color:var(--muted);">${ocLabel} · ${confirmados.length} confirmados, ${rechazados.length} rechazados</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="imprimirTodasEtiquetas()">🖨 Todas las etiquetas</button>
+        <button class="btn btn-ghost btn-sm" onclick="imprimirReporteUbicacion()">📄 Reporte ubicación</button>
+      </div>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Tamaño</th><th>Espesor</th><th>Cant.</th><th>Posición</th></tr></thead>
+      <tbody>
+        ${sorted.map(it=>`<tr>
+          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${it.nombre}">${it.nombre}</td>
+          <td><span class="mono" style="font-size:11px;color:var(--amber);">${it.sku||'—'}</span></td>
+          <td class="mono" style="font-size:11px;">${it.tamano||'—'}</td>
+          <td class="mono" style="font-size:11px;">${it.espesor||'—'}</td>
+          <td class="mono">${it.cantidad}</td>
+          <td><span class="mono" style="color:var(--amber);">${it.posicion||'Sin asignar'}</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function imprimirReporteUbicacion() {
+  const sorted = [...ingresoItems.filter(it=>it.estado==='confirmado')]
+    .sort((a,b)=>(a.posicion||'').localeCompare(b.posicion||''));
+  const ocLabel = ingresoOC
+    ? `OC ${ingresoOC.purchaseorder_number}${ingresoOC.vendor_name?' — '+ingresoOC.vendor_name:''}`
+    : 'Ingreso manual';
+  const fecha = new Date().toLocaleDateString('es-AR');
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>Reporte Ingreso</title><style>
+    body{font-family:monospace;padding:24px;color:#000;font-size:12px;}
+    h2{margin-bottom:4px;font-size:16px;}
+    .sub{color:#666;margin-bottom:20px;font-size:11px;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{border:1px solid #ccc;padding:7px 10px;text-align:left;}
+    th{background:#f0f0f0;text-transform:uppercase;font-size:10px;letter-spacing:1px;}
+    @media print{button{display:none;}}
+  </style></head><body>
+    <h2>Reporte de Ingreso</h2>
+    <div class="sub">${ocLabel} — ${fecha} · Ordenado por posición</div>
+    <table>
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Tamaño</th><th>Espesor</th><th>Cant.</th><th>Posición</th></tr></thead>
+      <tbody>${sorted.map(it=>`<tr>
+        <td>${it.nombre}</td><td>${it.sku||'—'}</td><td>${it.tamano||'—'}</td>
+        <td>${it.espesor||'—'}</td><td>${it.cantidad}</td><td>${it.posicion||'Sin asignar'}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <br/><button onclick="window.print()">Imprimir</button>
+  </body></html>`);
+  w.document.close();
 }
 
 // ═══════════════════════════════════════════════════════════
