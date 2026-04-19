@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maderable · Stock Placas</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap');
+:root{
+  --bg:#0f0f0f;--panel:#161616;--card:#1e1e1e;--border:#2a2a2a;
+  --text:#e8e8e8;--muted:#5a5a5a;--faint:#222;
+  --amber:#FFD600;--green:#3DD68C;--red:#F05C5C;--blue:#5B8DEF;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;height:100vh;display:flex;overflow:hidden;}
+.mono{font-family:'Space Mono',monospace;}
+
+/* Sidebar */
+.sidebar{width:190px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
+.sidebar-logo{padding:16px;border-bottom:1px solid var(--border);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--amber);letter-spacing:2px;}
+.nav-item{padding:11px 16px;cursor:pointer;font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;border-left:2px solid transparent;transition:all .15s;display:flex;align-items:center;gap:8px;}
+.nav-item:hover{color:var(--text);background:rgba(255,214,0,.04);}
+.nav-item.active{color:var(--amber);border-left-color:var(--amber);background:rgba(255,214,0,.06);}
+
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.content{flex:1;overflow-y:auto;padding:24px 28px 80px;}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
+
+/* Buttons */
+.btn{padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;transition:opacity .15s;white-space:nowrap;}
+.btn:hover{opacity:.82;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn-primary{background:var(--amber);color:#0f0f0f;}
+.btn-ghost{background:var(--faint);color:var(--muted);border:1px solid var(--border);}
+.btn-success{background:var(--green);color:#0f0f0f;}
+.btn-danger{background:var(--red);color:#fff;}
+.btn-sm{padding:4px 10px;font-size:9px;}
+
+/* Mode toggle */
+.mode-toggle{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:3px;margin-bottom:20px;max-width:340px;}
+.mode-btn{flex:1;padding:7px 12px;border:none;border-radius:5px;cursor:pointer;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;background:transparent;color:var(--muted);transition:all .2s;letter-spacing:.5px;}
+.mode-btn.active{background:var(--amber);color:#0f0f0f;}
+
+/* Fields */
+.field{display:flex;flex-direction:column;gap:5px;}
+.field label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+.field input,.field select{background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 11px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;width:100%;transition:border-color .2s;}
+.field input:focus{border-color:var(--amber);}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+
+/* Section label */
+.sec{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;}
+
+/* Tables */
+.tbl{width:100%;border-collapse:collapse;}
+.tbl th{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;padding:6px 10px;text-align:left;border-bottom:1px solid var(--border);}
+.tbl td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px;vertical-align:middle;}
+.tbl tr:hover td{background:rgba(255,255,255,.02);}
+.tbl input{background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text);font-size:13px;outline:none;}
+.tbl input:focus{border-color:var(--amber);}
+
+/* Info boxes */
+.info-box{background:rgba(91,141,239,.06);border:1px solid rgba(91,141,239,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--blue);margin-bottom:14px;line-height:1.5;}
+.warn-box{background:rgba(255,214,0,.06);border:1px solid rgba(255,214,0,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--amber);margin-bottom:10px;}
+.ok-box{background:rgba(61,214,140,.06);border:1px solid rgba(61,214,140,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--green);margin-bottom:10px;}
+
+/* Overlay/Modal */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:100;align-items:center;justify-content:center;}
+.overlay.open{display:flex;}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:26px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+.modal-title{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;}
+
+/* Catalog */
+.cat-search{width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:10px 14px;color:var(--text);font-size:14px;outline:none;margin-bottom:10px;font-family:'DM Sans',sans-serif;}
+.cat-search:focus{border-color:var(--amber);}
+.cat-results{max-height:340px;overflow-y:auto;}
+.cat-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);}
+.cat-item:hover{background:rgba(255,255,255,.02);}
+.cat-item-name{font-size:13px;font-weight:500;margin-bottom:2px;}
+.cat-item-meta{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);}
+.cat-add-btn{padding:5px 12px;background:var(--amber);color:#0f0f0f;border:none;border-radius:5px;cursor:pointer;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;white-space:nowrap;}
+.cat-status{padding:20px;text-align:center;font-size:12px;color:var(--muted);}
+
+/* Shelf */
+.shelf-grid{display:flex;gap:12px;flex-wrap:nowrap;}
+.shelf-col{display:flex;flex-direction:column;gap:5px;}
+.shelf-col-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--amber);text-align:center;margin-bottom:4px;}
+.shelf-pos{border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;position:relative;transition:all .2s;border:1px solid transparent;}
+.shelf-pos:hover{transform:scale(1.04);}
+.shelf-pos.empty{background:#2e2e2e;border-color:#353535;}
+.shelf-pos.partial{border-color:rgba(255,214,0,.35);}
+.shelf-pos.full{background:var(--amber);border-color:var(--amber);}
+.shelf-pos.highlighted{box-shadow:0 0 0 2px #fff;}
+.tooltip-box{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:8px 10px;min-width:130px;z-index:20;pointer-events:none;display:none;white-space:nowrap;font-size:11px;}
+.shelf-pos:hover .tooltip-box{display:block;}
+
+/* Scan */
+.scan-input{width:100%;background:var(--faint);border:2px solid var(--amber);border-radius:6px;padding:10px 16px;color:var(--text);font-family:'Space Mono',monospace;font-size:15px;outline:none;letter-spacing:1px;}
+
+/* Bar fill */
+.bar-wrap{width:60px;height:6px;background:var(--faint);border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;}
+.bar-fill{height:100%;background:var(--amber);}
+
+@keyframes spin{to{transform:rotate(360deg);}}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,214,0,.3);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
+
+@media print{
+  body *{visibility:hidden;}
+  #print-area,#print-area *{visibility:visible;}
+  #print-area{position:fixed;inset:0;background:white;display:flex;flex-wrap:wrap;gap:3px;padding:3px;align-content:flex-start;}
+  .label-item{width:60mm;height:30mm;border:1px solid #ccc;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2mm;page-break-inside:avoid;background:#fff;}
+  .print-float{display:none!important;}
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-logo">⬡ MADERABLE</div>
+  <div style="flex:1;padding:8px 0;">
+    <div class="nav-item active" id="nav-ingreso" onclick="switchTab('ingreso')">⬆ Ingreso</div>
+    <div class="nav-item" id="nav-salida" onclick="switchTab('salida')">⬇ Salida</div>
+    <div class="nav-item" id="nav-busqueda" onclick="switchTab('busqueda')">⊙ Búsqueda</div>
+    <div class="nav-item" id="nav-estanteria" onclick="switchTab('estanteria')">⬡ Estantería</div>
+  </div>
+  <div style="padding:12px 16px;border-top:1px solid var(--border);">
+    <a href="admin.html" style="color:var(--muted);font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-decoration:none;text-transform:uppercase;">← Admin</a>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;" id="topbar-title">INGRESO</span>
+    </div>
+    <span id="stock-status" class="mono" style="font-size:10px;color:var(--muted);"></span>
+  </div>
+  <div class="content" id="content"></div>
+</div>
+
+<!-- MODAL CATÁLOGO ZOHO -->
+<div class="overlay" id="cat-overlay" onclick="if(event.target===this)cerrarCatalogo()">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="modal-title">Buscar artículo en Zoho</div>
+      <button onclick="cerrarCatalogo()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <input class="cat-search" id="cat-search-input" placeholder="🔍 Buscar artículo..." oninput="catDebounce(this.value)" autocomplete="off"/>
+    <div class="cat-results" id="cat-results">
+      <div class="cat-status">Escribí para buscar en el catálogo de Zoho</div>
+    </div>
+  </div>
+</div>
+
+<!-- PRINT AREA (etiquetas) -->
+<div id="print-area" style="display:none;"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════
+const NEON = 'https://gestion-placas.vercel.app';
+
+const SHELF_A_COLS = ['A1','A2','A3','A4'];
+const SHELF_B_COLS = ['B1','B2'];
+const LEVELS = [1,2,3,4,5];
+const CAP_A = 40, CAP_B = 25, CAP_BESP = 150;
+
+// ═══════════════════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════════════════
+let currentTab = 'ingreso';
+let plateTypes = [], positions = [], stockData = [];
+
+let ingresoMode = 'oc';
+let ingresoOC = null;
+let ingresoItems = [];
+
+let salidaMode = 'so';
+let salidaSO = null;
+let salidaItems = [];
+
+let busqResultados = [];
+let highlightedPos = [];
+
+let catCb = null, catTimer = null, catItems = [];
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+async function init() {
+  try {
+    const [a,b,c] = await Promise.all([
+      fetch(NEON+'/api/plate-types').then(r=>r.json()),
+      fetch(NEON+'/api/positions').then(r=>r.json()),
+      fetch(NEON+'/api/stock').then(r=>r.json()),
+    ]);
+    plateTypes = Array.isArray(a)?a:[];
+    positions  = Array.isArray(b)?b:[];
+    stockData  = Array.isArray(c)?c:[];
+    document.getElementById('stock-status').textContent =
+      plateTypes.length+' tipos · '+positions.length+' posiciones';
+  } catch(e) {
+    console.warn('Error cargando datos base:', e.message);
+  }
+  renderTab('ingreso');
+}
+
+async function recargarStock() {
+  try { stockData = await fetch(NEON+'/api/stock').then(r=>r.json()); } catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════════
+// NAVEGACIÓN
+// ═══════════════════════════════════════════════════════════
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  document.getElementById('nav-'+tab).classList.add('active');
+  const titles = {ingreso:'INGRESO',salida:'SALIDA',busqueda:'BÚSQUEDA',estanteria:'ESTANTERÍA'};
+  document.getElementById('topbar-title').textContent = titles[tab];
+  renderTab(tab);
+}
+
+function renderTab(tab) {
+  const c = document.getElementById('content');
+  if (tab==='ingreso')    c.innerHTML = tplIngreso();
+  else if (tab==='salida')     c.innerHTML = tplSalida();
+  else if (tab==='busqueda')   c.innerHTML = tplBusqueda();
+  else if (tab==='estanteria') c.innerHTML = tplEstanteria();
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB 1: INGRESO
+// ═══════════════════════════════════════════════════════════
+function tplIngreso() {
+  return `
+  <div class="sec">Ingreso de stock</div>
+  <div class="mode-toggle">
+    <button class="mode-btn ${ingresoMode==='oc'?'active':''}" onclick="setIngresoMode('oc')">Por OC de Zoho</button>
+    <button class="mode-btn ${ingresoMode==='articulo'?'active':''}" onclick="setIngresoMode('articulo')">Por artículo</button>
+  </div>
+  ${ingresoMode==='oc' ? tplIngresoOC() : tplIngresoArticulo()}`;
+}
+
+function setIngresoMode(m){ ingresoMode=m; ingresoItems=[]; ingresoOC=null; renderTab('ingreso'); }
+
+function tplIngresoOC() {
+  return `
+  <div class="card">
+    <div style="display:flex;gap:10px;align-items:flex-end;">
+      <div class="field" style="flex:1;">
+        <label>Número de OC</label>
+        <input id="oc-num" placeholder="OC-05441" value="${ingresoOC?.purchaseorder_number||''}"
+               onkeydown="if(event.key==='Enter')buscarOC()"/>
+      </div>
+      <button class="btn btn-primary" onclick="buscarOC()">Buscar en Zoho</button>
+    </div>
+    <div id="oc-status" style="margin-top:12px;"></div>
+  </div>
+  ${ingresoOC && ingresoItems.length ? tplTablaIngreso() : ''}`;
+}
+
+function tplIngresoArticulo() {
+  return `
+  <div class="card">
+    <div class="sec">Artículo a ingresar</div>
+    <button class="btn btn-primary" onclick="abrirCatalogo(it=>agregarItemIngreso(it))">Buscar artículo en Zoho</button>
+    ${ingresoItems.length ? tplTablaIngreso() : ''}
+  </div>`;
+}
+
+function tplTablaIngreso() {
+  const header = ingresoOC
+    ? `<div class="sec" style="margin-bottom:12px;">Items OC ${ingresoOC.purchaseorder_number} — ${ingresoOC.vendor_name||''}</div>`
+    : '';
+  return `
+  <div ${ingresoMode==='oc'?'class="card"':''} style="${ingresoMode==='articulo'?'margin-top:16px;':''}">
+    ${header}
+    <table class="tbl">
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Cantidad</th><th>Posición asignada</th></tr></thead>
+      <tbody>
+        ${ingresoItems.map((it,i)=>`<tr>
+          <td>${it.nombre}</td>
+          <td><span class="mono" style="font-size:11px;color:var(--amber);">${it.sku||'—'}</span></td>
+          <td><input type="number" min="1" value="${it.cantidad}" style="width:75px;"
+               onchange="ingresoItems[${i}].cantidad=Math.max(1,+this.value)"/></td>
+          <td><span class="mono" style="color:var(--amber);font-size:12px;">${it.posicion||'Sin asignar'}</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div style="margin-top:14px;display:flex;gap:10px;">
+      <button class="btn btn-success" id="btn-confirm-ingreso" onclick="confirmarIngreso()">Confirmar ingreso</button>
+      <button class="btn btn-ghost" onclick="ingresoOC=null;ingresoItems=[];renderTab('ingreso')">Cancelar</button>
+    </div>
+  </div>`;
+}
+
+async function buscarOC() {
+  const num = document.getElementById('oc-num')?.value?.trim();
+  if(!num) return;
+  const st = document.getElementById('oc-status');
+  st.innerHTML = '<span class="spinner"></span><span style="font-size:12px;color:var(--muted);">Buscando en Zoho...</span>';
+  try {
+    const token = await getZohoToken();
+    const r = await fetch('/api/zoho-books?endpoint='+encodeURIComponent('purchaseorders?purchaseorder_number='+num)+'&token='+token);
+    const data = await r.json();
+    const ocs = data.purchaseorders||[];
+    if(!ocs.length){ st.innerHTML=`<div class="warn-box">No se encontró la OC <strong>${num}</strong> en Zoho Books.</div>`; return; }
+    const r2 = await fetch('/api/zoho-books?endpoint='+encodeURIComponent('purchaseorders/'+ocs[0].purchaseorder_id)+'&token='+token);
+    const det = await r2.json();
+    ingresoOC = det.purchaseorder||ocs[0];
+    st.innerHTML = '';
+    ingresoItems = await Promise.all((ingresoOC.line_items||[]).map(async it=>{
+      const sku = it.sku||'';
+      const pt = plateTypes.find(p=>p.sku===sku);
+      const pos = pt ? await calcPosIngreso(pt) : null;
+      return {nombre:it.name||it.description||'—',sku,cantidad:it.quantity||1,posicion:pos?.id||null,plate_type_id:pt?.id||null};
+    }));
+    renderTab('ingreso');
+  } catch(e) {
+    document.getElementById('oc-status').innerHTML = `<div style="color:var(--red);font-size:12px;">Error: ${e.message}</div>`;
+  }
+}
+
+async function agregarItemIngreso(item) {
+  const sku = item.sku||item.item_id||'';
+  const pt = plateTypes.find(p=>p.sku===sku);
+  const pos = pt ? await calcPosIngreso(pt) : null;
+  ingresoItems.push({nombre:item.name,sku,cantidad:1,posicion:pos?.id||null,plate_type_id:pt?.id||null});
+  cerrarCatalogo();
+  renderTab('ingreso');
+}
+
+async function calcPosIngreso(pt) {
+  if(!pt) return null;
+  // 1. Posición fija
+  if(pt.fixed_position_id) return positions.find(p=>p.id===pt.fixed_position_id)||null;
+  const fmt = pt.format||'A';
+  const posFormat = positions.filter(p=>p.format===fmt);
+  // 2. Posición con stock del mismo artículo y espacio
+  const withStock = posFormat
+    .map(p=>({p,qty:(stockData.find(s=>s.position_id===p.id&&s.plate_type_id===pt.id)?.quantity||0)}))
+    .filter(x=>x.qty>0&&x.qty<posCap(x.p))
+    .sort((a,b)=>b.qty-a.qty);
+  if(withStock.length) return withStock[0].p;
+  // 3. Primera posición vacía del formato
+  return posFormat.find(p=>!(stockData.find(s=>s.position_id===p.id&&(s.quantity||0)>0)))||null;
+}
+
+function posCap(pos) {
+  if(!pos) return CAP_A;
+  if(pos.id.startsWith('B-ESP')) return CAP_BESP;
+  if(pos.id.startsWith('B')) return CAP_B;
+  return CAP_A;
+}
+
+async function confirmarIngreso() {
+  if(!ingresoItems.length) return;
+  const btn = document.getElementById('btn-confirm-ingreso');
+  btn.disabled=true; btn.textContent='Confirmando...';
+  try {
+    const ts = new Date().toISOString();
+    const ocNum = ingresoOC?.purchaseorder_number||null;
+    for(const it of ingresoItems) {
+      if(!it.posicion||!it.plate_type_id) continue;
+      await fetch(NEON+'/api/stock',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({position_id:it.posicion,plate_type_id:it.plate_type_id,quantity:it.cantidad,op:'add'})});
+      await fetch(NEON+'/api/movements',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({type:'ingreso',position_id:it.posicion,plate_type_id:it.plate_type_id,quantity:it.cantidad,oc_number:ocNum,timestamp:ts})});
+    }
+    await recargarStock();
+    generarEtiquetas(ingresoItems);
+    ingresoOC=null; ingresoItems=[];
+    renderTab('ingreso');
+  } catch(e) {
+    btn.disabled=false; btn.textContent='Confirmar ingreso';
+    alert('Error: '+e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ETIQUETAS
+// ═══════════════════════════════════════════════════════════
+function generarEtiquetas(items) {
+  const area = document.getElementById('print-area');
+  area.innerHTML = '';
+  area.style.display = 'flex';
+  let idx = 0;
+  items.forEach(it=>{
+    const n = it.cantidad||1;
+    for(let i=0;i<n;i++){
+      const qrText = (it.sku||'')+'|'+it.nombre+'|'+(it.posicion||'');
+      const uid = 'qr-'+idx++;
+      const div = document.createElement('div');
+      div.className = 'label-item';
+      div.innerHTML = `
+        <div id="${uid}"></div>
+        <div style="font-family:'Space Mono',monospace;font-size:10pt;font-weight:700;color:#000;margin-top:1mm;">${it.sku||'—'}</div>
+        <div style="font-size:7pt;color:#333;max-width:56mm;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${it.nombre}</div>
+        <div style="font-family:'Space Mono',monospace;font-size:9pt;font-weight:700;color:#000;margin-top:1mm;">${it.posicion||'—'}</div>`;
+      area.appendChild(div);
+      try{ new QRCode(document.getElementById(uid),{text:qrText,width:52,height:52}); }catch(e){}
+    }
+  });
+  // Botones flotantes
+  const flt = document.createElement('div');
+  flt.className = 'print-float';
+  flt.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:999;display:flex;gap:10px;';
+  flt.innerHTML = `
+    <button onclick="window.print()" style="padding:10px 20px;background:#FFD600;color:#000;border:none;border-radius:6px;font-family:'Space Mono',monospace;font-weight:700;font-size:11px;cursor:pointer;">Imprimir etiquetas</button>
+    <button onclick="document.getElementById('print-area').style.display='none';this.parentNode.remove()" style="padding:10px 16px;background:#333;color:#aaa;border:none;border-radius:6px;font-family:'Space Mono',monospace;font-size:11px;cursor:pointer;">Cerrar</button>`;
+  document.body.appendChild(flt);
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB 2: SALIDA
+// ═══════════════════════════════════════════════════════════
+function tplSalida() {
+  return `
+  <div class="sec">Salida de stock</div>
+  <div class="mode-toggle">
+    <button class="mode-btn ${salidaMode==='so'?'active':''}" onclick="setSalidaMode('so')">Por SO de Zoho</button>
+    <button class="mode-btn ${salidaMode==='articulo'?'active':''}" onclick="setSalidaMode('articulo')">Por artículo</button>
+  </div>
+  ${salidaMode==='so' ? tplSalidaSO() : tplSalidaArticulo()}
+  ${salidaItems.length ? tplSalidaPreview() : ''}`;
+}
+
+function setSalidaMode(m){ salidaMode=m; salidaItems=[]; salidaSO=null; renderTab('salida'); }
+
+function tplSalidaSO() {
+  return `
+  <div class="card">
+    <div style="display:flex;gap:10px;align-items:flex-end;">
+      <div class="field" style="flex:1;">
+        <label>Número de SO</label>
+        <input id="so-num" placeholder="SO-01905" value="${salidaSO?.salesorder_number||''}"
+               onkeydown="if(event.key==='Enter')buscarSO()"/>
+      </div>
+      <button class="btn btn-primary" onclick="buscarSO()">Buscar en Zoho</button>
+    </div>
+    <div id="so-status" style="margin-top:12px;"></div>
+  </div>`;
+}
+
+function tplSalidaArticulo() {
+  return `
+  <div class="card">
+    <div class="sec">Artículo a retirar</div>
+    <button class="btn btn-primary" onclick="abrirCatalogo(it=>agregarItemSalida(it))">Buscar artículo en Zoho</button>
+  </div>`;
+}
+
+function tplSalidaPreview() {
+  return `
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div class="sec" style="margin:0;">Vista previa de retiro</div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="imprimirResumen('obra')">Ordenar por Obra</button>
+        <button class="btn btn-ghost btn-sm" onclick="imprimirResumen('posicion')">Ordenar por Posición</button>
+      </div>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Posición</th><th>Cantidad</th><th>Obra</th><th></th></tr></thead>
+      <tbody>
+        ${salidaItems.map((it,i)=>`<tr>
+          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${it.nombre}">${it.nombre}</td>
+          <td><span class="mono" style="font-size:11px;color:var(--amber);">${it.sku||'—'}</span></td>
+          <td><span class="mono" style="color:var(--amber);font-size:12px;">${it.posicion||'—'}</span>${it._scanned?'<span style="margin-left:6px;color:var(--green);font-size:11px;">✓</span>':''}</td>
+          <td><input type="number" min="1" value="${it.cantidad}" style="width:70px;"
+               onchange="salidaItems[${i}].cantidad=Math.max(1,+this.value)"/></td>
+          <td><input value="${it.obra||''}" placeholder="Obra..." style="width:120px;"
+               onchange="salidaItems[${i}].obra=this.value"/></td>
+          <td><button onclick="salidaItems.splice(${i},1);renderTab('salida')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;">×</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+      <div class="sec">Confirmación</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button class="btn btn-danger" id="btn-confirm-salida" onclick="confirmarSalida()">Confirmar todo</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="mono" style="font-size:10px;color:var(--muted);">O escanear QR:</span>
+          <input class="scan-input" id="scan-input" style="width:220px;"
+                 placeholder="Escanear etiqueta..." onchange="procesarScan(this.value);this.value=''"/>
+        </div>
+      </div>
+      <div id="scan-feedback" style="margin-top:10px;"></div>
+    </div>
+  </div>`;
+}
+
+async function buscarSO() {
+  const num = document.getElementById('so-num')?.value?.trim();
+  if(!num) return;
+  const st = document.getElementById('so-status');
+  st.innerHTML = '<span class="spinner"></span><span style="font-size:12px;color:var(--muted);">Buscando en Zoho...</span>';
+  try {
+    const token = await getZohoToken();
+    const r = await fetch('/api/zoho-books?endpoint='+encodeURIComponent('salesorders?salesorder_number='+num)+'&token='+token);
+    const data = await r.json();
+    const sos = data.salesorders||[];
+    if(!sos.length){ st.innerHTML=`<div class="warn-box">No se encontró la SO <strong>${num}</strong> en Zoho Books.</div>`; return; }
+    const r2 = await fetch('/api/zoho-books?endpoint='+encodeURIComponent('salesorders/'+sos[0].salesorder_id)+'&token='+token);
+    const det = await r2.json();
+    salidaSO = det.salesorder||sos[0];
+    st.innerHTML='';
+    const obra = salidaSO.reference_number||salidaSO.delivery_address?.address||'';
+    salidaItems = (salidaSO.line_items||[]).map(it=>{
+      const sku = it.sku||'';
+      const pt = plateTypes.find(p=>p.sku===sku);
+      const posEntry = pt ? calcPosRetiro(pt) : null;
+      return {nombre:it.name||'—',sku,cantidad:it.quantity||1,posicion:posEntry?.position_id||null,plate_type_id:pt?.id||null,obra,_scanned:false};
+    });
+    renderTab('salida');
+  } catch(e) {
+    document.getElementById('so-status').innerHTML = `<div style="color:var(--red);font-size:12px;">Error: ${e.message}</div>`;
+  }
+}
+
+function calcPosRetiro(pt) {
+  if(!pt) return null;
+  return stockData
+    .filter(s=>s.plate_type_id===pt.id&&(s.quantity||0)>0)
+    .sort((a,b)=>(a.quantity||0)-(b.quantity||0))[0]||null;
+}
+
+function agregarItemSalida(item) {
+  const sku = item.sku||item.item_id||'';
+  const pt = plateTypes.find(p=>p.sku===sku);
+  const pos = calcPosRetiro(pt);
+  salidaItems.push({nombre:item.name,sku,cantidad:1,posicion:pos?.position_id||null,plate_type_id:pt?.id||null,obra:'',_scanned:false});
+  cerrarCatalogo();
+  renderTab('salida');
+}
+
+function imprimirResumen(ordenBy) {
+  const items = [...salidaItems].sort((a,b)=>{
+    const ka = ordenBy==='obra'?(a.obra||''):(a.posicion||'');
+    const kb = ordenBy==='obra'?(b.obra||''):(b.posicion||'');
+    return ka.localeCompare(kb);
+  });
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>Retiro de placas</title><style>
+    body{font-family:monospace;padding:24px;color:#000;font-size:12px;}
+    h2{margin-bottom:4px;font-size:16px;}
+    .sub{color:#666;margin-bottom:20px;font-size:11px;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{border:1px solid #ccc;padding:7px 10px;text-align:left;}
+    th{background:#f0f0f0;text-transform:uppercase;font-size:10px;letter-spacing:1px;}
+    @media print{button{display:none;}}
+  </style></head><body>
+    <h2>Retiro de placas</h2>
+    <div class="sub">${new Date().toLocaleDateString('es-AR')} · Ordenado por ${ordenBy}</div>
+    <table>
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Posición</th><th>Cantidad</th><th>Obra</th></tr></thead>
+      <tbody>${items.map(it=>`<tr><td>${it.nombre}</td><td>${it.sku||'—'}</td><td>${it.posicion||'—'}</td><td>${it.cantidad}</td><td>${it.obra||'—'}</td></tr>`).join('')}</tbody>
+    </table>
+    <br/><button onclick="window.print()">Imprimir</button>
+  </body></html>`);
+  w.document.close();
+}
+
+async function confirmarSalida() {
+  if(!salidaItems.length) return;
+  if(!confirm('¿Confirmar retiro de '+salidaItems.reduce((a,i)=>a+i.cantidad,0)+' unidades?')) return;
+  const btn = document.getElementById('btn-confirm-salida');
+  btn.disabled=true; btn.textContent='Confirmando...';
+  try {
+    const ts = new Date().toISOString();
+    const soNum = salidaSO?.salesorder_number||null;
+    for(const it of salidaItems){
+      if(!it.posicion||!it.plate_type_id) continue;
+      await fetch(NEON+'/api/stock',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({position_id:it.posicion,plate_type_id:it.plate_type_id,quantity:it.cantidad,op:'subtract'})});
+      await fetch(NEON+'/api/movements',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({type:'salida',position_id:it.posicion,plate_type_id:it.plate_type_id,quantity:it.cantidad,so_number:soNum,obra:it.obra,timestamp:ts})});
+    }
+    await recargarStock();
+    salidaSO=null; salidaItems=[];
+    renderTab('salida');
+  } catch(e){
+    btn.disabled=false; btn.textContent='Confirmar todo';
+    alert('Error: '+e.message);
+  }
+}
+
+function procesarScan(raw) {
+  const parts = raw.trim().split('|');
+  if(parts.length<3){ document.getElementById('scan-feedback').innerHTML=`<div class="warn-box">QR inválido: ${raw}</div>`; return; }
+  const [sku,,posicion] = parts;
+  const it = salidaItems.find(i=>i.sku===sku&&i.posicion===posicion);
+  if(!it){ document.getElementById('scan-feedback').innerHTML=`<div class="warn-box">No coincide con ningún ítem de la orden: ${sku} @ ${posicion}</div>`; return; }
+  it._scanned = true;
+  const todos = salidaItems.every(i=>i._scanned);
+  document.getElementById('scan-feedback').innerHTML = `<div class="ok-box">✓ ${sku} @ ${posicion} escaneado.${todos?' <strong>Todos listos. Confirmá el retiro.</strong>':''}</div>`;
+  renderTab('salida');
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB 3: BÚSQUEDA
+// ═══════════════════════════════════════════════════════════
+function tplBusqueda() {
+  return `
+  <div class="sec">Búsqueda por artículo</div>
+  <div class="card">
+    <button class="btn btn-primary" onclick="abrirCatalogo(it=>buscarEnStock(it))">Buscar artículo en Zoho</button>
+    <div id="busq-res" style="margin-top:16px;">${tplBusqResultado()}</div>
+  </div>`;
+}
+
+function tplBusqResultado() {
+  if(!busqResultados.length) return '';
+  const total = busqResultados.reduce((a,r)=>a+(r.quantity||0),0);
+  return `
+  <div class="sec">Ubicaciones</div>
+  <table class="tbl">
+    <thead><tr><th>Posición</th><th>Cantidad</th><th>Capacidad</th><th>Ocupación</th></tr></thead>
+    <tbody>
+      ${busqResultados.map(r=>{
+        const pos = positions.find(p=>p.id===r.position_id);
+        const cap = pos ? posCap(pos) : CAP_A;
+        const pct = Math.min(100,Math.round((r.quantity||0)/cap*100));
+        return `<tr>
+          <td><span class="mono" style="color:var(--amber);">${r.position_id}</span></td>
+          <td class="mono">${r.quantity||0}</td>
+          <td class="mono">${cap}</td>
+          <td><span class="bar-wrap"><span class="bar-fill" style="width:${pct}%;"></span></span>
+              <span class="mono" style="font-size:10px;color:var(--muted);margin-left:6px;">${pct}%</span></td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>
+  <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;">
+    <span class="mono" style="font-size:13px;">TOTAL <strong style="color:var(--amber);">${total}</strong> unidades</span>
+    <button class="btn btn-ghost btn-sm" onclick="verEnEstanteria()">Ver en estantería →</button>
+  </div>`;
+}
+
+function verEnEstanteria() {
+  highlightedPos = busqResultados.map(r=>r.position_id);
+  switchTab('estanteria');
+}
+
+async function buscarEnStock(item) {
+  const sku = item.sku||item.item_id||'';
+  const pt = plateTypes.find(p=>p.sku===sku);
+  cerrarCatalogo();
+  if(!pt){ busqResultados=[]; renderTab('busqueda'); return; }
+  busqResultados = stockData.filter(s=>s.plate_type_id===pt.id&&(s.quantity||0)>0);
+  renderTab('busqueda');
+  // actualizar solo el div resultado sin re-renderizar todo
+  const el = document.getElementById('busq-res');
+  if(el) el.innerHTML = tplBusqResultado();
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB 4: ESTANTERÍA
+// ═══════════════════════════════════════════════════════════
+function tplEstanteria() {
+  const colsA = SHELF_A_COLS.map(c=>shelfCol(c,'A',CAP_A)).join('');
+  const colsB = SHELF_B_COLS.map(c=>shelfCol(c,'B',CAP_B)).join('');
+  const colBEsp = shelfColEsp();
+  return `
+  <div class="sec" style="display:flex;justify-content:space-between;align-items:center;">
+    <span>Estantería física</span>
+    ${highlightedPos.length?`<button class="btn btn-ghost btn-sm" onclick="highlightedPos=[];renderTab('estanteria')">Limpiar resaltado</button>`:''}
+  </div>
+  <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;">
+    <div>
+      <div class="mono" style="font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;">Formato A — 122 cm</div>
+      <div class="shelf-grid">${colsA}</div>
+    </div>
+    <div style="width:1px;background:var(--border);align-self:stretch;min-height:100px;"></div>
+    <div>
+      <div class="mono" style="font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;">Formato B — 180 cm</div>
+      <div class="shelf-grid">${colsB}${colBEsp}</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:16px;margin-top:20px;">
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:16px;height:16px;background:#2e2e2e;border:1px solid #353535;border-radius:3px;"></div><span style="font-size:11px;color:var(--muted);">Vacía</span></div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:16px;height:16px;background:rgba(255,214,0,.3);border:1px solid rgba(255,214,0,.35);border-radius:3px;"></div><span style="font-size:11px;color:var(--muted);">Parcial</span></div>
+    <div style="display:flex;align-items:center;gap:6px;"><div style="width:16px;height:16px;background:#FFD600;border-radius:3px;"></div><span style="font-size:11px;color:var(--muted);">Llena</span></div>
+    ${highlightedPos.length?`<div style="display:flex;align-items:center;gap:6px;"><div style="width:16px;height:16px;background:rgba(255,214,0,.3);border:2px solid #fff;border-radius:3px;"></div><span style="font-size:11px;color:var(--muted);">Resaltada</span></div>`:''}
+  </div>`;
+}
+
+function shelfPos(posId, cap) {
+  const s = stockData.find(x=>x.position_id===posId);
+  const qty = s?.quantity||0;
+  const ptId = s?.plate_type_id;
+  const pt = plateTypes.find(p=>p.id===ptId);
+  const pct = qty/cap;
+  const cls = qty===0?'empty':(pct>=1?'full':'partial');
+  const hl = highlightedPos.includes(posId);
+  const lvl = posId.split('-').pop();
+  let bg;
+  if(cls==='empty') bg='#2e2e2e';
+  else if(cls==='full') bg='#FFD600';
+  else bg=`rgba(255,214,0,${(0.12+pct*0.6).toFixed(2)})`;
+  const textCol = cls==='full'?'#0f0f0f':cls==='empty'?'#555':'rgba(255,214,0,.9)';
+  return `<div class="shelf-pos ${cls}${hl?' highlighted':''}"
+    style="width:68px;height:38px;background:${bg};${hl?'box-shadow:0 0 0 2px #fff;':''}">
+    <div class="tooltip-box">
+      <div class="mono" style="font-size:10px;color:var(--amber);margin-bottom:2px;">${posId}</div>
+      ${pt?`<div style="font-size:11px;margin-bottom:2px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${pt.name}</div>`:'<div style="font-size:11px;color:var(--muted);">Vacía</div>'}
+      <div class="mono" style="font-size:10px;color:var(--muted);">${qty} / ${cap}</div>
+    </div>
+    <div style="text-align:center;line-height:1.2;">
+      <div class="mono" style="font-size:8px;color:${textCol};">${posId}</div>
+      ${qty>0?`<div class="mono" style="font-size:9px;color:${cls==='full'?'#0f0f0f':'#aaa'};">${qty}</div>`:''}
+    </div>
+  </div>`;
+}
+
+function shelfCol(col, fmt, cap) {
+  const cells = [...LEVELS].reverse().map(lvl=>shelfPos(col+'-'+lvl, cap)).join('');
+  return `<div class="shelf-col">
+    <div class="shelf-col-label">${col}</div>
+    ${cells}
+  </div>`;
+}
+
+function shelfColEsp() {
+  const posId = 'B-ESP-1';
+  const s = stockData.find(x=>x.position_id===posId);
+  const qty = s?.quantity||0;
+  const ptId = s?.plate_type_id;
+  const pt = plateTypes.find(p=>p.id===ptId);
+  const pct = qty/CAP_BESP;
+  const cls = qty===0?'empty':(pct>=1?'full':'partial');
+  const hl = highlightedPos.includes(posId);
+  let bg = cls==='empty'?'#2e2e2e':cls==='full'?'#FFD600':`rgba(255,214,0,${(0.12+pct*0.6).toFixed(2)})`;
+  const textCol = cls==='full'?'#0f0f0f':cls==='empty'?'#555':'rgba(255,214,0,.9)';
+  return `<div class="shelf-col">
+    <div class="shelf-col-label">B-ESP</div>
+    <div class="shelf-pos ${cls}${hl?' highlighted':''}"
+      style="width:68px;height:211px;background:${bg};${hl?'box-shadow:0 0 0 2px #fff;':''}">
+      <div class="tooltip-box">
+        <div class="mono" style="font-size:10px;color:var(--amber);margin-bottom:2px;">${posId}</div>
+        ${pt?`<div style="font-size:11px;margin-bottom:2px;">${pt.name}</div>`:'<div style="font-size:11px;color:var(--muted);">Vacía</div>'}
+        <div class="mono" style="font-size:10px;color:var(--muted);">${qty} / ${CAP_BESP}</div>
+      </div>
+      <div style="text-align:center;line-height:1.4;">
+        <div class="mono" style="font-size:8px;color:${textCol};">B-ESP</div>
+        ${qty>0?`<div class="mono" style="font-size:9px;color:${cls==='full'?'#0f0f0f':'#aaa'};">${qty}</div>`:''}
+        <div class="mono" style="font-size:8px;color:var(--muted);margin-top:2px;">cap.150</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// CATÁLOGO ZOHO
+// ═══════════════════════════════════════════════════════════
+function abrirCatalogo(cb) {
+  catCb=cb; catItems=[];
+  document.getElementById('cat-overlay').classList.add('open');
+  const inp = document.getElementById('cat-search-input');
+  inp.value='';
+  document.getElementById('cat-results').innerHTML='<div class="cat-status">Escribí para buscar en el catálogo de Zoho</div>';
+  setTimeout(()=>inp.focus(),80);
+}
+
+function cerrarCatalogo() {
+  document.getElementById('cat-overlay').classList.remove('open');
+  clearTimeout(catTimer);
+  catCb=null;
+}
+
+function catDebounce(q) {
+  clearTimeout(catTimer);
+  const t=q.trim();
+  if(!t){ document.getElementById('cat-results').innerHTML='<div class="cat-status">Escribí para buscar en el catálogo de Zoho</div>'; return; }
+  document.getElementById('cat-results').innerHTML='<div class="cat-status"><span class="spinner"></span>Buscando...</div>';
+  catTimer=setTimeout(()=>catBuscar(t),400);
+}
+
+async function catBuscar(q) {
+  try {
+    const token = await getZohoToken();
+    let items=[];
+    const ep1='items?search_text='+encodeURIComponent(q)+'&per_page=50';
+    const d1 = await fetch('/api/zoho-books?endpoint='+encodeURIComponent(ep1)+'&token='+token).then(r=>r.json());
+    items = d1.items||[];
+    if(!items.length){
+      const ep2='items?name_contains='+encodeURIComponent(q)+'&per_page=50';
+      const d2 = await fetch('/api/zoho-books?endpoint='+encodeURIComponent(ep2)+'&token='+token).then(r=>r.json());
+      items = d2.items||[];
+    }
+    catItems=items;
+    if(!items.length){ document.getElementById('cat-results').innerHTML=`<div class="cat-status">Sin resultados para "${q}"</div>`; return; }
+    document.getElementById('cat-results').innerHTML = items.map((it,i)=>`
+      <div class="cat-item">
+        <div>
+          <div class="cat-item-name">${it.name}</div>
+          <div class="cat-item-meta">SKU: ${it.sku||it.item_id||'—'} · ${it.unit||'unidad'}${it.stock_on_hand!=null?' · Stock: '+it.stock_on_hand:''}</div>
+        </div>
+        <button class="cat-add-btn" onclick="catSeleccionar(${i})">+ Agregar</button>
+      </div>`).join('');
+  } catch(e) {
+    document.getElementById('cat-results').innerHTML=`<div class="cat-status" style="color:var(--red);">Error: ${e.message}</div>`;
+  }
+}
+
+function catSeleccionar(idx) {
+  const it=catItems[idx];
+  if(!it||!catCb) return;
+  const cb=catCb;
+  cerrarCatalogo();
+  cb(it);
+}
+
+// ═══════════════════════════════════════════════════════════
+// ZOHO TOKEN
+// ═══════════════════════════════════════════════════════════
+async function getZohoToken() {
+  const data = await fetch('/api/zoho-token').then(r=>r.json());
+  if(!data.access_token) throw new Error('No se obtuvo access token');
+  return data.access_token;
+}
+
+// ═══════════════════════════════════════════════════════════
+// START
+// ═══════════════════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
