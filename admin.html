@@ -160,6 +160,10 @@
 
     <!-- ══ DASHBOARD ═══════════════════════════════════════════════════════ -->
     <div class="view active" id="v-dashboard">
+      <div style="margin-bottom:18px;">
+        <div style="font-size:22px;font-weight:700;">Dashboard</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:3px;">Vista en tiempo real de operarios activos y avance de proyectos</div>
+      </div>
       <!-- KPIs -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
         <div class="kpi"><div class="kpi-label">Proyectos Activos</div><div class="kpi-val" style="color:var(--amber)" id="kpi-proyectos">2</div></div>
@@ -569,19 +573,41 @@ function renderDashboard() {
 // ═══════════════════════════════════════════════════════════════════════════
 // PROYECTOS
 // ═══════════════════════════════════════════════════════════════════════════
+let _archivados = (()=>{try{return JSON.parse(localStorage.getItem('proyectos_archivados')||'[]');}catch(e){return[];}})();
+let _archivadosExpanded = false;
+
+function archivarProyecto(prId, e) {
+  e.stopPropagation();
+  if(!_archivados.includes(prId)) _archivados.push(prId);
+  localStorage.setItem('proyectos_archivados', JSON.stringify(_archivados));
+  renderProyectos();
+}
+function restaurarProyecto(prId, e) {
+  e.stopPropagation();
+  _archivados = _archivados.filter(id=>id!==prId);
+  localStorage.setItem('proyectos_archivados', JSON.stringify(_archivados));
+  renderProyectos();
+}
+
 function renderProyectos() {
-  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><div class="sec-title" style="margin:0;">Proyectos</div><a href="nuevo-proyecto.html" style="text-decoration:none;"><button class="btn btn-primary">+ Nuevo Proyecto</button></a></div>`;
-  html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">`;
-  PROYECTOS.forEach(pr=>{
+  const activos = PROYECTOS.filter(p=>!_archivados.includes(p.id));
+  const arch = PROYECTOS.filter(p=>_archivados.includes(p.id));
+
+  function cardHtml(pr, isArchived) {
     const hA=hAcumPr(pr.id),hE=hEstPr(pr);
     const matP=pr.materiales.filter(m=>m.recibido<m.requerido).length;
     const inv=pr.modulos.filter(m=>m.estado==='en_inventario').length;
     const des=pr.modulos.filter(m=>m.estado==='despachado').length;
-    html+=`
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;cursor:pointer;transition:border-color .2s;"
+    return `
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;cursor:pointer;transition:border-color .2s;${isArchived?'opacity:0.65;':''}"
         onmouseenter="this.style.borderColor='var(--amber)'" onmouseleave="this.style.borderColor='var(--border)'"
         onclick="abrirDetallePr('${pr.id}')">
-        <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:4px;">${pr.clienteNombre}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+          <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${pr.clienteNombre}</div>
+          ${isArchived
+            ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;" onclick="restaurarProyecto('${pr.id}',event)">↩ Restaurar</button>`
+            : `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;color:var(--muted);" onclick="archivarProyecto('${pr.id}',event)">Archivar</button>`}
+        </div>
         <div style="font-size:18px;font-weight:700;margin-bottom:14px;">${pr.nombre}</div>
         <div style="margin-bottom:12px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
@@ -597,8 +623,23 @@ function renderProyectos() {
           ${pill(des+' despachados','var(--purple)')}
         </div>
       </div>`;
-  });
+  }
+
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><div class="sec-title" style="margin:0;">Proyectos</div><a href="nuevo-proyecto.html" style="text-decoration:none;"><button class="btn btn-primary">+ Nuevo Proyecto</button></a></div>`;
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">`;
+  activos.forEach(pr=>{ html+=cardHtml(pr, false); });
   html+=`</div>`;
+
+  if(arch.length) {
+    html+=`<div style="margin-top:20px;">
+      <div onclick="_archivadosExpanded=!_archivadosExpanded;renderProyectos();" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);user-select:none;margin-bottom:10px;">
+        <span>${_archivadosExpanded?'▼':'▶'}</span>
+        <span>Proyectos archivados (${arch.length})</span>
+      </div>
+      ${_archivadosExpanded?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">${arch.map(pr=>cardHtml(pr,true)).join('')}</div>`:''}
+    </div>`;
+  }
+
   document.getElementById('pr-lista').innerHTML = html;
 }
 
@@ -664,6 +705,64 @@ function renderDetallePr(pr, sub) {
         </div></div>`;
     });
     html+=`</div></div>`;
+
+    // Card 3: Materiales
+    html+=`<div class="card" style="margin-top:14px;"><div class="sec-title">Materiales</div>`;
+    if(pr.materiales && pr.materiales.length) {
+      pr.materiales.forEach(m=>{
+        const pct = m.requerido>0 ? Math.min(100,Math.round(m.recibido/m.requerido*100)) : 100;
+        const ok = m.recibido>=m.requerido;
+        const partial = !ok && m.recibido>0;
+        const badge = ok ? `<span style="font-size:10px;color:var(--green);font-weight:700;">✓ Completo</span>`
+          : partial ? `<span style="font-size:10px;color:var(--amber);font-weight:700;">⚠ Parcial</span>`
+          : `<span style="font-size:10px;color:var(--red);font-weight:700;">✗ Pendiente</span>`;
+        html+=`<div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+            <span style="font-size:13px;">${m.nombre}</span>
+            <div style="display:flex;align-items:center;gap:8px;">${badge}<span class="mono" style="font-size:11px;color:var(--muted);">${m.recibido}/${m.requerido} ${m.unidad}</span></div>
+          </div>
+          <div style="background:var(--faint);border-radius:3px;height:5px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:${ok?'var(--green)':partial?'var(--amber)':'var(--red)'};border-radius:3px;transition:width .3s;"></div>
+          </div>
+        </div>`;
+      });
+    } else {
+      html+=`<div style="font-size:12px;color:var(--muted);">Sin materiales registrados</div>`;
+    }
+    html+=`</div>`;
+
+    // Card 4: Tareas pendientes por centro
+    html+=`<div class="card" style="margin-top:14px;"><div class="sec-title">Tareas pendientes por centro</div>`;
+    const allItems = pr.muebles || pr.items || [];
+    CENTROS.forEach(c=>{
+      const pendientes = allItems.filter(it=>{
+        const centros = it.centros || [];
+        if(!centros.includes(c.id)) return false;
+        const hA2=hAcumIt(pr.id,it.id);
+        return hA2 < (it.hEst||0);
+      });
+      if(!pendientes.length) return;
+      html+=`<div style="margin-bottom:14px;">
+        <div style="font-size:12px;color:${c.color};font-weight:600;margin-bottom:6px;">${c.icon} ${c.label} <span style="color:var(--muted);font-weight:400;">(${pendientes.length})</span></div>
+        ${pendientes.map(it=>{
+          const hA2=hAcumIt(pr.id,it.id);
+          const pct2=it.hEst>0?Math.min(100,Math.round(hA2/it.hEst*100)):0;
+          return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+            <div style="flex:1;font-size:12px;">${it.nombre}</div>
+            <span class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap;">${fmtH(hA2)} / ${fmtH(it.hEst||0)}</span>
+            <div style="width:60px;background:var(--faint);border-radius:2px;height:4px;overflow:hidden;"><div style="height:100%;width:${pct2}%;background:${c.color};border-radius:2px;"></div></div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    });
+    const allPendCentros = allItems.filter(it=>{
+      const hA2=hAcumIt(pr.id,it.id);
+      return hA2>=(it.hEst||0) || (it.hEst||0)===0;
+    });
+    if(allItems.length && allPendCentros.length===allItems.length)
+      html+=`<div style="font-size:12px;color:var(--green);">✓ Sin tareas pendientes detectadas</div>`;
+    html+=`</div>`;
+
     document.getElementById('pr-detalle').innerHTML = html;
     SESIONES.filter(s=>s.proyectoId===pr.id).forEach(s=>liveTimer(`t-byop-${s.operarioId}`,s.inicio));
     return;
@@ -1337,9 +1436,9 @@ function _renderOpEstado() {
           <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">ÍTEM</div><div style="font-size:13px;">${it?.nombre||'—'}</div></div>
           <div style="margin-left:auto;text-align:right;"><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">TIEMPO</div><span class="mono" style="font-size:13px;color:var(--amber);font-weight:700;" id="${tid}">–</span></div>
         </div>`:`<div style="margin-bottom:10px;">${pill('Sin tarea activa','var(--muted)')}</div>`}
-        <div style="display:flex;flex-direction:column;gap:4px;">
+        ${!ses?`<div style="display:flex;flex-direction:column;gap:4px;">
           ${hist.slice(-3).reverse().map(h=>{const hc=CENTROS.find(x=>x.id===h.centroId);const hp=PROYECTOS.find(x=>x.id===h.proyectoId);const hi=(hp?.muebles||hp?.items||[]).find(x=>x.id===h.itemId);return`<div style="font-size:11px;color:var(--muted);display:flex;gap:10px;"><span style="color:${hc?.color}">${hc?.icon}</span><span>${hp?.nombre||'—'} · ${hi?.nombre||'—'}</span><span style="margin-left:auto;font-family:'JetBrains Mono',monospace;">${fmtH(msH(h.fin-h.inicio))}</span></div>`;}).join('')}
-        </div>
+        </div>`:''}
       </div>
     </div>`;
   });
