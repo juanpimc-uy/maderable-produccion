@@ -128,6 +128,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
   <div style="flex:1;padding:8px 0;">
     <div class="nav-item active" id="nav-ingreso" onclick="switchTab('ingreso')">⬆ Ingreso</div>
     <div class="nav-item" id="nav-salida" onclick="switchTab('salida')">⬇ Salida</div>
+    <div class="nav-item" id="nav-remito" onclick="switchTab('remito')" style="justify-content:space-between;">
+      <span>📋 Remito</span>
+      <span id="remito-badge" style="display:none;background:var(--amber);color:#0f0f0f;font-family:'Space Mono',monospace;font-size:8px;font-weight:700;padding:1px 6px;border-radius:10px;line-height:1.6;"></span>
+    </div>
     <div class="nav-item" id="nav-inventario" onclick="switchTab('inventario')">☰ Inventario</div>
     <div class="nav-item" id="nav-estanteria" onclick="switchTab('estanteria')">⬡ Estantería</div>
     <div class="nav-item" id="nav-historial" onclick="switchTab('historial')">📋 Historial</div>
@@ -268,6 +272,33 @@ let ingresoUltimoLote = [];
 let salidaMode = 'so';
 let salidaSO = null;
 let salidaItems = [];
+let soVerificadoSO = null;
+let soVerificadoItems = [];
+
+let remitoAgregarSOOpen = false;
+let remitoHistorialExpanded = false;
+const LS_REMITO_BORRADOR = 'remito_salida_borrador';
+const LS_REMITOS_HIST    = 'remitos_historial';
+function getRemitoBorrador()  { try{return JSON.parse(localStorage.getItem(LS_REMITO_BORRADOR))||null;}catch(e){return null;} }
+function getRemitoHistorial() { try{return JSON.parse(localStorage.getItem(LS_REMITOS_HIST))||[];}catch(e){return[];} }
+function guardarRemitoBorrador(r) { localStorage.setItem(LS_REMITO_BORRADOR, JSON.stringify(r)); }
+function guardarRemitoHistorial(r) { const h=getRemitoHistorial(); h.unshift(r); localStorage.setItem(LS_REMITOS_HIST, JSON.stringify(h)); }
+function actualizarBadgeRemito() {
+  const b = getRemitoBorrador();
+  const badge = document.getElementById('remito-badge');
+  if(!badge) return;
+  const n = b?.items?.length||0;
+  badge.textContent = n;
+  badge.style.display = n ? 'inline-flex' : 'none';
+}
+function mostrarToast(msg) {
+  let t = document.getElementById('_toast');
+  if(!t){ t=document.createElement('div');t.id='_toast';
+    t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#0f0f0f;font-family:"Space Mono",monospace;font-size:11px;font-weight:700;padding:10px 22px;border-radius:6px;z-index:9999;transition:opacity .3s;pointer-events:none;';
+    document.body.appendChild(t); }
+  t.textContent=msg; t.style.opacity='1'; clearTimeout(t._t);
+  t._t=setTimeout(()=>t.style.opacity='0',2800);
+}
 
 let busqResultados = [];
 let busqItem = null;
@@ -312,6 +343,7 @@ async function init() {
   } catch(e) {
     console.warn('Error cargando datos base:', e.message);
   }
+  actualizarBadgeRemito();
   renderTab('ingreso');
 }
 
@@ -327,7 +359,7 @@ function switchTab(tab) {
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   const navEl = document.getElementById('nav-'+tab);
   if(navEl) navEl.classList.add('active');
-  const titles = {ingreso:'INGRESO',salida:'SALIDA',inventario:'INVENTARIO',estanteria:'ESTANTERÍA',historial:'HISTORIAL'};
+  const titles = {ingreso:'INGRESO',salida:'SALIDA',remito:'REMITO DE SALIDA',inventario:'INVENTARIO',estanteria:'ESTANTERÍA',historial:'HISTORIAL'};
   document.getElementById('topbar-title').textContent = titles[tab]||tab.toUpperCase();
   const contentEl = document.getElementById('content');
   contentEl.style.padding = tab==='estanteria' ? '14px' : '';
@@ -338,7 +370,8 @@ function switchTab(tab) {
 function renderTab(tab) {
   const c = document.getElementById('content');
   if (tab==='ingreso')      c.innerHTML = tplIngreso();
-  else if (tab==='salida')      c.innerHTML = tplSalida();
+  else if (tab==='salida')  c.innerHTML = tplSalida();
+  else if (tab==='remito')  c.innerHTML = tplRemito();
   else if (tab==='inventario')  c.innerHTML = tplInventario();
   else if (tab==='estanteria')  c.innerHTML = tplEstanteria();
   else if (tab==='historial')   c.innerHTML = tplHistorial();
@@ -909,7 +942,7 @@ function tplSalida() {
     <button class="mode-btn ${salidaMode==='so'?'active':''}" onclick="setSalidaMode('so')">Por SO de Zoho</button>
     <button class="mode-btn ${salidaMode==='articulo'?'active':''}" onclick="setSalidaMode('articulo')">Por artículo</button>
   </div>`;
-  if(salidaItems.length) {
+  if(salidaMode==='articulo' && salidaItems.length) {
     return `<div class="sec">Salida de stock</div>${modeBar}${tplSalidaPreview()}`;
   }
   return `<div class="sec">Salida de stock</div>${modeBar}${salidaMode==='so' ? tplSalidaSO() : tplSalidaArticulo()}`;
@@ -917,11 +950,13 @@ function tplSalida() {
 
 function setSalidaMode(m){
   salidaMode=m; salidaItems=[]; salidaSO=null;
+  soVerificadoSO=null; soVerificadoItems=[];
   if(m==='articulo'){ salidaArticuloRows=[]; salidaArticuloFiltro={q:'',format:'Todos'}; iniciarSalidaArticuloRows(); }
   renderTab('salida');
 }
 
 function tplSalidaSO() {
+  if(soVerificadoSO && soVerificadoItems.length) return tplSalidaSOVerificado();
   return `
   <div class="card">
     <div style="display:flex;gap:10px;align-items:flex-end;">
@@ -933,6 +968,81 @@ function tplSalidaSO() {
       <button class="btn btn-primary" onclick="buscarSO()">Buscar en Zoho</button>
     </div>
     <div id="so-status" style="margin-top:12px;"></div>
+  </div>`;
+}
+
+function tplSalidaSOVerificado() {
+  const so = soVerificadoSO;
+  const items = soVerificadoItems;
+  const hayParaAgregar = items.some(it=>(it.estado!=='sin_stock'&&it.retirar>0)||(it.estado==='sin_stock'&&it.incluirSinStock));
+  return `
+  <div class="card" style="margin-bottom:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:4px;">SO CARGADA</div>
+        <div style="font-size:17px;font-weight:700;">${so.salesorder_number}</div>
+        ${so.customer_name?`<div style="font-size:12px;color:var(--muted);margin-top:2px;">${so.customer_name}</div>`:''}
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="soVerificadoSO=null;soVerificadoItems=[];salidaSO=null;renderTab('salida')">✕ Cancelar</button>
+    </div>
+    <div style="overflow-x:auto;margin-bottom:16px;">
+    <table class="tbl">
+      <thead><tr>
+        <th>Artículo</th><th>SKU</th><th>Pedido</th><th>En Stock</th><th>Posición</th><th>Diferencia</th><th>Retirar</th><th>Estado</th>
+      </tr></thead>
+      <tbody>
+        ${items.map((it,i)=>{
+          const diff = it.disponible - it.pedido;
+          const diffStr = diff>=0?`+${diff}`:String(diff);
+          const diffColor = diff>=0?'var(--green)':(it.disponible>0?'var(--amber)':'var(--red)');
+          if(it.estado==='en_stock') return `<tr style="background:rgba(61,214,140,.05);">
+            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${it.nombre}">${it.nombre}</td>
+            <td><span class="mono" style="font-size:10px;color:var(--amber);">${it.sku||'—'}</span></td>
+            <td class="mono">${it.pedido}</td>
+            <td class="mono" style="color:var(--green);font-weight:700;">${it.disponible}</td>
+            <td><span class="mono" style="color:var(--amber);font-size:11px;">${it.posicion||'—'}</span></td>
+            <td><span class="mono" style="color:${diffColor};">${diffStr}</span></td>
+            <td><input type="number" min="0" max="${it.disponible}" value="${it.retirar}" style="width:65px;"
+              oninput="soVerificadoItems[${i}].retirar=Math.min(${it.disponible},Math.max(0,+this.value||0))"/></td>
+            <td><span style="background:rgba(61,214,140,.15);color:var(--green);font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;white-space:nowrap;">✓ EN STOCK</span></td>
+          </tr>`;
+          if(it.estado==='parcial') return `<tr style="background:rgba(255,214,0,.04);">
+            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${it.nombre}">${it.nombre}</td>
+            <td><span class="mono" style="font-size:10px;color:var(--amber);">${it.sku||'—'}</span></td>
+            <td class="mono">${it.pedido}</td>
+            <td class="mono" style="color:var(--amber);font-weight:700;">${it.disponible}</td>
+            <td><span class="mono" style="color:var(--amber);font-size:11px;">${it.posicion||'—'}</span></td>
+            <td><span class="mono" style="color:${diffColor};">${diffStr}</span></td>
+            <td><input type="number" min="0" max="${it.disponible}" value="${it.retirar}" style="width:65px;"
+              oninput="soVerificadoItems[${i}].retirar=Math.min(${it.disponible},Math.max(0,+this.value||0))"/></td>
+            <td><span style="background:rgba(255,214,0,.15);color:var(--amber);font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;white-space:nowrap;">⚠ PARCIAL</span></td>
+          </tr>`;
+          return `<tr style="background:rgba(240,92,92,.04);${it.incluirSinStock?'':'opacity:.75;'}">
+            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${it.nombre}">${it.nombre}</td>
+            <td><span class="mono" style="font-size:10px;color:var(--amber);">${it.sku||'—'}</span></td>
+            <td class="mono">${it.pedido}</td>
+            <td class="mono" style="color:var(--muted);">—</td>
+            <td><span class="mono" style="font-size:11px;color:var(--muted);">—</span></td>
+            <td><span class="mono" style="color:var(--red);">${diffStr}</span></td>
+            <td style="font-size:11px;color:var(--muted);">No disponible</td>
+            <td>
+              <div style="display:flex;flex-direction:column;gap:5px;">
+                <span style="background:rgba(240,92,92,.15);color:var(--red);font-family:'Space Mono',monospace;font-size:9px;font-weight:700;padding:3px 8px;border-radius:4px;white-space:nowrap;">✗ SIN STOCK</span>
+                <label style="font-size:10px;color:var(--muted);cursor:pointer;white-space:nowrap;">
+                  <input type="checkbox" ${it.incluirSinStock?'checked':''} onchange="soVerificadoItems[${i}].incluirSinStock=this.checked;renderTab('salida')"/>
+                  Incluir igual
+                </label>
+              </div>
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>
+    <button class="btn btn-primary" style="width:100%;padding:14px;font-size:11px;letter-spacing:1px;"
+      ${hayParaAgregar?'':'disabled'} onclick="agregarARemitoSalida()">
+      + AGREGAR A REMITO DE SALIDA
+    </button>
   </div>`;
 }
 
@@ -1047,21 +1157,70 @@ async function buscarSO() {
       if(sos.length) break;
     }
     if(!sos.length){ st.innerHTML=`<div class="warn-box">No se encontró la SO <strong>${rawNum}</strong> en Zoho Books.</div>`; return; }
+    st.innerHTML = '<span class="spinner"></span><span style="font-size:12px;color:var(--muted);">Verificando stock en depósito...</span>';
     const r2 = await fetch('/api/zoho-books?endpoint='+encodeURIComponent('salesorders/'+sos[0].salesorder_id)+'&token='+token);
     const det = await r2.json();
-    salidaSO = det.salesorder||sos[0];
-    st.innerHTML='';
-    const obra = salidaSO.reference_number||salidaSO.delivery_address?.address||'';
-    salidaItems = (salidaSO.line_items||[]).map(it=>{
+    const so = det.salesorder||sos[0];
+    salidaSO = so;
+    soVerificadoSO = so;
+    const obra = so.reference_number||so.delivery_address?.address||'';
+    soVerificadoItems = await Promise.all((so.line_items||[]).map(async it=>{
       const sku = it.sku||'';
-      const pt = plateTypes.find(p=>p.sku===sku);
-      const posEntry = pt ? calcPosRetiro(pt) : null;
-      return {nombre:it.name||'—',sku,cantidad:it.quantity||1,posicion:posEntry?.position_id||null,plate_type_id:pt?.id||null,obra,_scanned:false};
-    });
+      const pedido = Number(it.quantity)||1;
+      let disponible=0, posicion=null, plate_type_id=null, posiciones=[];
+      if(sku) {
+        try {
+          const sr = await fetch(`${NEON}?action=stock-by-sku&sku=${encodeURIComponent(sku)}`);
+          const sd = await sr.json();
+          if(Array.isArray(sd)&&sd.length){
+            posiciones=sd;
+            disponible=sd.reduce((a,p)=>a+(p.disponible||0),0);
+            posicion=sd[0].position_id;
+            plate_type_id=sd[0].plate_type_id;
+          }
+        } catch(e){}
+      }
+      const estado = disponible>=pedido?'en_stock':(disponible>0?'parcial':'sin_stock');
+      return {nombre:it.name||'—', sku, pedido, disponible, posicion, plate_type_id, posiciones, estado,
+        retirar:Math.min(pedido,disponible), obra, incluirSinStock:false};
+    }));
+    st.innerHTML='';
     renderTab('salida');
   } catch(e) {
-    document.getElementById('so-status').innerHTML = `<div style="color:var(--red);font-size:12px;">Error: ${e.message}</div>`;
+    const stEl = document.getElementById('so-status');
+    if(stEl) stEl.innerHTML = `<div style="color:var(--red);font-size:12px;">Error: ${e.message}</div>`;
   }
+}
+
+function agregarARemitoSalida() {
+  const so = soVerificadoSO;
+  if(!so) return;
+  const soNum = so.salesorder_number;
+  const newItems = soVerificadoItems
+    .filter(it=>(it.estado!=='sin_stock'&&it.retirar>0)||(it.estado==='sin_stock'&&it.incluirSinStock))
+    .map(it=>({
+      articulo: it.nombre,
+      sku: it.sku,
+      cantidad: it.estado==='sin_stock' ? it.pedido : it.retirar,
+      posicion: it.posicion||null,
+      plate_type_id: it.plate_type_id||null,
+      obra: it.obra||'',
+      so_number: soNum,
+      tiene_stock: it.estado!=='sin_stock',
+    }));
+  if(!newItems.length) return;
+  let borrador = getRemitoBorrador();
+  if(!borrador) borrador={id:Date.now(),estado:'borrador',items:[],creado:new Date().toISOString(),sos_incluidas:[]};
+  for(const ni of newItems) {
+    const ex = borrador.items.find(r=>r.sku===ni.sku&&r.posicion===ni.posicion);
+    if(ex) ex.cantidad+=ni.cantidad; else borrador.items.push(ni);
+  }
+  if(!borrador.sos_incluidas.includes(soNum)) borrador.sos_incluidas.push(soNum);
+  guardarRemitoBorrador(borrador);
+  actualizarBadgeRemito();
+  mostrarToast(`✓ ${newItems.length} ítem${newItems.length!==1?'s':''} agregado${newItems.length!==1?'s':''} al Remito de Salida`);
+  soVerificadoSO=null; soVerificadoItems=[]; salidaSO=null;
+  renderTab('salida');
 }
 
 function calcPosRetiro(pt) {
@@ -1656,6 +1815,320 @@ async function confirmarAgregarStock() {
     cerrarAgregarStock();
     await Promise.all([recargarStock(), cargarInventario()]);
   } catch(e){ alert('Error: '+e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB: REMITO DE SALIDA
+// ═══════════════════════════════════════════════════════════
+function tplRemito() {
+  const borrador = getRemitoBorrador();
+  const historial = getRemitoHistorial();
+  if(!borrador && !historial.length) return `
+  <div style="text-align:center;padding:60px 20px;color:var(--muted);">
+    <div style="font-size:40px;margin-bottom:12px;">📋</div>
+    <div class="mono" style="font-size:10px;letter-spacing:2px;">SIN REMITO ACTIVO</div>
+    <div style="font-size:13px;margin-top:10px;">Buscá una SO en la pestaña Salida y usá<br>"+ Agregar a Remito de Salida".</div>
+  </div>`;
+  let html = '';
+  if(borrador) html += tplRemitoBorrador(borrador);
+  else html += `<div class="info-box" style="margin-bottom:14px;">Sin remito en borrador. Los confirmados aparecen abajo.</div>`;
+  if(historial.length) {
+    html += `<div style="margin-top:20px;">
+      <div onclick="remitoHistorialExpanded=!remitoHistorialExpanded;renderTab('remito')"
+        style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;user-select:none;">
+        <span>${remitoHistorialExpanded?'▼':'▶'}</span>
+        <span>Remitos anteriores (${historial.length})</span>
+      </div>
+      ${remitoHistorialExpanded ? historial.map((r,i)=>{
+        const fecha = new Date(r.confirmado||r.creado).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+        const n=r.items.length, u=r.items.reduce((a,it)=>a+(it.cantidad||0),0);
+        return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:13px;font-weight:600;margin-bottom:3px;">${r.sos_incluidas.join(' · ')||'Remito manual'}</div>
+              <div class="mono" style="font-size:10px;color:var(--muted);">${fecha} · ${n} ítem${n!==1?'s':''} · ${u} unidades</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="imprimirRemitoHistorial(${i})">🖨 Reimprimir</button>
+          </div>
+        </div>`;
+      }).join('') : ''}
+    </div>`;
+  }
+  return html;
+}
+
+function tplRemitoBorrador(borrador) {
+  const fecha = new Date(borrador.creado).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const totalItems = borrador.items.length;
+  const totalUnits = borrador.items.reduce((a,it)=>a+(it.cantidad||0),0);
+  return `
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div class="mono" style="font-size:9px;color:var(--amber);letter-spacing:2px;margin-bottom:4px;">REMITO DE SALIDA · BORRADOR</div>
+        <div style="font-size:11px;color:var(--muted);">Creado: ${fecha}</div>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+          ${borrador.sos_incluidas.map(s=>`<span class="mono" style="font-size:10px;background:rgba(255,214,0,.1);color:var(--amber);border:1px solid rgba(255,214,0,.2);padding:2px 8px;border-radius:3px;">${s}</span>`).join('')}
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="if(confirm('¿Descartar remito?')){localStorage.removeItem(LS_REMITO_BORRADOR);actualizarBadgeRemito();renderTab('remito');}">✕ Descartar</button>
+    </div>
+
+    <div style="overflow-x:auto;margin-bottom:16px;">
+    <table class="tbl">
+      <thead><tr><th>Artículo</th><th>SKU</th><th>Cant.</th><th>Posición</th><th>Obra</th><th>Stock</th><th></th></tr></thead>
+      <tbody>
+        ${borrador.items.map((it,i)=>`<tr>
+          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${it.articulo}">${it.articulo}</td>
+          <td><span class="mono" style="font-size:10px;color:var(--amber);">${it.sku||'—'}</span></td>
+          <td><input type="number" min="1" value="${it.cantidad}" style="width:65px;"
+            onchange="remitoEditarCantidad(${i},+this.value)"/></td>
+          <td><span class="mono" style="color:var(--amber);font-size:11px;">${it.posicion||'—'}</span></td>
+          <td><input value="${(it.obra||'').replace(/"/g,'&quot;')}" placeholder="Obra..." style="width:110px;"
+            oninput="remitoEditarObra(${i},this.value)"/></td>
+          <td style="text-align:center;">${it.tiene_stock
+            ? `<span style="color:var(--green);" title="Descuenta stock">✓</span>`
+            : `<span style="color:var(--muted);" title="Sin stock en sistema">—</span>`}</td>
+          <td><button onclick="remitoEliminarItem(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:0 4px;">×</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:${remitoAgregarSOOpen?'0':'16px'};">
+      <button class="btn btn-ghost btn-sm" onclick="remitoAgregarSOOpen=!remitoAgregarSOOpen;renderTab('remito')">+ Agregar otra SO</button>
+      <button class="btn btn-ghost btn-sm" onclick="abrirCatalogo(it=>remitoAgregarItemManual(it))">+ Agregar ítem manual</button>
+    </div>
+
+    ${remitoAgregarSOOpen ? `
+    <div style="background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;margin-top:10px;">
+      <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">AGREGAR OTRA SO</div>
+      <div style="display:flex;gap:10px;align-items:flex-end;">
+        <div class="field" style="flex:1;">
+          <label>Número de SO</label>
+          <input id="remito-so-num" placeholder="SO-01921" onkeydown="if(event.key==='Enter')buscarSOParaRemito()"/>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="buscarSOParaRemito()">Buscar</button>
+        <button class="btn btn-ghost btn-sm" onclick="remitoAgregarSOOpen=false;renderTab('remito')">Cancelar</button>
+      </div>
+      <div id="remito-so-status" style="margin-top:10px;"></div>
+    </div>` : ''}
+
+    <div style="border-top:1px solid var(--border);padding-top:16px;">
+      <div class="mono" style="font-size:11px;color:var(--muted);margin-bottom:14px;">TOTAL: ${totalItems} ítem${totalItems!==1?'s':''} · ${totalUnits} unidades</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <button onclick="imprimirListaRetiro()" class="btn btn-ghost" style="padding:14px;font-size:10px;letter-spacing:.5px;">🖨 LISTA DE RETIRO</button>
+        <button onclick="imprimirRemitoDoc()" class="btn btn-ghost" style="padding:14px;font-size:10px;letter-spacing:.5px;">📄 IMPRIMIR REMITO</button>
+      </div>
+      <button class="btn btn-success" id="btn-confirmar-remito" style="width:100%;padding:16px;font-size:11px;letter-spacing:1px;border-radius:8px;"
+        ${borrador.items.length?'':'disabled'} onclick="confirmarRemito()">
+        ✓ CONFIRMAR Y EJECUTAR SALIDA
+      </button>
+      <div style="margin-top:10px;text-align:center;">
+        <a href="#" onclick="switchTab('salida');return false;" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-decoration:none;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">← Volver a agregar ítems</a>
+      </div>
+    </div>
+  </div>`;
+}
+
+function remitoEditarCantidad(i, val) {
+  const b = getRemitoBorrador(); if(!b) return;
+  b.items[i].cantidad = Math.max(1, val||1);
+  guardarRemitoBorrador(b);
+}
+function remitoEditarObra(i, val) {
+  const b = getRemitoBorrador(); if(!b) return;
+  b.items[i].obra = val;
+  guardarRemitoBorrador(b);
+}
+function remitoEliminarItem(i) {
+  const b = getRemitoBorrador(); if(!b) return;
+  b.items.splice(i, 1);
+  if(!b.items.length) localStorage.removeItem(LS_REMITO_BORRADOR);
+  else guardarRemitoBorrador(b);
+  actualizarBadgeRemito();
+  renderTab('remito');
+}
+
+function remitoAgregarItemManual(zohoItem) {
+  const sku = zohoItem.sku||zohoItem.item_id||'';
+  const nombre = zohoItem.name||'—';
+  const pt = plateTypes.find(p=>p.sku===sku);
+  const posEntry = pt ? calcPosRetiro(pt) : null;
+  const posicion = posEntry?.position_id||null;
+  const tiene_stock = !!posicion;
+  let borrador = getRemitoBorrador();
+  if(!borrador) borrador={id:Date.now(),estado:'borrador',items:[],creado:new Date().toISOString(),sos_incluidas:[]};
+  borrador.items.push({articulo:nombre, sku, cantidad:1, posicion, plate_type_id:pt?.id||null, obra:'', so_number:null, tiene_stock});
+  guardarRemitoBorrador(borrador);
+  actualizarBadgeRemito();
+  mostrarToast(`✓ ${nombre} agregado al remito`);
+  renderTab('remito');
+}
+
+async function buscarSOParaRemito() {
+  const rawNum = document.getElementById('remito-so-num')?.value?.trim();
+  if(!rawNum) return;
+  const st = document.getElementById('remito-so-status');
+  st.innerHTML = '<span class="spinner"></span><span style="font-size:12px;color:var(--muted);">Buscando...</span>';
+  try {
+    const token = await getZohoToken();
+    const digits = rawNum.replace(/\D/g,'');
+    const formats = ['SO-'+digits.padStart(5,'0'), 'SO-'+digits, digits];
+    let sos = [];
+    for(const fmt of formats) {
+      const r = await fetch('/api/zoho-books?endpoint='+encodeURIComponent('salesorders?salesorder_number='+fmt)+'&token='+token);
+      const data = await r.json();
+      sos = data.salesorders||[];
+      if(sos.length) break;
+    }
+    if(!sos.length){ st.innerHTML=`<div class="warn-box">No encontrada: <strong>${rawNum}</strong></div>`; return; }
+    st.innerHTML = '<span class="spinner"></span><span style="font-size:12px;color:var(--muted);">Verificando stock...</span>';
+    const r2 = await fetch('/api/zoho-books?endpoint='+encodeURIComponent('salesorders/'+sos[0].salesorder_id)+'&token='+token);
+    const det = await r2.json();
+    const so = det.salesorder||sos[0];
+    const soNum = so.salesorder_number;
+    const obra = so.reference_number||so.delivery_address?.address||'';
+    let borrador = getRemitoBorrador();
+    if(!borrador) borrador={id:Date.now(),estado:'borrador',items:[],creado:new Date().toISOString(),sos_incluidas:[]};
+    let addedCount = 0;
+    for(const it of (so.line_items||[])) {
+      const sku = it.sku||'';
+      const cantidad = Number(it.quantity)||1;
+      let posicion=null, plate_type_id=null, tiene_stock=false;
+      if(sku) {
+        try {
+          const sr = await fetch(`${NEON}?action=stock-by-sku&sku=${encodeURIComponent(sku)}`);
+          const sd = await sr.json();
+          if(Array.isArray(sd)&&sd.length){ posicion=sd[0].position_id; plate_type_id=sd[0].plate_type_id; tiene_stock=true; }
+        } catch(e){}
+      }
+      const ni = {articulo:it.name||'—', sku, cantidad, posicion, plate_type_id, obra, so_number:soNum, tiene_stock};
+      const ex = borrador.items.find(r=>r.sku===sku&&r.posicion===posicion);
+      if(ex) ex.cantidad+=cantidad; else { borrador.items.push(ni); addedCount++; }
+    }
+    if(!borrador.sos_incluidas.includes(soNum)) borrador.sos_incluidas.push(soNum);
+    guardarRemitoBorrador(borrador);
+    actualizarBadgeRemito();
+    remitoAgregarSOOpen = false;
+    mostrarToast(`✓ ${addedCount} ítems de ${soNum} agregados`);
+    renderTab('remito');
+  } catch(e) {
+    const stEl = document.getElementById('remito-so-status');
+    if(stEl) stEl.innerHTML = `<div style="color:var(--red);font-size:12px;">Error: ${e.message}</div>`;
+  }
+}
+
+async function confirmarRemito() {
+  const borrador = getRemitoBorrador();
+  if(!borrador||!borrador.items.length) return;
+  const totalU = borrador.items.reduce((a,it)=>a+(it.cantidad||0),0);
+  if(!confirm(`¿Confirmar salida de ${totalU} unidades?`)) return;
+  const btn = document.getElementById('btn-confirmar-remito');
+  if(btn){btn.disabled=true;btn.textContent='Confirmando...';}
+  try {
+    const itemsConStock = borrador.items.filter(it=>it.tiene_stock&&it.posicion&&it.plate_type_id);
+    if(itemsConStock.length) {
+      const resp = await fetch(NEON+'?action=confirm-salida',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ items: itemsConStock.map(it=>({
+          position_id:it.posicion, plate_type_id:it.plate_type_id,
+          quantity:it.cantidad, obra:it.obra||null, so_number:it.so_number||null,
+        })) })
+      });
+      const ok = await resp.json();
+      if(!ok?.ok && ok?.error) throw new Error(ok.error);
+    }
+    const confirmed = {...borrador, estado:'confirmado', confirmado:new Date().toISOString()};
+    guardarRemitoHistorial(confirmed);
+    localStorage.removeItem(LS_REMITO_BORRADOR);
+    actualizarBadgeRemito();
+    await recargarStock();
+    const n = confirmed.items.length;
+    document.getElementById('content').innerHTML = `
+    <div style="text-align:center;padding:60px 20px;">
+      <div style="font-size:52px;margin-bottom:16px;color:var(--green);">✓</div>
+      <div class="mono" style="font-size:11px;letter-spacing:2px;color:var(--green);text-transform:uppercase;margin-bottom:8px;">Salida registrada</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:4px;">${confirmed.sos_incluidas.join(' · ')||'Remito manual'}</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:28px;">${n} ítem${n!==1?'s':''} · ${totalU} unidades descontadas</div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="switchTab('remito')">Ver historial</button>
+        <button class="btn btn-ghost" onclick="switchTab('salida')">Nueva salida</button>
+      </div>
+    </div>`;
+  } catch(e){
+    if(btn){btn.disabled=false;btn.textContent='✓ CONFIRMAR Y EJECUTAR SALIDA';}
+    alert('Error: '+e.message);
+  }
+}
+
+function imprimirListaRetiro() {
+  const b = getRemitoBorrador(); if(!b) return;
+  const sorted = [...b.items].sort((a,c)=>(a.posicion||'zzz').localeCompare(c.posicion||'zzz'));
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>Lista de Retiro</title><style>
+    body{font-family:monospace;padding:24px;color:#000;font-size:12px;}
+    h2{margin-bottom:4px;font-size:15px;}
+    .sub{color:#666;margin-bottom:20px;font-size:11px;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{border:1px solid #ccc;padding:6px 10px;text-align:left;}
+    th{background:#f0f0f0;font-size:10px;text-transform:uppercase;letter-spacing:1px;}
+    @media print{button{display:none;}}
+  </style></head><body>
+    <h2>Lista de Retiro</h2>
+    <div class="sub">SOs: ${b.sos_incluidas.join(', ')||'—'} — ${new Date().toLocaleDateString('es-AR')}</div>
+    <table>
+      <thead><tr><th>Posición</th><th>Artículo</th><th>SKU</th><th>Cantidad</th><th>Obra / SO</th></tr></thead>
+      <tbody>${sorted.map(it=>`<tr>
+        <td>${it.posicion||'—'}</td><td>${it.articulo}</td><td>${it.sku||'—'}</td>
+        <td>${it.cantidad}</td><td>${[it.obra,it.so_number].filter(Boolean).join(' · ')||'—'}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <br/><button onclick="window.print()">Imprimir</button>
+  </body></html>`);
+  w.document.close();
+}
+
+function imprimirRemitoDoc() {
+  const b = getRemitoBorrador(); if(!b) return;
+  _imprimirRemitoData(b);
+}
+function imprimirRemitoHistorial(idx) {
+  const h = getRemitoHistorial();
+  const r = h[idx]; if(!r) return;
+  _imprimirRemitoData(r);
+}
+function _imprimirRemitoData(r) {
+  const fecha = new Date(r.confirmado||r.creado).toLocaleDateString('es-AR');
+  const total = r.items.reduce((a,it)=>a+(it.cantidad||0),0);
+  const w = window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>Remito de Salida</title><style>
+    body{font-family:Arial,sans-serif;padding:24px;color:#000;font-size:12px;}
+    h2{margin-bottom:2px;font-size:16px;}
+    .sub{color:#666;margin-bottom:20px;font-size:11px;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{border:1px solid #ccc;padding:7px 10px;text-align:left;}
+    th{background:#f0f0f0;font-size:10px;text-transform:uppercase;letter-spacing:1px;}
+    .footer{margin-top:30px;display:flex;justify-content:space-between;align-items:flex-end;}
+    .firma{border-top:1px solid #999;padding-top:4px;font-size:11px;width:200px;text-align:center;}
+    @media print{button{display:none;}}
+  </style></head><body>
+    <h2>Remito de Salida</h2>
+    <div class="sub">Fecha: ${fecha} · SOs: ${r.sos_incluidas.join(', ')||'Manual'} · ${r.estado.toUpperCase()}</div>
+    <table>
+      <thead><tr><th>#</th><th>Artículo</th><th>SKU</th><th>Cant.</th><th>Posición</th><th>Obra</th></tr></thead>
+      <tbody>${r.items.map((it,n)=>`<tr>
+        <td>${n+1}</td><td>${it.articulo}</td><td>${it.sku||'—'}</td>
+        <td>${it.cantidad}</td><td>${it.posicion||'—'}</td><td>${it.obra||'—'}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <div class="footer">
+      <div>Total: <strong>${total} unidades</strong></div>
+      <div class="firma">Firma recibe</div>
+    </div>
+    <br/><button onclick="window.print()">Imprimir</button>
+  </body></html>`);
+  w.document.close();
 }
 
 // ═══════════════════════════════════════════════════════════

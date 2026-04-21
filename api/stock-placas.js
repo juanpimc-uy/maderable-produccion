@@ -297,16 +297,19 @@ export default async function handler(req, res) {
         const qty = Math.max(0, Number(it.quantity));
         if (!qty) continue;
         await client.query(
-          `INSERT INTO stock (position_id, plate_type_id, quantity)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (position_id, plate_type_id)
-           DO UPDATE SET quantity = GREATEST(0, stock.quantity - $3)`,
-          [it.position_id, it.plate_type_id, qty]
+          `UPDATE stock SET quantity = GREATEST(0, quantity - $1)
+           WHERE position_id = $2 AND plate_type_id = $3`,
+          [qty, it.position_id, it.plate_type_id]
         );
+        await client.query(
+          `DELETE FROM stock WHERE position_id = $1 AND plate_type_id = $2 AND quantity <= 0`,
+          [it.position_id, it.plate_type_id]
+        );
+        const ref = [it.so_number || so_number, it.obra].filter(Boolean).join(' · ') || null;
         await client.query(
           `INSERT INTO movements (position_id, plate_type_id, quantity, type, reference, created_at)
            VALUES ($1, $2, $3, 'salida', $4, NOW())`,
-          [it.position_id, it.plate_type_id, qty, [so_number, it.obra].filter(Boolean).join(' · ') || null]
+          [it.position_id, it.plate_type_id, qty, ref]
         );
       }
       return res.json({ ok: true });
