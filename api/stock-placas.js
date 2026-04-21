@@ -30,25 +30,36 @@ export default async function handler(req, res) {
   try {
     client = await pool.connect();
 
-    // GET all plate types
     if (action === 'plate-types' && req.method === 'GET') {
       const r = await client.query('SELECT * FROM plate_types ORDER BY name');
       return res.json(r.rows);
     }
 
-    // GET all positions
     if (action === 'positions' && req.method === 'GET') {
       const r = await client.query('SELECT * FROM positions ORDER BY column_id, level');
       return res.json(r.rows);
     }
 
-    // GET all stock
     if (action === 'stock' && req.method === 'GET') {
       const r = await client.query('SELECT * FROM stock WHERE quantity > 0');
       return res.json(r.rows);
     }
 
-    // GET plate_type by SKU — creates if not exists
+    // GET full inventory: stock joined with plate_types and positions
+    if (action === 'all-stock' && req.method === 'GET') {
+      const r = await client.query(`
+        SELECT s.position_id, s.plate_type_id, s.quantity,
+               pt.name, pt.sku, pt.format AS pt_format,
+               p.column_id, p.level, p.format, p.capacity
+        FROM stock s
+        JOIN plate_types pt ON pt.id = s.plate_type_id
+        JOIN positions p ON p.id = s.position_id
+        WHERE s.quantity > 0
+        ORDER BY s.position_id, pt.name
+      `);
+      return res.json(r.rows);
+    }
+
     if (action === 'plate-type' && req.method === 'GET') {
       const { sku, name, format } = req.query;
       if (!sku) return res.status(400).json({ error: 'sku requerido' });
@@ -62,16 +73,11 @@ export default async function handler(req, res) {
       return res.json(r.rows[0]);
     }
 
-    // POST confirm-item: upsert stock + log movement (handles ingreso and salida)
+    // POST confirm-item: upsert stock + log movement
     if (action === 'confirm-item' && req.method === 'POST') {
-      const {
-        position_id, plate_type_id, quantity, op,
-        movement_type, oc_number, so_number,
-      } = req.body;
-
+      const { position_id, plate_type_id, quantity, op, movement_type, oc_number, so_number } = req.body;
       const qty = Number(quantity);
       const delta = op === 'subtract' ? -qty : qty;
-
       await client.query(
         `INSERT INTO stock (position_id, plate_type_id, quantity)
          VALUES ($1, $2, $3)
@@ -79,14 +85,54 @@ export default async function handler(req, res) {
          DO UPDATE SET quantity = GREATEST(0, stock.quantity + $3)`,
         [position_id, plate_type_id, delta]
       );
-
       const reference = oc_number || so_number || '';
       await client.query(
         `INSERT INTO movements (position_id, plate_type_id, quantity, type, reference, created_at)
          VALUES ($1, $2, $3, $4, $5, NOW())`,
         [position_id, plate_type_id, qty, movement_type || 'ingreso', reference]
       );
+      return res.json({ ok: true });
+    }
 
+    // POST update-stock: set absolute quantity
+    if (action === 'update-stock' && req.method === 'POST') {
+      const { position_id, plate_type_id, quantity } = req.body;
+      await client.query(
+        'UPDATE stock SET quantity = $1 WHERE position_id = $2 AND plate_type_id = $3',
+        [Number(quantity), position_id, Number(plate_type_id)]
+      );
+      return res.json({ ok: true });
+    }
+
+    // POST delete-stock
+    if (action === 'delete-stock' && req.method === 'POST') {
+      const { position_id, plate_type_id } = req.body;
+      await client.query(
+        'DELETE FROM stock WHERE position_id = $1 AND plate_type_id = $2',
+        [position_id, Number(plate_type_id)]
+      );
+      return res.json({ ok: true });
+    }
+
+    // POST move-stock: relocate from one position to another
+    if (action === 'move-stock' && req.method === 'POST') {
+      const { from_position_id, to_position_id, plate_type_id, quantity } = req.body;
+      await client.query(
+        'DELETE FROM stock WHERE position_id = $1 AND plate_type_id = $2',
+        [from_position_id, Number(plate_type_id)]
+      );
+      await client.query(
+        `INSERT INTO stock (position_id, plate_type_id, quantity)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (position_id, plate_type_id)
+         DO UPDATE SET quantity = stock.quantity + $3`,
+        [to_position_id, Number(plate_type_id), Number(quantity)]
+      );
+      await client.query(
+        `INSERT INTO movements (position_id, plate_type_id, quantity, type, reference, created_at)
+         VALUES ($1, $2, $3, 'movimiento', $4, NOW())`,
+        [to_position_id, Number(plate_type_id), Number(quantity), from_position_id + '→' + to_position_id]
+      );
       return res.json({ ok: true });
     }
 
