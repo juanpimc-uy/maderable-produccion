@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Maderable · Planta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f0f0f;
+  --card: #1e1e1e;
+  --card2: #262626;
+  --border: #2a2a2a;
+  --accent: #FFD600;
+  --accent-dim: rgba(255,214,0,0.12);
+  --text: #f0f0f0;
+  --muted: #888;
+  --green: #22c55e;
+  --yellow: #eab308;
+  --red: #ef4444;
+  --blue: #3b82f6;
+  --warn-bg: rgba(234,179,8,0.12);
+  --warn-border: rgba(234,179,8,0.4);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+.mono { font-family: 'Space Mono', monospace; }
+
+/* ── Screens ── */
+.screen { display: none; flex-direction: column; min-height: 100vh; }
+.screen.active { display: flex; }
+
+/* ── Header ── */
+.header {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.header-logo {
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 2px;
+}
+.header-right {
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── Layout containers ── */
+.body { padding: 20px; display: flex; flex-direction: column; gap: 16px; flex: 1; }
+.body-centered {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 16px;
+}
+
+/* ── Cards ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+.card-accent { border-color: rgba(255,214,0,0.4); }
+
+/* ── Labels ── */
+.label {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  display: block;
+  margin-bottom: 8px;
+}
+
+/* ── Buttons ── */
+.btn {
+  width: 100%;
+  min-height: 80px;
+  border: none;
+  border-radius: 10px;
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.1s, opacity 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  user-select: none;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--accent); color: #0f0f0f; }
+.btn-success { background: var(--green); color: #0f0f0f; }
+.btn-danger  { background: var(--red);   color: #fff; }
+.btn-warn    { background: rgba(234,179,8,0.2); color: var(--yellow); border: 1px solid var(--warn-border); }
+.btn-ghost   { background: var(--card2); color: var(--muted); border: 1px solid var(--border); }
+.btn-sm      { min-height: 48px; font-size: 12px; }
+.btn-disabled { opacity: 0.35; pointer-events: none; }
+
+/* ── Select ── */
+.select-field {
+  width: 100%;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.select-field option { background: #1e1e1e; }
+.select-wrap { position: relative; }
+.select-wrap::after {
+  content: '▾';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+  font-size: 14px;
+}
+
+/* ── PIN Display ── */
+.pin-display {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin: 8px 0;
+}
+.pin-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  transition: all 0.15s;
+}
+.pin-dot.filled { background: var(--accent); border-color: var(--accent); }
+
+/* ── PIN Pad ── */
+.pin-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+}
+.pin-key {
+  min-height: 72px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-family: 'Space Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, transform 0.1s;
+  user-select: none;
+}
+.pin-key:active { background: #333; transform: scale(0.95); }
+.pin-key.del { font-size: 18px; color: var(--muted); }
+.pin-key.clear { font-size: 18px; color: var(--red); }
+
+/* ── Active task card ── */
+.task-card {
+  background: var(--card);
+  border: 1px solid rgba(255,214,0,0.3);
+  border-radius: 12px;
+  padding: 20px;
+}
+.timer-big {
+  font-family: 'Space Mono', monospace;
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 2px;
+}
+
+/* ── Semaphore dot ── */
+.sema {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.sema-verde   { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.sema-amarillo{ background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+.sema-rojo    { background: var(--red); box-shadow: 0 0 8px var(--red); }
+
+/* ── Proyecto list items ── */
+.list-item {
+  background: var(--card2);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+.list-item:active { transform: scale(0.98); }
+.list-item.selected { border-color: var(--accent); background: var(--accent-dim); }
+
+/* ── Centro buttons ── */
+.centro-btn {
+  width: 100%;
+  min-height: 64px;
+  background: var(--card2);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  text-align: left;
+  cursor: pointer;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: border-color 0.15s, color 0.15s;
+  user-select: none;
+}
+.centro-btn:active { transform: scale(0.98); }
+.centro-btn.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* ── Checklist ── */
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  background: var(--card2);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  user-select: none;
+  min-height: 72px;
+}
+.check-item:active { transform: scale(0.98); }
+.check-item.checked { border-color: var(--green); background: rgba(34,197,94,0.08); }
+.check-box {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+  transition: all 0.15s;
+}
+.check-item.checked .check-box {
+  background: var(--green);
+  border-color: var(--green);
+  color: #0f0f0f;
+}
+
+/* ── CNC card ── */
+.cnc-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+}
+.cnc-timer {
+  font-family: 'Space Mono', monospace;
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 2px;
+  margin: 8px 0;
+}
+.cnc-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+/* ── Warn box ── */
+.warn-box {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 8px;
+  padding: 14px;
+  font-size: 13px;
+  color: var(--yellow);
+  line-height: 1.5;
+}
+
+/* ── Textarea ── */
+.textarea-field {
+  width: 100%;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  resize: none;
+  height: 80px;
+  outline: none;
+}
+
+/* ── Back btn ── */
+.back-btn {
+  background: var(--card2);
+  border: none;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ── Divider ── */
+.divider { height: 1px; background: var(--border); }
+
+/* ── Toast ── */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 20px;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  z-index: 999;
+  transition: transform 0.3s ease;
+  white-space: nowrap;
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ── Shake ── */
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%      { transform: translateX(-10px); }
+  40%      { transform: translateX(10px); }
+  60%      { transform: translateX(-7px); }
+  80%      { transform: translateX(7px); }
+}
+.shake { animation: shake 0.35s ease; }
+
+/* ── Pulse dot ── */
+.live-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  display: inline-block;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+  PANTALLA 1 — IDENTIFICACIÓN
+════════════════════════════════════════════════════════════════════════ -->
+<div id="s-id" class="screen active">
+  <div class="header">
+    <span class="header-logo">○ MADERABLE · PLANTA</span>
+    <span class="live-dot"></span>
+  </div>
+  <div class="body-centered" style="max-width:380px;margin:0 auto;width:100%;">
+
+    <div style="width:100%;">
+      <span class="label">Operario</span>
+      <div class="select-wrap">
+        <select id="emp-select" class="select-field" onchange="onEmpSelect()">
+          <option value="">Seleccionar operario...</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="width:100%;text-align:center;">
+      <span class="label" style="display:block;text-align:center;">PIN</span>
+      <div class="pin-display" id="pin-display">
+        <div class="pin-dot" id="pd0"></div>
+        <div class="pin-dot" id="pd1"></div>
+        <div class="pin-dot" id="pd2"></div>
+        <div class="pin-dot" id="pd3"></div>
+      </div>
+    </div>
+
+    <div class="pin-pad" id="pin-pad">
+      <button class="pin-key" onclick="pinDigit('1')">1</button>
+      <button class="pin-key" onclick="pinDigit('2')">2</button>
+      <button class="pin-key" onclick="pinDigit('3')">3</button>
+      <button class="pin-key" onclick="pinDigit('4')">4</button>
+      <button class="pin-key" onclick="pinDigit('5')">5</button>
+      <button class="pin-key" onclick="pinDigit('6')">6</button>
+      <button class="pin-key" onclick="pinDigit('7')">7</button>
+      <button class="pin-key" onclick="pinDigit('8')">8</button>
+      <button class="pin-key" onclick="pinDigit('9')">9</button>
+      <button class="pin-key clear" onclick="pinClear()">✕</button>
+      <button class="pin-key" onclick="pinDigit('0')">0</button>
+      <button class="pin-key del" onclick="pinDelete()">⌫</button>
+    </div>
+
+    <button class="btn btn-primary" style="max-width:320px;" id="btn-entrar" onclick="onEntrar()">
+      ENTRAR
+    </button>
+
+    <div id="id-error" style="color:var(--red);font-family:'Space Mono',monospace;font-size:12px;text-align:center;display:none;"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+  PANTALLA 2 — MENÚ PRINCIPAL
+════════════════════════════════════════════════════════════════════════ -->
+<div id="s-menu" class="screen">
+  <div class="header">
+    <span class="header-logo mono" id="menu-nombre" style="font-size:12px;letter-spacing:1px;">—</span>
+    <span class="header-right" id="menu-reloj">—</span>
+  </div>
+
+  <div class="body">
+    <!-- Tarea activa -->
+    <div id="menu-task-card" class="task-card" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span class="label" style="margin:0;color:var(--accent);">▶ EN CURSO</span>
+        <div class="sema" id="menu-sema"></div>
+      </div>
+      <div class="timer-big" id="menu-timer">0h 00m</div>
+      <div style="margin-top:12px;">
+        <div style="font-size:13px;color:var(--muted);font-family:'Space Mono',monospace;" id="menu-task-proyecto"></div>
+        <div style="font-size:17px;font-weight:700;margin-top:4px;" id="menu-task-item"></div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px;" id="menu-task-centro"></div>
+      </div>
+    </div>
+
+    <div id="menu-no-task" class="card" style="text-align:center;color:var(--muted);font-size:14px;padding:28px;">
+      Sin tarea activa
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+      <button class="btn btn-primary" onclick="irANuevaTarea()">▶ INICIAR / CAMBIAR TAREA</button>
+      <button class="btn btn-ghost" id="btn-finalizar-menu" onclick="irAFinalizar()" style="display:none;">⏹ FINALIZAR TAREA ACTUAL</button>
+      <button class="btn btn-ghost" style="min-height:60px;font-size:11px;" onclick="irASalida()">⬚ SALIDA DEL DÍA</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+  PANTALLA 3 — NUEVA TAREA
+════════════════════════════════════════════════════════════════════════ -->
+<div id="s-tarea" class="screen">
+  <div class="header">
+    <button class="back-btn" onclick="showScreen('s-menu')">← Volver</button>
+    <span class="header-logo" style="font-size:11px;letter-spacing:1px;">NUEVA TAREA</span>
+    <div style="width:60px;"></div>
+  </div>
+  <div class="body">
+
+    <!-- PASO 1: Proyecto -->
+    <div>
+      <span class="label">PASO 1 — PROYECTO</span>
+      <div id="lista-proyectos" style="display:flex;flex-direction:column;gap:8px;">
+        <div style="color:var(--muted);font-size:13px;">Cargando proyectos...</div>
+      </div>
+    </div>
+
+    <!-- PASO 2: Ítem -->
+    <div id="paso-item" style="display:none;">
+      <div class="divider" style="margin-bottom:16px;"></div>
+      <span class="label">PASO 2 — ÍTEM</span>
+      <div id="lista-items" style="display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+
+    <!-- PASO 3: Centro -->
+    <div id="paso-centro" style="display:none;">
+      <div class="divider" style="margin-bottom:16px;"></div>
+      <span class="label">PASO 3 — CENTRO DE TRABAJO</span>
+      <div id="lista-centros" style="display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+
+    <!-- Aviso centro no habitual -->
+    <div id="aviso-centro" class="warn-box" style="display:none;">
+      ⚠ Este centro no es habitual para vos. ¿Confirmás?
+    </div>
+
+    <!-- Confirmar -->
+    <button class="btn btn-primary btn-disabled" id="btn-confirmar-tarea" onclick="confirmarTarea()">
+      CONFIRMAR TAREA
+    </button>
+
+    <div style="height:20px;"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+  PANTALLA CNC
+════════════════════════════════════════════════════════════════════════ -->
+<div id="s-cnc" class="screen">
+  <div class="header">
+    <button class="back-btn" onclick="finalizarCNC()">⬚</button>
+    <span class="header-logo" style="font-size:11px;letter-spacing:1px;" id="cnc-header">CNC</span>
+    <div style="width:60px;text-align:right;">
+      <span class="mono" style="font-size:11px;color:var(--muted);" id="cnc-task-timer">0h 00m</span>
+    </div>
+  </div>
+  <div class="body">
+
+    <!-- Estado de la placa -->
+    <div id="cnc-cortando" class="cnc-card" style="display:none;">
+      <div class="label">EN CORTE</div>
+      <div id="cnc-placa-label" style="font-size:18px;font-weight:700;margin-bottom:4px;">PLACA #1</div>
+      <div class="cnc-timer" id="cnc-placa-timer">00:00:00</div>
+      <div class="cnc-actions">
+        <button class="btn btn-success btn-sm" onclick="registrarPlaca('ok')" style="grid-column:1;">✓ OK</button>
+        <button class="btn btn-danger btn-sm" onclick="registrarPlaca('error')">✗ ERROR</button>
+        <button class="btn btn-ghost btn-sm" onclick="registrarPlaca('saltada')" style="grid-column:1/-1;">→ SIGUIENTE (SALTAR)</button>
+      </div>
+    </div>
+
+    <!-- Tiempo muerto -->
+    <div id="cnc-idle" class="cnc-card">
+      <div class="label" style="color:var(--muted);">⏸ TIEMPO MUERTO</div>
+      <div id="cnc-idle-timer" class="cnc-timer" style="color:var(--muted);">00:00:00</div>
+      <button class="btn btn-primary btn-sm" style="margin-top:16px;" id="btn-iniciar-corte" onclick="iniciarCorte()">
+        INICIAR CORTE — PLACA <span id="cnc-placa-next">1</span>
+      </button>
+    </div>
+
+    <!-- Resultado breve -->
+    <div id="cnc-result-msg" style="display:none;text-align:center;padding:12px;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;border-radius:8px;"></div>
+
+    <!-- Resumen -->
+    <div class="card" style="text-align:center;">
+      <span class="label">RESUMEN</span>
+      <div style="font-family:'Space Mono',monospace;font-size:13px;color:var(--muted);" id="cnc-resumen">
+        Placas: 0 ok · 0 error · 0 saltadas
+      </div>
+    </div>
+
+    <button class="btn btn-ghost btn-sm" onclick="finalizarCNC()" style="min-height:52px;">
+      ⏹ FINALIZAR SESIÓN CNC
+    </button>
+    <div style="height:16px;"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+  PANTALLA 4 — FINALIZAR TAREA
+════════════════════════════════════════════════════════════════════════ -->
+<div id="s-finalizar" class="screen">
+  <div class="header">
+    <button class="back-btn" onclick="showScreen('s-menu')">← Volver</button>
+    <span class="header-logo" style="font-size:11px;letter-spacing:1px;">FINALIZAR TAREA</span>
+    <div style="width:60px;"></div>
+  </div>
+  <div class="body">
+    <div style="font-size:14px;color:var(--muted);" id="finalizar-titulo">—</div>
+
+    <div style="display:flex;flex-direction:column;gap:8px;" id="checklist-container"></div>
+
+    <div style="font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);text-align:right;" id="check-counter">0 / 5 completadas</div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+      <button class="btn btn-success btn-disabled" id="btn-finalizar-ok" onclick="finalizarOk()">
+        ✓ FINALIZADO — TODO OK
+      </button>
+      <button class="btn btn-warn" onclick="toggleRetrabajo()">
+        ⚠ RETRABAJO
+      </button>
+    </div>
+
+    <!-- Retrabajo form -->
+    <div id="retrabajo-form" style="display:none;display:flex;flex-direction:column;gap:10px;">
+      <span class="label">MOTIVO DEL RETRABAJO (OPCIONAL)</span>
+      <textarea class="textarea-field" id="retrabajo-motivo" placeholder="Describí el problema..."></textarea>
+      <button class="btn btn-warn btn-sm" onclick="confirmarRetrabajo()">
+        ⚠ CONFIRMAR RETRABAJO
+      </button>
+    </div>
+    <div style="height:20px;"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+  PANTALLA SALIDA
+════════════════════════════════════════════════════════════════════════ -->
+<div id="s-salida" class="screen">
+  <div class="header">
+    <button class="back-btn" onclick="showScreen('s-menu')">← Volver</button>
+    <span class="header-logo" style="font-size:11px;letter-spacing:1px;">SALIDA DEL DÍA</span>
+    <div style="width:60px;"></div>
+  </div>
+  <div class="body-centered" style="max-width:400px;margin:0 auto;width:100%;">
+
+    <div style="font-size:20px;font-weight:700;text-align:center;margin-bottom:4px;">
+      ¿Confirmás la salida del día?
+    </div>
+
+    <div class="card" style="width:100%;">
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="color:var(--muted);font-size:14px;">Entrada</span>
+          <span class="mono" style="font-size:14px;" id="salida-entrada">—</span>
+        </div>
+        <div class="divider"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="color:var(--muted);font-size:14px;">Tareas completadas</span>
+          <span class="mono" style="font-size:14px;" id="salida-tareas">—</span>
+        </div>
+        <div class="divider"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="color:var(--muted);font-size:14px;">Tiempo total trabajado</span>
+          <span class="mono" style="font-size:14px;" id="salida-total">—</span>
+        </div>
+        <div class="divider"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="color:var(--muted);font-size:14px;">Descanso descontado</span>
+          <span class="mono" style="font-size:14px;">30 min</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;width:100%;">
+      <button class="btn btn-primary" onclick="confirmarSalida()">CONFIRMAR SALIDA</button>
+      <button class="btn btn-ghost btn-sm" onclick="showScreen('s-menu')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════════════════════════════════
+const App = {
+  empleados: [],
+  proyectos: [],
+
+  // Sesión activa
+  empleado: null,
+  jornada: null,
+  tareaActiva: null,
+
+  // PIN
+  pin: '',
+
+  // Screen 3
+  proyectoSel: null,
+  itemSel: null,
+  centroSel: null,
+
+  // CNC
+  cncRegistroId: null,
+  cncPlacaNum: 1,
+  cncPlacaInicio: null,
+  cncIdleInicio: null,
+  cncEstado: 'idle', // 'idle' | 'cortando'
+  cncResumen: { ok: 0, error: 0, saltadas: 0 },
+
+  // Timers
+  _menuInterval: null,
+  _cncInterval: null,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// API
+// ═══════════════════════════════════════════════════════════════════════════
+async function apiGet(action, params = '') {
+  const r = await fetch(`/api/tiempos?action=${action}${params ? '&' + params : ''}`);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function apiPost(action, body) {
+  const r = await fetch(`/api/tiempos?action=${action}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════════════════════
+let _toastTimer = null;
+function showToast(msg, color = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.color = color || 'var(--text)';
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════════════════
+function fmtHMS(secs) {
+  secs = Math.max(0, Math.floor(secs));
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function fmtHM(secs) {
+  secs = Math.max(0, Math.floor(secs));
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  return h > 0 ? `${h}h ${String(m).padStart(2,'0')}m` : `${m}m`;
+}
+
+function fmtHora(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function secsElapsed(ts) {
+  if (!ts) return 0;
+  return (Date.now() - new Date(ts)) / 1000;
+}
+
+function getSemaforo(inicio, hEst) {
+  if (!hEst || hEst <= 0) return 'verde';
+  const elapsed = secsElapsed(inicio) / 3600;
+  const pct = elapsed / hEst;
+  if (pct < 0.8) return 'verde';
+  if (pct <= 1.0) return 'amarillo';
+  return 'rojo';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PANTALLA 1 — IDENTIFICACIÓN
+// ═══════════════════════════════════════════════════════════════════════════
+function onEmpSelect() {
+  pinClear();
+}
+
+function pinDigit(d) {
+  if (App.pin.length >= 4) return;
+  App.pin += d;
+  renderPinDots();
+  if (App.pin.length === 4) {
+    // Auto-submit after short delay
+    setTimeout(onEntrar, 120);
+  }
+}
+
+function pinDelete() {
+  App.pin = App.pin.slice(0, -1);
+  renderPinDots();
+}
+
+function pinClear() {
+  App.pin = '';
+  renderPinDots();
+}
+
+function renderPinDots() {
+  for (let i = 0; i < 4; i++) {
+    const dot = document.getElementById('pd' + i);
+    dot.classList.toggle('filled', i < App.pin.length);
+  }
+}
+
+async function onEntrar() {
+  const sel = document.getElementById('emp-select');
+  const empId = sel.value;
+  if (!empId) { showError('Seleccioná un operario'); return; }
+  if (App.pin.length < 4) { showError('Ingresá los 4 dígitos del PIN'); return; }
+
+  const emp = App.empleados.find(e => e.id === empId);
+  if (!emp) return;
+
+  if (String(emp.pin) !== App.pin) {
+    // Shake and clear
+    const pad = document.getElementById('pin-pad');
+    pad.classList.remove('shake');
+    void pad.offsetWidth;
+    pad.classList.add('shake');
+    pinClear();
+    showError('PIN incorrecto');
+    return;
+  }
+
+  const errEl = document.getElementById('id-error');
+  errEl.style.display = 'none';
+
+  document.getElementById('btn-entrar').textContent = 'Ingresando...';
+  try {
+    const data = await apiPost('entrada', { empleado_id: empId });
+    App.empleado = emp;
+    App.jornada = data.jornada;
+    App.tareaActiva = data.tarea_activa;
+
+    // Fetch proyectos in background
+    loadProyectos();
+
+    showMenu();
+    if (!data.ya_marcada) showToast(`Entrada registrada — ${fmtHora(data.jornada.entrada)}`, 'var(--green)');
+  } catch (e) {
+    showError('Error al conectar: ' + e.message);
+  } finally {
+    document.getElementById('btn-entrar').textContent = 'ENTRAR';
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('id-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PANTALLA 2 — MENÚ PRINCIPAL
+// ═══════════════════════════════════════════════════════════════════════════
+function showMenu() {
+  showScreen('s-menu');
+  document.getElementById('menu-nombre').textContent = App.empleado?.nombre?.toUpperCase() || '—';
+  renderMenuTask();
+  startMenuReloj();
+}
+
+function startMenuReloj() {
+  clearInterval(App._menuInterval);
+  App._menuInterval = setInterval(() => {
+    const now = new Date();
+    document.getElementById('menu-reloj').textContent =
+      `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+    renderMenuTimer();
+  }, 1000);
+}
+
+function renderMenuTask() {
+  const t = App.tareaActiva;
+  const taskCard = document.getElementById('menu-task-card');
+  const noTask = document.getElementById('menu-no-task');
+  const btnFin = document.getElementById('btn-finalizar-menu');
+
+  if (t) {
+    taskCard.style.display = 'block';
+    noTask.style.display = 'none';
+    btnFin.style.display = 'flex';
+    document.getElementById('menu-task-proyecto').textContent = t.proyecto_nombre || '';
+    document.getElementById('menu-task-item').textContent = t.item_nombre || '';
+    document.getElementById('menu-task-centro').textContent = t.centro || '';
+    renderMenuTimer();
+  } else {
+    taskCard.style.display = 'none';
+    noTask.style.display = 'block';
+    btnFin.style.display = 'none';
+  }
+}
+
+function renderMenuTimer() {
+  const t = App.tareaActiva;
+  if (!t) return;
+  const secs = secsElapsed(t.inicio);
+  document.getElementById('menu-timer').textContent = fmtHM(secs);
+
+  // Semaphore
+  const hEst = t.item_hest || 0;
+  const sema = getSemaforo(t.inicio, hEst);
+  const el = document.getElementById('menu-sema');
+  el.className = `sema sema-${sema}`;
+}
+
+function irANuevaTarea() {
+  initPantallaTarea();
+  showScreen('s-tarea');
+}
+
+function irAFinalizar() {
+  if (!App.tareaActiva) { showToast('No hay tarea activa'); return; }
+  initPantallaFinalizar();
+  showScreen('s-finalizar');
+}
+
+function irASalida() {
+  loadResumenSalida();
+  showScreen('s-salida');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PANTALLA 3 — NUEVA TAREA
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadProyectos() {
+  try {
+    const rows = await apiGet('proyectos-activos');
+    App.proyectos = rows || [];
+  } catch (e) {
+    App.proyectos = [];
+  }
+}
+
+function initPantallaTarea() {
+  App.proyectoSel = null;
+  App.itemSel = null;
+  App.centroSel = null;
+
+  document.getElementById('paso-item').style.display = 'none';
+  document.getElementById('paso-centro').style.display = 'none';
+  document.getElementById('aviso-centro').style.display = 'none';
+  document.getElementById('btn-confirmar-tarea').classList.add('btn-disabled');
+
+  renderListaProyectos();
+}
+
+function renderListaProyectos() {
+  const el = document.getElementById('lista-proyectos');
+  if (!App.proyectos.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px;">No hay proyectos activos. Sincronizá desde admin.html.</div>';
+    return;
+  }
+  el.innerHTML = App.proyectos.map(p => `
+    <div class="list-item" id="pr-${p.id}" onclick="onProyectoSel('${p.id}')">
+      <div style="font-size:17px;font-weight:700;">${p.nombre}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:3px;">${p.cliente || ''}</div>
+    </div>
+  `).join('');
+}
+
+function onProyectoSel(id) {
+  App.proyectoSel = App.proyectos.find(p => p.id === id);
+  App.itemSel = null;
+  App.centroSel = null;
+
+  document.querySelectorAll('#lista-proyectos .list-item').forEach(el => el.classList.remove('selected'));
+  document.getElementById('pr-' + id)?.classList.add('selected');
+
+  document.getElementById('paso-item').style.display = 'block';
+  document.getElementById('paso-centro').style.display = 'none';
+  document.getElementById('aviso-centro').style.display = 'none';
+  document.getElementById('btn-confirmar-tarea').classList.add('btn-disabled');
+
+  renderListaItems();
+  document.getElementById('paso-item').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderListaItems() {
+  const items = App.proyectoSel?.items || [];
+  const el = document.getElementById('lista-items');
+  if (!items.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px;">Sin ítems en este proyecto</div>';
+    return;
+  }
+  el.innerHTML = items.map(it => {
+    const sema = App.tareaActiva?.item_id === it.id
+      ? getSemaforo(App.tareaActiva.inicio, it.hEst)
+      : '';
+    const dotHtml = sema ? `<div class="sema sema-${sema}" style="float:right;margin-top:4px;"></div>` : '';
+    return `
+      <div class="list-item" id="it-${it.id}" onclick="onItemSel('${it.id}')">
+        ${dotHtml}
+        <div style="font-size:16px;font-weight:700;">${it.nombre}</div>
+        ${it.hEst ? `<div style="font-size:11px;color:var(--muted);margin-top:3px;font-family:'Space Mono',monospace;">Est. ${it.hEst}h</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function onItemSel(id) {
+  const items = App.proyectoSel?.items || [];
+  App.itemSel = items.find(it => it.id === id);
+  App.centroSel = null;
+
+  document.querySelectorAll('#lista-items .list-item').forEach(el => el.classList.remove('selected'));
+  document.getElementById('it-' + id)?.classList.add('selected');
+
+  document.getElementById('paso-centro').style.display = 'block';
+  document.getElementById('aviso-centro').style.display = 'none';
+  document.getElementById('btn-confirmar-tarea').classList.add('btn-disabled');
+
+  renderListaCentros();
+  document.getElementById('paso-centro').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderListaCentros() {
+  const centros = App.empleado?.centros_autorizados || [];
+  const el = document.getElementById('lista-centros');
+  if (!centros.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px;">Sin centros autorizados</div>';
+    return;
+  }
+  el.innerHTML = centros.map(c => `
+    <button class="centro-btn" id="c-${c.replace(/\s+/g,'-')}" onclick="onCentroSel('${c}')">
+      <span style="font-size:16px;">○</span>
+      <span>${c}</span>
+    </button>
+  `).join('');
+}
+
+function onCentroSel(centro) {
+  App.centroSel = centro;
+
+  document.querySelectorAll('#lista-centros .centro-btn').forEach(el => el.classList.remove('selected'));
+  document.getElementById('c-' + centro.replace(/\s+/g,'-'))?.classList.add('selected');
+
+  // Aviso si no es habitual (para simplificar: mostrar si no está en el historial)
+  // Por ahora: aviso si no es uno de los centros frecuentes del empleado
+  // (podría mejorarse consultando historial real)
+  document.getElementById('aviso-centro').style.display = 'none';
+
+  document.getElementById('btn-confirmar-tarea').classList.remove('btn-disabled');
+  document.getElementById('btn-confirmar-tarea').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function confirmarTarea() {
+  if (!App.proyectoSel || !App.itemSel || !App.centroSel) return;
+
+  document.getElementById('btn-confirmar-tarea').textContent = 'Iniciando...';
+  document.getElementById('btn-confirmar-tarea').classList.add('btn-disabled');
+
+  try {
+    const data = await apiPost('iniciar-tarea', {
+      empleado_id: App.empleado.id,
+      jornada_id: App.jornada.id,
+      proyecto_id: App.proyectoSel.id,
+      proyecto_nombre: App.proyectoSel.nombre,
+      item_id: App.itemSel.id,
+      item_nombre: App.itemSel.nombre,
+      item_hest: App.itemSel.hEst || 0,
+      centro: App.centroSel,
+    });
+
+    App.tareaActiva = data.registro;
+
+    if (App.centroSel === 'CNC') {
+      initPantallaCNC();
+      showScreen('s-cnc');
+    } else {
+      showToast('Tarea iniciada', 'var(--green)');
+      renderMenuTask();
+      showScreen('s-menu');
+    }
+  } catch (e) {
+    showToast('Error al iniciar tarea: ' + e.message, 'var(--red)');
+    document.getElementById('btn-confirmar-tarea').classList.remove('btn-disabled');
+  } finally {
+    document.getElementById('btn-confirmar-tarea').textContent = 'CONFIRMAR TAREA';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PANTALLA CNC
+// ═══════════════════════════════════════════════════════════════════════════
+function initPantallaCNC() {
+  App.cncRegistroId = App.tareaActiva?.id;
+  App.cncPlacaNum = 1;
+  App.cncEstado = 'idle';
+  App.cncIdleInicio = Date.now();
+  App.cncPlacaInicio = null;
+  App.cncResumen = { ok: 0, error: 0, saltadas: 0 };
+
+  const t = App.tareaActiva;
+  const header = `${App.empleado?.nombre || ''} · CNC · ${t?.proyecto_nombre || ''} · ${t?.item_nombre || ''}`;
+  document.getElementById('cnc-header').textContent = header.toUpperCase();
+
+  renderCNCEstado();
+  updateCNCResumen();
+  startCNCInterval();
+}
+
+function renderCNCEstado() {
+  const idle = document.getElementById('cnc-idle');
+  const cortando = document.getElementById('cnc-cortando');
+  if (App.cncEstado === 'idle') {
+    idle.style.display = 'block';
+    cortando.style.display = 'none';
+    document.getElementById('cnc-placa-next').textContent = App.cncPlacaNum;
+  } else {
+    idle.style.display = 'none';
+    cortando.style.display = 'block';
+    document.getElementById('cnc-placa-label').textContent = `PLACA #${App.cncPlacaNum}`;
+  }
+}
+
+function startCNCInterval() {
+  clearInterval(App._cncInterval);
+  App._cncInterval = setInterval(() => {
+    // Task timer
+    if (App.tareaActiva) {
+      document.getElementById('cnc-task-timer').textContent = fmtHM(secsElapsed(App.tareaActiva.inicio));
+    }
+    // Plate/idle timer
+    if (App.cncEstado === 'cortando' && App.cncPlacaInicio) {
+      document.getElementById('cnc-placa-timer').textContent = fmtHMS(secsElapsed(App.cncPlacaInicio));
+    } else if (App.cncEstado === 'idle' && App.cncIdleInicio) {
+      document.getElementById('cnc-idle-timer').textContent = fmtHMS((Date.now() - App.cncIdleInicio) / 1000);
+    }
+  }, 1000);
+}
+
+function iniciarCorte() {
+  App.cncEstado = 'cortando';
+  App.cncPlacaInicio = new Date().toISOString();
+  document.getElementById('cnc-placa-timer').textContent = '00:00:00';
+  renderCNCEstado();
+}
+
+async function registrarPlaca(resultado) {
+  const fin = new Date().toISOString();
+  const plakaNum = App.cncPlacaNum;
+
+  // Disable buttons briefly
+  document.querySelectorAll('#cnc-cortando .btn').forEach(b => b.disabled = true);
+
+  try {
+    await apiPost('cnc-placa', {
+      registro_trabajo_id: App.cncRegistroId,
+      empleado_id: App.empleado.id,
+      placa_numero: plakaNum,
+      inicio: App.cncPlacaInicio,
+      fin,
+      resultado,
+    });
+  } catch (e) {
+    // Log but don't block the UI
+    console.warn('cnc-placa error:', e.message);
+  }
+
+  // Update resumen
+  if (resultado === 'ok') App.cncResumen.ok++;
+  else if (resultado === 'error') App.cncResumen.error++;
+  else App.cncResumen.saltadas++;
+  updateCNCResumen();
+
+  // Show result message
+  const durSecs = (new Date(fin) - new Date(App.cncPlacaInicio)) / 1000;
+  const msgEl = document.getElementById('cnc-result-msg');
+  if (resultado === 'ok') {
+    msgEl.style.cssText = 'display:block;background:rgba(34,197,94,0.15);color:var(--green);text-align:center;padding:12px;font-family:Space Mono,monospace;font-size:13px;font-weight:700;border-radius:8px;border:1px solid rgba(34,197,94,0.3);';
+    msgEl.textContent = `✓ PLACA #${plakaNum} OK — ${fmtHMS(durSecs)}`;
+  } else if (resultado === 'error') {
+    msgEl.style.cssText = 'display:block;background:rgba(239,68,68,0.15);color:var(--red);text-align:center;padding:12px;font-family:Space Mono,monospace;font-size:13px;font-weight:700;border-radius:8px;border:1px solid rgba(239,68,68,0.3);';
+    msgEl.textContent = `✗ ERROR REGISTRADO — MISMA PLACA SE REPITE`;
+  } else {
+    msgEl.style.cssText = 'display:block;background:rgba(136,136,136,0.15);color:var(--muted);text-align:center;padding:12px;font-family:Space Mono,monospace;font-size:13px;font-weight:700;border-radius:8px;';
+    msgEl.textContent = `→ PLACA #${plakaNum} SALTADA`;
+  }
+  setTimeout(() => { msgEl.style.display = 'none'; }, 3000);
+
+  // Next plate
+  if (resultado !== 'error') App.cncPlacaNum++;
+
+  App.cncEstado = 'idle';
+  App.cncIdleInicio = Date.now();
+  renderCNCEstado();
+
+  document.querySelectorAll('#cnc-cortando .btn').forEach(b => b.disabled = false);
+}
+
+function updateCNCResumen() {
+  const { ok, error, saltadas } = App.cncResumen;
+  document.getElementById('cnc-resumen').textContent =
+    `Placas: ${ok} ok · ${error} error · ${saltadas} saltadas`;
+}
+
+function finalizarCNC() {
+  clearInterval(App._cncInterval);
+  renderMenuTask();
+  showScreen('s-menu');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PANTALLA 4 — FINALIZAR TAREA
+// ═══════════════════════════════════════════════════════════════════════════
+const CHECKLIST = [
+  '¿Las medidas finales coinciden con el plano?',
+  '¿El acabado superficial es el correcto?',
+  '¿Los herrajes están correctamente instalados?',
+  '¿El ítem está limpio y sin daños?',
+  '¿Está listo para la siguiente etapa?',
+];
+
+let checkState = [false, false, false, false, false];
+
+function initPantallaFinalizar() {
+  const t = App.tareaActiva;
+  document.getElementById('finalizar-titulo').textContent =
+    t ? `FINALIZAR — ${t.item_nombre || ''}` : 'FINALIZAR TAREA';
+
+  checkState = CHECKLIST.map(() => false);
+  document.getElementById('retrabajo-form').style.display = 'none';
+  document.getElementById('btn-finalizar-ok').classList.add('btn-disabled');
+  renderChecklist();
+}
+
+function renderChecklist() {
+  const el = document.getElementById('checklist-container');
+  el.innerHTML = CHECKLIST.map((q, i) => `
+    <div class="check-item${checkState[i] ? ' checked' : ''}" onclick="toggleCheck(${i})">
+      <div class="check-box">${checkState[i] ? '✓' : ''}</div>
+      <div style="font-size:15px;line-height:1.4;">${q}</div>
+    </div>
+  `).join('');
+  updateCheckCounter();
+}
+
+function toggleCheck(i) {
+  checkState[i] = !checkState[i];
+  renderChecklist();
+}
+
+function updateCheckCounter() {
+  const done = checkState.filter(Boolean).length;
+  document.getElementById('check-counter').textContent = `${done} / ${CHECKLIST.length} completadas`;
+  const allDone = done === CHECKLIST.length;
+  document.getElementById('btn-finalizar-ok').classList.toggle('btn-disabled', !allDone);
+}
+
+function toggleRetrabajo() {
+  const form = document.getElementById('retrabajo-form');
+  form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+}
+
+async function finalizarOk() {
+  if (!App.tareaActiva) return;
+  const respuestas = CHECKLIST.map((q, i) => ({ pregunta: q, ok: checkState[i] }));
+  document.getElementById('btn-finalizar-ok').textContent = 'Guardando...';
+  try {
+    await apiPost('finalizar-tarea', {
+      registro_id: App.tareaActiva.id,
+      respuestas_checklist: respuestas,
+      es_retrabajo: false,
+    });
+    App.tareaActiva = null;
+    showToast('Tarea finalizada ✓', 'var(--green)');
+    renderMenuTask();
+    showScreen('s-menu');
+  } catch (e) {
+    showToast('Error: ' + e.message, 'var(--red)');
+  } finally {
+    document.getElementById('btn-finalizar-ok').textContent = '✓ FINALIZADO — TODO OK';
+  }
+}
+
+async function confirmarRetrabajo() {
+  if (!App.tareaActiva) return;
+  const motivo = document.getElementById('retrabajo-motivo').value.trim();
+  try {
+    await apiPost('finalizar-tarea', {
+      registro_id: App.tareaActiva.id,
+      es_retrabajo: true,
+      motivo_retrabajo: motivo || null,
+    });
+    App.tareaActiva = null;
+    showToast('Retrabajo registrado', 'var(--yellow)');
+    renderMenuTask();
+    showScreen('s-menu');
+  } catch (e) {
+    showToast('Error: ' + e.message, 'var(--red)');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PANTALLA SALIDA
+// ═══════════════════════════════════════════════════════════════════════════
+async function loadResumenSalida() {
+  document.getElementById('salida-entrada').textContent = fmtHora(App.jornada?.entrada);
+  document.getElementById('salida-tareas').textContent = '...';
+  document.getElementById('salida-total').textContent = '...';
+
+  try {
+    const data = await apiGet('resumen', `jornada_id=${App.jornada.id}`);
+    document.getElementById('salida-tareas').textContent = data.tareas_completadas;
+    const netSecs = Math.max(0, data.total_segundos - 30 * 60);
+    document.getElementById('salida-total').textContent = fmtHM(netSecs);
+  } catch (e) {
+    document.getElementById('salida-tareas').textContent = '—';
+    document.getElementById('salida-total').textContent = '—';
+  }
+}
+
+async function confirmarSalida() {
+  if (!App.jornada) return;
+  try {
+    await apiPost('salida', { jornada_id: App.jornada.id });
+    showToast('Salida registrada. ¡Hasta mañana!', 'var(--green)');
+    // Reset session
+    App.empleado = null;
+    App.jornada = null;
+    App.tareaActiva = null;
+    pinClear();
+    document.getElementById('emp-select').value = '';
+    clearInterval(App._menuInterval);
+    showScreen('s-id');
+  } catch (e) {
+    showToast('Error: ' + e.message, 'var(--red)');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════
+async function init() {
+  try {
+    const empleados = await apiGet('empleados');
+    App.empleados = empleados || [];
+    const sel = document.getElementById('emp-select');
+    App.empleados.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.id;
+      opt.textContent = e.nombre;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    console.error('Error cargando empleados:', e);
+    showToast('Sin conexión al servidor', 'var(--red)');
+  }
+}
+
+init();
+</script>
+</body>
+</html>

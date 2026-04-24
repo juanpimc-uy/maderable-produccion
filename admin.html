@@ -278,6 +278,22 @@ const _OPERARIOS_SEED = [
 let OPERARIOS = (()=>{ const s=JSON.parse(localStorage.getItem('operarios')||'[]'); return s.length?s:_OPERARIOS_SEED; })();
 function guardarOperariosLS(){ localStorage.setItem('operarios',JSON.stringify(OPERARIOS)); }
 
+async function syncProyectoCache(pr) {
+  if (!pr) return;
+  const items = (pr.muebles || []).map(mu => ({
+    id: mu.id,
+    nombre: [mu.codigo, mu.nombre].filter(Boolean).join(' – '),
+    hEst: Object.values(mu.horas || {}).reduce((a, v) => a + Number(v || 0), 0),
+  }));
+  try {
+    await fetch('/api/tiempos?action=sync-proyecto', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: pr.id, nombre: pr.nombre, cliente: pr.clienteNombre, items }),
+    });
+  } catch (e) { /* silently fail if API not available */ }
+}
+
 const FLUJOS_CONF = {
   lustre:       {label:'LUS',color:'var(--teal)'},
   madera_maciza:{label:'MAC',color:'var(--green)'},
@@ -1140,6 +1156,7 @@ function guardarProyecto(prId, sub) {
       localStorage.setItem('proyectos', JSON.stringify(stored));
     }
   }
+  syncProyectoCache(pr);
   editMode = false;
   renderDetallePr(pr, sub||'resumen');
 }
@@ -1214,6 +1231,7 @@ function guardarMueblesLS(prId, pr){
   const stored=JSON.parse(localStorage.getItem('proyectos')||'[]');
   const idx=stored.findIndex(p=>p.id===prId);
   if(idx>=0){stored[idx].muebles=pr.muebles;localStorage.setItem('proyectos',JSON.stringify(stored));}
+  syncProyectoCache(pr);
 }
 
 function toggleFlujoInline(prId,mId,flujoId){
