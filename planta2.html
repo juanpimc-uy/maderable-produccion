@@ -788,7 +788,7 @@ async function autenticar() {
       itemSel     = { id: registroActivo.item_id,     nombre: registroActivo.item_nombre };
       centroSel   = registroActivo.centro;
       iniciarIntervalos();
-      initCNC(); ir('pantalla-cnc');
+      initCNC(true); ir('pantalla-cnc');
     } else {
       irAlMenu();
     }
@@ -1016,7 +1016,7 @@ async function confirmarTarea() {
 // ═══════════════════════════════════════════════════════════════════════════
 let _intCNC = null;
 
-function initCNC() {
+function initCNC(esRestauracion = false) {
   cncPlacaNum    = 1;
   cncEstado      = 'inicio';  // 'inicio' | 'cortando' | 'idle' | 'pausado'
   cncInicioPlaca = null;
@@ -1030,8 +1030,15 @@ function initCNC() {
   document.getElementById('cnc-info-item').textContent = t?.item_nombre || '';
   document.getElementById('cnc-input-inicio').value = 1;
 
+  if (esRestauracion) {
+    cncEstado      = 'cortando';
+    cncInicioPlaca = new Date().toISOString();
+  }
+
   renderCNCEstado();
   updateCNCResumen();
+
+  if (esRestauracion) toast('↺ Sesión CNC restaurada', 'var(--accent)');
 
   clearInterval(_intCNC);
   _intCNC = setInterval(() => {
