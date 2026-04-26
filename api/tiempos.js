@@ -277,14 +277,28 @@ export default async function handler(req) {
       return ok({ proyectos: data || [] });
     }
 
-    // ── POST sync proyecto desde admin ────────────────────────────────────
+    // ── POST sync proyecto desde admin (full upsert, alias de guardar-proyecto) ──
     if (action === 'sync-proyecto' && req.method === 'POST') {
-      const { id, nombre, cliente, items } = body;
-      console.log('Sync proyecto recibido:', { id, nombre, cliente, itemsCount: items?.length });
+      const { id, numero, obra, clienteNombre, fechaInicio, fechaEntrega,
+              notas, estado, muebles, materiales, sosCargadas, modulos, creadoEn,
+              // legacy fields for backwards compat
+              nombre, cliente, items } = body;
+      const _obra = obra || nombre;
+      const _muebles = muebles || items || [];
       const { data, error } = await supabase.from('proyectos_cache')
-        .upsert({ id, nombre, cliente, items: items || [], activo: true, sincronizado_at: new Date().toISOString() }, { onConflict: 'id' })
+        .upsert({
+          id, nombre: numero || _obra, numero, obra: _obra,
+          cliente: clienteNombre || cliente, cliente_nombre: clienteNombre || cliente,
+          fecha_inicio: fechaInicio, fecha_entrega: fechaEntrega,
+          notas, estado: estado || 'en_produccion',
+          muebles: _muebles, items: _muebles,
+          materiales: materiales || [],
+          sos_cargadas: sosCargadas || [],
+          modulos: modulos || [],
+          creado_en: creadoEn,
+          activo: true, sincronizado_at: new Date().toISOString(),
+        }, { onConflict: 'id' })
         .select().single();
-      console.log('Resultado upsert:', { ok: !error, id: data?.id, error: error?.message });
       if (error) throw error;
       return ok({ proyecto: data, ok: true });
     }
