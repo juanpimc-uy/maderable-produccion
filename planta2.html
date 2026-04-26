@@ -428,8 +428,12 @@ textarea.campo {
     <!-- Tiempo muerto -->
     <div id="cnc-card-idle" style="width:100%;text-align:center;display:none;">
       <div class="mono" style="font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:16px;">⏸ TIEMPO MUERTO</div>
-      <div class="mono" style="font-size:48px;color:var(--muted);margin-bottom:24px;" id="cnc-idle-timer">00:00:00</div>
-      <button onclick="iniciarCorte()" style="width:100%;min-height:80px;background:var(--accent);color:#000;border:none;border-radius:12px;font-family:'Space Mono',monospace;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;">▶ INICIAR PLACA #<span id="cnc-prox-num">1</span></button>
+      <div class="mono" style="font-size:48px;color:var(--muted);margin-bottom:20px;" id="cnc-idle-timer">00:00:00</div>
+      <div class="mono" style="font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:8px;">PRÓXIMA PLACA</div>
+      <input id="cnc-input-idle" type="number" min="1" value="1"
+        oninput="actualizarBotonIdle()"
+        style="width:120px;text-align:center;font-family:'Space Mono',monospace;font-size:56px;font-weight:700;color:var(--accent);background:var(--card2);border:2px solid var(--border);border-radius:12px;padding:8px;outline:none;display:block;margin:0 auto 20px;-webkit-tap-highlight-color:transparent;">
+      <button onclick="iniciarCorte()" style="width:100%;min-height:80px;background:var(--accent);color:#000;border:none;border-radius:12px;font-family:'Space Mono',monospace;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;" id="cnc-btn-idle">▶ INICIAR PLACA #<span id="cnc-prox-num">1</span></button>
     </div>
 
     <!-- Mensaje resultado -->
@@ -778,7 +782,16 @@ async function autenticar() {
     proyectos = pList || [];
     console.log('Total proyectos:', proyectos.length, proyectos);
 
-    irAlMenu();
+    // Si tiene tarea activa en CNC, restaurar pantalla CNC directamente
+    if (registroActivo && registroActivo.centro && registroActivo.centro.toUpperCase().includes('CNC')) {
+      proyectoSel = { id: registroActivo.proyecto_id, nombre: registroActivo.proyecto_nombre };
+      itemSel     = { id: registroActivo.item_id,     nombre: registroActivo.item_nombre };
+      centroSel   = registroActivo.centro;
+      iniciarIntervalos();
+      initCNC(); ir('pantalla-cnc');
+    } else {
+      irAlMenu();
+    }
   } catch (e) {
     setLoginError('Error: ' + e.message);
   } finally {
@@ -1036,7 +1049,15 @@ function renderCNCEstado() {
   document.getElementById('cnc-card-corte').style.display  = cncEstado === 'cortando' ? 'block' : 'none';
   document.getElementById('cnc-card-idle').style.display   = cncEstado === 'idle'     ? 'block' : 'none';
   document.getElementById('cnc-placa-label').textContent   = `PLACA #${cncPlacaNum}`;
-  document.getElementById('cnc-prox-num').textContent      = cncPlacaNum;
+  if (cncEstado === 'idle') {
+    document.getElementById('cnc-input-idle').value = cncPlacaNum;
+    document.getElementById('cnc-prox-num').textContent = cncPlacaNum;
+  }
+}
+
+function actualizarBotonIdle() {
+  const n = parseInt(document.getElementById('cnc-input-idle').value) || cncPlacaNum;
+  document.getElementById('cnc-prox-num').textContent = n;
 }
 
 function arrancarCorteCNC() {
@@ -1049,6 +1070,8 @@ function arrancarCorteCNC() {
 }
 
 function iniciarCorte() {
+  const n = parseInt(document.getElementById('cnc-input-idle').value) || cncPlacaNum;
+  cncPlacaNum    = Math.max(1, n);
   cncEstado      = 'cortando';
   cncInicioPlaca = new Date().toISOString();
   document.getElementById('cnc-placa-timer').textContent = '00:00:00';
