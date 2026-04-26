@@ -470,36 +470,44 @@ async function syncTodosOperarios() {
 }
 
 async function syncProyectoSupabase(proyecto) {
+  const body = {
+    id: proyecto.id || proyecto.numero,
+    nombre: proyecto.nombre || proyecto.obra,
+    cliente: proyecto.cliente || proyecto.clienteNombre || '',
+    items: proyecto.muebles || proyecto.items || []
+  };
+  console.log('Syncing proyecto:', body.nombre, JSON.stringify(body).slice(0, 200));
   try {
-    await fetch('/api/tiempos?action=sync-proyecto', {
+    const res = await fetch('/api/tiempos?action=sync-proyecto', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: proyecto.id || proyecto.numero,
-        nombre: proyecto.nombre || proyecto.obra,
-        cliente: proyecto.cliente || proyecto.clienteNombre,
-        items: proyecto.muebles || proyecto.items || []
-      })
+      body: JSON.stringify(body)
     });
+    const data = await res.json();
+    console.log('Respuesta sync:', res.status, data);
+    return data;
   } catch(e) {
     console.warn('No se pudo sincronizar proyecto:', e);
   }
 }
 
 async function syncTodosProyectos() {
+  console.log('Iniciando sync proyectos...');
   const todos = JSON.parse(localStorage.getItem('proyectos') || '[]');
+  console.log('Proyectos en localStorage:', todos.length, todos);
   if (!todos.length) { alert('No hay proyectos en localStorage para sincronizar.'); return; }
   const btn = event?.target;
   if (btn) { btn.textContent = '↑ Sincronizando…'; btn.disabled = true; }
-  let ok = 0, err = 0;
+  let ok = 0, errCount = 0;
   for (const p of todos) {
     try {
-      await syncProyectoSupabase(p);
-      ok++;
-    } catch(e) { err++; }
+      const d = await syncProyectoSupabase(p);
+      if (d?.error) { console.error('Error en proyecto', p.nombre, d.error); errCount++; }
+      else ok++;
+    } catch(e) { console.error('Excepción sync', p.nombre, e); errCount++; }
   }
   if (btn) { btn.textContent = '↑ Sincronizar todos a planta'; btn.disabled = false; }
-  alert(`Sincronización completa: ${ok} proyectos enviados${err ? `, ${err} con error` : ''}.`);
+  alert(`Sincronización completa: ${ok} OK${errCount ? `, ${errCount} con error (ver consola)` : ''}.`);
 }
 
 const FLUJOS_CONF = {
