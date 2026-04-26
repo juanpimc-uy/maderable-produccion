@@ -301,16 +301,21 @@ async function syncOperarioSupabase(op, upsert = false) {
 }
 
 async function syncTodosOperarios() {
-  const todos = JSON.parse(localStorage.getItem('operarios') || '[]');
-  if (!todos.length) { alert('No hay operarios en localStorage.'); return; }
-  const btn = event?.target;
-  if (btn) { btn.textContent = '↑ Sincronizando…'; btn.disabled = true; }
-  let ok = 0, err = 0;
-  for (const op of todos) {
-    try { await syncOperarioSupabase(op, true); ok++; } catch(e) { err++; }
+  const ops = JSON.parse(localStorage.getItem('operarios') || '[]');
+  for (const op of ops) {
+    await fetch('/api/tiempos?action=crear-empleado', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        nombre: op.nombre,
+        cedula: op.cedula || '',
+        categoria: op.especialidad || 'directo',
+        centros_autorizados: op.centros || [],
+        pin: '1234'
+      })
+    });
   }
-  if (btn) { btn.textContent = '↑ Sincronizar operarios a Supabase'; btn.disabled = false; }
-  alert(`Sincronización completa: ${ok} operarios enviados${err ? `, ${err} con error` : ''}.`);
+  alert('Operarios sincronizados');
 }
 
 async function syncProyectoSupabase(proyecto) {
@@ -1612,7 +1617,17 @@ function guardarOperario(opId) {
   }else{
     const nuevoOp={id:'op'+Date.now(),nombre,avatar,especialidad,centros};
     OPERARIOS.push(nuevoOp);
-    syncOperarioSupabase(nuevoOp, false);
+    fetch('/api/tiempos?action=crear-empleado', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        nombre: nuevoOp.nombre,
+        cedula: nuevoOp.cedula || '',
+        categoria: nuevoOp.especialidad || 'directo',
+        centros_autorizados: nuevoOp.centros || [],
+        pin: '1234'
+      })
+    }).catch(e => console.warn('No se pudo crear en Supabase:', e));
   }
   guardarOperariosLS();
   cerrarModal();

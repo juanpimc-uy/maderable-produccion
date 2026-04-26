@@ -89,16 +89,19 @@ export default async function handler(req, res) {
 
     // ── POST crear empleado (INSERT) ─────────────────────────────────────
     if (action === 'crear-empleado' && req.method === 'POST') {
-      const { nombre, cedula, categoria, centros_autorizados,
-              pin, horario_entrada, horario_salida } = req.body;
+      const b = req.body;
       const { data, error } = await supabase
         .from('empleados')
-        .insert({ nombre, cedula, categoria,
-                  centros_autorizados: centros_autorizados || [],
-                  pin: pin || '1234',
-                  horario_entrada: horario_entrada || '08:00',
-                  horario_salida:  horario_salida  || '17:00',
-                  activo: true })
+        .upsert({
+          nombre: b.nombre,
+          cedula: b.cedula || null,
+          categoria: b.categoria || 'directo',
+          centros_autorizados: b.centros_autorizados || [],
+          pin: b.pin || '1234',
+          horario_entrada: '08:00',
+          horario_salida:  '17:00',
+          activo: true
+        }, { onConflict: 'cedula' })
         .select().single();
       if (error) throw error;
       return res.json({ empleado: data });

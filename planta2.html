@@ -206,16 +206,17 @@ textarea.campo {
 .shake { animation: shake 0.35s ease; }
 
 /* ── Login select accent ──────────────────────────────────────────────── */
-#sel-empleado {
-  border: 2px solid #FFD600;
-  background: #1e1e1e;
-  color: #ffffff;
-  font-family: 'Space Mono', monospace;
-  font-size: 16px;
-  padding: 12px;
-  width: 100%;
-  appearance: none;
-  -webkit-appearance: none;
+#sel-empleado, select[id*="empleado"] {
+  border: 2px solid #FFD600 !important;
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  font-size: 18px !important;
+  padding: 14px !important;
+  width: 100% !important;
+  border-radius: 4px !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  outline: none !important;
 }
 
 /* ── Live dot ─────────────────────────────────────────────────────────── */
