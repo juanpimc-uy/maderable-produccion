@@ -353,6 +353,191 @@ export default async function handler(req) {
       return ok({ registros: data || [] });
     }
 
+    // ── GET último registro por centro/proyecto/ítem ──────────────────────
+    if (action === 'ultimo-registro' && req.method === 'GET') {
+      const centro      = url.searchParams.get('centro');
+      const proyecto_id = url.searchParams.get('proyecto_id');
+      const item_id     = url.searchParams.get('item_id');
+
+      const { data, error } = await supabase
+        .from('registros_trabajo')
+        .select('empleado_id, inicio, fin, estado')
+        .eq('centro', centro)
+        .eq('proyecto_id', proyecto_id)
+        .eq('item_id', item_id)
+        .order('inicio', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) return ok({ registro: null });
+
+      const { data: emp } = await supabase
+        .from('empleados').select('nombre').eq('id', data.empleado_id).maybeSingle();
+
+      return ok({ registro: { ...data, empleado_nombre: emp?.nombre || data.empleado_id } });
+    }
+
+    // ── GET proyectos completos (todos los campos para HTML) ──────────────
+    if (action === 'proyectos-completos' && req.method === 'GET') {
+      const { data, error } = await supabase.from('proyectos_cache').select('*').eq('activo', true).order('nombre');
+      if (error) throw error;
+      return ok({ proyectos: (data || []).map(p => ({
+        id: p.id,
+        numero: p.numero || p.nombre,
+        obra: p.obra || p.nombre,
+        clienteNombre: p.cliente_nombre || p.cliente,
+        fechaInicio: p.fecha_inicio,
+        fechaEntrega: p.fecha_entrega,
+        notas: p.notas,
+        estado: p.estado || 'en_produccion',
+        muebles: p.muebles || p.items || [],
+        materiales: p.materiales || [],
+        sosCargadas: p.sos_cargadas || [],
+        modulos: p.modulos || [],
+        creadoEn: p.creado_en,
+      })) });
+    }
+
+    // ── POST guardar proyecto completo ────────────────────────────────────
+    if (action === 'guardar-proyecto' && req.method === 'POST') {
+      const { id, numero, obra, clienteNombre, fechaInicio, fechaEntrega,
+              notas, estado, muebles, materiales, sosCargadas, modulos, creadoEn } = body;
+      const { data, error } = await supabase.from('proyectos_cache')
+        .upsert({
+          id, nombre: numero || obra, numero, obra,
+          cliente: clienteNombre, cliente_nombre: clienteNombre,
+          fecha_inicio: fechaInicio, fecha_entrega: fechaEntrega,
+          notas, estado: estado || 'en_produccion',
+          muebles: muebles || [], items: muebles || [],
+          materiales: materiales || [],
+          sos_cargadas: sosCargadas || [],
+          modulos: modulos || [],
+          creado_en: creadoEn,
+          activo: true, sincronizado_at: new Date().toISOString(),
+        }, { onConflict: 'id' })
+        .select().single();
+      if (error) throw error;
+      return ok({ proyecto: data });
+    }
+
+    // ── GET órdenes de compra ─────────────────────────────────────────────
+    if (action === 'ocs' && req.method === 'GET') {
+      const { data, error } = await supabase.from('ordenes_compra').select('*').order('creado_at', { ascending: false });
+      if (error) throw error;
+      return ok({ ocs: (data || []).map(o => ({
+        id: o.id, numero: o.numero, proveedor: o.proveedor,
+        proyectoId: o.proyecto_id, muebleId: o.mueble_id,
+        estado: o.estado, fecha: o.fecha, items: o.items || [],
+      })) });
+    }
+
+    // ── POST guardar OC ───────────────────────────────────────────────────
+    if (action === 'guardar-oc' && req.method === 'POST') {
+      const { id, numero, proveedor, proyectoId, muebleId, estado, fecha, items } = body;
+      const { data, error } = await supabase.from('ordenes_compra')
+        .upsert({ id, numero, proveedor, proyecto_id: proyectoId, mueble_id: muebleId,
+                  estado: estado || 'pendiente', fecha, items: items || [] }, { onConflict: 'id' })
+        .select().single();
+      if (error) throw error;
+      return ok({ oc: data });
+    }
+
+    // ── GET recepciones de material ───────────────────────────────────────
+    if (action === 'recepciones' && req.method === 'GET') {
+      const { data, error } = await supabase.from('recepciones_material').select('*').order('creado_at', { ascending: false });
+      if (error) throw error;
+      return ok({ recepciones: (data || []).map(r => ({
+        id: r.id, fecha: r.fecha, proveedor: r.proveedor,
+        ocNum: r.oc_num, obs: r.obs, items: r.items || [], impactados: r.impactados || [],
+      })) });
+    }
+
+    // ── POST guardar recepción ────────────────────────────────────────────
+    if (action === 'guardar-recepcion' && req.method === 'POST') {
+      const { id, fecha, proveedor, ocNum, obs, items, impactados } = body;
+      const { data, error } = await supabase.from('recepciones_material')
+        .insert({ id, fecha, proveedor, oc_num: ocNum, obs, items: items || [], impactados: impactados || [] })
+        .select().single();
+      if (error) throw error;
+      return ok({ recepcion: data });
+    }
+
+    // ── GET partidas tercerizados ─────────────────────────────────────────
+    if (action === 'partidas' && req.method === 'GET') {
+      const { data, error } = await supabase.from('partidas_terceros').select('*').order('creado_at', { ascending: false });
+      if (error) throw error;
+      return ok({ partidas: (data || []).map(p => ({
+        id: p.id, tipo: p.tipo, proyectoNum: p.proyecto_num, obra: p.obra,
+        muebleCodigo: p.mueble_codigo, muebleNombre: p.mueble_nombre,
+        estado: p.estado, partes: p.partes, tipoDespacho: p.tipo_despacho,
+        fechaDespacho: p.fecha_despacho, fechaRecepcion: p.fecha_recepcion,
+        estadoRecep: p.estado_recep, obs: p.obs, nota: p.nota,
+      })) });
+    }
+
+    // ── POST guardar partida ──────────────────────────────────────────────
+    if (action === 'guardar-partida' && req.method === 'POST') {
+      const { id, tipo, proyectoNum, obra, muebleCodigo, muebleNombre,
+              estado, partes, tipoDespacho, fechaDespacho, fechaRecepcion,
+              estadoRecep, obs, nota } = body;
+      const { data, error } = await supabase.from('partidas_terceros')
+        .upsert({ id, tipo, proyecto_num: proyectoNum, obra,
+                  mueble_codigo: muebleCodigo, mueble_nombre: muebleNombre,
+                  estado: estado || 'en_taller', partes, tipo_despacho: tipoDespacho,
+                  fecha_despacho: fechaDespacho, fecha_recepcion: fechaRecepcion,
+                  estado_recep: estadoRecep, obs, nota }, { onConflict: 'id' })
+        .select().single();
+      if (error) throw error;
+      return ok({ partida: data });
+    }
+
+    // ── GET despachos ─────────────────────────────────────────────────────
+    if (action === 'despachos-lista' && req.method === 'GET') {
+      const { data, error } = await supabase.from('despachos').select('*').order('creado_at', { ascending: false });
+      if (error) throw error;
+      return ok({ despachos: (data || []).map(d => ({
+        id: d.id, proyectoId: d.proyecto_id, proyectoNum: d.proyecto_num,
+        obra: d.obra, cliente: d.cliente, fecha: d.fecha, resp: d.resp,
+        transp: d.transp, obs: d.obs, bultos: d.bultos || [],
+        totalModulos: d.total_modulos, verificado: d.verificado,
+        bultos_verificados: d.bultos_verificados || [],
+      })) });
+    }
+
+    // ── POST guardar despacho ─────────────────────────────────────────────
+    if (action === 'guardar-despacho' && req.method === 'POST') {
+      const { id, proyectoId, proyectoNum, obra, cliente, fecha, resp, transp,
+              obs, bultos, totalModulos, verificado, bultos_verificados } = body;
+      const { data, error } = await supabase.from('despachos')
+        .upsert({ id, proyecto_id: proyectoId, proyecto_num: proyectoNum, obra, cliente,
+                  fecha, resp, transp, obs, bultos: bultos || [],
+                  total_modulos: totalModulos || 0, verificado: verificado || false,
+                  bultos_verificados: bultos_verificados || [] }, { onConflict: 'id' })
+        .select().single();
+      if (error) throw error;
+      return ok({ despacho: data });
+    }
+
+    // ── GET configuración global ──────────────────────────────────────────
+    if (action === 'config' && req.method === 'GET') {
+      const { data, error } = await supabase.from('config_global').select('*');
+      if (error) throw error;
+      const cfg = {};
+      (data || []).forEach(row => { cfg[row.clave] = row.valor; });
+      return ok({ config: cfg });
+    }
+
+    // ── POST guardar configuración ────────────────────────────────────────
+    if (action === 'guardar-config' && req.method === 'POST') {
+      const { clave, valor } = body;
+      const { data, error } = await supabase.from('config_global')
+        .upsert({ clave, valor, actualizado_at: new Date().toISOString() }, { onConflict: 'clave' })
+        .select().single();
+      if (error) throw error;
+      return ok({ ok: true });
+    }
+
     return err('Acción no reconocida: ' + action);
 
   } catch (e) {

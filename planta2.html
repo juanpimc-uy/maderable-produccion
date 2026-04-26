@@ -961,12 +961,47 @@ function selItem(id) {
     el.innerHTML = centros.map(c => `
       <button class="centro-btn" id="ct-${esc(c)}" onclick="selCentro('${esc(c)}','${c}')">
         <span class="centro-dot"></span>
-        <span>${c}</span>
+        <div style="display:flex;flex-direction:column;gap:3px;">
+          <span>${c}</span>
+          <span id="ct-last-${esc(c)}" style="font-size:10px;font-weight:400;letter-spacing:0;text-transform:none;color:#666;font-family:sans-serif;">Cargando…</span>
+        </div>
       </button>
     `).join('');
+
+    // consultas paralelas para último registro por centro
+    if (proyectoSel && itemSel) {
+      Promise.all(centros.map(c =>
+        fetch(`/api/tiempos?action=ultimo-registro&centro=${encodeURIComponent(c)}&proyecto_id=${encodeURIComponent(proyectoSel.id)}&item_id=${encodeURIComponent(itemSel.id)}`)
+          .then(r => r.json())
+          .then(d => {
+            const span = document.getElementById('ct-last-' + esc(c));
+            if (!span) return;
+            const reg = d.registro;
+            if (reg) {
+              span.textContent = `Último: ${reg.empleado_nombre} · ${tiempoRelativo(reg.inicio)}`;
+              span.style.color = '#666';
+            } else {
+              span.textContent = 'Sin actividad registrada';
+              span.style.color = '#444';
+            }
+          })
+          .catch(() => {
+            const span = document.getElementById('ct-last-' + esc(c));
+            if (span) span.textContent = '';
+          })
+      ));
+    }
   }
   document.getElementById('paso-centro').style.display = 'block';
   document.getElementById('paso-centro').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function tiempoRelativo(iso) {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 60) return `hace ${mins}m`;
+  const hs = Math.floor(mins / 60);
+  if (hs < 24) return `hace ${hs}h`;
+  return `hace ${Math.floor(hs / 24)}d`;
 }
 
 function esc(s) { return s.replace(/[^a-zA-Z0-9]/g, '_'); }
