@@ -278,6 +278,7 @@ const _OPERARIOS_SEED = [
 ];
 let OPERARIOS = (()=>{ const s=JSON.parse(localStorage.getItem('operarios')||'[]'); return s.length?s:_OPERARIOS_SEED; })();
 function guardarOperariosLS(){ localStorage.setItem('operarios',JSON.stringify(OPERARIOS)); }
+function getIniciales(nombre){ return (nombre||'').trim().split(/\s+/).map(p=>p[0]||'').join('').toUpperCase().slice(0,2)||'?'; }
 
 async function syncOperarioSupabase(op, upsert = false) {
   try {
@@ -1575,12 +1576,14 @@ function abrirModalOperario(opId) {
       <div class="field" style="margin:0;">
         <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Nombre completo</label>
         <input id="mod-op-nombre" value="${op?.nombre||''}" placeholder="Carlos Méndez"
+          oninput="const v=this.value;const a=document.getElementById('mod-op-avatar');if(a&&!a._edited)a.value=getIniciales(v);"
           style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
       </div>
       <div style="display:flex;gap:12px;">
         <div style="flex:0 0 90px;">
-          <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Avatar (2 letras)</label>
-          <input id="mod-op-avatar" value="${op?.avatar||''}" placeholder="CM" maxlength="2"
+          <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Avatar</label>
+          <input id="mod-op-avatar" value="${op?.avatar||getIniciales(op?.nombre||'')}" placeholder="CM" maxlength="2"
+            oninput="this._edited=true;"
             style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;outline:none;width:100%;text-align:center;text-transform:uppercase;">
         </div>
         <div style="flex:1;">
@@ -1605,26 +1608,26 @@ function abrirModalOperario(opId) {
 
 function guardarOperario(opId) {
   const nombre=(document.getElementById('mod-op-nombre')?.value||'').trim();
-  const avatar=(document.getElementById('mod-op-avatar')?.value||'').trim().toUpperCase().slice(0,2);
+  const avatarInput=(document.getElementById('mod-op-avatar')?.value||'').trim().toUpperCase().slice(0,2);
+  const avatar=avatarInput||getIniciales(nombre);
   const especialidad=document.getElementById('mod-op-esp')?.value||'General';
   const centros=CENTROS.map(c=>c.id).filter(id=>document.getElementById('mod-op-c-'+id)?.checked);
   if(!nombre){alert('El nombre es obligatorio');return;}
-  if(!avatar){alert('El avatar es obligatorio (2 letras)');return;}
   if(!centros.length){alert('Habilitá al menos un centro de trabajo');return;}
   if(opId){
     const op=OPERARIOS.find(o=>o.id===opId);
     if(op){op.nombre=nombre;op.avatar=avatar;op.especialidad=especialidad;op.centros=centros;}
   }else{
-    const nuevoOp={id:'op'+Date.now(),nombre,avatar,especialidad,centros};
+    const nuevoOp={id:'op'+Date.now(),nombre,cedula:'',especialidad,avatar,status:'disponible',centros,categoria:'directo'};
     OPERARIOS.push(nuevoOp);
     fetch('/api/tiempos?action=crear-empleado', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         nombre: nuevoOp.nombre,
-        cedula: nuevoOp.cedula || '',
-        categoria: nuevoOp.especialidad || 'directo',
-        centros_autorizados: nuevoOp.centros || [],
+        cedula: nuevoOp.cedula,
+        categoria: nuevoOp.especialidad,
+        centros_autorizados: nuevoOp.centros,
         pin: '1234'
       })
     }).catch(e => console.warn('No se pudo crear en Supabase:', e));
