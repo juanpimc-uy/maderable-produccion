@@ -243,7 +243,7 @@
 // ══════════════════════════════════════════════════════════════════════════
 // DATOS
 // ══════════════════════════════════════════════════════════════════════════
-let PROYECTOS  = JSON.parse(localStorage.getItem('proyectos') || '[]');
+let PROYECTOS  = [];
 let DESPACHOS  = JSON.parse(localStorage.getItem('despachos') || '[]');
 
 // cargar datos frescos desde Supabase en background
@@ -253,7 +253,7 @@ let DESPACHOS  = JSON.parse(localStorage.getItem('despachos') || '[]');
       fetch('/api/tiempos?action=proyectos-completos').then(r=>r.json()),
       fetch('/api/tiempos?action=despachos-lista').then(r=>r.json()),
     ]);
-    if (rp.proyectos) { PROYECTOS = rp.proyectos; localStorage.setItem('proyectos', JSON.stringify(rp.proyectos)); }
+    if (rp.proyectos) { PROYECTOS = rp.proyectos; }
     if (rd.despachos) { DESPACHOS = rd.despachos; localStorage.setItem('despachos', JSON.stringify(rd.despachos)); }
     init();
   } catch(e) { console.error('API load failed, usando caché localStorage', e); }
@@ -569,9 +569,9 @@ function guardarDespacho() {
   DESPACHOS.push(despacho);
 
   // persistir
-  localStorage.setItem('proyectos', JSON.stringify(PROYECTOS));
   localStorage.setItem('despachos', JSON.stringify(DESPACHOS));
   fetch('/api/tiempos?action=guardar-despacho',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(despacho)}).catch(console.error);
+  fetch('/api/tiempos?action=guardar-proyecto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(pr)}).catch(console.error);
 
   cerrarModal();
   selMods.clear(); bultos=[];
