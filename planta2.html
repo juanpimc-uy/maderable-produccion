@@ -383,7 +383,7 @@ textarea.campo {
 <!-- ══════════════════════════════════════════════════════════════════════
   PANTALLA CNC
 ══════════════════════════════════════════════════════════════════════ -->
-<div id="pantalla-cnc" class="pantalla" style="display:none;flex-direction:column;min-height:100vh;">
+<div id="pantalla-cnc" class="pantalla">
   <!-- Header -->
   <div class="header">
     <span class="header-logo" style="font-size:10px;letter-spacing:1px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="cnc-header">CNC</span>
@@ -910,7 +910,7 @@ async function confirmarTarea() {
     const nuevo = [centroSel, ...prev.filter(c => c !== centroSel)].slice(0, 3);
     localStorage.setItem(key, JSON.stringify(nuevo));
 
-    if (centroSel === 'CNC') {
+    if (centroSel.toUpperCase().includes('CNC')) {
       initCNC(); ir('pantalla-cnc');
     } else {
       toast('Tarea iniciada ✓', 'var(--green)');
@@ -978,7 +978,7 @@ async function registrarPlaca(resultado) {
   const numActual = cncPlacaNum;
 
   // Deshabilitar botones momentáneamente
-  document.querySelectorAll('#cnc-card-corte .btn').forEach(b => b.disabled = true);
+  document.querySelectorAll('#cnc-card-corte button').forEach(b => b.disabled = true);
 
   try {
     await apiPost('cnc-placa', {
@@ -1022,7 +1022,7 @@ async function registrarPlaca(resultado) {
   cncInicioIdle = Date.now();
   renderCNCEstado();
 
-  document.querySelectorAll('#cnc-card-corte .btn').forEach(b => b.disabled = false);
+  document.querySelectorAll('#cnc-card-corte button').forEach(b => b.disabled = false);
 }
 
 function updateCNCResumen() {
