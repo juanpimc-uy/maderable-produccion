@@ -278,7 +278,10 @@ textarea.campo {
 ══════════════════════════════════════════════════════════════════════ -->
 <div id="pantalla-menu" class="pantalla">
   <div class="header">
-    <span class="header-logo" id="menu-nombre" style="color:var(--accent);font-size:14px;">—</span>
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      <span class="header-logo" id="menu-nombre" style="color:var(--accent);font-size:14px;">—</span>
+      <button onclick="cambiarEmpleado()" style="background:none;border:none;padding:0;color:#666;font-size:11px;cursor:pointer;text-align:left;font-family:'DM Sans',sans-serif;">← Cambiar empleado</button>
+    </div>
     <span class="header-right" id="menu-reloj">—</span>
   </div>
   <div class="contenido">
@@ -713,6 +716,18 @@ function setLoginError(msg) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PANTALLA 2 — MENÚ
 // ═══════════════════════════════════════════════════════════════════════════
+function cambiarEmpleado() {
+  empleadoActual = null;
+  jornada        = null;
+  registroActivo = null;
+  clearInterval(_intervaloReloj);
+  clearInterval(_intervaloTimers);
+  _pin = ''; renderPin();
+  document.getElementById('sel-empleado').value = '';
+  document.getElementById('login-error').textContent = '';
+  ir('pantalla-login');
+}
+
 function irAlMenu() {
   ir('pantalla-menu');
   document.getElementById('menu-nombre').textContent = (empleadoActual?.nombre || '').toUpperCase();
