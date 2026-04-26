@@ -279,6 +279,40 @@ const _OPERARIOS_SEED = [
 let OPERARIOS = (()=>{ const s=JSON.parse(localStorage.getItem('operarios')||'[]'); return s.length?s:_OPERARIOS_SEED; })();
 function guardarOperariosLS(){ localStorage.setItem('operarios',JSON.stringify(OPERARIOS)); }
 
+async function syncOperarioSupabase(op, upsert = false) {
+  try {
+    const action = upsert ? 'sync-empleado' : 'crear-empleado';
+    await fetch('/api/tiempos?action=' + action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre: op.nombre,
+        cedula: op.cedula || '',
+        categoria: op.especialidad || op.categoria || 'General',
+        centros_autorizados: op.centros || op.centros_autorizados || [],
+        pin: op.pin || '1234',
+        horario_entrada: op.horario_entrada || '08:00',
+        horario_salida:  op.horario_salida  || '17:00',
+      })
+    });
+  } catch(e) {
+    console.warn('No se pudo sincronizar operario:', e);
+  }
+}
+
+async function syncTodosOperarios() {
+  const todos = JSON.parse(localStorage.getItem('operarios') || '[]');
+  if (!todos.length) { alert('No hay operarios en localStorage.'); return; }
+  const btn = event?.target;
+  if (btn) { btn.textContent = '↑ Sincronizando…'; btn.disabled = true; }
+  let ok = 0, err = 0;
+  for (const op of todos) {
+    try { await syncOperarioSupabase(op, true); ok++; } catch(e) { err++; }
+  }
+  if (btn) { btn.textContent = '↑ Sincronizar operarios a Supabase'; btn.disabled = false; }
+  alert(`Sincronización completa: ${ok} operarios enviados${err ? `, ${err} con error` : ''}.`);
+}
+
 async function syncProyectoSupabase(proyecto) {
   try {
     await fetch('/api/tiempos?action=sync-proyecto', {
@@ -1485,7 +1519,8 @@ function _renderOpEstado() {
 }
 
 function _renderOpGestion() {
-  let html = `<div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <button class="btn btn-ghost btn-sm" onclick="syncTodosOperarios()">↑ Sincronizar operarios a Supabase</button>
     <button class="btn btn-primary btn-sm" onclick="abrirModalOperario(null)">+ Nuevo Operario</button>
   </div>`;
   OPERARIOS.forEach(op=>{
@@ -1575,7 +1610,9 @@ function guardarOperario(opId) {
     const op=OPERARIOS.find(o=>o.id===opId);
     if(op){op.nombre=nombre;op.avatar=avatar;op.especialidad=especialidad;op.centros=centros;}
   }else{
-    OPERARIOS.push({id:'op'+Date.now(),nombre,avatar,especialidad,centros});
+    const nuevoOp={id:'op'+Date.now(),nombre,avatar,especialidad,centros};
+    OPERARIOS.push(nuevoOp);
+    syncOperarioSupabase(nuevoOp, false);
   }
   guardarOperariosLS();
   cerrarModal();
