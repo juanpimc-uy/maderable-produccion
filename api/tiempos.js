@@ -333,6 +333,30 @@ export default async function handler(req, res) {
       return res.json({ jornada: data });
     }
 
+    // ── GET todos los proyectos (para admin) ──────────────────────────────
+    if (action === 'proyectos-admin' && req.method === 'GET') {
+      const { data, error } = await supabase
+        .from('proyectos_cache')
+        .select('*')
+        .order('nombre');
+      if (error) throw error;
+      return res.json({ proyectos: data || [] });
+    }
+
+    // ── GET registros de trabajo (sesiones + historial para admin) ────────
+    if (action === 'registros-todos' && req.method === 'GET') {
+      const dias = parseInt(req.query.dias || '60');
+      const desde = new Date();
+      desde.setDate(desde.getDate() - dias);
+      const { data, error } = await supabase
+        .from('registros_trabajo')
+        .select('*')
+        .gte('inicio', desde.toISOString())
+        .order('inicio', { ascending: false });
+      if (error) throw error;
+      return res.json({ registros: data || [] });
+    }
+
     return res.status(400).json({ error: 'Acción no reconocida: ' + action });
 
   } catch (err) {

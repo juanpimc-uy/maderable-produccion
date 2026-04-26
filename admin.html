@@ -143,6 +143,7 @@
   <div style="padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);">
     <div class="mono" style="font-size:10px;margin-bottom:6px;">VISTA PLANTA</div>
     <a href="planta.html"  target="_blank" style="color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-decoration:none;display:block;margin-bottom:5px;">Planta v1 →</a>
+    <div id="sync-status" style="font-size:10px;font-family:'JetBrains Mono',monospace;padding:8px 16px;color:var(--muted);border-top:1px solid var(--border);">● Cargando…</div>
     <a href="planta2.html" target="_blank" style="color:var(--green);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-decoration:none;display:block;">Planta v2 →</a>
   </div>
 </aside>
@@ -280,51 +281,109 @@ let OPERARIOS = (()=>{ const s=JSON.parse(localStorage.getItem('operarios')||'[]
 function guardarOperariosLS(){ localStorage.setItem('operarios',JSON.stringify(OPERARIOS)); }
 function getIniciales(nombre){ return (nombre||'').trim().split(/\s+/).map(p=>p[0]||'').join('').toUpperCase().slice(0,2)||'?'; }
 
-async function cargarOperariosDesdeSupabase() {
+let _syncStatus = 'idle'; // idle | loading | ok | error
+let _lastSync = null;
+let _autoRefreshInterval = null;
+
+function _mostrarEstadoSync(status) {
+  _syncStatus = status;
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  if (status === 'loading') { el.textContent = '⟳ Sincronizando…'; el.style.color = 'var(--muted)'; }
+  else if (status === 'ok') {
+    _lastSync = new Date();
+    el.textContent = '● Sincronizado ' + _lastSync.toLocaleTimeString('es-UY', {hour:'2-digit',minute:'2-digit'});
+    el.style.color = 'var(--green)';
+  }
+  else { el.textContent = '● Sin conexión (datos en caché)'; el.style.color = 'var(--red)'; }
+}
+
+async function cargarTodoDesdeSupabase() {
+  _mostrarEstadoSync('loading');
   try {
-    const r = await fetch('/api/tiempos?action=empleados');
-    if (!r.ok) return;
-    const { empleados } = await r.json();
-    if (!Array.isArray(empleados) || !empleados.length) return;
+    const [rEmp, rReg] = await Promise.all([
+      fetch('/api/tiempos?action=empleados').then(r => r.json()),
+      fetch('/api/tiempos?action=registros-todos&dias=60').then(r => r.json()),
+    ]);
 
-    // Mapear shape Supabase → shape admin
-    const deSupabase = empleados.map(e => ({
-      id: e.id,
-      nombre: e.nombre,
-      cedula: e.cedula || '',
-      especialidad: e.categoria || 'General',
-      avatar: getIniciales(e.nombre),
-      status: 'disponible',
-      centros: e.centros_autorizados || [],
-      categoria: e.categoria || 'directo',
-      pin: e.pin || '1234',
-      horario_entrada: e.horario_entrada || '08:00',
-      horario_salida:  e.horario_salida  || '17:00',
-    }));
+    // ── Empleados ──────────────────────────────────────────────────────────
+    if (Array.isArray(rEmp.empleados) && rEmp.empleados.length) {
+      const deSupabase = rEmp.empleados.map(e => ({
+        id: e.id,
+        nombre: e.nombre,
+        cedula: e.cedula || '',
+        especialidad: e.categoria || 'General',
+        avatar: getIniciales(e.nombre),
+        status: 'disponible',
+        centros: e.centros_autorizados || [],
+        categoria: e.categoria || 'directo',
+        pin: e.pin || '1234',
+        horario_entrada: e.horario_entrada || '08:00',
+        horario_salida:  e.horario_salida  || '17:00',
+      }));
 
-    // Empleados que solo están en localStorage → subirlos a Supabase y mantenerlos en la lista
-    const nombresSupabase = new Set(deSupabase.map(e => e.nombre));
-    const soloLocal = OPERARIOS.filter(op => !nombresSupabase.has(op.nombre));
-    for (const op of soloLocal) {
-      fetch('/api/tiempos?action=sync-empleado', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          nombre: op.nombre, cedula: op.cedula || null,
-          categoria: op.especialidad || op.categoria || 'directo',
-          centros_autorizados: op.centros || [], pin: op.pin || '1234',
-          horario_entrada: op.horario_entrada || '08:00',
-          horario_salida:  op.horario_salida  || '17:00',
-        })
-      }).catch(() => {});
+      // Empleados solo en localStorage → subirlos y mantenerlos
+      const nombresSupabase = new Set(deSupabase.map(e => e.nombre));
+      const soloLocal = OPERARIOS.filter(op => !nombresSupabase.has(op.nombre));
+      for (const op of soloLocal) {
+        fetch('/api/tiempos?action=sync-empleado', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            nombre: op.nombre, cedula: op.cedula || null,
+            categoria: op.especialidad || op.categoria || 'directo',
+            centros_autorizados: op.centros || [], pin: op.pin || '1234',
+            horario_entrada: op.horario_entrada || '08:00',
+            horario_salida:  op.horario_salida  || '17:00',
+          })
+        }).catch(() => {});
+      }
+
+      OPERARIOS = [...deSupabase, ...soloLocal];
+      guardarOperariosLS();
     }
 
-    // Supabase + locales pendientes de sync
-    OPERARIOS = [...deSupabase, ...soloLocal];
-    guardarOperariosLS();
+    // ── Sesiones y Historial desde registros_trabajo ───────────────────────
+    if (Array.isArray(rReg.registros)) {
+      SESIONES = rReg.registros
+        .filter(r => r.estado === 'activo')
+        .map(r => ({
+          id: r.id,
+          operarioId: r.empleado_id,
+          proyectoId: r.proyecto_id,
+          itemId: r.item_id,
+          centroId: r.centro,
+          inicio: new Date(r.inicio).getTime(),
+          tipo: r.es_retrabajo ? 'retrabajo' : 'normal',
+        }));
+
+      HISTORIAL = rReg.registros
+        .filter(r => r.estado !== 'activo' && r.fin)
+        .map(r => ({
+          id: r.id,
+          operarioId: r.empleado_id,
+          proyectoId: r.proyecto_id,
+          itemId: r.item_id,
+          centroId: r.centro,
+          inicio: new Date(r.inicio).getTime(),
+          fin: new Date(r.fin).getTime(),
+          tipo: r.es_retrabajo ? 'retrabajo' : 'normal',
+        }));
+
+      localStorage.setItem('sesiones', JSON.stringify(SESIONES));
+      localStorage.setItem('historial', JSON.stringify(HISTORIAL));
+    }
+
+    _mostrarEstadoSync('ok');
     renderCurrentView();
   } catch(e) {
-    console.warn('No se pudo cargar operarios desde Supabase:', e);
+    console.warn('Error cargando desde Supabase:', e);
+    _mostrarEstadoSync('error');
   }
+}
+
+function iniciarAutoRefresh() {
+  if (_autoRefreshInterval) clearInterval(_autoRefreshInterval);
+  _autoRefreshInterval = setInterval(cargarTodoDesdeSupabase, 30000);
 }
 
 async function syncOperarioSupabase(op, upsert = false) {
@@ -480,22 +539,6 @@ const NOW = Date.now(), H = h => h * 3600000;
 let SESIONES  = JSON.parse(localStorage.getItem('sesiones')  || '[]');
 let HISTORIAL = JSON.parse(localStorage.getItem('historial') || '[]');
 
-// sesiones semilla si no hay nada
-if (SESIONES.length === 0) {
-  SESIONES = [
-    {id:'s1',operarioId:'op1',proyectoId:'pr1',itemId:'it1',centroId:'corte',   inicio:NOW-H(1.4)},
-    {id:'s2',operarioId:'op2',proyectoId:'pr1',itemId:'it2',centroId:'armado',  inicio:NOW-H(0.6)},
-    {id:'s3',operarioId:'op4',proyectoId:'pr2',itemId:'it4',centroId:'corte',   inicio:NOW-H(2.1)},
-  ];
-}
-if (HISTORIAL.length === 0) {
-  HISTORIAL = [
-    {id:'h1',operarioId:'op1',proyectoId:'pr1',itemId:'it1',centroId:'corte',   inicio:NOW-H(9),  fin:NOW-H(7)  },
-    {id:'h2',operarioId:'op2',proyectoId:'pr1',itemId:'it2',centroId:'corte',   inicio:NOW-H(8),  fin:NOW-H(5)  },
-    {id:'h3',operarioId:'op3',proyectoId:'pr1',itemId:'it1',centroId:'revision',inicio:NOW-H(6),  fin:NOW-H(4.5)},
-    {id:'h4',operarioId:'op5',proyectoId:'pr2',itemId:'it5',centroId:'enchapado',inicio:NOW-H(4), fin:NOW-H(1.5)},
-  ];
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // UTILS
@@ -1582,7 +1625,7 @@ function _renderOpEstado() {
 
 function _renderOpGestion() {
   let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <button class="btn btn-ghost btn-sm" onclick="cargarOperariosDesdeSupabase().then(()=>alert('Lista actualizada desde Supabase'))">↻ Recargar desde Supabase</button>
+    <button class="btn btn-ghost btn-sm" onclick="cargarTodoDesdeSupabase()">↻ Recargar desde Supabase</button>
     <button class="btn btn-primary btn-sm" onclick="abrirModalOperario(null)">+ Nuevo Operario</button>
   </div>`;
   const operariosUnicos = OPERARIOS.filter((op, index, self) =>
@@ -2784,7 +2827,8 @@ function fResetear(){
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
 renderDashboard();
-cargarOperariosDesdeSupabase();
+cargarTodoDesdeSupabase();
+iniciarAutoRefresh();
 </script>
 </body>
 </html>
