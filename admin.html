@@ -1585,11 +1585,18 @@ function abrirModalOperario(opId) {
   }).join('');
   abrirModal(op?'EDITAR OPERARIO':'NUEVO OPERARIO',`
     <div style="display:flex;flex-direction:column;gap:14px;">
-      <div class="field" style="margin:0;">
-        <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Nombre completo</label>
-        <input id="mod-op-nombre" value="${op?.nombre||''}" placeholder="Carlos Méndez"
-          oninput="const v=this.value;const a=document.getElementById('mod-op-avatar');if(a&&!a._edited)a.value=getIniciales(v);"
-          style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+      <div style="display:flex;gap:12px;">
+        <div style="flex:1;">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Nombre completo</label>
+          <input id="mod-op-nombre" value="${op?.nombre||''}" placeholder="Carlos Méndez"
+            oninput="const v=this.value;const a=document.getElementById('mod-op-avatar');if(a&&!a._edited)a.value=getIniciales(v);"
+            style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+        </div>
+        <div style="flex:0 0 130px;">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Cédula</label>
+          <input id="mod-op-cedula" value="${op?.cedula||''}" placeholder="1.234.567-8"
+            style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+        </div>
       </div>
       <div style="display:flex;gap:12px;">
         <div style="flex:0 0 90px;">
@@ -1620,6 +1627,7 @@ function abrirModalOperario(opId) {
 
 function guardarOperario(opId) {
   const nombre=(document.getElementById('mod-op-nombre')?.value||'').trim();
+  const cedula=(document.getElementById('mod-op-cedula')?.value||'').trim();
   const avatarInput=(document.getElementById('mod-op-avatar')?.value||'').trim().toUpperCase().slice(0,2);
   const avatar=avatarInput||getIniciales(nombre);
   const especialidad=document.getElementById('mod-op-esp')?.value||'General';
@@ -1628,9 +1636,9 @@ function guardarOperario(opId) {
   if(!centros.length){alert('Habilitá al menos un centro de trabajo');return;}
   if(opId){
     const op=OPERARIOS.find(o=>o.id===opId);
-    if(op){op.nombre=nombre;op.avatar=avatar;op.especialidad=especialidad;op.centros=centros;}
+    if(op){op.nombre=nombre;op.cedula=cedula;op.avatar=avatar;op.especialidad=especialidad;op.centros=centros;}
   }else{
-    const nuevoOp={id:'op'+Date.now(),nombre,cedula:'',especialidad,avatar,status:'disponible',centros,categoria:'directo'};
+    const nuevoOp={id:'op'+Date.now(),nombre,cedula,especialidad,avatar,status:'disponible',centros,categoria:'directo'};
     OPERARIOS.push(nuevoOp);
     guardarOperariosLS();
     fetch('/api/tiempos?action=sync-empleado', {
