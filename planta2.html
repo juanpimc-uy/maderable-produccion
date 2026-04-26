@@ -390,13 +390,24 @@ textarea.campo {
   <div class="header">
     <span class="header-logo" style="font-size:10px;letter-spacing:1px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="cnc-header">CNC</span>
     <span class="mono" style="font-size:12px;color:var(--muted);flex-shrink:0;margin-left:10px;" id="cnc-task-timer">0h 00m</span>
+    <button onclick="abrirOpcionesCNC()" style="margin-left:12px;background:#1e1e1e;border:1px solid #444;border-radius:8px;color:#888;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;padding:0 12px;height:36px;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent;">≡ OPCIONES</button>
   </div>
 
-  <!-- Centro expansible -->
+  <!-- Contenido -->
   <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:16px;">
 
+    <!-- Estado inicio: pedir número de placa -->
+    <div id="cnc-card-inicio" style="width:100%;text-align:center;">
+      <div class="mono" style="font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:24px;">¿DESDE QUÉ PLACA ARRANCÁS?</div>
+      <input id="cnc-input-inicio" type="number" min="1" value="1"
+        style="width:140px;text-align:center;font-family:'Space Mono',monospace;font-size:56px;font-weight:700;color:var(--accent);background:var(--card2);border:2px solid var(--border);border-radius:12px;padding:12px;outline:none;-webkit-tap-highlight-color:transparent;">
+      <div style="margin-top:24px;">
+        <button onclick="arrancarCorteCNC()" style="width:100%;min-height:80px;background:var(--accent);color:#000;border:none;border-radius:12px;font-family:'Space Mono',monospace;font-size:16px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;">▶ INICIAR CORTE</button>
+      </div>
+    </div>
+
     <!-- Placa activa -->
-    <div id="cnc-card-corte" style="width:100%;text-align:center;">
+    <div id="cnc-card-corte" style="width:100%;text-align:center;display:none;">
       <div class="mono" style="font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:12px;">EN CORTE</div>
       <div class="mono" style="font-size:80px;font-weight:700;color:var(--accent);line-height:1;" id="cnc-placa-label">#1</div>
       <div class="mono" style="font-size:36px;color:var(--text);margin:12px 0 4px;" id="cnc-placa-timer">00:00:00</div>
@@ -422,8 +433,57 @@ textarea.campo {
 
   <!-- Footer fijo -->
   <div style="background:var(--card);border-top:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;">
-    <div class="mono" style="font-size:11px;color:var(--muted);" id="cnc-resumen">✓ 0 ok &nbsp;✗ 0 err &nbsp;→ 0 salt &nbsp;⌀ —</div>
+    <div class="mono" style="font-size:11px;color:var(--muted);line-height:1.6;" id="cnc-resumen">✓ 0 ok &nbsp;✗ 0 err &nbsp;→ 0 salt &nbsp;⌀ —</div>
     <button onclick="finalizarCNC()" style="background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'Space Mono',monospace;font-size:11px;padding:8px 14px;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;">⏹ Finalizar</button>
+  </div>
+
+  <!-- Modal ERROR -->
+  <div id="cnc-modal-error" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:200;flex-direction:column;align-items:center;justify-content:center;padding:24px;">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px;width:100%;max-width:380px;">
+      <div class="mono" style="font-size:12px;color:var(--red);letter-spacing:1px;margin-bottom:6px;">✗ ERROR REGISTRADO</div>
+      <div id="cnc-error-titulo" class="mono" style="font-size:16px;font-weight:700;margin-bottom:24px;color:var(--text);">PLACA #1 — ¿QUÉ HACÉS?</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button id="cnc-btn-repetir" onclick="repetirPlaca()" style="min-height:70px;background:var(--card2);border:2px solid var(--border);border-radius:12px;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--text);cursor:pointer;-webkit-tap-highlight-color:transparent;">↺ REPETIR MISMA PLACA</button>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button onclick="confirmarErrorNueva()" style="flex:1;min-height:70px;background:var(--accent);color:#000;border:none;border-radius:12px;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;">→ NUEVA PLACA #</button>
+          <input id="cnc-input-error-nueva" type="number" min="1" value="2"
+            style="width:76px;text-align:center;font-family:'Space Mono',monospace;font-size:26px;font-weight:700;color:var(--accent);background:var(--card2);border:2px solid var(--border);border-radius:12px;padding:8px;outline:none;flex-shrink:0;">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal SALTAR -->
+  <div id="cnc-modal-saltar" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:200;flex-direction:column;align-items:center;justify-content:center;padding:24px;">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px;width:100%;max-width:380px;text-align:center;">
+      <div class="mono" style="font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">⏸ EN PAUSA</div>
+      <div class="mono" style="font-size:15px;font-weight:700;margin-bottom:20px;color:var(--text);">¿CUÁL ES LA PRÓXIMA PLACA?</div>
+      <input id="cnc-input-saltar" type="number" min="1" value="2"
+        style="width:140px;text-align:center;font-family:'Space Mono',monospace;font-size:56px;font-weight:700;color:var(--accent);background:var(--card2);border:2px solid var(--border);border-radius:12px;padding:12px;outline:none;display:block;margin:0 auto 20px;">
+      <button onclick="confirmarSaltar()" style="width:100%;min-height:70px;background:var(--accent);color:#000;border:none;border-radius:12px;font-family:'Space Mono',monospace;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;">CONFIRMAR</button>
+    </div>
+  </div>
+
+  <!-- Modal OPCIONES -->
+  <div id="cnc-modal-opciones" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;flex-direction:column;align-items:flex-end;justify-content:flex-start;padding:52px 16px 0;">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;width:100%;max-width:340px;overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+        <span class="mono" style="font-size:12px;font-weight:700;letter-spacing:1px;">OPCIONES</span>
+        <button onclick="cerrarOpcionesCNC()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0 4px;line-height:1;-webkit-tap-highlight-color:transparent;">✕</button>
+      </div>
+      <button onclick="cambiarTareaCNC()" style="width:100%;min-height:70px;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:'Space Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;padding:0 20px;text-align:left;display:flex;flex-direction:column;gap:4px;justify-content:center;-webkit-tap-highlight-color:transparent;">
+        <span>▶ CAMBIAR DE TAREA</span>
+        <span style="color:var(--muted);font-size:10px;font-weight:400;font-family:'DM Sans',sans-serif;">Pausa CNC, va a selección de tarea</span>
+      </button>
+      <button onclick="finalizarTareaCNC()" style="width:100%;min-height:70px;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:'Space Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;padding:0 20px;text-align:left;display:flex;flex-direction:column;gap:4px;justify-content:center;-webkit-tap-highlight-color:transparent;">
+        <span>⏹ FINALIZAR ESTA TAREA</span>
+        <span style="color:var(--muted);font-size:10px;font-weight:400;font-family:'DM Sans',sans-serif;">Va al checklist</span>
+      </button>
+      <button onclick="salidaDiaCNC()" style="width:100%;min-height:70px;background:transparent;border:none;color:var(--text);font-family:'Space Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;padding:0 20px;text-align:left;display:flex;flex-direction:column;gap:4px;justify-content:center;-webkit-tap-highlight-color:transparent;">
+        <span>⬚ SALIDA DEL DÍA</span>
+        <span style="color:var(--muted);font-size:10px;font-weight:400;font-family:'DM Sans',sans-serif;">Cierra la jornada completa</span>
+      </button>
+    </div>
   </div>
 </div>
 
@@ -527,7 +587,7 @@ let _intervaloReloj  = null;
 let _intervaloTimers = null;
 
 // CNC
-let cncEstado     = 'idle';  // 'idle' | 'cortando'
+let cncEstado     = 'inicio'; // 'inicio' | 'cortando' | 'idle' | 'pausado'
 let cncPlacaNum   = 1;
 let cncInicioPlaca = null;   // ISO string
 let cncInicioIdle  = null;   // Date.now()
@@ -938,9 +998,9 @@ async function confirmarTarea() {
 let _intCNC = null;
 
 function initCNC() {
-  cncPlacaNum   = 1;
-  cncEstado     = 'cortando';
-  cncInicioPlaca = new Date().toISOString();
+  cncPlacaNum    = 1;
+  cncEstado      = 'inicio';  // 'inicio' | 'cortando' | 'idle' | 'pausado'
+  cncInicioPlaca = null;
   cncInicioIdle  = null;
   cncPlacasOk   = 0; cncPlacasErr = 0; cncPlacasSalt = 0;
   cncDuraciones = [];
@@ -948,16 +1008,15 @@ function initCNC() {
   const t = registroActivo;
   document.getElementById('cnc-header').textContent =
     `${empleadoActual.nombre} · CNC · ${t?.proyecto_nombre || ''} · ${t?.item_nombre || ''}`.toUpperCase();
+  document.getElementById('cnc-input-inicio').value = 1;
 
   renderCNCEstado();
   updateCNCResumen();
 
   clearInterval(_intCNC);
   _intCNC = setInterval(() => {
-    // Task total timer
     if (registroActivo)
       document.getElementById('cnc-task-timer').textContent = fmtHM(elapsed(registroActivo.inicio));
-    // Plate / idle timer
     if (cncEstado === 'cortando' && cncInicioPlaca)
       document.getElementById('cnc-placa-timer').textContent = fmtHMS(elapsed(cncInicioPlaca));
     else if (cncEstado === 'idle' && cncInicioIdle)
@@ -966,14 +1025,24 @@ function initCNC() {
 }
 
 function renderCNCEstado() {
-  document.getElementById('cnc-card-corte').style.display = cncEstado === 'cortando' ? 'block' : 'none';
-  document.getElementById('cnc-card-idle').style.display  = cncEstado === 'idle'     ? 'block' : 'none';
-  document.getElementById('cnc-placa-label').textContent  = `PLACA #${cncPlacaNum}`;
-  document.getElementById('cnc-prox-num').textContent     = cncPlacaNum;
+  document.getElementById('cnc-card-inicio').style.display = cncEstado === 'inicio'   ? 'block' : 'none';
+  document.getElementById('cnc-card-corte').style.display  = cncEstado === 'cortando' ? 'block' : 'none';
+  document.getElementById('cnc-card-idle').style.display   = cncEstado === 'idle'     ? 'block' : 'none';
+  document.getElementById('cnc-placa-label').textContent   = `PLACA #${cncPlacaNum}`;
+  document.getElementById('cnc-prox-num').textContent      = cncPlacaNum;
+}
+
+function arrancarCorteCNC() {
+  const n = parseInt(document.getElementById('cnc-input-inicio').value) || 1;
+  cncPlacaNum    = Math.max(1, n);
+  cncEstado      = 'cortando';
+  cncInicioPlaca = new Date().toISOString();
+  document.getElementById('cnc-placa-timer').textContent = '00:00:00';
+  renderCNCEstado();
 }
 
 function iniciarCorte() {
-  cncEstado     = 'cortando';
+  cncEstado      = 'cortando';
   cncInicioPlaca = new Date().toISOString();
   document.getElementById('cnc-placa-timer').textContent = '00:00:00';
   renderCNCEstado();
@@ -984,7 +1053,6 @@ async function registrarPlaca(resultado) {
   const durSecs = cncInicioPlaca ? elapsed(cncInicioPlaca) : 0;
   const numActual = cncPlacaNum;
 
-  // Deshabilitar botones momentáneamente
   document.querySelectorAll('#cnc-card-corte button').forEach(b => b.disabled = true);
 
   try {
@@ -998,7 +1066,6 @@ async function registrarPlaca(resultado) {
     });
   } catch (e) { console.warn('cnc-placa:', e.message); }
 
-  // Actualizar contadores
   if (resultado === 'ok') {
     cncPlacasOk++;
     cncDuraciones.push(durSecs);
@@ -1009,28 +1076,87 @@ async function registrarPlaca(resultado) {
   }
   updateCNCResumen();
 
-  // Mostrar resultado breve
   const msgEl = document.getElementById('cnc-resultado-msg');
+
   if (resultado === 'ok') {
     msgEl.style.cssText = `display:block;background:rgba(34,197,94,0.15);color:var(--green);border:1px solid rgba(34,197,94,0.3);`;
     msgEl.textContent = `✓ PLACA #${numActual} OK — ${fmtHMS(durSecs)}`;
+    setTimeout(() => { msgEl.style.display = 'none'; }, 2500);
+    cncPlacaNum++;
+    cncEstado     = 'idle';
+    cncInicioIdle = Date.now();
+    renderCNCEstado();
   } else if (resultado === 'error') {
-    msgEl.style.cssText = `display:block;background:rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.3);`;
-    msgEl.textContent = `✗ ERROR — PLACA #${numActual} SE REPITE`;
+    msgEl.style.display = 'none';
+    // Modal: repetir o nueva placa
+    document.getElementById('cnc-error-titulo').textContent = `PLACA #${numActual} — ¿QUÉ HACÉS?`;
+    document.getElementById('cnc-btn-repetir').textContent  = `↺ REPETIR PLACA #${numActual}`;
+    document.getElementById('cnc-input-error-nueva').value  = numActual + 1;
+    cncEstado = 'pausado';
+    document.getElementById('cnc-modal-error').style.display = 'flex';
   } else {
-    msgEl.style.cssText = `display:block;background:rgba(136,136,136,0.1);color:var(--muted);`;
-    msgEl.textContent = `→ PLACA #${numActual} SALTADA`;
+    msgEl.style.display = 'none';
+    // Modal: número de próxima placa
+    document.getElementById('cnc-input-saltar').value = numActual + 1;
+    cncEstado = 'pausado';
+    document.getElementById('cnc-modal-saltar').style.display = 'flex';
   }
-  setTimeout(() => { msgEl.style.display = 'none'; }, 2500);
-
-  // Siguiente placa (excepto en error)
-  if (resultado !== 'error') cncPlacaNum++;
-  cncEstado     = 'idle';
-  cncInicioIdle = Date.now();
-  renderCNCEstado();
 
   document.querySelectorAll('#cnc-card-corte button').forEach(b => b.disabled = false);
 }
+
+function repetirPlaca() {
+  document.getElementById('cnc-modal-error').style.display = 'none';
+  cncEstado      = 'cortando';
+  cncInicioPlaca = new Date().toISOString();
+  document.getElementById('cnc-placa-timer').textContent = '00:00:00';
+  renderCNCEstado();
+}
+
+function confirmarErrorNueva() {
+  const n = parseInt(document.getElementById('cnc-input-error-nueva').value) || cncPlacaNum + 1;
+  document.getElementById('cnc-modal-error').style.display = 'none';
+  cncPlacaNum    = Math.max(1, n);
+  cncEstado      = 'cortando';
+  cncInicioPlaca = new Date().toISOString();
+  document.getElementById('cnc-placa-timer').textContent = '00:00:00';
+  renderCNCEstado();
+}
+
+function confirmarSaltar() {
+  const n = parseInt(document.getElementById('cnc-input-saltar').value) || cncPlacaNum + 1;
+  document.getElementById('cnc-modal-saltar').style.display = 'none';
+  cncPlacaNum   = Math.max(1, n);
+  cncEstado     = 'idle';
+  cncInicioIdle = Date.now();
+  document.getElementById('cnc-idle-timer').textContent = '00:00:00';
+  renderCNCEstado();
+}
+
+function abrirOpcionesCNC()  { document.getElementById('cnc-modal-opciones').style.display = 'flex'; }
+function cerrarOpcionesCNC() { document.getElementById('cnc-modal-opciones').style.display = 'none'; }
+
+function cambiarTareaCNC() {
+  cerrarOpcionesCNC();
+  // Registrar placa en curso como saltada
+  if (cncEstado === 'cortando' && cncInicioPlaca) {
+    apiPost('cnc-placa', {
+      registro_trabajo_id: registroActivo.id,
+      empleado_id: empleadoActual.id,
+      placa_numero: cncPlacaNum,
+      inicio: cncInicioPlaca,
+      fin: new Date().toISOString(),
+      resultado: 'saltada',
+    }).catch(e => console.warn('cnc-placa salida:', e.message));
+    cncPlacasSalt++;
+    updateCNCResumen();
+  }
+  clearInterval(_intCNC);
+  ir('pantalla-tarea'); initTarea();
+}
+
+function finalizarTareaCNC() { cerrarOpcionesCNC(); finalizarCNC(); }
+function salidaDiaCNC()      { cerrarOpcionesCNC(); clearInterval(_intCNC); ir('pantalla-salida'); initSalida(); }
 
 function updateCNCResumen() {
   const prom = cncDuraciones.length
