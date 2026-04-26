@@ -76,6 +76,18 @@ export default async function handler(req, res) {
 
   try {
 
+    // ── GET diagnóstico de conexión ───────────────────────────────────────
+    if (action === 'ping' && req.method === 'GET') {
+      const hasKey = !!(process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY);
+      const { data, error } = await supabase.from('empleados').select('count').limit(1);
+      return res.json({
+        ok: !error,
+        hasKey,
+        supabaseUrl: process.env.SUPABASE_URL || 'hardcoded',
+        error: error?.message || null,
+      });
+    }
+
     // ── GET empleados activos ─────────────────────────────────────────────
     if (action === 'empleados' && req.method === 'GET') {
       const { data, error } = await supabase
@@ -87,40 +99,43 @@ export default async function handler(req, res) {
       return res.json({ empleados: data });
     }
 
-    // ── POST crear empleado (INSERT) ─────────────────────────────────────
-    if (action === 'crear-empleado' && req.method === 'POST') {
+    // ── POST crear/sync empleado (busca por nombre, insert o update) ────
+    if ((action === 'crear-empleado' || action === 'sync-empleado') && req.method === 'POST') {
       const b = req.body;
-      const { data, error } = await supabase
-        .from('empleados')
-        .upsert({
-          nombre: b.nombre,
-          cedula: b.cedula || null,
-          categoria: b.categoria || 'directo',
-          centros_autorizados: b.centros_autorizados || [],
-          pin: b.pin || '1234',
-          horario_entrada: '08:00',
-          horario_salida:  '17:00',
-          activo: true
-        }, { onConflict: 'cedula' })
-        .select().single();
-      if (error) throw error;
-      return res.json({ empleado: data });
-    }
+      const nombre = (b.nombre || '').trim();
+      if (!nombre) return res.status(400).json({ error: 'nombre requerido' });
 
-    // ── POST sync empleado (UPSERT por nombre, para sincronización bulk) ─
-    if (action === 'sync-empleado' && req.method === 'POST') {
-      const { nombre, cedula, categoria, centros_autorizados,
-              pin, horario_entrada, horario_salida } = req.body;
-      const { data, error } = await supabase
+      const campos = {
+        nombre,
+        cedula: b.cedula || null,
+        categoria: b.categoria || 'directo',
+        centros_autorizados: b.centros_autorizados || [],
+        pin: b.pin || '1234',
+        horario_entrada: b.horario_entrada || '08:00',
+        horario_salida:  b.horario_salida  || '17:00',
+        activo: true,
+      };
+
+      // Buscar por nombre primero (sin depender de constraints únicos)
+      const { data: existing } = await supabase
         .from('empleados')
-        .upsert({ nombre, cedula, categoria,
-                  centros_autorizados: centros_autorizados || [],
-                  pin: pin || '1234',
-                  horario_entrada: horario_entrada || '08:00',
-                  horario_salida:  horario_salida  || '17:00',
-                  activo: true },
-          { onConflict: 'nombre' })
-        .select().single();
+        .select('id')
+        .eq('nombre', nombre)
+        .maybeSingle();
+
+      let data, error;
+      if (existing) {
+        ({ data, error } = await supabase
+          .from('empleados')
+          .update(campos)
+          .eq('id', existing.id)
+          .select().single());
+      } else {
+        ({ data, error } = await supabase
+          .from('empleados')
+          .insert(campos)
+          .select().single());
+      }
       if (error) throw error;
       return res.json({ empleado: data });
     }
