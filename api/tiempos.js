@@ -311,6 +311,21 @@ export default async function handler(req) {
       return ok({ empleado: data });
     }
 
+    // ── GET placa CNC activa (sin fin) para un registro de trabajo ───────
+    if (action === 'get-cnc-activo' && req.method === 'GET') {
+      const registro_trabajo_id = url.searchParams.get('registro_trabajo_id');
+      const { data, error } = await supabase
+        .from('registros_cnc')
+        .select('*')
+        .eq('registro_trabajo_id', registro_trabajo_id)
+        .is('fin', null)
+        .order('creado_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return ok({ placa: data });
+    }
+
     // ── GET registros de trabajo (sesiones + historial para admin) ────────
     if (action === 'registros-todos' && req.method === 'GET') {
       const dias = parseInt(url.searchParams.get('dias') || '60');

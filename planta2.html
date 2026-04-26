@@ -787,6 +787,22 @@ async function autenticar() {
       proyectoSel = { id: registroActivo.proyecto_id, nombre: registroActivo.proyecto_nombre };
       itemSel     = { id: registroActivo.item_id,     nombre: registroActivo.item_nombre };
       centroSel   = registroActivo.centro;
+
+      // PASO 4: intentar obtener placa abierta desde Supabase para restaurar timer
+      try {
+        const { placa } = await apiGet('get-cnc-activo', `registro_trabajo_id=${registroActivo.id}`);
+        console.log('[CNC] Placa activa en Supabase:', placa);
+        if (placa?.inicio) {
+          const tsNum = new Date(placa.inicio).getTime();
+          const secsSupabase = Math.floor((Date.now() - tsNum) / 1000);
+          console.log('[CNC] Usando inicio de Supabase:', placa.inicio, '→', secsSupabase, 'seg');
+          localStorage.setItem('cnc_placa_inicio', tsNum.toString());
+          localStorage.setItem('cnc_placa_numero', String(placa.placa_numero));
+        }
+      } catch (e) {
+        console.log('[CNC] No se pudo obtener placa de Supabase:', e.message);
+      }
+
       iniciarIntervalos();
       initCNC(true); ir('pantalla-cnc');
     } else {
@@ -1031,17 +1047,32 @@ function initCNC(esRestauracion = false) {
   document.getElementById('cnc-input-inicio').value = 1;
 
   if (esRestauracion) {
-    const savedInicio = localStorage.getItem('cnc_placa_inicio');
+    const savedTs     = localStorage.getItem('cnc_placa_inicio');
     const savedNumero = localStorage.getItem('cnc_placa_numero');
-    cncPlacaNum    = parseInt(savedNumero) || 1;
-    cncInicioPlaca = savedInicio || new Date().toISOString();
-    cncEstado      = 'cortando';
+    console.log('[CNC] Restaurando — localStorage cnc_placa_inicio:', savedTs, '| cnc_placa_numero:', savedNumero);
+
+    if (savedTs) {
+      const tsNum = parseInt(savedTs);
+      cncPlacaNum    = parseInt(savedNumero) || 1;
+      cncInicioPlaca = new Date(tsNum).toISOString();
+      const secsTranscurridos = Math.floor((Date.now() - tsNum) / 1000);
+      console.log('[CNC] Timer arranca desde:', secsTranscurridos, 'segundos transcurridos');
+    } else {
+      console.log('[CNC] No hay savedTs en localStorage — arrancando desde ahora');
+      cncPlacaNum    = 1;
+      cncInicioPlaca = new Date().toISOString();
+    }
+    cncEstado = 'cortando';
   }
 
   renderCNCEstado();
   updateCNCResumen();
 
-  if (esRestauracion) toast('↺ Sesión CNC restaurada', 'var(--accent)');
+  // Actualizar display inmediatamente (no esperar el primer tick del interval)
+  if (esRestauracion && cncInicioPlaca) {
+    document.getElementById('cnc-placa-timer').textContent = fmtHMS(elapsed(cncInicioPlaca));
+    toast('↺ Sesión CNC restaurada', 'var(--accent)');
+  }
 
   clearInterval(_intCNC);
   _intCNC = setInterval(() => {
@@ -1180,8 +1211,10 @@ function confirmarSaltar() {
 
 // ── localStorage helpers para restaurar timer de placa ────────────────────
 function _cncGuardarPlaca() {
-  localStorage.setItem('cnc_placa_inicio',  cncInicioPlaca);
-  localStorage.setItem('cnc_placa_numero',  String(cncPlacaNum));
+  const ts = Date.now();
+  console.log('[CNC] Guardando cnc_placa_inicio:', ts, '| placa:', cncPlacaNum, '| iso:', cncInicioPlaca);
+  localStorage.setItem('cnc_placa_inicio', ts.toString());
+  localStorage.setItem('cnc_placa_numero', String(cncPlacaNum));
 }
 function _cncLimpiarPlaca() {
   localStorage.removeItem('cnc_placa_inicio');
