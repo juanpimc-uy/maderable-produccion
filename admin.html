@@ -1274,11 +1274,14 @@ function renderDetallePr(pr, sub) {
             const dur=msH(s.fin-s.inicio);
             const ts=new Date(s.inicio).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
             const isRet=s.tipo==='retrabajo';
-            return`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(37,40,54,.3);${isRet?'background:rgba(240,92,92,.06);border-radius:4px;padding-left:6px;':''}">
+            const isCNC=(s.centroId||'').toUpperCase().includes('CNC');
+            const sesRow=`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(37,40,54,.3);${isRet?'background:rgba(240,92,92,.06);border-radius:4px;padding-left:6px;':''}">
               <div class="av ${s.activa?'active':'idle'}" style="width:22px;height:22px;font-size:10px;flex-shrink:0;">${op?.avatar||'?'}</div>
               <div style="flex:1;min-width:0;"><div style="font-size:11px;font-weight:600;">${op?.nombre||'—'}${isRet?` <span class="pill" style="color:var(--red);background:rgba(240,92,92,.12);border:1px solid rgba(240,92,92,.3);font-size:9px;">⚠ RETRABAJO</span>`:''}</div><div style="font-size:10px;color:${c?.color||'var(--muted)'};">${c?.label||s.centroId}</div></div>
               <div style="text-align:right;flex-shrink:0;"><div class="mono" style="font-size:12px;color:${isRet?'var(--red)':s.activa?'var(--amber)':'var(--text)'};">${fmtH(dur)}${s.activa?' ▶':''}</div><div class="mono" style="font-size:10px;color:var(--muted);">${ts}</div></div>
             </div>`;
+            const cncPlaceholder=isCNC?`<div id="cnc-panel-${s.id}" data-cnc-id="${s.id}" data-op="${(op?.nombre||'').replace(/"/g,'&quot;')}" data-item="${(row.nombre||'').replace(/"/g,'&quot;')}"></div>`:'';
+            return sesRow+cncPlaceholder;
           }).join(''):`<div class="mono" style="font-size:11px;color:var(--muted);padding:8px 0;">Sin sesiones registradas aún</div>`;
           const expId=`tr-exp-${pr.id}-${row.id}`;
           return`<tr style="cursor:pointer;" onclick="toggleTiemposRow('${expId}')">
@@ -1389,7 +1392,60 @@ function guardarProyecto(prId, sub) {
 // MATERIALES — helpers
 // ═══════════════════════════════════════════════════════════════════════════
 function toggleEl(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'block':'none';}
-function toggleTiemposRow(id){const el=document.getElementById(id);if(el)el.style.display=el.style.display==='none'?'table-row':'none';}
+async function toggleTiemposRow(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const isOpening = el.style.display === 'none';
+  el.style.display = isOpening ? 'table-row' : 'none';
+  if (!isOpening) return;
+  // load CNC detail panels for any CNC sessions in this row
+  el.querySelectorAll('[data-cnc-id]').forEach(async panel => {
+    if (panel.dataset.loaded) return;
+    panel.dataset.loaded = '1';
+    panel.innerHTML = `<div class="mono" style="font-size:10px;color:var(--muted);padding:3px 0;">Cargando CNC…</div>`;
+    try {
+      const r = await fetch(`/api/tiempos?action=detalle-cnc&registro_trabajo_id=${panel.dataset.cncId}`);
+      const d = await r.json();
+      const placas = d.placas || [];
+      panel.innerHTML = placas.length ? renderCNCDetalle(placas, panel.dataset.op, panel.dataset.item) : '';
+    } catch { panel.innerHTML = ''; }
+  });
+}
+
+function renderCNCDetalle(placas, operario, item) {
+  const fmtSeg = ms => { if (!ms) return '—'; const s=Math.round(ms/1000),m=Math.floor(s/60); return m>0?`${m}m ${s%60}s`:`${s}s`; };
+  const ok   = placas.filter(p=>p.resultado==='ok');
+  const err  = placas.filter(p=>p.resultado==='error');
+  const salt = placas.filter(p=>p.resultado==='saltada');
+  const durs = placas.filter(p=>p.inicio&&p.fin).map(p=>new Date(p.fin)-new Date(p.inicio));
+  const totalProd = ok.reduce((a,p)=>a+(p.inicio&&p.fin?new Date(p.fin)-new Date(p.inicio):0),0);
+  const promedio  = durs.length ? durs.reduce((a,v)=>a+v,0)/durs.length : 0;
+  const resIcon   = r => r==='ok'?`<span style="color:var(--green);">✓ OK</span>`:r==='error'?`<span style="color:var(--red);">✗ ERROR</span>`:`<span style="color:var(--muted);">→ SALTADA</span>`;
+  const filas = placas.map(p=>{
+    const dur=p.inicio&&p.fin?new Date(p.fin)-new Date(p.inicio):null;
+    return`<tr><td class="mono" style="font-size:11px;padding:4px 12px;color:var(--amber);border-bottom:1px solid rgba(37,40,54,.4);">#${p.placa_numero}</td><td class="mono" style="font-size:11px;padding:4px 12px;border-bottom:1px solid rgba(37,40,54,.4);">${dur?fmtSeg(dur):'—'}</td><td style="font-size:11px;padding:4px 12px;border-bottom:1px solid rgba(37,40,54,.4);">${resIcon(p.resultado)}</td></tr>`;
+  }).join('');
+  return `<div style="margin:4px 0 8px;background:rgba(20,22,30,.7);border:1px solid rgba(245,166,35,.2);border-radius:8px;overflow:hidden;">
+    <div style="padding:7px 12px;background:rgba(245,166,35,.07);border-bottom:1px solid rgba(245,166,35,.15);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span class="mono" style="font-size:10px;font-weight:700;color:var(--amber);letter-spacing:.05em;">DETALLE CNC</span>
+      ${operario?`<span style="font-size:10px;color:var(--muted);">— ${operario}</span>`:''}
+      ${item?`<span style="font-size:10px;color:var(--muted);">· ${nombreCorto(item)}</span>`:''}
+    </div>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="background:rgba(37,40,54,.5);">
+        <th class="mono" style="font-size:10px;color:var(--muted);padding:5px 12px;text-align:left;font-weight:400;letter-spacing:.04em;">PLACA</th>
+        <th class="mono" style="font-size:10px;color:var(--muted);padding:5px 12px;text-align:left;font-weight:400;letter-spacing:.04em;">TIEMPO</th>
+        <th class="mono" style="font-size:10px;color:var(--muted);padding:5px 12px;text-align:left;font-weight:400;letter-spacing:.04em;">RESULTADO</th>
+      </tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <div style="padding:7px 12px;border-top:1px solid rgba(37,40,54,.5);font-size:10px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap;">
+      <span><span style="color:var(--green);">${ok.length} ok</span> · <span style="color:var(--red);">${err.length} error</span> · ${salt.length} saltada${salt.length!==1?'s':''}</span>
+      ${promedio?`<span>Promedio: <span class="mono" style="color:var(--text);">${fmtSeg(promedio)}</span></span>`:''}
+      ${totalProd?`<span>Productivo: <span class="mono" style="color:var(--text);">${fmtSeg(totalProd)}</span></span>`:''}
+    </div>
+  </div>`;
+}
 function toggleTiemposItem(itId){const el=document.getElementById('tiem-exp-'+itId);if(el)el.style.display=el.style.display==='none'?'block':'none';}
 function toggleAddMatForm(prId,mId){toggleEl('add-mat-form-'+mId);}
 

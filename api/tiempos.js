@@ -353,6 +353,18 @@ export default async function handler(req) {
       return ok({ registros: data || [] });
     }
 
+    // ── GET detalle de placas CNC para un registro de trabajo ────────────
+    if (action === 'detalle-cnc' && req.method === 'GET') {
+      const registro_trabajo_id = url.searchParams.get('registro_trabajo_id');
+      const { data, error } = await supabase
+        .from('registros_cnc')
+        .select('*')
+        .eq('registro_trabajo_id', registro_trabajo_id)
+        .order('placa_numero', { ascending: true });
+      if (error) throw error;
+      return ok({ placas: data || [] });
+    }
+
     // ── GET último registro por centro/proyecto/ítem ──────────────────────
     if (action === 'ultimo-registro' && req.method === 'GET') {
       const centro      = url.searchParams.get('centro');
