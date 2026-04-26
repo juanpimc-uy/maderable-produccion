@@ -888,8 +888,6 @@ function guardar(){
   const p={id:'pr_'+Date.now(),numero:gv('f-num'),obra:gv('f-obra'),clienteNombre:gv('f-cliente'),
     fechaInicio:gv('f-inicio'),fechaEntrega:gv('f-entrega'),notas:gv('f-notas'),
     estado:'en_produccion',muebles,materiales,sosCargadas,modulos:[],creadoEn:Date.now()};
-  const lista=JSON.parse(localStorage.getItem('proyectos')||'[]');
-  lista.push(p);localStorage.setItem('proyectos',JSON.stringify(lista));
   fetch('/api/tiempos?action=guardar-proyecto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).catch(console.error);
   document.querySelector('.page').innerHTML=`
     <div style="text-align:center;padding:70px 20px;">
@@ -916,9 +914,9 @@ function showErr(t,msg,show=1){const el=document.getElementById('err-'+t);if(!el
 document.getElementById('f-inicio').value=new Date().toISOString().split('T')[0];
 cargarListaODFs();
 
-let _proyectosCache=JSON.parse(localStorage.getItem('proyectos')||'[]');
+let _proyectosCache=[];
 fetch('/api/tiempos?action=proyectos-completos').then(r=>r.json()).then(d=>{
-  if(d.proyectos){_proyectosCache=d.proyectos;localStorage.setItem('proyectos',JSON.stringify(d.proyectos));}
+  if(d.proyectos){_proyectosCache=d.proyectos;}
 }).catch(()=>{});
 </script>
 
