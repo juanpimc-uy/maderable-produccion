@@ -281,6 +281,41 @@ let OPERARIOS = (()=>{ const s=JSON.parse(localStorage.getItem('operarios')||'[]
 function guardarOperariosLS(){ localStorage.setItem('operarios',JSON.stringify(OPERARIOS)); }
 function getIniciales(nombre){ return (nombre||'').trim().split(/\s+/).map(p=>p[0]||'').join('').toUpperCase().slice(0,2)||'?'; }
 
+async function syncEmpleadoSupabase(op) {
+  try {
+    const r = await fetch('/api/tiempos?action=sync-empleado', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        nombre: op.nombre,
+        cedula: op.cedula || null,
+        categoria: op.categoria || op.especialidad || 'directo',
+        centros_autorizados: op.centros || [],
+        pin: op.pin || '1234',
+        horario_entrada: op.horario_entrada || '08:00',
+        horario_salida:  op.horario_salida  || '17:00',
+      })
+    });
+    const d = await r.json();
+    if (d.error) console.error('Sync error:', d.error);
+    else console.log('Sync OK:', d.empleado?.nombre);
+    return d;
+  } catch(e) { console.warn('Error sync Supabase:', e); }
+}
+
+async function syncTodosOperarios() {
+  const btn = event?.target;
+  if (btn) { btn.disabled = true; }
+  const ops = [...OPERARIOS];
+  let ok = 0;
+  for (let i = 0; i < ops.length; i++) {
+    if (btn) btn.textContent = `↑ Sincronizando ${i+1}/${ops.length}…`;
+    await syncEmpleadoSupabase(ops[i]);
+    ok++;
+  }
+  if (btn) { btn.textContent = `✓ ${ok} sincronizados`; setTimeout(()=>{ btn.textContent='↑ Sincronizar todos'; btn.disabled=false; }, 2500); }
+}
+
 let _syncStatus = 'idle'; // idle | loading | ok | error
 let _lastSync = null;
 let _autoRefreshInterval = null;
@@ -1601,7 +1636,7 @@ function _renderOpEstado() {
     const tid=`t-op-${op.id}`;
     html+=`<div class="op-row ${ses?'busy':''}">
       <div style="flex-shrink:0;text-align:center;">
-        <div class="av ${ses?'active':'idle'}" style="width:48px;height:48px;font-size:16px;">${op.avatar}</div>
+        <div class="av active" style="width:48px;height:48px;font-size:16px;">${op.avatar||getIniciales(op.nombre)}</div>
         <div class="mono" style="font-size:10px;color:var(--muted);margin-top:6px;">${fmtH(totalH)}</div>
       </div>
       <div style="flex:1;">
@@ -1624,8 +1659,11 @@ function _renderOpEstado() {
 }
 
 function _renderOpGestion() {
-  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <button class="btn btn-ghost btn-sm" onclick="cargarTodoDesdeSupabase()">↻ Recargar desde Supabase</button>
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap;">
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost btn-sm" onclick="cargarTodoDesdeSupabase()">↻ Recargar</button>
+      <button class="btn btn-ghost btn-sm" onclick="syncTodosOperarios()">↑ Sincronizar todos</button>
+    </div>
     <button class="btn btn-primary btn-sm" onclick="abrirModalOperario(null)">+ Nuevo Operario</button>
   </div>`;
   const operariosUnicos = OPERARIOS.filter((op, index, self) =>
@@ -1702,6 +1740,16 @@ function abrirModalOperario(opId) {
             ${esps.map(e=>`<option value="${e}">${e}</option>`).join('')}
           </select>
         </div>
+        <div style="flex:0 0 140px;">
+          <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Categoría</label>
+          <select id="mod-op-cat"
+            style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+            <option value="directo">Directo</option>
+            <option value="indirecto">Indirecto</option>
+            <option value="tecnico">Técnico</option>
+            <option value="administrativo">Administrativo</option>
+          </select>
+        </div>
       </div>
       <div>
         <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:8px;">Centros habilitados</label>
@@ -1712,7 +1760,10 @@ function abrirModalOperario(opId) {
         <button class="btn btn-primary" onclick="guardarOperario('${opId||''}')">Guardar</button>
       </div>
     </div>`);
-  if(op){const el=document.getElementById('mod-op-esp');if(el)el.value=op.especialidad||'CNC';}
+  if(op){
+    const el=document.getElementById('mod-op-esp');if(el)el.value=op.especialidad||'CNC';
+    const cat=document.getElementById('mod-op-cat');if(cat)cat.value=op.categoria||'directo';
+  }
 }
 
 function guardarOperario(opId) {
@@ -1721,33 +1772,18 @@ function guardarOperario(opId) {
   const avatarInput=(document.getElementById('mod-op-avatar')?.value||'').trim().toUpperCase().slice(0,2);
   const avatar=avatarInput||getIniciales(nombre);
   const especialidad=document.getElementById('mod-op-esp')?.value||'General';
+  const categoria=document.getElementById('mod-op-cat')?.value||'directo';
   const centros=CENTROS.map(c=>c.id).filter(id=>document.getElementById('mod-op-c-'+id)?.checked);
   if(!nombre){alert('El nombre es obligatorio');return;}
   if(!centros.length){alert('Habilitá al menos un centro de trabajo');return;}
   if(opId){
     const op=OPERARIOS.find(o=>o.id===opId);
-    if(op){op.nombre=nombre;op.cedula=cedula;op.avatar=avatar;op.especialidad=especialidad;op.centros=centros;}
+    if(op){op.nombre=nombre;op.cedula=cedula;op.avatar=avatar;op.especialidad=especialidad;op.centros=centros;op.categoria=categoria;}
+    syncEmpleadoSupabase(op);
   }else{
-    const nuevoOp={id:'op'+Date.now(),nombre,cedula,especialidad,avatar,status:'disponible',centros,categoria:'directo'};
+    const nuevoOp={id:'op'+Date.now(),nombre,cedula,especialidad,avatar,status:'disponible',centros,categoria};
     OPERARIOS.push(nuevoOp);
-    guardarOperariosLS();
-    fetch('/api/tiempos?action=sync-empleado', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        nombre: nuevoOp.nombre,
-        cedula: nuevoOp.cedula || null,
-        categoria: nuevoOp.especialidad || nuevoOp.categoria || 'directo',
-        centros_autorizados: nuevoOp.centros || [],
-        pin: '1234'
-      })
-    }).then(r=>r.json()).then(d=>{
-      if(d.error) console.error('Sync error:',d.error);
-      else console.log('Sync OK:',d.empleado?.nombre);
-    }).catch(e=>console.warn('Sync error:',e));
-    cerrarModal();
-    _renderOpGestion();
-    return;
+    syncEmpleadoSupabase(nuevoOp);
   }
   guardarOperariosLS();
   cerrarModal();

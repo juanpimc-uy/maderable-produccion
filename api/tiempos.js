@@ -294,6 +294,19 @@ export default async function handler(req) {
       return ok({ jornada: data });
     }
 
+    // ── PATCH actualizar empleado existente ───────────────────────────────
+    if (action === 'actualizar-empleado' && req.method === 'PATCH') {
+      const { nombre, categoria, centros_autorizados, cedula } = body;
+      if (!nombre) return err('nombre requerido');
+      const { data, error } = await supabase
+        .from('empleados')
+        .update({ categoria, centros_autorizados, cedula: cedula || null })
+        .eq('nombre', nombre)
+        .select().single();
+      if (error) throw error;
+      return ok({ empleado: data });
+    }
+
     // ── GET registros de trabajo (sesiones + historial para admin) ────────
     if (action === 'registros-todos' && req.method === 'GET') {
       const dias = parseInt(url.searchParams.get('dias') || '60');
