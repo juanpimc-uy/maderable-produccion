@@ -471,35 +471,38 @@ async function syncTodosOperarios() {
 
 async function syncProyectoSupabase(proyecto) {
   const body = {
-    id: proyecto.id || proyecto.numero,
-    nombre: proyecto.nombre || proyecto.obra,
-    cliente: proyecto.cliente || proyecto.clienteNombre || '',
-    items: proyecto.muebles || proyecto.items || []
+    id: proyecto.id,
+    numero: proyecto.numero || proyecto.nombre,
+    obra: proyecto.obra || proyecto.nombre,
+    clienteNombre: proyecto.clienteNombre || proyecto.cliente || '',
+    fechaInicio: proyecto.fechaInicio,
+    fechaEntrega: proyecto.fechaEntrega,
+    notas: proyecto.notas || '',
+    estado: proyecto.estado || 'en_produccion',
+    muebles: proyecto.muebles || [],
+    materiales: proyecto.materiales || [],
+    sosCargadas: proyecto.sosCargadas || [],
+    modulos: proyecto.modulos || [],
+    creadoEn: proyecto.creadoEn,
   };
-  console.log('Syncing proyecto:', body.nombre, JSON.stringify(body).slice(0, 200));
   try {
-    const res = await fetch('/api/tiempos?action=sync-proyecto', {
+    const res = await fetch('/api/tiempos?action=guardar-proyecto', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    const data = await res.json();
-    console.log('Respuesta sync:', res.status, data);
-    return data;
+    return res.json();
   } catch(e) {
     console.warn('No se pudo sincronizar proyecto:', e);
   }
 }
 
 async function syncTodosProyectos() {
-  console.log('Iniciando sync proyectos...');
-  const todos = JSON.parse(localStorage.getItem('proyectos') || '[]');
-  console.log('Proyectos en localStorage:', todos.length, todos);
-  if (!todos.length) { alert('No hay proyectos en localStorage para sincronizar.'); return; }
+  if (!PROYECTOS.length) { alert('No hay proyectos cargados.'); return; }
   const btn = event?.target;
   if (btn) { btn.textContent = '↑ Sincronizando…'; btn.disabled = true; }
   let ok = 0, errCount = 0;
-  for (const p of todos) {
+  for (const p of PROYECTOS) {
     try {
       const d = await syncProyectoSupabase(p);
       if (d?.error) { console.error('Error en proyecto', p.nombre, d.error); errCount++; }
@@ -527,55 +530,35 @@ const CENTROS = [
   {id:'empaquetado', label:'Empaquetado/Coloc.',  icon:'▣',color:'var(--green)'},
 ];
 
-const SEED_PROYECTOS = [
-  {id:'pr1',clienteNombre:'Estudio JCE',nombre:'MON BRAVA 301',estado:'en_produccion',
-   items:[
-     {id:'it1',nombre:'Closet Dormitorio Principal',centros:['corte','enchapado','armado','revision','empaquetado'],hEst:18,nota:'Verificar medidas con plano v3. Tolerancia ±1mm en paneles laterales.'},
-     {id:'it2',nombre:'Cocina Integral',            centros:['corte','armado','revision'],                         hEst:32,nota:'Módulos altos primero. Consultar con Diego el tema de las bisagras.'},
-     {id:'it3',nombre:'Puerta Principal',           centros:['corte','enchapado','revision','empaquetado'],        hEst:8, nota:'Enchapado en dirección horizontal. Revisar muestra de color aprobada.'},
-   ],
-   materiales:[
-     {id:'ma1',nombre:'MDF 18mm',        unidad:'planchas',requerido:24,recibido:18},
-     {id:'ma2',nombre:'Melamina Blanca', unidad:'planchas',requerido:12,recibido:12},
-     {id:'ma3',nombre:'Enchapado Nogal', unidad:'planchas',requerido:6, recibido:0 },
-   ],
-   modulos:[
-     {id:'mo1',itemId:'it1',nombre:'Panel Lateral Izq.',estado:'en_inventario',despacho:null},
-     {id:'mo2',itemId:'it1',nombre:'Panel Lateral Der.',estado:'en_inventario',despacho:null},
-     {id:'mo3',itemId:'it2',nombre:'Módulo Bajo 80cm', estado:'despachado',   despacho:'01/04/2025'},
-   ],
-  },
-  {id:'pr2',clienteNombre:'BAUTEN',nombre:'MELI COSMOS',estado:'en_produccion',
-   items:[
-     {id:'it4',nombre:'Banco Corrido Lobby',centros:['corte','armado','empaquetado'],hEst:10,nota:'Largo total 4.2m. Se corta en 3 tramos y se ensambla en obra.'},
-     {id:'it5',nombre:'Revestimiento Pared',centros:['corte','enchapado','revision'], hEst:20,nota:'Listones de 12cm de ancho. Junta de 3mm entre piezas.'},
-   ],
-   materiales:[
-     {id:'ma4',nombre:'MDF 18mm',      unidad:'planchas',requerido:16,recibido:16},
-     {id:'ma5',nombre:'HDF 3mm Fondo', unidad:'planchas',requerido:30,recibido:10},
-   ],
-   modulos:[],
-  },
-];
-
-// Cargar proyectos: localStorage primero, luego seed
-let PROYECTOS = (()=>{
-  const stored = JSON.parse(localStorage.getItem('proyectos') || '[]');
-  if (!stored.length) return SEED_PROYECTOS;
-  return stored.map(p => ({
+function mapProyectoFromDB(p) {
+  const muebles = p.muebles || p.items || [];
+  return {
     ...p,
     nombre: p.obra || p.nombre || '',
-    clienteNombre: p.clienteNombre || '',
-    items: (p.muebles || []).map(m => ({
+    clienteNombre: p.clienteNombre || p.cliente_nombre || p.cliente || '',
+    muebles,
+    items: muebles.map(m => ({
       id: m.id,
       nombre: [m.codigo, m.nombre].filter(Boolean).join(' – '),
-      centros: [],
-      hEst: Object.values(m.horas || {}).reduce((a,v)=>a+Number(v||0), 0),
-      nota: '',
+      centros: m.centros || [],
+      hEst: m.hEst || Object.values(m.horas || {}).reduce((a,v)=>a+Number(v||0), 0),
+      nota: m.nota || ''
     })),
     materiales: p.materiales || [],
-    modulos: p.modulos || [],
-  }));
+    modulos: p.modulos || []
+  };
+}
+
+let PROYECTOS = [];
+(async () => {
+  try {
+    const data = await window.sbFetch('proyectos_cache?activo=eq.true&order=nombre');
+    PROYECTOS = (data || []).map(mapProyectoFromDB);
+  } catch (e) {
+    console.error('Error cargando proyectos:', e);
+    PROYECTOS = [];
+  }
+  if (typeof renderCurrentView === 'function') renderCurrentView();
 })();
 
 const NOW = Date.now(), H = h => h * 3600000;
@@ -742,8 +725,7 @@ function renderDashboard() {
   document.getElementById('kpi-operarios').textContent  = `${ocupados.length}/${OPERARIOS.length}`;
   document.getElementById('kpi-inventario').textContent = totalMod-desp;
   document.getElementById('kpi-despachados').textContent= desp;
-  const proyStorage = JSON.parse(localStorage.getItem('proyectos')||'[]');
-  const bloqueados = proyStorage.reduce((a,p)=>a+(p.muebles||[]).filter(m=>(m.mats||[]).some(mat=>mat.critico&&(mat.recibido||0)<mat.requerido)).length,0);
+  const bloqueados = PROYECTOS.reduce((a,p)=>a+(p.muebles||[]).filter(m=>(m.mats||[]).some(mat=>mat.critico&&(mat.recibido||0)<mat.requerido)).length,0);
   const kpiBloq = document.getElementById('kpi-bloqueados');
   kpiBloq.textContent = bloqueados;
   kpiBloq.style.color = bloqueados>0?'var(--red)':'var(--green)';
@@ -1372,18 +1354,6 @@ function guardarProyecto(prId, sub) {
       nota: '',
     }));
   }
-  // si vino de localStorage, guardar de vuelta
-  const stored = JSON.parse(localStorage.getItem('proyectos')||'[]');
-  if(stored.length) {
-    const idx = stored.findIndex(p=>p.id===prId);
-    if(idx>=0) {
-      stored[idx].nombre = pr.nombre;
-      stored[idx].obra = pr.nombre;
-      stored[idx].clienteNombre = pr.clienteNombre;
-      if(pr.muebles) stored[idx].muebles = pr.muebles;
-      localStorage.setItem('proyectos', JSON.stringify(stored));
-    }
-  }
   syncProyectoSupabase(pr);
   editMode = false;
   renderDetallePr(pr, sub||'resumen');
@@ -1465,8 +1435,7 @@ function toggleRecibir(mId,matIdx){
 function confirmarRecibirInline(prId,mId,matId,matIdx){
   const qty=parseFloat(document.getElementById('recv-qty-'+mId+'-'+matIdx)?.value||0);
   if(!qty||qty<=0){alert('Cantidad inválida');return;}
-  const stored=JSON.parse(localStorage.getItem('proyectos')||'[]');
-  const p=stored.find(x=>x.id===prId);
+  const p=PROYECTOS.find(x=>x.id===prId);
   const m=p?.muebles?.find(x=>x.id===mId);
   const mat=m?.mats?.find(x=>x.id===matId);
   if(!mat)return;
@@ -1477,10 +1446,7 @@ function confirmarRecibirInline(prId,mId,matId,matIdx){
   const critPend=mats.filter(x=>x.critico&&(x.recibido||0)<x.requerido);
   const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
   m.semaforo=critPend.length?'rojo':allPend.length?'amarillo':'verde';
-  localStorage.setItem('proyectos',JSON.stringify(stored));
   syncProyectoSupabase(p);
-  const inMem=PROYECTOS.find(x=>x.id===prId);
-  if(inMem)inMem.muebles=p.muebles;
   // banner si críticos completos
   if(!critPend.length&&allPend.length===0){
     const banner=document.createElement('div');
@@ -1493,8 +1459,7 @@ function confirmarRecibirInline(prId,mId,matId,matIdx){
 }
 
 function toggleCriticoInline(prId,mId,matId){
-  const stored=JSON.parse(localStorage.getItem('proyectos')||'[]');
-  const p=stored.find(x=>x.id===prId);
+  const p=PROYECTOS.find(x=>x.id===prId);
   const m=p?.muebles?.find(x=>x.id===mId);
   const mat=m?.mats?.find(x=>x.id===matId);
   if(!mat)return;
@@ -1503,17 +1468,11 @@ function toggleCriticoInline(prId,mId,matId){
   const critPend=mats.filter(x=>x.critico&&(x.recibido||0)<x.requerido);
   const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
   m.semaforo=critPend.length?'rojo':allPend.length?'amarillo':'verde';
-  localStorage.setItem('proyectos',JSON.stringify(stored));
   syncProyectoSupabase(p);
-  const inMem=PROYECTOS.find(x=>x.id===prId);
-  if(inMem)inMem.muebles=p.muebles;
-  renderDetallePr(PROYECTOS.find(x=>x.id===prId),'materiales');
+  renderDetallePr(p,'materiales');
 }
 
 function guardarMueblesLS(prId, pr){
-  const stored=JSON.parse(localStorage.getItem('proyectos')||'[]');
-  const idx=stored.findIndex(p=>p.id===prId);
-  if(idx>=0){stored[idx].muebles=pr.muebles;localStorage.setItem('proyectos',JSON.stringify(stored));}
   syncProyectoSupabase(pr);
 }
 
@@ -2222,7 +2181,7 @@ async function renderMateriales() {
 }
 
 function renderMatTabOCs() {
-  window._zohoProyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  window._zohoProyStorage=PROYECTOS;
   // OCs manuales previamente guardadas
   const ocsManual=JSON.parse(localStorage.getItem('ocs_manuales')||'[]')
     .filter(oc=>!ocsProcesadas.includes(oc.purchaseorder_id));
@@ -2430,11 +2389,8 @@ function renderOC(oc, items){
 function recibirOCCompleta(){
   if(!window._ocActual){console.error('No hay OC activa en window._ocActual');return;}
   const {oc,items}=window._ocActual;
-  const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
-  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(items,proyStorage);
-  localStorage.setItem('proyectos',JSON.stringify(proyStorage));
-  proyStorage.forEach(p=>syncProyectoSupabase(p));
-  PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
+  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(items,PROYECTOS);
+  PROYECTOS.forEach(p=>syncProyectoSupabase(p));
   ocsProcesadas.push(oc.purchaseorder_id);
   localStorage.setItem('ocsProcesadas',JSON.stringify(ocsProcesadas));
   const contenedor=document.getElementById('oc-resultado');
@@ -2486,11 +2442,8 @@ function recibirOCRegistrada(ocId){
   if(!ocReg)return;
   // convertir items a formato line_items para _cruzarItemsConMuebles
   const lineItems=ocReg.items.map(i=>({name:i.nombre,sku:i.sku,quantity:i.cantidad,unit:i.unidad}));
-  const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
-  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(lineItems,proyStorage);
-  localStorage.setItem('proyectos',JSON.stringify(proyStorage));
-  proyStorage.forEach(p=>syncProyectoSupabase(p));
-  PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
+  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(lineItems,PROYECTOS);
+  PROYECTOS.forEach(p=>syncProyectoSupabase(p));
   ocReg.estado='recibida';
   ocReg.fechaRecepcion=new Date().toISOString();
   ocReg.items=ocReg.items.map(i=>({...i,recibido:i.cantidad}));
@@ -2529,11 +2482,8 @@ function confirmarParcialOCSistema(ocId,itemCount){
   const todoRecibido=ocReg.items.every(i=>(i.recibido||0)>=i.cantidad);
   if(todoRecibido){
     const lineItems=ocReg.items.map(i=>({name:i.nombre,sku:i.sku,quantity:i.cantidad,unit:i.unidad}));
-    const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
-    const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(lineItems,proyStorage);
-    localStorage.setItem('proyectos',JSON.stringify(proyStorage));
-    proyStorage.forEach(p=>syncProyectoSupabase(p));
-    PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
+    const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(lineItems,PROYECTOS);
+    PROYECTOS.forEach(p=>syncProyectoSupabase(p));
     ocReg.estado='recibida';
     ocReg.fechaRecepcion=new Date().toISOString();
     alert(`✓ OC recibida completamente. ${matActualizados} materiales actualizados. ${mueblesDesbloqueados.length} muebles desbloqueados.`);
@@ -2648,11 +2598,8 @@ function _mostrarResumenOC(ocId,matActualizados,mueblesDesbloqueados,parcial=fal
 function ejecutarRecibirOCCompleta(ocId){
   const oc=window._zohoOCs?.find(o=>o.purchaseorder_id===ocId);
   if(!oc)return;
-  const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
-  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(oc.line_items||[],proyStorage);
-  localStorage.setItem('proyectos',JSON.stringify(proyStorage));
-  proyStorage.forEach(p=>syncProyectoSupabase(p));
-  PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
+  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(oc.line_items||[],PROYECTOS);
+  PROYECTOS.forEach(p=>syncProyectoSupabase(p));
   ocsProcesadas.push(ocId);
   localStorage.setItem('ocsProcesadas',JSON.stringify(ocsProcesadas));
   const card=document.getElementById('oc-card-'+ocId);
@@ -2697,16 +2644,13 @@ function ejecutarRecepcionParcial(ocId,itemCount){
     const li=allItems[i];
     if(li)selItems.push({...li,quantity:qty});
   }
-  const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
-  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(selItems,proyStorage);
-  localStorage.setItem('proyectos',JSON.stringify(proyStorage));
-  proyStorage.forEach(p=>syncProyectoSupabase(p));
-  PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
+  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(selItems,PROYECTOS);
+  PROYECTOS.forEach(p=>syncProyectoSupabase(p));
   _mostrarResumenOC(ocId,matActualizados,mueblesDesbloqueados,true);
 }
 
 function renderMatTabPorProyecto(){
-  const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const proyStorage=PROYECTOS;
   if(!proyStorage.length){document.getElementById('mat-contenido').innerHTML=`<div class="mono" style="font-size:11px;color:var(--muted);text-align:center;padding:32px;">Sin proyectos cargados</div>`;return;}
   let html=`<div style="display:flex;flex-direction:column;gap:16px;">`;
   proyStorage.forEach(p=>{
@@ -2746,8 +2690,7 @@ function renderMatTabPorProyecto(){
 }
 
 function toggleCriticoMat(prId,mId,matId){
-  const stored=JSON.parse(localStorage.getItem('proyectos')||'[]');
-  const p=stored.find(x=>x.id===prId);
+  const p=PROYECTOS.find(x=>x.id===prId);
   const m=p?.muebles?.find(x=>x.id===mId);
   const mat=m?.mats?.find(x=>x.id===matId);
   if(!mat)return;
@@ -2757,16 +2700,12 @@ function toggleCriticoMat(prId,mId,matId){
   const critPend=mats.filter(x=>x.critico&&(x.recibido||0)<x.requerido);
   const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
   m.semaforo=critPend.length?'rojo':allPend.length?'amarillo':'verde';
-  localStorage.setItem('proyectos',JSON.stringify(stored));
   syncProyectoSupabase(p);
-  const inMem=PROYECTOS.find(x=>x.id===prId);
-  if(inMem)inMem.muebles=p.muebles;
   renderMatTabPorProyecto();
 }
 
 function recibirMatMueble(prId,mId,matId){
-  const stored=JSON.parse(localStorage.getItem('proyectos')||'[]');
-  const p=stored.find(x=>x.id===prId);
+  const p=PROYECTOS.find(x=>x.id===prId);
   const m=p?.muebles?.find(x=>x.id===mId);
   const mat=m?.mats?.find(x=>x.id===matId);
   if(!mat)return;
@@ -2781,10 +2720,7 @@ function recibirMatMueble(prId,mId,matId){
   const critPend=mats.filter(x=>x.critico&&(x.recibido||0)<x.requerido);
   const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
   if(!critPend.length&&!allPend.length)m.estado='listo';
-  localStorage.setItem('proyectos',JSON.stringify(stored));
   syncProyectoSupabase(p);
-  const inMem=PROYECTOS.find(x=>x.id===prId);
-  if(inMem)inMem.muebles=p.muebles;
   renderMatTabPorProyecto();
 }
 
