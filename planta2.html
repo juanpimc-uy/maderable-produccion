@@ -383,53 +383,45 @@ textarea.campo {
 <!-- ══════════════════════════════════════════════════════════════════════
   PANTALLA CNC
 ══════════════════════════════════════════════════════════════════════ -->
-<div id="pantalla-cnc" class="pantalla">
+<div id="pantalla-cnc" class="pantalla" style="display:none;flex-direction:column;min-height:100vh;">
+  <!-- Header -->
   <div class="header">
-    <button class="back-link" onclick="finalizarCNC()">⬚</button>
-    <span class="header-logo" style="font-size:10px;letter-spacing:1px;flex:1;text-align:center;" id="cnc-header">CNC</span>
-    <span class="task-timer-sm" id="cnc-task-timer">0h 00m</span>
+    <span class="header-logo" style="font-size:10px;letter-spacing:1px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="cnc-header">CNC</span>
+    <span class="mono" style="font-size:12px;color:var(--muted);flex-shrink:0;margin-left:10px;" id="cnc-task-timer">0h 00m</span>
   </div>
-  <div class="contenido" style="align-items:center;">
+
+  <!-- Centro expansible -->
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:16px;">
 
     <!-- Placa activa -->
-    <div id="cnc-card-corte" class="card" style="width:100%;text-align:center;padding:28px 20px;">
-      <span class="lbl">EN CORTE</span>
-      <div style="font-size:20px;font-weight:700;margin-bottom:8px;" id="cnc-placa-label">PLACA #1</div>
-      <div class="cnc-timer-big" id="cnc-placa-timer">00:00:00</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px;">
-        <button class="btn btn-success btn-sm" onclick="registrarPlaca('ok')">✓ OK</button>
-        <button class="btn btn-danger  btn-sm" onclick="registrarPlaca('error')">✗ ERROR</button>
-        <button class="btn btn-ghost   btn-sm" onclick="registrarPlaca('saltada')"
-          style="grid-column:1/-1;">→ SALTAR PLACA</button>
+    <div id="cnc-card-corte" style="width:100%;text-align:center;">
+      <div class="mono" style="font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:12px;">EN CORTE</div>
+      <div class="mono" style="font-size:80px;font-weight:700;color:var(--accent);line-height:1;" id="cnc-placa-label">#1</div>
+      <div class="mono" style="font-size:36px;color:var(--text);margin:12px 0 4px;" id="cnc-placa-timer">00:00:00</div>
+      <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:24px;">PLACA EN PROCESO</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">
+        <button onclick="registrarPlaca('ok')" style="min-height:100px;background:var(--accent);color:#000;border:none;border-radius:12px;font-family:'Space Mono',monospace;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;-webkit-tap-highlight-color:transparent;">✓&nbsp;OK</button>
+        <button onclick="registrarPlaca('error')" style="min-height:100px;background:var(--card);color:var(--red);border:2px solid var(--red);border-radius:12px;font-family:'Space Mono',monospace;font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;-webkit-tap-highlight-color:transparent;">✗&nbsp;ERROR</button>
       </div>
+      <button onclick="registrarPlaca('saltada')" style="width:100%;min-height:60px;background:var(--card);color:#666;border:1.5px solid #444;border-radius:12px;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;">→ SALTAR PLACA</button>
     </div>
 
     <!-- Tiempo muerto -->
-    <div id="cnc-card-idle" class="card" style="width:100%;text-align:center;padding:28px 20px;display:none;">
-      <span class="lbl" style="color:var(--muted);">⏸ TIEMPO MUERTO</span>
-      <div class="cnc-timer-big" id="cnc-idle-timer" style="color:var(--muted);">00:00:00</div>
-      <button class="btn btn-primary btn-sm" style="margin-top:20px;" onclick="iniciarCorte()">
-        INICIAR CORTE — PLACA <span id="cnc-prox-num">1</span>
-      </button>
+    <div id="cnc-card-idle" style="width:100%;text-align:center;display:none;">
+      <div class="mono" style="font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:16px;">⏸ TIEMPO MUERTO</div>
+      <div class="mono" style="font-size:48px;color:var(--muted);margin-bottom:24px;" id="cnc-idle-timer">00:00:00</div>
+      <button onclick="iniciarCorte()" style="width:100%;min-height:80px;background:var(--accent);color:#000;border:none;border-radius:12px;font-family:'Space Mono',monospace;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;">▶ INICIAR PLACA #<span id="cnc-prox-num">1</span></button>
     </div>
 
-    <!-- Mensaje resultado breve -->
-    <div id="cnc-resultado-msg" style="width:100%;text-align:center;padding:12px 16px;
-      border-radius:8px;font-family:'Space Mono',monospace;font-size:13px;
-      font-weight:700;display:none;"></div>
+    <!-- Mensaje resultado -->
+    <div id="cnc-resultado-msg" style="width:100%;text-align:center;padding:12px 16px;border-radius:8px;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;display:none;"></div>
 
-    <!-- Resumen -->
-    <div class="card" style="width:100%;text-align:center;">
-      <span class="lbl">RESUMEN</span>
-      <div id="cnc-resumen" style="font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);line-height:1.8;">
-        ✓ 0 ok &nbsp;·&nbsp; ✗ 0 errores &nbsp;·&nbsp; → 0 saltadas<br>⏱ prom —
-      </div>
-    </div>
+  </div>
 
-    <button class="btn btn-ghost btn-sm" style="width:100%;" onclick="finalizarCNC()">
-      ⏹&nbsp; Finalizar sesión CNC
-    </button>
-    <div style="height:16px;"></div>
+  <!-- Footer fijo -->
+  <div style="background:var(--card);border-top:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;">
+    <div class="mono" style="font-size:11px;color:var(--muted);" id="cnc-resumen">✓ 0 ok &nbsp;✗ 0 err &nbsp;→ 0 salt &nbsp;⌀ —</div>
+    <button onclick="finalizarCNC()" style="background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'Space Mono',monospace;font-size:11px;padding:8px 14px;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;">⏹ Finalizar</button>
   </div>
 </div>
 
@@ -841,8 +833,11 @@ function selProyecto(id) {
   } else {
     el.innerHTML = items.map(it => `
       <button class="item-btn" id="it-${it.id}" onclick="selItem('${it.id}')">
-        ${it.hEst ? `<span class="item-cod">Est. ${it.hEst}h</span>` : ''}
-        <span class="item-nombre">${it.nombre}</span>
+        <div style="display:flex;align-items:baseline;gap:8px;">
+          ${it.codigo ? `<span class="item-cod" style="flex-shrink:0;">${it.codigo}</span>` : ''}
+          <span class="item-nombre" style="overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${it.nombre}</span>
+        </div>
+        ${it.hEst ? `<span class="item-sub">Est. ${it.hEst}h</span>` : ''}
       </button>
     `).join('');
   }
@@ -887,6 +882,8 @@ function selCentro(id, nombre) {
 
   document.getElementById('paso-confirmar').style.display = 'block';
   document.getElementById('paso-confirmar').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const btnConf = document.getElementById('btn-confirmar-tarea');
+  if (btnConf) { btnConf.disabled = false; btnConf.style.opacity = ''; }
 }
 
 async function confirmarTarea() {
@@ -924,6 +921,7 @@ async function confirmarTarea() {
     btn.disabled = false;
   } finally {
     btn.textContent = 'CONFIRMAR TAREA';
+    btn.disabled = false;
   }
 }
 
@@ -934,9 +932,9 @@ let _intCNC = null;
 
 function initCNC() {
   cncPlacaNum   = 1;
-  cncEstado     = 'idle';
-  cncInicioIdle = Date.now();
-  cncInicioPlaca = null;
+  cncEstado     = 'cortando';
+  cncInicioPlaca = new Date().toISOString();
+  cncInicioIdle  = null;
   cncPlacasOk   = 0; cncPlacasErr = 0; cncPlacasSalt = 0;
   cncDuraciones = [];
 
@@ -1037,7 +1035,7 @@ function updateCNCResumen() {
 
 function finalizarCNC() {
   clearInterval(_intCNC);
-  renderMenuTarea(); ir('pantalla-menu');
+  ir('pantalla-finalizar'); initFinalizar();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
