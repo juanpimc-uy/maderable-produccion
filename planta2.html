@@ -847,7 +847,7 @@ function selProyecto(id) {
 
 function selItem(id) {
   const items = proyectoSel?.items || [];
-  itemSel = items.find(i => i.id === id);
+  itemSel = items.find(i => String(i.id) === String(id)) || null;
   centroSel = null;
   document.querySelectorAll('#lista-items .item-btn').forEach(b => b.classList.remove('sel'));
   document.getElementById('it-' + id)?.classList.add('sel');
@@ -856,13 +856,18 @@ function selItem(id) {
   document.getElementById('aviso-centro').style.display = 'none';
 
   const centros = empleadoActual?.centros_autorizados || [];
+  console.log('centros_autorizados del empleado:', centros);
   const el = document.getElementById('lista-centros');
-  el.innerHTML = centros.map(c => `
-    <button class="centro-btn" id="ct-${esc(c)}" onclick="selCentro('${esc(c)}','${c}')">
-      <span class="centro-dot"></span>
-      <span>${c}</span>
-    </button>
-  `).join('');
+  if (!centros.length) {
+    el.innerHTML = '<div class="warn-box">⚠ Este empleado no tiene centros autorizados configurados. Contactá al administrador.</div>';
+  } else {
+    el.innerHTML = centros.map(c => `
+      <button class="centro-btn" id="ct-${esc(c)}" onclick="selCentro('${esc(c)}','${c}')">
+        <span class="centro-dot"></span>
+        <span>${c}</span>
+      </button>
+    `).join('');
+  }
   document.getElementById('paso-centro').style.display = 'block';
   document.getElementById('paso-centro').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
