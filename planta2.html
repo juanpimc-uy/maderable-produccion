@@ -1031,8 +1031,11 @@ function initCNC(esRestauracion = false) {
   document.getElementById('cnc-input-inicio').value = 1;
 
   if (esRestauracion) {
+    const savedInicio = localStorage.getItem('cnc_placa_inicio');
+    const savedNumero = localStorage.getItem('cnc_placa_numero');
+    cncPlacaNum    = parseInt(savedNumero) || 1;
+    cncInicioPlaca = savedInicio || new Date().toISOString();
     cncEstado      = 'cortando';
-    cncInicioPlaca = new Date().toISOString();
   }
 
   renderCNCEstado();
@@ -1072,6 +1075,7 @@ function arrancarCorteCNC() {
   cncPlacaNum    = Math.max(1, n);
   cncEstado      = 'cortando';
   cncInicioPlaca = new Date().toISOString();
+  _cncGuardarPlaca();
   document.getElementById('cnc-placa-timer').textContent = '00:00:00';
   renderCNCEstado();
 }
@@ -1081,6 +1085,7 @@ function iniciarCorte() {
   cncPlacaNum    = Math.max(1, n);
   cncEstado      = 'cortando';
   cncInicioPlaca = new Date().toISOString();
+  _cncGuardarPlaca();
   document.getElementById('cnc-placa-timer').textContent = '00:00:00';
   renderCNCEstado();
 }
@@ -1090,6 +1095,7 @@ async function registrarPlaca(resultado) {
   const durSecs = cncInicioPlaca ? elapsed(cncInicioPlaca) : 0;
   const numActual = cncPlacaNum;
 
+  _cncLimpiarPlaca(); // placa terminando — borrar del localStorage
   document.querySelectorAll('#cnc-card-corte button').forEach(b => b.disabled = true);
 
   try {
@@ -1146,6 +1152,7 @@ function repetirPlaca() {
   document.getElementById('cnc-modal-error').style.display = 'none';
   cncEstado      = 'cortando';
   cncInicioPlaca = new Date().toISOString();
+  _cncGuardarPlaca();
   document.getElementById('cnc-placa-timer').textContent = '00:00:00';
   renderCNCEstado();
 }
@@ -1156,6 +1163,7 @@ function confirmarErrorNueva() {
   cncPlacaNum    = Math.max(1, n);
   cncEstado      = 'cortando';
   cncInicioPlaca = new Date().toISOString();
+  _cncGuardarPlaca();
   document.getElementById('cnc-placa-timer').textContent = '00:00:00';
   renderCNCEstado();
 }
@@ -1170,11 +1178,22 @@ function confirmarSaltar() {
   renderCNCEstado();
 }
 
+// ── localStorage helpers para restaurar timer de placa ────────────────────
+function _cncGuardarPlaca() {
+  localStorage.setItem('cnc_placa_inicio',  cncInicioPlaca);
+  localStorage.setItem('cnc_placa_numero',  String(cncPlacaNum));
+}
+function _cncLimpiarPlaca() {
+  localStorage.removeItem('cnc_placa_inicio');
+  localStorage.removeItem('cnc_placa_numero');
+}
+
 function abrirOpcionesCNC()  { document.getElementById('cnc-modal-opciones').style.display = 'flex'; }
 function cerrarOpcionesCNC() { document.getElementById('cnc-modal-opciones').style.display = 'none'; }
 
 function cambiarTareaCNC() {
   cerrarOpcionesCNC();
+  _cncLimpiarPlaca();
   // Registrar placa en curso como saltada
   if (cncEstado === 'cortando' && cncInicioPlaca) {
     apiPost('cnc-placa', {
@@ -1204,6 +1223,7 @@ function updateCNCResumen() {
 }
 
 function finalizarCNC() {
+  _cncLimpiarPlaca();
   clearInterval(_intCNC);
   ir('pantalla-finalizar'); initFinalizar();
 }
