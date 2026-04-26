@@ -279,20 +279,37 @@ const _OPERARIOS_SEED = [
 let OPERARIOS = (()=>{ const s=JSON.parse(localStorage.getItem('operarios')||'[]'); return s.length?s:_OPERARIOS_SEED; })();
 function guardarOperariosLS(){ localStorage.setItem('operarios',JSON.stringify(OPERARIOS)); }
 
-async function syncProyectoCache(pr) {
-  if (!pr) return;
-  const items = (pr.muebles || []).map(mu => ({
-    id: mu.id,
-    nombre: [mu.codigo, mu.nombre].filter(Boolean).join(' – '),
-    hEst: Object.values(mu.horas || {}).reduce((a, v) => a + Number(v || 0), 0),
-  }));
+async function syncProyectoSupabase(proyecto) {
   try {
     await fetch('/api/tiempos?action=sync-proyecto', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: pr.id, nombre: pr.nombre, cliente: pr.clienteNombre, items }),
+      body: JSON.stringify({
+        id: proyecto.id || proyecto.numero,
+        nombre: proyecto.nombre || proyecto.obra,
+        cliente: proyecto.cliente || proyecto.clienteNombre,
+        items: proyecto.muebles || proyecto.items || []
+      })
     });
-  } catch (e) { /* silently fail if API not available */ }
+  } catch(e) {
+    console.warn('No se pudo sincronizar proyecto:', e);
+  }
+}
+
+async function syncTodosProyectos() {
+  const todos = JSON.parse(localStorage.getItem('proyectos') || '[]');
+  if (!todos.length) { alert('No hay proyectos en localStorage para sincronizar.'); return; }
+  const btn = event?.target;
+  if (btn) { btn.textContent = '↑ Sincronizando…'; btn.disabled = true; }
+  let ok = 0, err = 0;
+  for (const p of todos) {
+    try {
+      await syncProyectoSupabase(p);
+      ok++;
+    } catch(e) { err++; }
+  }
+  if (btn) { btn.textContent = '↑ Sincronizar todos a planta'; btn.disabled = false; }
+  alert(`Sincronización completa: ${ok} proyectos enviados${err ? `, ${err} con error` : ''}.`);
 }
 
 const FLUJOS_CONF = {
@@ -642,7 +659,7 @@ function renderProyectos() {
       </div>`;
   }
 
-  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><div class="sec-title" style="margin:0;">Proyectos</div><a href="nuevo-proyecto.html" style="text-decoration:none;"><button class="btn btn-primary">+ Nuevo Proyecto</button></a></div>`;
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><div class="sec-title" style="margin:0;">Proyectos</div><div style="display:flex;gap:8px;"><button class="btn btn-ghost btn-sm" onclick="syncTodosProyectos()" title="Sincroniza todos los proyectos de localStorage a Supabase para que aparezcan en Planta v2">↑ Sincronizar todos a planta</button><a href="nuevo-proyecto.html" style="text-decoration:none;"><button class="btn btn-primary">+ Nuevo Proyecto</button></a></div></div>`;
   html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">`;
   activos.forEach(pr=>{ html+=cardHtml(pr, false); });
   html+=`</div>`;
@@ -1157,7 +1174,7 @@ function guardarProyecto(prId, sub) {
       localStorage.setItem('proyectos', JSON.stringify(stored));
     }
   }
-  syncProyectoCache(pr);
+  syncProyectoSupabase(pr);
   editMode = false;
   renderDetallePr(pr, sub||'resumen');
 }
@@ -1198,6 +1215,7 @@ function confirmarRecibirInline(prId,mId,matId,matIdx){
   const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
   m.semaforo=critPend.length?'rojo':allPend.length?'amarillo':'verde';
   localStorage.setItem('proyectos',JSON.stringify(stored));
+  syncProyectoSupabase(p);
   const inMem=PROYECTOS.find(x=>x.id===prId);
   if(inMem)inMem.muebles=p.muebles;
   // banner si críticos completos
@@ -1223,6 +1241,7 @@ function toggleCriticoInline(prId,mId,matId){
   const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
   m.semaforo=critPend.length?'rojo':allPend.length?'amarillo':'verde';
   localStorage.setItem('proyectos',JSON.stringify(stored));
+  syncProyectoSupabase(p);
   const inMem=PROYECTOS.find(x=>x.id===prId);
   if(inMem)inMem.muebles=p.muebles;
   renderDetallePr(PROYECTOS.find(x=>x.id===prId),'materiales');
@@ -1232,7 +1251,7 @@ function guardarMueblesLS(prId, pr){
   const stored=JSON.parse(localStorage.getItem('proyectos')||'[]');
   const idx=stored.findIndex(p=>p.id===prId);
   if(idx>=0){stored[idx].muebles=pr.muebles;localStorage.setItem('proyectos',JSON.stringify(stored));}
-  syncProyectoCache(pr);
+  syncProyectoSupabase(pr);
 }
 
 function toggleFlujoInline(prId,mId,flujoId){
@@ -2117,6 +2136,7 @@ function recibirOCCompleta(){
   const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
   const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(items,proyStorage);
   localStorage.setItem('proyectos',JSON.stringify(proyStorage));
+  proyStorage.forEach(p=>syncProyectoSupabase(p));
   PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
   ocsProcesadas.push(oc.purchaseorder_id);
   localStorage.setItem('ocsProcesadas',JSON.stringify(ocsProcesadas));
@@ -2172,6 +2192,7 @@ function recibirOCRegistrada(ocId){
   const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
   const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(lineItems,proyStorage);
   localStorage.setItem('proyectos',JSON.stringify(proyStorage));
+  proyStorage.forEach(p=>syncProyectoSupabase(p));
   PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
   ocReg.estado='recibida';
   ocReg.fechaRecepcion=new Date().toISOString();
@@ -2214,6 +2235,7 @@ function confirmarParcialOCSistema(ocId,itemCount){
     const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
     const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(lineItems,proyStorage);
     localStorage.setItem('proyectos',JSON.stringify(proyStorage));
+    proyStorage.forEach(p=>syncProyectoSupabase(p));
     PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
     ocReg.estado='recibida';
     ocReg.fechaRecepcion=new Date().toISOString();
@@ -2332,6 +2354,7 @@ function ejecutarRecibirOCCompleta(ocId){
   const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
   const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(oc.line_items||[],proyStorage);
   localStorage.setItem('proyectos',JSON.stringify(proyStorage));
+  proyStorage.forEach(p=>syncProyectoSupabase(p));
   PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
   ocsProcesadas.push(ocId);
   localStorage.setItem('ocsProcesadas',JSON.stringify(ocsProcesadas));
@@ -2380,6 +2403,7 @@ function ejecutarRecepcionParcial(ocId,itemCount){
   const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
   const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(selItems,proyStorage);
   localStorage.setItem('proyectos',JSON.stringify(proyStorage));
+  proyStorage.forEach(p=>syncProyectoSupabase(p));
   PROYECTOS.forEach(pr=>{const s=proyStorage.find(p=>p.id===pr.id);if(s)pr.muebles=s.muebles;});
   _mostrarResumenOC(ocId,matActualizados,mueblesDesbloqueados,true);
 }
@@ -2437,6 +2461,7 @@ function toggleCriticoMat(prId,mId,matId){
   const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
   m.semaforo=critPend.length?'rojo':allPend.length?'amarillo':'verde';
   localStorage.setItem('proyectos',JSON.stringify(stored));
+  syncProyectoSupabase(p);
   const inMem=PROYECTOS.find(x=>x.id===prId);
   if(inMem)inMem.muebles=p.muebles;
   renderMatTabPorProyecto();
@@ -2460,6 +2485,7 @@ function recibirMatMueble(prId,mId,matId){
   const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
   if(!critPend.length&&!allPend.length)m.estado='listo';
   localStorage.setItem('proyectos',JSON.stringify(stored));
+  syncProyectoSupabase(p);
   const inMem=PROYECTOS.find(x=>x.id===prId);
   if(inMem)inMem.muebles=p.muebles;
   renderMatTabPorProyecto();
