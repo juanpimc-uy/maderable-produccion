@@ -852,7 +852,8 @@ function renderMenuTarea() {
     sin.style.display  = 'none';
     btnF.disabled = false;
     document.getElementById('menu-task-proyecto').textContent = registroActivo.proyecto_nombre || '';
-    document.getElementById('menu-task-item').textContent     = registroActivo.item_nombre || '';
+    document.getElementById('menu-task-item').textContent     = nombreCorto(registroActivo.item_nombre || '');
+    document.getElementById('menu-task-item').title           = registroActivo.item_nombre || '';
     document.getElementById('menu-task-centro').textContent   = registroActivo.centro || '';
     tickMenuTimer();
   } else {
@@ -929,10 +930,10 @@ function selProyecto(id) {
     el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:6px;">Sin ítems en este proyecto</div>';
   } else {
     el.innerHTML = items.map(it => `
-      <button class="item-btn" id="it-${it.id}" onclick="selItem('${it.id}')">
+      <button class="item-btn" id="it-${it.id}" onclick="selItem('${it.id}')" title="${(it.nombre||'').replace(/"/g,'&quot;')}">
         <div style="display:flex;align-items:baseline;gap:8px;">
           ${it.codigo ? `<span class="item-cod" style="flex-shrink:0;">${it.codigo}</span>` : ''}
-          <span class="item-nombre" style="overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${it.nombre}</span>
+          <span class="item-nombre">${nombreCorto(it.nombre)}</span>
         </div>
         ${it.hEst ? `<span class="item-sub">Est. ${it.hEst}h</span>` : ''}
       </button>
@@ -1005,6 +1006,12 @@ function tiempoRelativo(iso) {
 }
 
 function esc(s) { return s.replace(/[^a-zA-Z0-9]/g, '_'); }
+function nombreCorto(nombre) {
+  if (!nombre) return '—';
+  const palabras = nombre.trim().split(/\s+/);
+  if (palabras.length <= 4) return nombre;
+  return palabras.slice(0, 4).join(' ') + '…';
+}
 
 function selCentro(id, nombre) {
   centroSel = nombre;
@@ -1078,7 +1085,9 @@ function initCNC(esRestauracion = false) {
   const t = registroActivo;
   document.getElementById('cnc-header').textContent = (empleadoActual.nombre || 'CNC').toUpperCase();
   document.getElementById('cnc-info-proyecto').textContent = (t?.proyecto_nombre || '').toUpperCase();
-  document.getElementById('cnc-info-item').textContent = t?.item_nombre || '';
+  const cncItemEl = document.getElementById('cnc-info-item');
+  cncItemEl.textContent = nombreCorto(t?.item_nombre || '');
+  cncItemEl.title = t?.item_nombre || '';
   document.getElementById('cnc-input-inicio').value = 1;
 
   if (esRestauracion) {

@@ -587,6 +587,12 @@ let HISTORIAL = JSON.parse(localStorage.getItem('historial') || '[]');
 // ═══════════════════════════════════════════════════════════════════════════
 function fmtH(h) { if(h===0)return'0h'; return h<1?`${Math.round(h*60)}m`:`${h.toFixed(1)}h`; }
 function msH(ms) { return ms/3600000; }
+function nombreCorto(nombre) {
+  if (!nombre) return '—';
+  const palabras = nombre.trim().split(/\s+/);
+  if (palabras.length <= 4) return nombre;
+  return palabras.slice(0, 4).join(' ') + '…';
+}
 function pct(a,b) { return b===0?0:Math.min(100,Math.round((a/b)*100)); }
 function fmt(ms) { const s=Math.floor(ms/1000),m=Math.floor(s/60),h=Math.floor(m/60); return h>0?`${h}h ${m%60}m ${s%60}s`:`${m}m ${s%60}s`; }
 function pill(label, color, bg) { return `<span class="pill" style="color:${color};background:${bg||color+'15'};border:1px solid ${color}33">${label}</span>`; }
@@ -757,14 +763,19 @@ function renderDashboard() {
     const pr  = ses?PROYECTOS.find(p=>p.id===ses.proyectoId):null;
     const it  = ses&&pr?pr.items.find(i=>i.id===ses.itemId):null;
     const tid = `t-dash-${op.id}`;
+    const centroLabel = c?.label || ses?.centroId || '—';
+    const centroColor = c?.color || 'var(--amber)';
+    const centroIcon  = c?.icon  || '○';
     opHtml += `
       <div style="background:var(--panel);border:1px solid ${ses?'rgba(245,166,35,.35)':'var(--border)'};border-radius:7px;padding:14px;display:flex;gap:10px;align-items:flex-start;">
         <div class="av ${ses?'active':'idle'}" style="width:36px;height:36px;font-size:12px;">${op.avatar}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;font-weight:600;margin-bottom:2px;">${op.nombre}</div>
           ${ses?`
-            <div style="font-size:11px;color:${c?.color};margin-bottom:2px;">${c?.icon} ${c?.label}</div>
-            <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;">${pr?.nombre} · ${it?.nombre}</div>
+            <div style="font-size:11px;color:${centroColor};margin-bottom:2px;">${centroIcon} ${centroLabel}</div>
+            <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;" title="${(pr?.nombre||'')} · ${(it?.nombre||'')}">
+              ${pr?.nombre||ses.proyectoId||'—'} · ${nombreCorto(it?.nombre || ses.itemId || '—')}
+            </div>
             <span class="mono" style="font-size:12px;color:var(--amber);font-weight:700;" id="${tid}">–</span>
           `:`<span style="font-size:11px;color:var(--muted);">Disponible</span>`}
         </div>
