@@ -233,7 +233,10 @@
 // PROVEEDORES
 // ══════════════════════════════════════════════════════════════════════════
 let PROVS = JSON.parse(localStorage.getItem('proveedores') || '{"tap":"Tapicero","lus":"Lustrador"}');
-let _PROYECTOS = JSON.parse(localStorage.getItem('proyectos') || '[]');
+let _PROYECTOS = [];
+window.sbFetch('proyectos_cache?activo=eq.true&order=nombre')
+  .then(data => { _PROYECTOS = data || []; })
+  .catch(e => console.error('Error cargando proyectos:', e));
 
 function loadProvs() {
   document.getElementById('prov-tap-display').textContent = PROVS.tap;
@@ -614,9 +617,9 @@ render();
     if (rp.partidas && rp.partidas.length) { PARTIDAS = rp.partidas; localStorage.setItem('partidas', JSON.stringify(rp.partidas)); }
     if (rc.config?.proveedores) { PROVS = rc.config.proveedores; localStorage.setItem('proveedores', JSON.stringify(rc.config.proveedores)); }
     // también actualizar proyectos
-    fetch('/api/tiempos?action=proyectos-completos').then(r=>r.json()).then(d=>{
-      if(d.proyectos){_PROYECTOS=d.proyectos;localStorage.setItem('proyectos',JSON.stringify(d.proyectos));}
-    }).catch(()=>{});
+    window.sbFetch('proyectos_cache?activo=eq.true&order=nombre')
+      .then(data => { _PROYECTOS = data || []; })
+      .catch(()=>{});
     loadProvs(); render();
   } catch(e) { console.error('API load failed, usando caché localStorage', e); }
 })();
