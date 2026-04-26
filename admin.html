@@ -302,7 +302,7 @@ async function cargarOperariosDesdeSupabase() {
       horario_salida:  e.horario_salida  || '17:00',
     }));
 
-    // Empleados que solo están en localStorage → subirlos a Supabase
+    // Empleados que solo están en localStorage → subirlos a Supabase y mantenerlos en la lista
     const nombresSupabase = new Set(deSupabase.map(e => e.nombre));
     const soloLocal = OPERARIOS.filter(op => !nombresSupabase.has(op.nombre));
     for (const op of soloLocal) {
@@ -318,8 +318,8 @@ async function cargarOperariosDesdeSupabase() {
       }).catch(() => {});
     }
 
-    // Supabase es la fuente de verdad
-    OPERARIOS = deSupabase;
+    // Supabase + locales pendientes de sync
+    OPERARIOS = [...deSupabase, ...soloLocal];
     guardarOperariosLS();
     renderCurrentView();
   } catch(e) {
