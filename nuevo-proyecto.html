@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <link rel="icon" href="data:,">
+<script src="/js/supabase-config.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maderable · Nuevo Proyecto</title>
 <style>
@@ -416,7 +417,7 @@ async function cargarListaODFs(){
 
 function filtrarODFs(query){
   const q=(query||'').trim().toLowerCase();
-  const proyStorage=JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const proyStorage=_proyectosCache;
   const yaIds=new Set(proyStorage.map(p=>p.odfId).filter(Boolean));
   const yaNums=new Set(proyStorage.map(p=>p.numero||'').filter(Boolean).map(s=>s.toLowerCase()));
   const lista=q?_odfLista.filter(inv=>{
@@ -889,6 +890,7 @@ function guardar(){
     estado:'en_produccion',muebles,materiales,sosCargadas,modulos:[],creadoEn:Date.now()};
   const lista=JSON.parse(localStorage.getItem('proyectos')||'[]');
   lista.push(p);localStorage.setItem('proyectos',JSON.stringify(lista));
+  fetch('/api/tiempos?action=guardar-proyecto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).catch(console.error);
   document.querySelector('.page').innerHTML=`
     <div style="text-align:center;padding:70px 20px;">
       <div style="font-size:52px;margin-bottom:18px;">✓</div>
@@ -913,6 +915,11 @@ function showErr(t,msg,show=1){const el=document.getElementById('err-'+t);if(!el
 
 document.getElementById('f-inicio').value=new Date().toISOString().split('T')[0];
 cargarListaODFs();
+
+let _proyectosCache=JSON.parse(localStorage.getItem('proyectos')||'[]');
+fetch('/api/tiempos?action=proyectos-completos').then(r=>r.json()).then(d=>{
+  if(d.proyectos){_proyectosCache=d.proyectos;localStorage.setItem('proyectos',JSON.stringify(d.proyectos));}
+}).catch(()=>{});
 </script>
 
 <!-- ══ MODAL CATÁLOGO ZOHO ══════════════════════════════════════════════ -->

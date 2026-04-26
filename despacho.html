@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <link rel="icon" href="data:,">
+<script src="/js/supabase-config.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maderable · Despacho</title>
 <style>
@@ -245,40 +246,18 @@
 let PROYECTOS  = JSON.parse(localStorage.getItem('proyectos') || '[]');
 let DESPACHOS  = JSON.parse(localStorage.getItem('despachos') || '[]');
 
-// proyectos demo si no hay ninguno
-if (!PROYECTOS.length) {
-  PROYECTOS = [
-    { id:'pr1', numero:'ODF-2385', obra:'MON BRAVA 301', clienteNombre:'Estudio JCE',
-      fechaEntrega:'2026-04-15', estado:'en_produccion',
-      muebles:[
-        {id:'mf1',codigo:'MF01',nombre:'Banco Central Salón',cant:1,flujos:['tapiceria'],hrsExtra:{}},
-        {id:'mf2',codigo:'MF02',nombre:'Banco Corrido Salón',cant:1,flujos:[],hrsExtra:{}},
-        {id:'mf3',codigo:'MF03',nombre:'Equipamiento Frente Barra',cant:1,flujos:['herreria'],hrsExtra:{herreria:4}},
-        {id:'mf4',codigo:'MF04',nombre:'Barra Espera',cant:1,flujos:[],hrsExtra:{}},
-        {id:'mf5',codigo:'MF05',nombre:'Reja Oficina',cant:2,flujos:['herreria','lustre'],hrsExtra:{herreria:6}},
-      ],
-      modulos:[
-        {id:'mo1',muebleId:'mf1',codigo:'MF01',nombre:'Banco Central Salón',bulto:null,despachado:false},
-        {id:'mo2',muebleId:'mf2',codigo:'MF02',nombre:'Banco Corrido — Tramo A',bulto:null,despachado:false},
-        {id:'mo3',muebleId:'mf2',codigo:'MF02',nombre:'Banco Corrido — Tramo B',bulto:null,despachado:false},
-        {id:'mo4',muebleId:'mf3',codigo:'MF03',nombre:'Módulo Bajo Barra',bulto:null,despachado:true},
-        {id:'mo5',muebleId:'mf4',codigo:'MF04',nombre:'Barra Espera',bulto:null,despachado:false},
-      ],
-      materiales:[
-        {id:'ma1',nombre:'MDF 18mm',unidad:'planchas',requerido:24,recibido:24},
-        {id:'ma2',nombre:'Melamina Blanca',unidad:'planchas',requerido:12,recibido:8},
-      ]
-    },
-    { id:'pr2', numero:'SO-01879', obra:'HUGO BOSS', clienteNombre:'LGD Arquitectos',
-      fechaEntrega:'2026-04-20', estado:'en_produccion',
-      muebles:[{id:'mf6',codigo:'C01',nombre:'Puerta Depósito',cant:1,flujos:[],hrsExtra:{}}],
-      modulos:[
-        {id:'mo6',muebleId:'mf6',codigo:'C01',nombre:'Puerta Depósito',bulto:null,despachado:false},
-      ],
-      materiales:[{id:'ma3',nombre:'MDF 18mm',unidad:'planchas',requerido:2,recibido:2}]
-    }
-  ];
-}
+// cargar datos frescos desde Supabase en background
+(async () => {
+  try {
+    const [rp, rd] = await Promise.all([
+      fetch('/api/tiempos?action=proyectos-completos').then(r=>r.json()),
+      fetch('/api/tiempos?action=despachos-lista').then(r=>r.json()),
+    ]);
+    if (rp.proyectos) { PROYECTOS = rp.proyectos; localStorage.setItem('proyectos', JSON.stringify(rp.proyectos)); }
+    if (rd.despachos) { DESPACHOS = rd.despachos; localStorage.setItem('despachos', JSON.stringify(rd.despachos)); }
+    init();
+  } catch(e) { console.error('API load failed, usando caché localStorage', e); }
+})();
 
 // ══════════════════════════════════════════════════════════════════════════
 // ESTADO LOCAL
@@ -592,6 +571,7 @@ function guardarDespacho() {
   // persistir
   localStorage.setItem('proyectos', JSON.stringify(PROYECTOS));
   localStorage.setItem('despachos', JSON.stringify(DESPACHOS));
+  fetch('/api/tiempos?action=guardar-despacho',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(despacho)}).catch(console.error);
 
   cerrarModal();
   selMods.clear(); bultos=[];
@@ -686,6 +666,7 @@ function toggleVerifBulto(bultoId) {
   if (verif.size === DESPACHOS[idx].bultos.length) DESPACHOS[idx].verificado=true;
   despActual = DESPACHOS[idx];
   localStorage.setItem('despachos', JSON.stringify(DESPACHOS));
+  fetch('/api/tiempos?action=guardar-despacho',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(DESPACHOS[idx])}).catch(()=>{});
   renderVerifContenido();
 }
 

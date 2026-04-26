@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <link rel="icon" href="data:,">
+<script src="/js/supabase-config.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maderable · Materiales</title>
 <style>
@@ -265,46 +266,20 @@ let PROYECTOS   = JSON.parse(localStorage.getItem('proyectos')   || '[]');
 let OCS         = JSON.parse(localStorage.getItem('ocs')         || '[]');
 let RECEPCIONES = JSON.parse(localStorage.getItem('recepciones') || '[]');
 
-// demo
-if (!PROYECTOS.length) {
-  PROYECTOS = [
-    { id:'pr1', numero:'ODF-2385', obra:'MON BRAVA 301', clienteNombre:'Estudio JCE',
-      muebles:[
-        {id:'mf1',codigo:'MF01',nombre:'Banco Central Salón',  materialesOk:false},
-        {id:'mf2',codigo:'MF02',nombre:'Banco Corrido Salón',  materialesOk:false},
-        {id:'mf3',codigo:'MF03',nombre:'Equipamiento Barra',   materialesOk:true },
-      ],
-      materiales:[
-        {id:'ma1',muebleId:'mf1',nombre:'MDF 18mm',        unidad:'planchas',requerido:12,recibido:6 },
-        {id:'ma2',muebleId:'mf1',nombre:'Melamina Premium', unidad:'planchas',requerido:4, recibido:4 },
-        {id:'ma3',muebleId:'mf2',nombre:'MDF 18mm',         unidad:'planchas',requerido:8, recibido:8 },
-        {id:'ma4',muebleId:'mf2',nombre:'Canto ABS',        unidad:'metros',  requerido:30, recibido:15},
-        {id:'ma5',muebleId:'mf3',nombre:'MDF 18mm',         unidad:'planchas',requerido:6, recibido:6 },
-      ]
-    },
-    { id:'pr2', numero:'SO-01879', obra:'HUGO BOSS', clienteNombre:'LGD Arquitectos',
-      muebles:[{id:'mf6',codigo:'C01',nombre:'Puerta Depósito',materialesOk:false}],
-      materiales:[
-        {id:'ma6',muebleId:'mf6',nombre:'MDF 18mm',    unidad:'planchas',requerido:2,recibido:0},
-        {id:'ma7',muebleId:'mf6',nombre:'Bisagra Flap', unidad:'pares',   requerido:2,recibido:0},
-      ]
-    }
-  ];
-}
-
-if (!OCS.length) {
-  OCS = [
-    { id:'oc1', numero:'OC-001', proveedor:'FibroFácil', proyectoId:'pr1', muebleId:'mf1',
-      estado:'pendiente', fecha:'2026-03-28',
-      items:[{nombre:'MDF 18mm',unidad:'planchas',cantidad:12},{nombre:'Melamina Premium',unidad:'planchas',cantidad:4}]
-    },
-    { id:'oc2', numero:'OC-002', proveedor:'Pablo Montans', proyectoId:'pr2', muebleId:'mf6',
-      estado:'pendiente', fecha:'2026-03-30',
-      items:[{nombre:'MDF 18mm',unidad:'planchas',cantidad:2},{nombre:'Bisagra Flap',unidad:'pares',cantidad:2}]
-    },
-  ];
-  localStorage.setItem('ocs', JSON.stringify(OCS));
-}
+// cargar datos frescos desde Supabase en background
+(async () => {
+  try {
+    const [rp, ro, rr] = await Promise.all([
+      fetch('/api/tiempos?action=proyectos-completos').then(r=>r.json()),
+      fetch('/api/tiempos?action=ocs').then(r=>r.json()),
+      fetch('/api/tiempos?action=recepciones').then(r=>r.json()),
+    ]);
+    if (rp.proyectos) { PROYECTOS = rp.proyectos; localStorage.setItem('proyectos', JSON.stringify(rp.proyectos)); }
+    if (ro.ocs) { OCS = ro.ocs; localStorage.setItem('ocs', JSON.stringify(ro.ocs)); }
+    if (rr.recepciones) { RECEPCIONES = rr.recepciones; localStorage.setItem('recepciones', JSON.stringify(rr.recepciones)); }
+    renderKpis(); renderRecepciones(); initEstado();
+  } catch(e) { console.error('API load failed, usando caché localStorage', e); }
+})();
 
 // ══════════════════════════════════════════════════════════════════════════
 // TABS
@@ -532,6 +507,11 @@ function confirmarRecepcion() {
   localStorage.setItem('proyectos',  JSON.stringify(PROYECTOS));
   localStorage.setItem('ocs',         JSON.stringify(OCS));
   localStorage.setItem('recepciones', JSON.stringify(RECEPCIONES));
+  // sync a Supabase
+  PROYECTOS.forEach(p=>fetch('/api/tiempos?action=guardar-proyecto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).catch(()=>{}));
+  const ocMod=OCS.find(o=>o.numero===ocNum);
+  if(ocMod)fetch('/api/tiempos?action=guardar-oc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ocMod)}).catch(()=>{});
+  fetch('/api/tiempos?action=guardar-recepcion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(recv)}).catch(()=>{});
 
   cerrarModal('recv');
   renderKpis();
@@ -717,8 +697,10 @@ function guardarOC() {
   const prId  = document.getElementById('oc-pr').value;
   const mId   = document.getElementById('oc-mueble').value;
   if (!num||!prov) return;
-  OCS.push({id:'oc_'+Date.now(),numero:num,proveedor:prov,proyectoId:prId,muebleId:mId,estado:'pendiente',fecha:hoy(),items:ocItems});
+  const oc={id:'oc_'+Date.now(),numero:num,proveedor:prov,proyectoId:prId,muebleId:mId,estado:'pendiente',fecha:hoy(),items:ocItems};
+  OCS.push(oc);
   localStorage.setItem('ocs',JSON.stringify(OCS));
+  fetch('/api/tiempos?action=guardar-oc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(oc)}).catch(console.error);
   cerrarModal('oc');
   renderOCs();
   renderKpis();

@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <link rel="icon" href="data:,">
+<script src="/js/supabase-config.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maderable · Tercerizados</title>
 <style>
@@ -232,6 +233,7 @@
 // PROVEEDORES
 // ══════════════════════════════════════════════════════════════════════════
 let PROVS = JSON.parse(localStorage.getItem('proveedores') || '{"tap":"Tapicero","lus":"Lustrador"}');
+let _PROYECTOS = JSON.parse(localStorage.getItem('proyectos') || '[]');
 
 function loadProvs() {
   document.getElementById('prov-tap-display').textContent = PROVS.tap;
@@ -248,6 +250,7 @@ function guardarProveedores() {
   PROVS.tap = document.getElementById('cfg-tap').value || PROVS.tap;
   PROVS.lus = document.getElementById('cfg-lus').value || PROVS.lus;
   localStorage.setItem('proveedores', JSON.stringify(PROVS));
+  fetch('/api/tiempos?action=guardar-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clave:'proveedores',valor:PROVS})}).catch(()=>{});
   loadProvs(); cerrarModal('cfg'); render();
 }
 
@@ -259,23 +262,10 @@ function guardarProveedores() {
 //               partes, fechaDespacho, fechaRecepcion, estadoRecep, obs, nota }
 let PARTIDAS = JSON.parse(localStorage.getItem('partidas') || '[]');
 
-// datos demo si no hay nada
-if (!PARTIDAS.length) {
-  PARTIDAS = [
-    { id:'p1', tipo:'tap', proyectoNum:'ODF-2385', obra:'MON BRAVA 301',
-      muebleCodigo:'MF01', muebleNombre:'Banco Central Salón',
-      estado:'en_taller', partes:'', fechaDespacho:'', fechaRecepcion:'', estadoRecep:'', obs:'', nota:'' },
-    { id:'p2', tipo:'tap', proyectoNum:'ODF-2385', obra:'MON BRAVA 301',
-      muebleCodigo:'MF02', muebleNombre:'Banco Corrido Salón',
-      estado:'despachada', partes:'Asiento corrido (4 tramos)', fechaDespacho:'28/03/2026', fechaRecepcion:'', estadoRecep:'', obs:'', nota:'Llevar con la tela' },
-    { id:'p3', tipo:'lus', proyectoNum:'ODF-2385', obra:'MON BRAVA 301',
-      muebleCodigo:'MF07', muebleNombre:'Reja Oficina',
-      estado:'recibida', partes:'2 rejas completas', fechaDespacho:'20/03/2026', fechaRecepcion:'25/03/2026', estadoRecep:'ok', obs:'', nota:'' },
-  ];
-  guardarPartidas();
+function guardarPartidas() {
+  localStorage.setItem('partidas', JSON.stringify(PARTIDAS));
+  PARTIDAS.forEach(p=>fetch('/api/tiempos?action=guardar-partida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).catch(()=>{}));
 }
-
-function guardarPartidas() { localStorage.setItem('partidas', JSON.stringify(PARTIDAS)); }
 
 // ══════════════════════════════════════════════════════════════════════════
 // NAVEGACIÓN TABS
@@ -524,7 +514,7 @@ function confirmarRecepcion() {
 function abrirNuevaPartida(tipo) {
   modalTipoNueva = tipo;
   // cargar proyectos del localStorage para elegir
-  const proyectos = JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const proyectos = _PROYECTOS;
   const overlay = document.createElement('div');
   overlay.className = 'overlay open';
   overlay.id = 'overlay-nueva';
@@ -561,7 +551,7 @@ function abrirNuevaPartida(tipo) {
 }
 
 function onNuevaPr(prId) {
-  const proyectos = JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const proyectos = _PROYECTOS;
   const pr = proyectos.find(p=>p.id===prId);
   document.getElementById('nueva-manual').style.display = prId==='manual'?'flex':'none';
   document.getElementById('nueva-muebles-wrap').style.display = pr?'block':'none';
@@ -582,7 +572,7 @@ function onNuevaPr(prId) {
 
 function confirmarNueva() {
   const prId  = document.getElementById('nueva-pr')?.value;
-  const proyectos = JSON.parse(localStorage.getItem('proyectos')||'[]');
+  const proyectos = _PROYECTOS;
   const pr    = proyectos.find(p=>p.id===prId);
   const nueva = {
     id: 'p'+Date.now(),
@@ -613,6 +603,23 @@ function hoy() { return new Date().toISOString().split('T')[0]; }
 // ══════════════════════════════════════════════════════════════════════════
 loadProvs();
 render();
+
+// cargar datos frescos desde Supabase en background
+(async () => {
+  try {
+    const [rp, rc] = await Promise.all([
+      fetch('/api/tiempos?action=partidas').then(r=>r.json()),
+      fetch('/api/tiempos?action=config').then(r=>r.json()),
+    ]);
+    if (rp.partidas && rp.partidas.length) { PARTIDAS = rp.partidas; localStorage.setItem('partidas', JSON.stringify(rp.partidas)); }
+    if (rc.config?.proveedores) { PROVS = rc.config.proveedores; localStorage.setItem('proveedores', JSON.stringify(rc.config.proveedores)); }
+    // también actualizar proyectos
+    fetch('/api/tiempos?action=proyectos-completos').then(r=>r.json()).then(d=>{
+      if(d.proyectos){_PROYECTOS=d.proyectos;localStorage.setItem('proyectos',JSON.stringify(d.proyectos));}
+    }).catch(()=>{});
+    loadProvs(); render();
+  } catch(e) { console.error('API load failed, usando caché localStorage', e); }
+})();
 </script>
 </div><!-- /page -->
 </div><!-- /main -->
