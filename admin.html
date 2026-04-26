@@ -648,6 +648,19 @@ function hByOp(prId) {
 }
 function hEstPr(pr) { return pr.items.reduce((a,i)=>a+i.hEst,0); }
 
+async function actualizarHorasProyecto(prId, hE) {
+  try {
+    const res = await fetch(`/api/tiempos?action=registros-proyecto&proyecto_id=${encodeURIComponent(prId)}`);
+    const data = await res.json();
+    if (data.error) return;
+    const hA = data.horas_totales || 0;
+    const el = document.getElementById('pr-horas-real');
+    if (!el) return;
+    el.style.color = excessColor(hA, hE);
+    el.innerHTML = `${fmtH(hA)} / ${fmtH(hE)} <span style="font-size:11px;">${fmtExceso(hA, hE)}</span>`;
+  } catch(e) { /* mantener valor anterior si falla */ }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // RELOJ
 // ═══════════════════════════════════════════════════════════════════════════
@@ -882,7 +895,7 @@ function renderDetallePr(pr, sub) {
     : `<div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${pr.clienteNombre}</div><div style="font-size:22px;font-weight:700;">${pr.nombre}</div>`;
   const hdrButtons = editMode
     ? `<button class="btn btn-success btn-sm" onclick="guardarProyecto('${pr.id}','${sub}')">Guardar cambios</button><button class="btn btn-ghost btn-sm" onclick="editMode=false;renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${sub}')">Cancelar</button>`
-    : `<div style="text-align:right;margin-right:8px;"><div class="mono" style="font-size:13px;color:${excessColor(hA,hE)};">${fmtH(hA)} / ${fmtH(hE)} <span style="font-size:11px;">${fmtExceso(hA,hE)}</span></div><div style="font-size:10px;color:var(--muted);">real / estimado</div></div><button class="btn btn-ghost btn-sm" onclick="editMode=true;renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${sub}')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Editar</button>`;
+    : `<div style="text-align:right;margin-right:8px;"><div id="pr-horas-real" class="mono" style="font-size:13px;color:${excessColor(hA,hE)};">${fmtH(hA)} / ${fmtH(hE)} <span style="font-size:11px;">${fmtExceso(hA,hE)}</span></div><div style="font-size:10px;color:var(--muted);">real / estimado</div></div><button class="btn btn-ghost btn-sm" onclick="editMode=true;renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${sub}')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Editar</button>`;
 
   let html = `
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
@@ -981,6 +994,7 @@ function renderDetallePr(pr, sub) {
 
     document.getElementById('pr-detalle').innerHTML = html;
     SESIONES.filter(s=>s.proyectoId===pr.id).forEach(s=>liveTimer(`t-byop-${s.operarioId}`,s.inicio));
+    actualizarHorasProyecto(pr.id, hE);
     return;
   }
 

@@ -311,6 +311,22 @@ export default async function handler(req) {
       return ok({ empleado: data });
     }
 
+    // ── GET horas reales por proyecto (desde registros_trabajo) ──────────
+    if (action === 'registros-proyecto' && req.method === 'GET') {
+      const proyecto_id = url.searchParams.get('proyecto_id');
+      const { data, error } = await supabase
+        .from('registros_trabajo')
+        .select('inicio, fin, estado, empleado_id, item_id, centro')
+        .eq('proyecto_id', proyecto_id)
+        .not('fin', 'is', null);
+      if (error) throw error;
+      const horas_totales = (data || []).reduce((sum, r) => {
+        const mins = (new Date(r.fin) - new Date(r.inicio)) / 60000;
+        return sum + mins / 60;
+      }, 0);
+      return ok({ horas_totales: Math.round(horas_totales * 10) / 10, registros: data || [] });
+    }
+
     // ── GET placa CNC activa (sin fin) para un registro de trabajo ───────
     if (action === 'get-cnc-activo' && req.method === 'GET') {
       const registro_trabajo_id = url.searchParams.get('registro_trabajo_id');
