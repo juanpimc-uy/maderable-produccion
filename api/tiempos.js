@@ -264,7 +264,9 @@ export default async function handler(req) {
 
     // ── GET proyectos activos desde proyectos_cache (para planta) ─────────
     if (action === 'proyectos-activos' && req.method === 'GET') {
-      const { data } = await supabase.from('proyectos_cache').select('*').eq('activo', true).order('nombre');
+      console.log('Consultando proyectos_cache...');
+      const { data, error } = await supabase.from('proyectos_cache').select('*').eq('activo', true).order('nombre');
+      console.log('Proyectos encontrados:', data?.length, error?.message);
       return ok({ proyectos: data || [] });
     }
 
@@ -278,11 +280,13 @@ export default async function handler(req) {
     // ── POST sync proyecto desde admin ────────────────────────────────────
     if (action === 'sync-proyecto' && req.method === 'POST') {
       const { id, nombre, cliente, items } = body;
+      console.log('Sync proyecto recibido:', { id, nombre, cliente, itemsCount: items?.length });
       const { data, error } = await supabase.from('proyectos_cache')
-        .upsert({ id, nombre, cliente, items, sincronizado_at: new Date().toISOString() }, { onConflict: 'id' })
+        .upsert({ id, nombre, cliente, items: items || [], activo: true, sincronizado_at: new Date().toISOString() }, { onConflict: 'id' })
         .select().single();
+      console.log('Resultado upsert:', { ok: !error, id: data?.id, error: error?.message });
       if (error) throw error;
-      return ok({ proyecto: data });
+      return ok({ proyecto: data, ok: true });
     }
 
     // ── PATCH editar jornada (supervisor) ─────────────────────────────────
