@@ -262,7 +262,7 @@ const ANTHROPIC_KEY = window.ANTHROPIC_KEY || '';
 // ══════════════════════════════════════════════════════════════════════════
 // DATOS
 // ══════════════════════════════════════════════════════════════════════════
-let PROYECTOS   = JSON.parse(localStorage.getItem('proyectos')   || '[]');
+let PROYECTOS   = [];
 let OCS         = JSON.parse(localStorage.getItem('ocs')         || '[]');
 let RECEPCIONES = JSON.parse(localStorage.getItem('recepciones') || '[]');
 
@@ -274,11 +274,11 @@ let RECEPCIONES = JSON.parse(localStorage.getItem('recepciones') || '[]');
       fetch('/api/tiempos?action=ocs').then(r=>r.json()),
       fetch('/api/tiempos?action=recepciones').then(r=>r.json()),
     ]);
-    if (rp.proyectos) { PROYECTOS = rp.proyectos; localStorage.setItem('proyectos', JSON.stringify(rp.proyectos)); }
+    if (rp.proyectos) { PROYECTOS = rp.proyectos; }
     if (ro.ocs) { OCS = ro.ocs; localStorage.setItem('ocs', JSON.stringify(ro.ocs)); }
     if (rr.recepciones) { RECEPCIONES = rr.recepciones; localStorage.setItem('recepciones', JSON.stringify(rr.recepciones)); }
     renderKpis(); renderRecepciones(); initEstado();
-  } catch(e) { console.error('API load failed, usando caché localStorage', e); }
+  } catch(e) { console.error('API load failed', e); }
 })();
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -503,8 +503,7 @@ function confirmarRecepcion() {
   const recv = { id:'recv_'+Date.now(), fecha, proveedor:prov, ocNum, obs, items:recvItems, impactados };
   RECEPCIONES.push(recv);
 
-  // persistir todo
-  localStorage.setItem('proyectos',  JSON.stringify(PROYECTOS));
+  // persistir ocs y recepciones en localStorage; proyectos van directo a Supabase
   localStorage.setItem('ocs',         JSON.stringify(OCS));
   localStorage.setItem('recepciones', JSON.stringify(RECEPCIONES));
   // sync a Supabase
