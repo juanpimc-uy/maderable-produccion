@@ -711,8 +711,12 @@ async function autenticar() {
     registroActivo = (registros || []).find(r => r.estado === 'activo') || null;
 
     // 3. Proyectos activos
-    const { proyectos: pList } = await apiGet('proyectos-activos');
+    console.log('Cargando proyectos...');
+    const _resProyectos = await apiGet('proyectos-activos');
+    console.log('Proyectos recibidos:', _resProyectos);
+    const pList = _resProyectos.proyectos;
     proyectos = pList || [];
+    console.log('Total proyectos:', proyectos.length, proyectos);
 
     irAlMenu();
   } catch (e) {
