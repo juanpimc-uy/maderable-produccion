@@ -61,31 +61,50 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+export const config = { runtime: 'edge' };
+
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xhfeurinovvsbgobkidy.supabase.co',
   process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || ''
 );
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
 
-  const { action } = req.query;
+function ok(data) {
+  return new Response(JSON.stringify(data), {
+    status: 200,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  });
+}
+function err(msg, status = 400) {
+  return new Response(JSON.stringify({ error: msg }), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  });
+}
+
+export default async function handler(req) {
+  if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers: CORS });
+
+  const url = new URL(req.url);
+  const action = url.searchParams.get('action');
+
+  let body = {};
+  if (req.method === 'POST' || req.method === 'PATCH') {
+    try { body = await req.json(); } catch { body = {}; }
+  }
 
   try {
 
     // ── GET diagnóstico de conexión ───────────────────────────────────────
     if (action === 'ping' && req.method === 'GET') {
       const hasKey = !!(process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY);
-      const { data, error } = await supabase.from('empleados').select('count').limit(1);
-      return res.json({
-        ok: !error,
-        hasKey,
-        supabaseUrl: process.env.SUPABASE_URL || 'hardcoded',
-        error: error?.message || null,
-      });
+      const { error } = await supabase.from('empleados').select('count').limit(1);
+      return ok({ ok: !error, hasKey, supabaseUrl: process.env.SUPABASE_URL || 'hardcoded', error: error?.message || null });
     }
 
     // ── GET empleados activos ─────────────────────────────────────────────
@@ -96,74 +115,55 @@ export default async function handler(req, res) {
         .eq('activo', true)
         .order('nombre');
       if (error) throw error;
-      return res.json({ empleados: data });
+      return ok({ empleados: data });
     }
 
-    // ── POST crear/sync empleado (busca por nombre, insert o update) ────
+    // ── POST crear/sync empleado (busca por nombre, insert o update) ──────
     if ((action === 'crear-empleado' || action === 'sync-empleado') && req.method === 'POST') {
-      const b = req.body;
-      const nombre = (b.nombre || '').trim();
-      if (!nombre) return res.status(400).json({ error: 'nombre requerido' });
+      const nombre = (body.nombre || '').trim();
+      if (!nombre) return err('nombre requerido');
 
       const campos = {
         nombre,
-        cedula: b.cedula || null,
-        categoria: b.categoria || 'directo',
-        centros_autorizados: b.centros_autorizados || [],
-        pin: b.pin || '1234',
-        horario_entrada: b.horario_entrada || '08:00',
-        horario_salida:  b.horario_salida  || '17:00',
+        cedula: body.cedula || null,
+        categoria: body.categoria || 'directo',
+        centros_autorizados: body.centros_autorizados || [],
+        pin: body.pin || '1234',
+        horario_entrada: body.horario_entrada || '08:00',
+        horario_salida:  body.horario_salida  || '17:00',
         activo: true,
       };
 
-      // Buscar por nombre primero (sin depender de constraints únicos)
       const { data: existing } = await supabase
-        .from('empleados')
-        .select('id')
-        .eq('nombre', nombre)
-        .maybeSingle();
+        .from('empleados').select('id').eq('nombre', nombre).maybeSingle();
 
       let data, error;
       if (existing) {
-        ({ data, error } = await supabase
-          .from('empleados')
-          .update(campos)
-          .eq('id', existing.id)
-          .select().single());
+        ({ data, error } = await supabase.from('empleados').update(campos).eq('id', existing.id).select().single());
       } else {
-        ({ data, error } = await supabase
-          .from('empleados')
-          .insert(campos)
-          .select().single());
+        ({ data, error } = await supabase.from('empleados').insert(campos).select().single());
       }
       if (error) throw error;
-      return res.json({ empleado: data });
+      return ok({ empleado: data });
     }
 
     // ── GET jornada de hoy para un empleado ──────────────────────────────
     if (action === 'jornada-hoy' && req.method === 'GET') {
-      const { empleado_id } = req.query;
+      const empleado_id = url.searchParams.get('empleado_id');
       const hoy = new Date().toISOString().split('T')[0];
       const { data } = await supabase
-        .from('jornadas')
-        .select('*')
-        .eq('empleado_id', empleado_id)
-        .eq('fecha', hoy)
-        .maybeSingle();
-      return res.json({ jornada: data });
+        .from('jornadas').select('*').eq('empleado_id', empleado_id).eq('fecha', hoy).maybeSingle();
+      return ok({ jornada: data });
     }
 
     // ── POST marcar entrada ───────────────────────────────────────────────
     if (action === 'entrada' && req.method === 'POST') {
-      const { empleado_id } = req.body;
+      const { empleado_id } = body;
       const hoy = new Date().toISOString().split('T')[0];
       const ahora = new Date().toISOString();
 
       const { data: emp } = await supabase
-        .from('empleados')
-        .select('horario_entrada')
-        .eq('id', empleado_id)
-        .single();
+        .from('empleados').select('horario_entrada').eq('id', empleado_id).single();
 
       const [h, m] = (emp?.horario_entrada || '08:00').split(':');
       const esperado = new Date();
@@ -172,195 +172,142 @@ export default async function handler(req, res) {
 
       const { data, error } = await supabase
         .from('jornadas')
-        .upsert({ empleado_id, fecha: hoy, entrada: ahora, tarde },
-          { onConflict: 'empleado_id,fecha' })
+        .upsert({ empleado_id, fecha: hoy, entrada: ahora, tarde }, { onConflict: 'empleado_id,fecha' })
         .select().single();
       if (error) throw error;
-      return res.json({ jornada: data });
+      return ok({ jornada: data });
     }
 
     // ── POST marcar salida ────────────────────────────────────────────────
     if (action === 'salida' && req.method === 'POST') {
-      const { empleado_id, jornada_id } = req.body;
+      const { empleado_id, jornada_id } = body;
       const ahora = new Date().toISOString();
 
-      await supabase
-        .from('registros_trabajo')
+      await supabase.from('registros_trabajo')
         .update({ fin: ahora, estado: 'pausado' })
-        .eq('empleado_id', empleado_id)
-        .eq('estado', 'activo');
+        .eq('empleado_id', empleado_id).eq('estado', 'activo');
 
       const { data } = await supabase
-        .from('jornadas')
-        .update({ salida: ahora })
-        .eq('id', jornada_id)
-        .select().single();
-      return res.json({ jornada: data });
+        .from('jornadas').update({ salida: ahora }).eq('id', jornada_id).select().single();
+      return ok({ jornada: data });
     }
 
     // ── POST iniciar tarea ────────────────────────────────────────────────
     if (action === 'iniciar-tarea' && req.method === 'POST') {
       const { empleado_id, jornada_id, proyecto_id, proyecto_nombre,
-              item_id, item_nombre, centro } = req.body;
+              item_id, item_nombre, centro } = body;
       const ahora = new Date().toISOString();
 
-      await supabase
-        .from('registros_trabajo')
+      await supabase.from('registros_trabajo')
         .update({ fin: ahora, estado: 'pausado' })
-        .eq('empleado_id', empleado_id)
-        .eq('estado', 'activo');
+        .eq('empleado_id', empleado_id).eq('estado', 'activo');
 
-      const { data, error } = await supabase
-        .from('registros_trabajo')
+      const { data, error } = await supabase.from('registros_trabajo')
         .insert({ empleado_id, jornada_id, proyecto_id, proyecto_nombre,
                   item_id, item_nombre, centro, inicio: ahora, estado: 'activo' })
         .select().single();
       if (error) throw error;
-      return res.json({ registro: data });
+      return ok({ registro: data });
     }
 
     // ── POST finalizar tarea ──────────────────────────────────────────────
     if (action === 'finalizar-tarea' && req.method === 'POST') {
       const { registro_id, empleado_id, respuestas_checklist,
-              es_retrabajo, motivo_retrabajo } = req.body;
+              es_retrabajo, motivo_retrabajo } = body;
       const ahora = new Date().toISOString();
 
-      const { data } = await supabase
-        .from('registros_trabajo')
+      const { data } = await supabase.from('registros_trabajo')
         .update({ fin: ahora,
                   estado: es_retrabajo ? 'retrabajo' : 'finalizado',
                   es_retrabajo: es_retrabajo || false,
                   motivo_retrabajo: motivo_retrabajo || null })
-        .eq('id', registro_id)
-        .select().single();
+        .eq('id', registro_id).select().single();
 
       if (respuestas_checklist && Object.keys(respuestas_checklist).length > 0) {
         await supabase.from('checklist_respuestas').insert({
-          registro_trabajo_id: registro_id,
-          empleado_id,
-          respuestas: respuestas_checklist,
+          registro_trabajo_id: registro_id, empleado_id, respuestas: respuestas_checklist,
         });
       }
-      return res.json({ registro: data });
+      return ok({ registro: data });
     }
 
     // ── POST registro CNC placa individual ────────────────────────────────
     if (action === 'cnc-placa' && req.method === 'POST') {
-      const { registro_trabajo_id, empleado_id,
-              placa_numero, inicio, fin, resultado } = req.body;
-      const { data, error } = await supabase
-        .from('registros_cnc')
-        .insert({ registro_trabajo_id, empleado_id,
-                  placa_numero, inicio, fin, resultado })
+      const { registro_trabajo_id, empleado_id, placa_numero, inicio, fin, resultado } = body;
+      const { data, error } = await supabase.from('registros_cnc')
+        .insert({ registro_trabajo_id, empleado_id, placa_numero, inicio, fin, resultado })
         .select().single();
       if (error) throw error;
-      return res.json({ placa: data });
+      return ok({ placa: data });
     }
 
     // ── GET dashboard tiempo real ─────────────────────────────────────────
     if (action === 'dashboard-live' && req.method === 'GET') {
       const hoy = new Date().toISOString().split('T')[0];
-
-      const { data: jornadas } = await supabase
-        .from('jornadas')
-        .select('*, empleados(id,nombre,categoria,centros_autorizados,horario_entrada)')
-        .eq('fecha', hoy);
-
-      const { data: activos } = await supabase
-        .from('registros_trabajo')
-        .select('*')
-        .eq('estado', 'activo');
-
-      const { data: todos } = await supabase
-        .from('empleados')
-        .select('id,nombre,categoria,horario_entrada')
-        .eq('activo', true);
-
-      const { data: cnc_activo } = await supabase
-        .from('registros_cnc')
-        .select('*')
-        .is('fin', null)
-        .order('creado_at', { ascending: false })
-        .limit(10);
-
-      return res.json({ jornadas, activos, todos_empleados: todos, cnc_activo });
+      const [{ data: jornadas }, { data: activos }, { data: todos }, { data: cnc_activo }] = await Promise.all([
+        supabase.from('jornadas').select('*, empleados(id,nombre,categoria,centros_autorizados,horario_entrada)').eq('fecha', hoy),
+        supabase.from('registros_trabajo').select('*').eq('estado', 'activo'),
+        supabase.from('empleados').select('id,nombre,categoria,horario_entrada').eq('activo', true),
+        supabase.from('registros_cnc').select('*').is('fin', null).order('creado_at', { ascending: false }).limit(10),
+      ]);
+      return ok({ jornadas, activos, todos_empleados: todos, cnc_activo });
     }
 
     // ── GET registros de trabajo de un empleado hoy ───────────────────────
     if (action === 'registros-hoy' && req.method === 'GET') {
-      const { empleado_id } = req.query;
+      const empleado_id = url.searchParams.get('empleado_id');
       const hoy = new Date().toISOString().split('T')[0];
-      const { data } = await supabase
-        .from('registros_trabajo')
-        .select('*')
-        .eq('empleado_id', empleado_id)
-        .gte('inicio', hoy)
-        .order('inicio', { ascending: false });
-      return res.json({ registros: data });
+      const { data } = await supabase.from('registros_trabajo').select('*')
+        .eq('empleado_id', empleado_id).gte('inicio', hoy).order('inicio', { ascending: false });
+      return ok({ registros: data });
     }
 
-    // ── GET proyectos activos desde proyectos_cache ───────────────────────
+    // ── GET proyectos activos desde proyectos_cache (para planta) ─────────
     if (action === 'proyectos-activos' && req.method === 'GET') {
-      const { data } = await supabase
-        .from('proyectos_cache')
-        .select('*')
-        .eq('activo', true)
-        .order('nombre');
-      return res.json({ proyectos: data || [] });
-    }
-
-    // ── POST sync proyecto desde admin ────────────────────────────────────
-    if (action === 'sync-proyecto' && req.method === 'POST') {
-      const { id, nombre, cliente, items } = req.body;
-      const { data, error } = await supabase
-        .from('proyectos_cache')
-        .upsert({ id, nombre, cliente, items, sincronizado_at: new Date().toISOString() },
-          { onConflict: 'id' })
-        .select().single();
-      if (error) throw error;
-      return res.json({ proyecto: data });
-    }
-
-    // ── PATCH editar jornada (supervisor) ─────────────────────────────────
-    if (action === 'editar-jornada' && req.method === 'PATCH') {
-      const { jornada_id, entrada, salida, descanso_minutos, editor_id } = req.body;
-      const { data } = await supabase
-        .from('jornadas')
-        .update({ entrada, salida, descanso_minutos,
-                  descanso_editado: true, editado_por: editor_id })
-        .eq('id', jornada_id)
-        .select().single();
-      return res.json({ jornada: data });
+      const { data } = await supabase.from('proyectos_cache').select('*').eq('activo', true).order('nombre');
+      return ok({ proyectos: data || [] });
     }
 
     // ── GET todos los proyectos (para admin) ──────────────────────────────
     if (action === 'proyectos-admin' && req.method === 'GET') {
-      const { data, error } = await supabase
-        .from('proyectos_cache')
-        .select('*')
-        .order('nombre');
+      const { data, error } = await supabase.from('proyectos_cache').select('*').order('nombre');
       if (error) throw error;
-      return res.json({ proyectos: data || [] });
+      return ok({ proyectos: data || [] });
+    }
+
+    // ── POST sync proyecto desde admin ────────────────────────────────────
+    if (action === 'sync-proyecto' && req.method === 'POST') {
+      const { id, nombre, cliente, items } = body;
+      const { data, error } = await supabase.from('proyectos_cache')
+        .upsert({ id, nombre, cliente, items, sincronizado_at: new Date().toISOString() }, { onConflict: 'id' })
+        .select().single();
+      if (error) throw error;
+      return ok({ proyecto: data });
+    }
+
+    // ── PATCH editar jornada (supervisor) ─────────────────────────────────
+    if (action === 'editar-jornada' && req.method === 'PATCH') {
+      const { jornada_id, entrada, salida, descanso_minutos, editor_id } = body;
+      const { data } = await supabase.from('jornadas')
+        .update({ entrada, salida, descanso_minutos, descanso_editado: true, editado_por: editor_id })
+        .eq('id', jornada_id).select().single();
+      return ok({ jornada: data });
     }
 
     // ── GET registros de trabajo (sesiones + historial para admin) ────────
     if (action === 'registros-todos' && req.method === 'GET') {
-      const dias = parseInt(req.query.dias || '60');
+      const dias = parseInt(url.searchParams.get('dias') || '60');
       const desde = new Date();
       desde.setDate(desde.getDate() - dias);
-      const { data, error } = await supabase
-        .from('registros_trabajo')
-        .select('*')
-        .gte('inicio', desde.toISOString())
-        .order('inicio', { ascending: false });
+      const { data, error } = await supabase.from('registros_trabajo').select('*')
+        .gte('inicio', desde.toISOString()).order('inicio', { ascending: false });
       if (error) throw error;
-      return res.json({ registros: data || [] });
+      return ok({ registros: data || [] });
     }
 
-    return res.status(400).json({ error: 'Acción no reconocida: ' + action });
+    return err('Acción no reconocida: ' + action);
 
-  } catch (err) {
-    console.error('Error api/tiempos:', err.message);
-    return res.status(500).json({ error: err.message });
+  } catch (e) {
+    return err(e.message, 500);
   }
 }
