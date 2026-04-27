@@ -335,13 +335,20 @@ function _mostrarEstadoSync(status) {
 
 async function cargarTodoDesdeSupabase() {
   _mostrarEstadoSync('loading');
-  try {
-    const [rEmp, rReg] = await Promise.all([
-      fetch('/api/tiempos?action=empleados').then(r => r.json()),
-      fetch('/api/tiempos?action=registros-todos&dias=60').then(r => r.json()),
-    ]);
+  let anyError = false;
 
-    // ── Empleados ──────────────────────────────────────────────────────────
+  // ── 1. PROYECTOS — siempre primero, nunca bloqueado por otros ────────────
+  try {
+    const data = await window.sbFetch('proyectos_cache?activo=eq.true&order=nombre');
+    PROYECTOS = (data || []).map(mapProyectoFromDB);
+  } catch(e) {
+    console.error('Error cargando proyectos:', e);
+    anyError = true;
+  }
+
+  // ── 2. EMPLEADOS ─────────────────────────────────────────────────────────
+  try {
+    const rEmp = await fetch('/api/tiempos?action=empleados').then(r => r.json());
     if (Array.isArray(rEmp.empleados) && rEmp.empleados.length) {
       const deSupabase = rEmp.empleados.map(e => ({
         id: e.id,
@@ -356,8 +363,6 @@ async function cargarTodoDesdeSupabase() {
         horario_entrada: e.horario_entrada || '08:00',
         horario_salida:  e.horario_salida  || '17:00',
       }));
-
-      // Empleados solo en localStorage → subirlos y mantenerlos
       const nombresSupabase = new Set(deSupabase.map(e => e.nombre));
       const soloLocal = OPERARIOS.filter(op => !nombresSupabase.has(op.nombre));
       for (const op of soloLocal) {
@@ -372,12 +377,17 @@ async function cargarTodoDesdeSupabase() {
           })
         }).catch(() => {});
       }
-
       OPERARIOS = [...deSupabase, ...soloLocal];
       guardarOperariosLS();
     }
+  } catch(e) {
+    console.error('Error cargando empleados:', e);
+    anyError = true;
+  }
 
-    // ── Sesiones y Historial desde registros_trabajo ───────────────────────
+  // ── 3. SESIONES / HISTORIAL ───────────────────────────────────────────────
+  try {
+    const rReg = await fetch('/api/tiempos?action=registros-todos&dias=60').then(r => r.json());
     if (Array.isArray(rReg.registros)) {
       SESIONES = rReg.registros
         .filter(r => r.estado === 'activo')
@@ -390,7 +400,6 @@ async function cargarTodoDesdeSupabase() {
           inicio: new Date(r.inicio).getTime(),
           tipo: r.es_retrabajo ? 'retrabajo' : 'normal',
         }));
-
       HISTORIAL = rReg.registros
         .filter(r => r.estado !== 'activo' && r.fin)
         .map(r => ({
@@ -403,17 +412,16 @@ async function cargarTodoDesdeSupabase() {
           fin: new Date(r.fin).getTime(),
           tipo: r.es_retrabajo ? 'retrabajo' : 'normal',
         }));
-
       localStorage.setItem('sesiones', JSON.stringify(SESIONES));
       localStorage.setItem('historial', JSON.stringify(HISTORIAL));
     }
-
-    _mostrarEstadoSync('ok');
-    renderCurrentView();
   } catch(e) {
-    console.warn('Error cargando desde Supabase:', e);
-    _mostrarEstadoSync('error');
+    console.error('Error cargando registros:', e);
+    anyError = true;
   }
+
+  _mostrarEstadoSync(anyError ? 'error' : 'ok');
+  renderCurrentView();
 }
 
 function iniciarAutoRefresh() {
@@ -550,16 +558,6 @@ function mapProyectoFromDB(p) {
 }
 
 let PROYECTOS = [];
-(async () => {
-  try {
-    const data = await window.sbFetch('proyectos_cache?activo=eq.true&order=nombre');
-    PROYECTOS = (data || []).map(mapProyectoFromDB);
-  } catch (e) {
-    console.error('Error cargando proyectos:', e);
-    PROYECTOS = [];
-  }
-  if (typeof renderCurrentView === 'function') renderCurrentView();
-})();
 
 const NOW = Date.now(), H = h => h * 3600000;
 let SESIONES  = JSON.parse(localStorage.getItem('sesiones')  || '[]');
