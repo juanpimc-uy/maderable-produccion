@@ -374,11 +374,11 @@ if (!window.AUTH.puedeEntrarAAdmin()) throw new Error('Auth required');
 // DATOS
 // ═══════════════════════════════════════════════════════════════════════════
 const _OPERARIOS_SEED = [
-  {id:'op1',nombre:'Carlos Méndez', avatar:'CM',especialidad:'CNC'     },
-  {id:'op2',nombre:'Diego Suárez',  avatar:'DS',especialidad:'Armado'  },
-  {id:'op3',nombre:'Martín Pérez',  avatar:'MP',especialidad:'Revisión'},
-  {id:'op4',nombre:'Ariel Fontana', avatar:'AF',especialidad:'CNC'     },
-  {id:'op5',nombre:'Roberto Vega',  avatar:'RV',especialidad:'Armado'  },
+  {id:'op1',nombre:'Carlos Méndez', avatar:'CM',rol_app:'operario'},
+  {id:'op2',nombre:'Diego Suárez',  avatar:'DS',rol_app:'operario'},
+  {id:'op3',nombre:'Martín Pérez',  avatar:'MP',rol_app:'operario'},
+  {id:'op4',nombre:'Ariel Fontana', avatar:'AF',rol_app:'operario'},
+  {id:'op5',nombre:'Roberto Vega',  avatar:'RV',rol_app:'operario'},
 ];
 let OPERARIOS = (()=>{ const s=JSON.parse(localStorage.getItem('operarios')||'[]'); return s.length?s:_OPERARIOS_SEED; })();
 function guardarOperariosLS(){ localStorage.setItem('operarios',JSON.stringify(OPERARIOS)); }
@@ -392,7 +392,9 @@ async function syncEmpleadoSupabase(op) {
       body: JSON.stringify({
         nombre: op.nombre,
         cedula: op.cedula || null,
-        categoria: op.categoria || op.especialidad || 'directo',
+        email: op.email || null,
+        rol_app: op.rol_app || 'operario',
+        categoria: op.categoria || 'directo',
         centros_autorizados: op.centros || [],
         pin: op.pin || '1234',
         horario_entrada: op.horario_entrada || '08:00',
@@ -461,7 +463,8 @@ async function cargarTodoDesdeSupabase() {
           id: e.id,
           nombre: e.nombre,
           cedula: e.cedula || '',
-          especialidad: e.categoria || 'General',
+          email: e.email || '',
+          rol_app: e.rol_app || 'operario',
           avatar: getIniciales(e.nombre),
           status: 'disponible',
           centros: e.centros_autorizados || [],
@@ -537,7 +540,9 @@ async function syncOperarioSupabase(op, upsert = false) {
       body: JSON.stringify({
         nombre: op.nombre,
         cedula: op.cedula || '',
-        categoria: op.especialidad || op.categoria || 'General',
+        email: op.email || null,
+        rol_app: op.rol_app || 'operario',
+        categoria: op.categoria || 'directo',
         centros_autorizados: op.centros || op.centros_autorizados || [],
         pin: op.pin || '1234',
         horario_entrada: op.horario_entrada || '08:00',
@@ -561,7 +566,9 @@ async function syncTodosOperarios() {
         body: JSON.stringify({
           nombre: op.nombre,
           cedula: op.cedula || null,
-          categoria: op.especialidad || op.categoria || 'directo',
+          email: op.email || null,
+          rol_app: op.rol_app || 'operario',
+          categoria: op.categoria || 'directo',
           centros_autorizados: op.centros || [],
           pin: op.pin || '1234',
           horario_entrada: op.horario_entrada || '08:00',
@@ -1787,7 +1794,7 @@ function _renderOpEstado() {
       </div>
       <div style="flex:1;">
         <div style="font-size:16px;font-weight:700;margin-bottom:2px;">${op.nombre}</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">${op.especialidad}</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">${op.rol_app||'operario'}</div>
         ${ses?`<div style="background:var(--panel);border:1px solid rgba(245,166,35,.25);border-radius:7px;padding:12px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px;">
           <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">CENTRO</div><div style="font-size:13px;color:${c?.color};font-weight:600;">${c?.icon} ${c?.label}</div></div>
           <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">PROYECTO</div><div style="font-size:13px;">${pr?.nombre}</div></div>
@@ -1826,7 +1833,7 @@ function _renderOpGestion() {
           <div class="av active" style="width:40px;height:40px;font-size:14px;flex-shrink:0;">${op.avatar||getIniciales(op.nombre)}</div>
           <div style="flex:1;">
             <div style="font-size:15px;font-weight:700;">${op.nombre}</div>
-            <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">${op.especialidad} · ${hist.length} sesiones · ${fmtH(totalH)} totales</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">${op.rol_app||'operario'} · ${hist.length} sesiones · ${fmtH(totalH)} totales</div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;">${(op.centros&&op.centros.length?op.centros:_CENTROS_DEFAULT).map(cid=>{const c=CENTROS.find(x=>x.id===cid);return c?`<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:1px 6px;border-radius:3px;color:${c.color};background:${c.color}12;border:1px solid ${c.color}44;">${c.icon} ${c.label}</span>`:''}).join('')}</div>
           </div>
           <span style="font-size:13px;color:var(--muted);margin-right:8px;">${exp?'▴':'▾'}</span>
@@ -1849,7 +1856,6 @@ const _CENTROS_DEFAULT=['corte','enchapado','armado','empaquetado']; // revision
 
 function abrirModalOperario(opId) {
   const op=opId?OPERARIOS.find(o=>o.id===opId):null;
-  const esps=['CNC','Armado','Revisión','Enchapado','Empaquetado','Lustre','Herrería','General'];
   const centrosOp=op?.centros&&op.centros.length?op.centros:_CENTROS_DEFAULT;
   const centrosChk=CENTROS.map(c=>{
     const chk=centrosOp.includes(c.id);
@@ -1858,39 +1864,50 @@ function abrirModalOperario(opId) {
       <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${chk?c.color:'var(--muted)'};">${c.icon} ${c.label}</span>
     </label>`;
   }).join('');
+  const _inputStyle='background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;';
+  const _labelStyle='font-family:\'JetBrains Mono\',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;';
   abrirModal(op?'EDITAR OPERARIO':'NUEVO OPERARIO',`
     <div style="display:flex;flex-direction:column;gap:14px;">
       <div style="display:flex;gap:12px;">
         <div style="flex:1;">
-          <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Nombre completo</label>
+          <label style="${_labelStyle}">Nombre completo</label>
           <input id="mod-op-nombre" value="${op?.nombre||''}" placeholder="Carlos Méndez"
             oninput="const v=this.value;const a=document.getElementById('mod-op-avatar');if(a&&!a._edited)a.value=getIniciales(v);"
-            style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+            style="${_inputStyle}">
         </div>
         <div style="flex:0 0 130px;">
-          <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Cédula</label>
+          <label style="${_labelStyle}">Cédula</label>
           <input id="mod-op-cedula" value="${op?.cedula||''}" placeholder="1.234.567-8"
-            style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+            style="${_inputStyle}">
         </div>
       </div>
       <div style="display:flex;gap:12px;">
         <div style="flex:0 0 90px;">
-          <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Avatar</label>
+          <label style="${_labelStyle}">Avatar</label>
           <input id="mod-op-avatar" value="${op?.avatar||getIniciales(op?.nombre||'')}" placeholder="CM" maxlength="2"
             oninput="this._edited=true;"
             style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;outline:none;width:100%;text-align:center;text-transform:uppercase;">
         </div>
         <div style="flex:1;">
-          <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Especialidad</label>
-          <select id="mod-op-esp"
-            style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
-            ${esps.map(e=>`<option value="${e}">${e}</option>`).join('')}
+          <label style="${_labelStyle}">Email</label>
+          <input id="mod-op-email" type="email" value="${op?.email||''}" placeholder="opcional · requerido para oficina/admin"
+            style="${_inputStyle}">
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;">
+        <div style="flex:1;">
+          <label style="${_labelStyle}">Rol de App</label>
+          <select id="mod-op-rol"
+            onchange="const r=this.value;if(r==='oficina'||r==='admin'){const em=document.getElementById('mod-op-email');if(em&&!em.value.trim())em.focus();}"
+            style="${_inputStyle}">
+            <option value="operario">operario</option>
+            <option value="oficina">oficina</option>
+            <option value="admin">admin</option>
           </select>
         </div>
         ${window.AUTH.esAdmin() ? `<div style="flex:0 0 140px;">
-          <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Categoría</label>
-          <select id="mod-op-cat"
-            style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+          <label style="${_labelStyle}">Categoría</label>
+          <select id="mod-op-cat" style="${_inputStyle}">
             <option value="directo">Directo</option>
             <option value="indirecto">Indirecto</option>
             <option value="tecnico">Técnico</option>
@@ -1899,16 +1916,17 @@ function abrirModalOperario(opId) {
         </div>` : ''}
       </div>
       <div>
-        <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:8px;">Centros habilitados</label>
+        <label style="${_labelStyle}">Centros habilitados</label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">${centrosChk}</div>
       </div>
+      <div id="mod-op-error" style="font-size:12px;color:var(--red);display:none;"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
         <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
         <button class="btn btn-primary" onclick="guardarOperario('${opId||''}')">Guardar</button>
       </div>
     </div>`);
   if(op){
-    const el=document.getElementById('mod-op-esp');if(el)el.value=op.especialidad||'CNC';
+    const rol=document.getElementById('mod-op-rol');if(rol)rol.value=op.rol_app||'operario';
     const cat=document.getElementById('mod-op-cat');if(cat)cat.value=op.categoria||'directo';
   }
 }
@@ -1918,18 +1936,23 @@ function guardarOperario(opId) {
   const cedula=(document.getElementById('mod-op-cedula')?.value||'').trim();
   const avatarInput=(document.getElementById('mod-op-avatar')?.value||'').trim().toUpperCase().slice(0,2);
   const avatar=avatarInput||getIniciales(nombre);
-  const especialidad=document.getElementById('mod-op-esp')?.value||'General';
+  const email=(document.getElementById('mod-op-email')?.value||'').trim();
+  const rol_app=document.getElementById('mod-op-rol')?.value||'operario';
   const catEl=document.getElementById('mod-op-cat');
   const categoria=catEl ? catEl.value : (OPERARIOS.find(o=>o.id===opId)?.categoria||'directo');
   const centros=CENTROS.map(c=>c.id).filter(id=>document.getElementById('mod-op-c-'+id)?.checked);
-  if(!nombre){alert('El nombre es obligatorio');return;}
-  if(!centros.length){alert('Habilitá al menos un centro de trabajo');return;}
+  const errEl=document.getElementById('mod-op-error');
+  const showErr=msg=>{if(errEl){errEl.textContent=msg;errEl.style.display='block';}else alert(msg);};
+  if(!nombre){showErr('El nombre es obligatorio');return;}
+  if(!centros.length){showErr('Habilitá al menos un centro de trabajo');return;}
+  if((rol_app==='oficina'||rol_app==='admin')&&!email){showErr('Email obligatorio para rol oficina/admin');document.getElementById('mod-op-email')?.focus();return;}
+  if(errEl)errEl.style.display='none';
   if(opId){
     const op=OPERARIOS.find(o=>o.id===opId);
-    if(op){op.nombre=nombre;op.cedula=cedula;op.avatar=avatar;op.especialidad=especialidad;op.centros=centros;op.categoria=categoria;}
+    if(op){op.nombre=nombre;op.cedula=cedula;op.avatar=avatar;op.email=email;op.rol_app=rol_app;op.centros=centros;op.categoria=categoria;}
     syncEmpleadoSupabase(op);
   }else{
-    const nuevoOp={id:'op'+Date.now(),nombre,cedula,especialidad,avatar,status:'disponible',centros,categoria};
+    const nuevoOp={id:'op'+Date.now(),nombre,cedula,email,rol_app,avatar,status:'disponible',centros,categoria};
     OPERARIOS.push(nuevoOp);
     syncEmpleadoSupabase(nuevoOp);
   }

@@ -111,7 +111,7 @@ export default async function handler(req) {
     if (action === 'empleados' && req.method === 'GET') {
       const { data, error } = await supabase
         .from('empleados')
-        .select('id,nombre,cedula,categoria,centros_autorizados,pin,horario_entrada,horario_salida')
+        .select('id,nombre,cedula,email,rol_app,categoria,centros_autorizados,pin,horario_entrada,horario_salida')
         .eq('activo', true)
         .order('nombre');
       if (error) throw error;
@@ -126,6 +126,8 @@ export default async function handler(req) {
       const campos = {
         nombre,
         cedula: body.cedula || null,
+        ...(body.email !== undefined ? { email: body.email || null } : {}),
+        ...(body.rol_app ? { rol_app: body.rol_app } : {}),
         categoria: body.categoria || 'directo',
         centros_autorizados: body.centros_autorizados || [],
         pin: body.pin || '1234',
