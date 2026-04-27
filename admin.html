@@ -1834,6 +1834,7 @@ function _renderOpGestion() {
           <span style="font-size:13px;color:var(--muted);margin-right:8px;">${exp?'▴':'▾'}</span>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button onclick="resetearPinOperario('${op.id}','${op.nombre.replace(/'/g,"\\'")}') " title="Resetear PIN a 1234" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace;">↻ PIN</button>
           <button onclick="abrirModalOperario('${op.id}')" title="Editar operario" style="padding:5px 11px;border:1px solid var(--border);border-radius:5px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:12px;display:inline-flex;align-items:center;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
           <button onclick="eliminarOperario('${op.id}')" title="Eliminar operario" style="padding:5px 11px;border:1px solid rgba(240,92,92,.3);border-radius:5px;background:transparent;color:var(--red);cursor:pointer;font-size:12px;">🗑</button>
         </div>
@@ -3037,6 +3038,23 @@ async function cambiarPinPropio() {
     }
   } catch(e) {
     msg.style.color = 'var(--red)'; msg.textContent = 'Error de conexión';
+  }
+}
+
+async function resetearPinOperario(opId, nombre) {
+  if (!window.confirm(`¿Resetear el PIN de ${nombre} a 1234?`)) return;
+  const u = window.AUTH.usuarioActual();
+  try {
+    const res = await fetch('/api/tiempos?action=resetear-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_id: u.id, empleado_id: opId }),
+    });
+    const data = await res.json();
+    if (data.ok) alert(`✓ PIN de ${nombre} reseteado a 1234`);
+    else alert(data.error || 'Error al resetear PIN');
+  } catch(e) {
+    alert('Error de conexión');
   }
 }
 
