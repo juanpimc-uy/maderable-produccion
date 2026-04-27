@@ -425,6 +425,52 @@ export default async function handler(req) {
       })) });
     }
 
+    // ── POST login admin (email + PIN) ───────────────────────────────────
+    if (action === 'login-admin' && req.method === 'POST') {
+      const { email, pin } = body;
+      if (!email || !pin) return err('email y pin requeridos', 400);
+      const { data, error } = await supabase
+        .from('empleados')
+        .select('id, nombre, email, categoria, rol_app')
+        .eq('email', email)
+        .eq('pin', pin)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return new Response(JSON.stringify({ ok: false, error: 'Credenciales incorrectas' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (data.rol_app === 'operario') return new Response(JSON.stringify({ ok: false, error: 'Tu rol no permite acceso a admin', redirect: 'planta2' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      return ok({ ok: true, usuario: { id: data.id, nombre: data.nombre, email: data.email, rol_app: data.rol_app, categoria: data.categoria } });
+    }
+
+    // ── POST cambiar PIN propio ───────────────────────────────────────────
+    if (action === 'cambiar-pin' && req.method === 'POST') {
+      const { empleado_id, pin_actual, pin_nuevo } = body;
+      if (!empleado_id || !pin_actual || !pin_nuevo) return err('empleado_id, pin_actual y pin_nuevo requeridos', 400);
+      if (!/^\d{4}$/.test(pin_nuevo)) return new Response(JSON.stringify({ ok: false, error: 'PIN debe ser 4 dígitos' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      const { data: emp, error: eErr } = await supabase
+        .from('empleados').select('pin').eq('id', empleado_id).maybeSingle();
+      if (eErr) throw eErr;
+      if (!emp) return err('Empleado no encontrado', 404);
+      if (emp.pin !== pin_actual) return new Response(JSON.stringify({ ok: false, error: 'PIN actual incorrecto' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      const { error: uErr } = await supabase.from('empleados').update({ pin: pin_nuevo }).eq('id', empleado_id);
+      if (uErr) throw uErr;
+      return ok({ ok: true });
+    }
+
+    // ── POST resetear PIN ajeno (admin/oficina) ───────────────────────────
+    if (action === 'resetear-pin' && req.method === 'POST') {
+      const { admin_id, empleado_id } = body;
+      if (!admin_id || !empleado_id) return err('admin_id y empleado_id requeridos', 400);
+      const { data: admin, error: aErr } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (aErr) throw aErr;
+      if (!admin || !['admin', 'oficina'].includes(admin.rol_app))
+        return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      const { error: uErr } = await supabase.from('empleados').update({ pin: '1234' }).eq('id', empleado_id);
+      if (uErr) throw uErr;
+      return ok({ ok: true, pin_reseteado: '1234' });
+    }
+
     // ── POST guardar proyecto completo ────────────────────────────────────
     if (action === 'guardar-proyecto' && req.method === 'POST') {
       const { id, numero, obra, clienteNombre, fechaInicio, fechaEntrega,
