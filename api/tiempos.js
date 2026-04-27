@@ -298,9 +298,9 @@ export default async function handler(req) {
           creado_en: creadoEn,
           activo: true, sincronizado_at: new Date().toISOString(),
         }, { onConflict: 'id' })
-        .select().single();
+        .select();
       if (error) throw error;
-      return ok({ proyecto: data, ok: true });
+      return ok({ proyecto: (data || [])[0] || null, ok: true });
     }
 
     // ── PATCH editar jornada (supervisor) ─────────────────────────────────
@@ -428,7 +428,8 @@ export default async function handler(req) {
     // ── POST guardar proyecto completo ────────────────────────────────────
     if (action === 'guardar-proyecto' && req.method === 'POST') {
       const { id, numero, obra, clienteNombre, fechaInicio, fechaEntrega,
-              notas, estado, muebles, materiales, sosCargadas, modulos, creadoEn } = body;
+              notas, estado, muebles, materiales, sosCargadas, modulos, creadoEn,
+              activo: activoBody } = body;
       const { data, error } = await supabase.from('proyectos_cache')
         .upsert({
           id, nombre: numero || obra, numero, obra,
@@ -440,11 +441,12 @@ export default async function handler(req) {
           sos_cargadas: sosCargadas || [],
           modulos: modulos || [],
           creado_en: creadoEn,
-          activo: true, sincronizado_at: new Date().toISOString(),
+          activo: activoBody !== undefined ? activoBody : true,
+          sincronizado_at: new Date().toISOString(),
         }, { onConflict: 'id' })
-        .select().single();
+        .select();
       if (error) throw error;
-      return ok({ proyecto: data });
+      return ok({ proyecto: (data || [])[0] || null, ok: true });
     }
 
     // ── GET órdenes de compra ─────────────────────────────────────────────
