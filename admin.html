@@ -2985,6 +2985,62 @@ function fResetear(){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// MI CUENTA
+// ═══════════════════════════════════════════════════════════════════════════
+function renderMiCuenta() {
+  const u = window.AUTH.usuarioActual();
+  if (!u) return;
+  const rolLabel = { admin: 'Admin', oficina: 'Oficina', operario: 'Operario' }[u.rol_app] || u.rol_app;
+  document.getElementById('mi-cuenta-contenido').innerHTML = `
+    <div class="card" style="max-width:480px;">
+      <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:16px;">MI CUENTA</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px;">
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:12px;color:var(--muted);">Nombre</span><span style="font-size:13px;font-weight:600;">${u.nombre}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:12px;color:var(--muted);">Email</span><span class="mono" style="font-size:12px;">${u.email||'—'}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:12px;color:var(--muted);">Rol</span><span class="mono" style="font-size:12px;color:var(--amber);">${rolLabel}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span style="font-size:12px;color:var(--muted);">Categoría</span><span style="font-size:12px;">${u.categoria||'—'}</span></div>
+      </div>
+      <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:14px;">CAMBIAR PIN</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <input id="cp-actual" type="password" maxlength="4" inputmode="numeric" placeholder="PIN actual" style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+        <input id="cp-nuevo" type="password" maxlength="4" inputmode="numeric" placeholder="PIN nuevo (4 dígitos)" style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+        <input id="cp-confirmar" type="password" maxlength="4" inputmode="numeric" placeholder="Confirmar PIN nuevo" style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+        <button class="btn btn-primary" onclick="cambiarPinPropio()">Cambiar PIN</button>
+        <div id="cp-msg" style="font-size:12px;min-height:16px;"></div>
+      </div>
+    </div>`;
+}
+
+async function cambiarPinPropio() {
+  const u = window.AUTH.usuarioActual();
+  const actual = document.getElementById('cp-actual')?.value;
+  const nuevo = document.getElementById('cp-nuevo')?.value;
+  const confirmar = document.getElementById('cp-confirmar')?.value;
+  const msg = document.getElementById('cp-msg');
+  if (!actual || !nuevo || !confirmar) { msg.style.color='var(--red)'; msg.textContent='Completá todos los campos'; return; }
+  if (nuevo !== confirmar) { msg.style.color='var(--red)'; msg.textContent='Los PINs nuevos no coinciden'; return; }
+  if (!/^\d{4}$/.test(nuevo)) { msg.style.color='var(--red)'; msg.textContent='El PIN debe ser exactamente 4 dígitos'; return; }
+  try {
+    const res = await fetch('/api/tiempos?action=cambiar-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ empleado_id: u.id, pin_actual: actual, pin_nuevo: nuevo }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      msg.style.color = 'var(--green)'; msg.textContent = '✓ PIN cambiado correctamente';
+      document.getElementById('cp-actual').value = '';
+      document.getElementById('cp-nuevo').value = '';
+      document.getElementById('cp-confirmar').value = '';
+    } else {
+      msg.style.color = 'var(--red)'; msg.textContent = data.error || 'Error al cambiar PIN';
+    }
+  } catch(e) {
+    msg.style.color = 'var(--red)'; msg.textContent = 'Error de conexión';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
 // Set logout label with current user name
