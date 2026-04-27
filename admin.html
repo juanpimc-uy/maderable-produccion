@@ -319,6 +319,7 @@ async function syncTodosOperarios() {
 let _syncStatus = 'idle'; // idle | loading | ok | error
 let _lastSync = null;
 let _autoRefreshInterval = null;
+let _cargando = false; // guard: prevent concurrent cargarTodoDesdeSupabase runs
 
 function _mostrarEstadoSync(status) {
   _syncStatus = status;
@@ -334,99 +335,94 @@ function _mostrarEstadoSync(status) {
 }
 
 async function cargarTodoDesdeSupabase() {
+  if (_cargando) return; // prevent concurrent runs
+  _cargando = true;
   _mostrarEstadoSync('loading');
   let anyError = false;
 
-  // ── 1. PROYECTOS — siempre primero, nunca bloqueado por otros ────────────
   try {
-    const data = await window.sbFetch('proyectos_cache?activo=eq.true&order=nombre');
-    PROYECTOS = (data || []).map(mapProyectoFromDB);
-  } catch(e) {
-    console.error('Error cargando proyectos:', e);
-    anyError = true;
-  }
+    // ── 1. PROYECTOS — siempre primero, nunca bloqueado por otros ────────────
+    try {
+      const data = await window.sbFetch('proyectos_cache?activo=eq.true&order=nombre');
+      PROYECTOS = (data || []).map(mapProyectoFromDB);
+    } catch(e) {
+      console.error('Error cargando proyectos:', e);
+      anyError = true;
+    }
 
-  // ── 2. EMPLEADOS ─────────────────────────────────────────────────────────
-  try {
-    const rEmp = await fetch('/api/tiempos?action=empleados').then(r => r.json());
-    if (Array.isArray(rEmp.empleados) && rEmp.empleados.length) {
-      const deSupabase = rEmp.empleados.map(e => ({
-        id: e.id,
-        nombre: e.nombre,
-        cedula: e.cedula || '',
-        especialidad: e.categoria || 'General',
-        avatar: getIniciales(e.nombre),
-        status: 'disponible',
-        centros: e.centros_autorizados || [],
-        categoria: e.categoria || 'directo',
-        pin: e.pin || '1234',
-        horario_entrada: e.horario_entrada || '08:00',
-        horario_salida:  e.horario_salida  || '17:00',
-      }));
-      const nombresSupabase = new Set(deSupabase.map(e => e.nombre));
-      const soloLocal = OPERARIOS.filter(op => !nombresSupabase.has(op.nombre));
-      for (const op of soloLocal) {
-        fetch('/api/tiempos?action=sync-empleado', {
-          method: 'POST', headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({
-            nombre: op.nombre, cedula: op.cedula || null,
-            categoria: op.especialidad || op.categoria || 'directo',
-            centros_autorizados: op.centros || [], pin: op.pin || '1234',
-            horario_entrada: op.horario_entrada || '08:00',
-            horario_salida:  op.horario_salida  || '17:00',
-          })
-        }).catch(() => {});
+    // ── 2. EMPLEADOS ─────────────────────────────────────────────────────────
+    try {
+      const rEmp = await fetch('/api/tiempos?action=empleados').then(r => r.json());
+      if (Array.isArray(rEmp.empleados) && rEmp.empleados.length) {
+        const deSupabase = rEmp.empleados.map(e => ({
+          id: e.id,
+          nombre: e.nombre,
+          cedula: e.cedula || '',
+          especialidad: e.categoria || 'General',
+          avatar: getIniciales(e.nombre),
+          status: 'disponible',
+          centros: e.centros_autorizados || [],
+          categoria: e.categoria || 'directo',
+          pin: e.pin || '1234',
+          horario_entrada: e.horario_entrada || '08:00',
+          horario_salida:  e.horario_salida  || '17:00',
+        }));
+        // merge: Supabase is source of truth; local-only employees shown but not re-synced here
+        const nombresSupabase = new Set(deSupabase.map(e => e.nombre));
+        const soloLocal = OPERARIOS.filter(op => !nombresSupabase.has(op.nombre));
+        OPERARIOS = [...deSupabase, ...soloLocal];
+        guardarOperariosLS();
       }
-      OPERARIOS = [...deSupabase, ...soloLocal];
-      guardarOperariosLS();
+    } catch(e) {
+      console.error('Error cargando empleados:', e);
+      anyError = true;
     }
-  } catch(e) {
-    console.error('Error cargando empleados:', e);
-    anyError = true;
-  }
 
-  // ── 3. SESIONES / HISTORIAL ───────────────────────────────────────────────
-  try {
-    const rReg = await fetch('/api/tiempos?action=registros-todos&dias=60').then(r => r.json());
-    if (Array.isArray(rReg.registros)) {
-      SESIONES = rReg.registros
-        .filter(r => r.estado === 'activo')
-        .map(r => ({
-          id: r.id,
-          operarioId: r.empleado_id,
-          proyectoId: r.proyecto_id,
-          itemId: r.item_id,
-          centroId: r.centro,
-          inicio: new Date(r.inicio).getTime(),
-          tipo: r.es_retrabajo ? 'retrabajo' : 'normal',
-        }));
-      HISTORIAL = rReg.registros
-        .filter(r => r.estado !== 'activo' && r.fin)
-        .map(r => ({
-          id: r.id,
-          operarioId: r.empleado_id,
-          proyectoId: r.proyecto_id,
-          itemId: r.item_id,
-          centroId: r.centro,
-          inicio: new Date(r.inicio).getTime(),
-          fin: new Date(r.fin).getTime(),
-          tipo: r.es_retrabajo ? 'retrabajo' : 'normal',
-        }));
-      localStorage.setItem('sesiones', JSON.stringify(SESIONES));
-      localStorage.setItem('historial', JSON.stringify(HISTORIAL));
+    // ── 3. SESIONES / HISTORIAL ───────────────────────────────────────────────
+    try {
+      const rReg = await fetch('/api/tiempos?action=registros-todos&dias=60').then(r => r.json());
+      if (Array.isArray(rReg.registros)) {
+        SESIONES = rReg.registros
+          .filter(r => r.estado === 'activo')
+          .map(r => ({
+            id: r.id,
+            operarioId: r.empleado_id,
+            proyectoId: r.proyecto_id,
+            itemId: r.item_id,
+            centroId: r.centro,
+            inicio: new Date(r.inicio).getTime(),
+            tipo: r.es_retrabajo ? 'retrabajo' : 'normal',
+          }));
+        HISTORIAL = rReg.registros
+          .filter(r => r.estado !== 'activo' && r.fin)
+          .map(r => ({
+            id: r.id,
+            operarioId: r.empleado_id,
+            proyectoId: r.proyecto_id,
+            itemId: r.item_id,
+            centroId: r.centro,
+            inicio: new Date(r.inicio).getTime(),
+            fin: new Date(r.fin).getTime(),
+            tipo: r.es_retrabajo ? 'retrabajo' : 'normal',
+          }));
+        localStorage.setItem('sesiones', JSON.stringify(SESIONES));
+        localStorage.setItem('historial', JSON.stringify(HISTORIAL));
+      }
+    } catch(e) {
+      console.error('Error cargando registros:', e);
+      anyError = true;
     }
-  } catch(e) {
-    console.error('Error cargando registros:', e);
-    anyError = true;
-  }
 
-  _mostrarEstadoSync(anyError ? 'error' : 'ok');
-  renderCurrentView();
+    _mostrarEstadoSync(anyError ? 'error' : 'ok');
+    renderCurrentView();
+  } finally {
+    _cargando = false;
+  }
 }
 
 function iniciarAutoRefresh() {
   if (_autoRefreshInterval) clearInterval(_autoRefreshInterval);
-  _autoRefreshInterval = setInterval(cargarTodoDesdeSupabase, 30000);
+  _autoRefreshInterval = setInterval(cargarTodoDesdeSupabase, 60000); // 60s — not 30s
 }
 
 async function syncOperarioSupabase(op, upsert = false) {
