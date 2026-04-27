@@ -564,7 +564,7 @@ async function buscarSO4(){
   try{
     const token=await getZohoToken();
     let soId=null,soNumUsado=null;
-    for(const candidato of ['SO-'+base,base]){
+    for(const candidato of ['SO-'+base,'SO-'+base.padStart(5,'0'),base]){
       const r1=await fetch(`/api/zoho-books?endpoint=salesorders?salesorder_number=${encodeURIComponent(candidato)}&token=${token}`);
       const d1=await r1.json();
       console.log('búsqueda SO:',candidato,JSON.stringify(d1));
