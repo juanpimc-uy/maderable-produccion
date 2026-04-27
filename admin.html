@@ -1889,7 +1889,7 @@ function abrirModalOperario(opId) {
             ${esps.map(e=>`<option value="${e}">${e}</option>`).join('')}
           </select>
         </div>
-        <div style="flex:0 0 140px;">
+        ${window.AUTH.esAdmin() ? `<div style="flex:0 0 140px;">
           <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;">Categoría</label>
           <select id="mod-op-cat"
             style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
@@ -1898,7 +1898,7 @@ function abrirModalOperario(opId) {
             <option value="tecnico">Técnico</option>
             <option value="administrativo">Administrativo</option>
           </select>
-        </div>
+        </div>` : ''}
       </div>
       <div>
         <label style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:8px;">Centros habilitados</label>
@@ -1921,7 +1921,8 @@ function guardarOperario(opId) {
   const avatarInput=(document.getElementById('mod-op-avatar')?.value||'').trim().toUpperCase().slice(0,2);
   const avatar=avatarInput||getIniciales(nombre);
   const especialidad=document.getElementById('mod-op-esp')?.value||'General';
-  const categoria=document.getElementById('mod-op-cat')?.value||'directo';
+  const catEl=document.getElementById('mod-op-cat');
+  const categoria=catEl ? catEl.value : (OPERARIOS.find(o=>o.id===opId)?.categoria||'directo');
   const centros=CENTROS.map(c=>c.id).filter(id=>document.getElementById('mod-op-c-'+id)?.checked);
   if(!nombre){alert('El nombre es obligatorio');return;}
   if(!centros.length){alert('Habilitá al menos un centro de trabajo');return;}
