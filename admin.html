@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <link rel="icon" href="data:,">
 <script src="/js/supabase-config.js"></script>
+<script src="/js/auth.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maderable · Admin</title>
 <style>
@@ -123,10 +124,47 @@
   .formula-display-f{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:16px 20px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text);text-align:center;margin-bottom:12px;line-height:2;}
   .ok-banner-f{background:rgba(61,214,140,.08);border:1px solid rgba(61,214,140,.3);border-radius:8px;padding:12px 18px;font-size:13px;color:var(--green);margin-bottom:16px;display:none;}
   .ok-banner-f.show{display:block;}
+  /* login overlay */
+  #login-overlay { position:fixed; inset:0; background:#0E0F14; z-index:9999; display:flex; align-items:center; justify-content:center; }
+  #login-overlay.hidden { display:none; }
+  .login-card { background:#1e1e1e; border:1px solid var(--border); border-radius:12px; padding:32px; width:100%; max-width:400px; }
+  .login-logo { font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700; color:var(--amber); letter-spacing:3px; text-align:center; margin-bottom:6px; }
+  .login-titulo { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:2px; text-align:center; margin-bottom:28px; }
+  .login-field { margin-bottom:14px; }
+  .login-field label { display:block; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; margin-bottom:6px; }
+  .login-field input { width:100%; background:var(--faint); border:1px solid var(--border); border-radius:6px; padding:10px 14px; color:var(--text); font-size:14px; outline:none; transition:border-color .15s; }
+  .login-field input:focus { border-color:var(--amber); }
+  .login-btn { width:100%; background:var(--amber); color:#0E0F14; border:none; border-radius:6px; padding:12px; font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; letter-spacing:1px; cursor:pointer; margin-top:8px; transition:opacity .15s; }
+  .login-btn:disabled { opacity:.5; cursor:not-allowed; }
+  .login-error { font-size:12px; color:var(--red); margin-top:10px; min-height:18px; text-align:center; }
+  .login-planta-link { display:block; text-align:center; margin-top:14px; font-size:11px; color:var(--muted); text-decoration:none; }
+  .login-planta-link:hover { color:var(--green); }
 </style>
 </head>
 <body>
-<div class="shell">
+
+<!-- ═══ LOGIN OVERLAY ════════════════════════════════════════════════════ -->
+<div id="login-overlay">
+  <div class="login-card">
+    <div class="login-logo">⬡ MADERABLE</div>
+    <div class="login-titulo">ADMIN · INICIAR SESIÓN</div>
+    <div class="login-field">
+      <label>Email</label>
+      <input id="login-email" type="email" placeholder="tu@maderable.uy" autocomplete="email"
+        onkeydown="if(event.key==='Enter')document.getElementById('login-pin').focus()">
+    </div>
+    <div class="login-field">
+      <label>PIN</label>
+      <input id="login-pin" type="password" maxlength="4" inputmode="numeric" placeholder="••••" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter')_loginSubmit()">
+    </div>
+    <button class="login-btn" id="login-btn" onclick="_loginSubmit()">ENTRAR</button>
+    <div class="login-error" id="login-error"></div>
+    <a href="/planta2.html" class="login-planta-link">¿Sos operario? Ir a planta →</a>
+  </div>
+</div>
+
+<div class="shell" id="app-shell">
 
 <!-- ═══ SIDEBAR ══════════════════════════════════════════════════════════ -->
 <aside class="sidebar">
@@ -140,11 +178,16 @@
     <a href="tercerizados.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">🧵</span> Tercerizados</div></a>
     <a href="stock-placas.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">⬡</span> Stock Placas</div></a>
     <div class="nav-item" onclick="navTo('ajustes')"><span class="nav-icon" style="display:inline-flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Ajustes</div>
+    <div class="nav-item" onclick="navTo('mi-cuenta')"><span class="nav-icon">◉</span> Mi cuenta</div>
   </div>
   <div style="padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);">
     <div class="mono" style="font-size:10px;margin-bottom:6px;">VISTA PLANTA</div>
     <a href="planta2.html" target="_blank" style="color:var(--green);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-decoration:none;display:block;">Planta v2 →</a>
-    <div id="sync-status" style="font-size:10px;font-family:'JetBrains Mono',monospace;padding:8px 16px;color:var(--muted);border-top:1px solid var(--border);">● Cargando…</div>
+    <div id="sync-status" style="font-size:10px;font-family:'JetBrains Mono',monospace;margin-top:6px;">● Cargando…</div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+      <div id="logout-label" style="font-size:10px;color:var(--muted);margin-bottom:4px;">Cerrar sesión</div>
+      <button onclick="window.AUTH.cerrarSesion()" style="width:100%;background:transparent;border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--muted);cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;text-align:left;">← Salir</button>
+    </div>
   </div>
 </aside>
 
@@ -254,6 +297,11 @@
       </div>
     </div>
 
+    <!-- ══ MI CUENTA ══════════════════════════════════════════════════════ -->
+    <div class="view" id="v-mi-cuenta">
+      <div id="mi-cuenta-contenido"></div>
+    </div>
+
   </div><!-- /content -->
 </div><!-- /main -->
 </div><!-- /shell -->
@@ -267,6 +315,63 @@
 </div>
 
 <script>
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTH GATE — must be first
+// ═══════════════════════════════════════════════════════════════════════════
+(function _authGate() {
+  const overlay = document.getElementById('login-overlay');
+  const shell   = document.getElementById('app-shell');
+  if (window.AUTH.puedeEntrarAAdmin()) {
+    overlay.classList.add('hidden');
+    shell.style.display = '';
+  } else {
+    shell.style.display = 'none';
+  }
+  // update logout button label once DOM is ready
+  window.addEventListener('DOMContentLoaded', () => {
+    const u = window.AUTH.usuarioActual();
+    const el = document.getElementById('logout-label');
+    if (el && u) el.textContent = 'Cerrar sesión · ' + u.nombre;
+  });
+})();
+
+async function _loginSubmit() {
+  const email = document.getElementById('login-email').value.trim();
+  const pin   = document.getElementById('login-pin').value.trim();
+  const errEl = document.getElementById('login-error');
+  const btn   = document.getElementById('login-btn');
+  errEl.textContent = '';
+  if (!email || !pin) { errEl.textContent = 'Completá email y PIN'; return; }
+  btn.disabled = true; btn.textContent = 'ENTRANDO…';
+  try {
+    const res = await fetch('/api/tiempos?action=login-admin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, pin }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      if (res.status === 403 && data.redirect === 'planta2') {
+        errEl.innerHTML = 'Tu rol no permite acceso. <a href="/planta2.html" style="color:var(--green)">Andá a planta v2 →</a>';
+      } else {
+        errEl.textContent = data.error || 'Credenciales incorrectas';
+      }
+      btn.disabled = false; btn.textContent = 'ENTRAR';
+      return;
+    }
+    window.AUTH.guardarSesion(data.usuario);
+    window.location.reload();
+  } catch(e) {
+    errEl.textContent = 'Error de conexión';
+    btn.disabled = false; btn.textContent = 'ENTRAR';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DATOS (solo corre si auth pasó)
+// ═══════════════════════════════════════════════════════════════════════════
+if (!window.AUTH.puedeEntrarAAdmin()) throw new Error('Auth required');
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DATOS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -667,7 +772,7 @@ setInterval(() => {
 // NAVEGACIÓN
 // ═══════════════════════════════════════════════════════════════════════════
 let currentView = 'dashboard';
-const VIEW_LABELS = {dashboard:'Dashboard',proyectos:'Proyectos',operarios:'Operarios',tiempos:'Tiempos',materiales:'Materiales',ajustes:'Ajustes'};
+const VIEW_LABELS = {dashboard:'Dashboard',proyectos:'Proyectos',operarios:'Operarios',tiempos:'Tiempos',materiales:'Materiales',ajustes:'Ajustes','mi-cuenta':'Mi cuenta'};
 
 function navTo(v) {
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
@@ -691,6 +796,7 @@ function renderView(v) {
   if(v==='tiempos')    renderTiempos();
   if(v==='materiales') renderMateriales();
   if(v==='ajustes')    fInit();
+  if(v==='mi-cuenta')  renderMiCuenta();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2881,9 +2987,13 @@ function fResetear(){
 // ═══════════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
+// Set logout label with current user name
+(function(){const u=window.AUTH.usuarioActual();const el=document.getElementById('logout-label');if(el&&u)el.textContent='Cerrar sesión · '+u.nombre;})();
+
 renderDashboard();
 cargarTodoDesdeSupabase();
 iniciarAutoRefresh();
 </script>
+</div><!-- /app-shell -->
 </body>
 </html>
