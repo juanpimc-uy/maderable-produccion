@@ -3013,6 +3013,8 @@ function fResetear(){
 function renderMiCuenta() {
   const u = window.AUTH.usuarioActual();
   if (!u) return;
+  const contenido = document.getElementById('mi-cuenta-contenido');
+  if (contenido && contenido.innerHTML.trim()) return; // ya renderizado; no destruir inputs con datos en curso
   const rolLabel = { admin: 'Admin', oficina: 'Oficina', operario: 'Operario' }[u.rol_app] || u.rol_app;
   document.getElementById('mi-cuenta-contenido').innerHTML = `
     <div class="card" style="max-width:480px;">
