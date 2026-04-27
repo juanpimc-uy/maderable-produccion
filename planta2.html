@@ -799,9 +799,16 @@ async function autenticar() {
           console.log('[CNC] Usando inicio de Supabase:', placa.inicio, '→', secsSupabase, 'seg');
           localStorage.setItem('cnc_placa_inicio', tsNum.toString());
           localStorage.setItem('cnc_placa_numero', String(placa.placa_numero));
+        } else {
+          // No hay placa activa en Supabase — limpiar datos locales para evitar timer fantasma
+          localStorage.removeItem('cnc_placa_inicio');
+          localStorage.removeItem('cnc_placa_numero');
         }
       } catch (e) {
         console.log('[CNC] No se pudo obtener placa de Supabase:', e.message);
+        // Limpiar datos locales ante error para no mostrar timer incorrecto
+        localStorage.removeItem('cnc_placa_inicio');
+        localStorage.removeItem('cnc_placa_numero');
       }
 
       iniciarIntervalos();
