@@ -184,10 +184,14 @@
     <div class="mono" style="font-size:10px;margin-bottom:6px;">VISTA PLANTA</div>
     <a href="planta2.html" target="_blank" style="color:var(--green);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-decoration:none;display:block;">Planta v2 →</a>
     <div id="sync-status" style="font-size:10px;font-family:'JetBrains Mono',monospace;margin-top:6px;">● Cargando…</div>
-    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-      <div id="logout-label" style="font-size:10px;color:var(--muted);margin-bottom:4px;">Cerrar sesión</div>
-      <button onclick="window.AUTH.cerrarSesion()" style="width:100%;background:transparent;border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--muted);cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;text-align:left;">← Salir</button>
+  </div>
+  <div id="sidebar-user-block" style="margin-top:16px;padding:12px 16px 16px;border-top:0.5px solid #2a2a2a;">
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px;">
+      <div id="sidebar-avatar" style="width:24px;height:24px;border-radius:50%;background:#FFD600;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#000;flex-shrink:0;letter-spacing:0;">??</div>
+      <span id="sidebar-nombre" style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
     </div>
+    <div id="sidebar-rol" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#888;margin-bottom:10px;padding-left:33px;"></div>
+    <button onclick="window.AUTH.cerrarSesion()" id="btn-cerrar-sesion" style="width:100%;background:transparent;border:1px solid #444;border-radius:5px;padding:8px 10px;color:#aaa;cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace;text-align:left;transition:color 0.15s,border-color 0.15s;" onmouseover="this.style.color='#FFD600';this.style.borderColor='#FFD600';" onmouseout="this.style.color='#aaa';this.style.borderColor='#444';">↪ Cerrar sesión</button>
   </div>
 </aside>
 
@@ -327,12 +331,6 @@
   } else {
     shell.style.display = 'none';
   }
-  // update logout button label once DOM is ready
-  window.addEventListener('DOMContentLoaded', () => {
-    const u = window.AUTH.usuarioActual();
-    const el = document.getElementById('logout-label');
-    if (el && u) el.textContent = 'Cerrar sesión · ' + u.nombre;
-  });
 })();
 
 async function _loginSubmit() {
@@ -3062,8 +3060,18 @@ async function resetearPinOperario(opId, nombre) {
 // ═══════════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
-// Set logout label with current user name
-(function(){const u=window.AUTH.usuarioActual();const el=document.getElementById('logout-label');if(el&&u)el.textContent='Cerrar sesión · '+u.nombre;})();
+// Populate sidebar user block
+(function(){
+  const u = window.AUTH.usuarioActual();
+  if (!u) return;
+  const iniciales = u.nombre.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase();
+  const av = document.getElementById('sidebar-avatar');
+  const nm = document.getElementById('sidebar-nombre');
+  const rl = document.getElementById('sidebar-rol');
+  if (av) av.textContent = iniciales;
+  if (nm) nm.textContent = u.nombre;
+  if (rl) rl.textContent = u.rol_app;
+})();
 
 renderDashboard();
 cargarTodoDesdeSupabase();
