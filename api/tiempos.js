@@ -489,6 +489,116 @@ export default async function handler(req) {
       })) });
     }
 
+    // ── GET centros virtuales (catálogo de centros de oficina) ───────────
+    if (action === 'centros-virtuales' && req.method === 'GET') {
+      const { data, error } = await supabase
+        .from('centros_virtuales')
+        .select('id, nombre')
+        .eq('activo', true)
+        .order('nombre');
+      if (error) throw error;
+      return ok({ centros: data || [] });
+    }
+
+    // ── GET tiempo-activo (timer en curso de un empleado) ─────────────────
+    if (action === 'tiempo-activo' && req.method === 'GET') {
+      const empleado_id = url.searchParams.get('empleado_id');
+      if (!empleado_id) return err('empleado_id requerido', 400);
+      const { data } = await supabase
+        .from('registros_trabajo')
+        .select('id, proyecto_id, proyecto_nombre, centro, inicio')
+        .eq('empleado_id', empleado_id)
+        .eq('estado', 'activo')
+        .maybeSingle();
+      return ok({ activo: data || null });
+    }
+
+    // ── POST iniciar-tiempo-oficina ────────────────────────────────────────
+    if (action === 'iniciar-tiempo-oficina' && req.method === 'POST') {
+      const { empleado_id, proyecto_id, proyecto_nombre, centro_virtual } = body;
+      if (!empleado_id || !proyecto_id || !centro_virtual) {
+        return err('empleado_id, proyecto_id y centro_virtual requeridos', 400);
+      }
+
+      // verificar rol
+      const { data: emp, error: eErr } = await supabase
+        .from('empleados').select('rol_app').eq('id', empleado_id).maybeSingle();
+      if (eErr) throw eErr;
+      if (!emp) return err('Empleado no encontrado', 404);
+      if (emp.rol_app !== 'oficina' && emp.rol_app !== 'admin') {
+        return new Response(JSON.stringify({ ok: false, error: 'Rol no autorizado para marcar tiempo de oficina' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+
+      // verificar centro virtual válido
+      const { data: cv } = await supabase
+        .from('centros_virtuales').select('id').eq('nombre', centro_virtual).eq('activo', true).maybeSingle();
+      if (!cv) return err('Centro virtual no válido', 400);
+
+      // verificar que no haya un timer activo del empleado
+      const { data: activo } = await supabase
+        .from('registros_trabajo')
+        .select('id, proyecto_nombre, centro, inicio')
+        .eq('empleado_id', empleado_id)
+        .eq('estado', 'activo')
+        .maybeSingle();
+      if (activo) {
+        return new Response(JSON.stringify({ ok: false, error: 'Ya tenés un timer activo', activo }),
+          { status: 409, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+
+      // insertar registro de trabajo para oficina (sin jornada ni item)
+      const { data, error } = await supabase
+        .from('registros_trabajo')
+        .insert({
+          empleado_id,
+          jornada_id: null,
+          proyecto_id,
+          proyecto_nombre: proyecto_nombre || '',
+          item_id: null,
+          item_nombre: null,
+          centro: centro_virtual,
+          inicio: new Date().toISOString(),
+          fin: null,
+          estado: 'activo',
+          es_retrabajo: false,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return ok({ registro: data });
+    }
+
+    // ── POST detener-tiempo-oficina ────────────────────────────────────────
+    if (action === 'detener-tiempo-oficina' && req.method === 'POST') {
+      const { registro_id, empleado_id } = body;
+      if (!registro_id || !empleado_id) return err('registro_id y empleado_id requeridos', 400);
+
+      const { data: r, error: rErr } = await supabase
+        .from('registros_trabajo')
+        .select('id, empleado_id, inicio, fin, estado')
+        .eq('id', registro_id)
+        .maybeSingle();
+      if (rErr) throw rErr;
+      if (!r) return err('Registro no encontrado', 404);
+      if (r.empleado_id !== empleado_id) {
+        return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      if (r.estado !== 'activo') return err('El registro ya está cerrado', 400);
+
+      const fin = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('registros_trabajo')
+        .update({ fin, estado: 'finalizado' })
+        .eq('id', registro_id)
+        .select()
+        .single();
+      if (error) throw error;
+      const durMin = Math.round((new Date(fin) - new Date(r.inicio)) / 60000);
+      return ok({ registro: data, duracion_minutos: durMin });
+    }
+
     // ── POST login admin (email + PIN) ───────────────────────────────────
     if (action === 'login-admin' && req.method === 'POST') {
       const { email, pin } = body;
