@@ -1833,7 +1833,7 @@ function _renderOpGestion() {
           <div class="av active" style="width:40px;height:40px;font-size:14px;flex-shrink:0;">${op.avatar||getIniciales(op.nombre)}</div>
           <div style="flex:1;">
             <div style="font-size:15px;font-weight:700;">${op.nombre}</div>
-            <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">${op.rol_app||'operario'} · ${hist.length} sesiones · ${fmtH(totalH)} totales</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">${op.rol_app||'operario'}${window.AUTH.esAdmin()?` · <span style="color:var(--amber);font-size:10px;">${op.categoria||'directo'}</span>`:''} · ${hist.length} sesiones · ${fmtH(totalH)} totales</div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;">${(op.centros&&op.centros.length?op.centros:_CENTROS_DEFAULT).map(cid=>{const c=CENTROS.find(x=>x.id===cid);return c?`<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:1px 6px;border-radius:3px;color:${c.color};background:${c.color}12;border:1px solid ${c.color}44;">${c.icon} ${c.label}</span>`:''}).join('')}</div>
           </div>
           <span style="font-size:13px;color:var(--muted);margin-right:8px;">${exp?'▴':'▾'}</span>
