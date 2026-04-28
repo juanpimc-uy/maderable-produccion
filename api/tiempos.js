@@ -134,16 +134,21 @@ export default async function handler(req) {
       if (callerRol === 'operario') return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
       const { data: existing } = await supabase
-        .from('empleados').select('id').eq('nombre', nombre).maybeSingle();
+        .from('empleados').select('id, rol_app').eq('nombre', nombre).maybeSingle();
 
       const isInsert = !existing;
       if (isInsert && callerRol !== 'admin') {
         return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede crear empleados' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       }
 
+      // ── Verificar jerarquía para UPDATE ───────────────────────────────────
+      if (!isInsert && callerRol === 'oficina' && existing.rol_app !== 'operario') {
+        return new Response(JSON.stringify({ ok: false, error: 'No tenés permisos para modificar este usuario' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+
       let campos;
       if (callerRol === 'oficina') {
-        // Oficina solo puede actualizar centros
+        // Oficina solo puede actualizar centros de operarios
         console.log(`[perms] oficina ${admin_id} actualizando solo centros de ${nombre}`);
         campos = { centros_autorizados: body.centros_autorizados || [] };
       } else {
@@ -176,6 +181,9 @@ export default async function handler(req) {
     if (action === 'eliminar-empleado' && req.method === 'POST') {
       const { admin_id, empleado_id } = body;
       if (!admin_id || !empleado_id) return err('admin_id y empleado_id requeridos', 400);
+      if (admin_id === empleado_id) {
+        return new Response(JSON.stringify({ ok: false, error: 'No podés eliminarte a vos mismo' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
       const { data: caller } = await supabase
         .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
       if (!caller || caller.rol_app !== 'admin') {
@@ -496,15 +504,27 @@ export default async function handler(req) {
       return ok({ ok: true });
     }
 
-    // ── POST resetear PIN ajeno (admin/oficina) ───────────────────────────
+    // ── POST resetear PIN ajeno (admin/oficina con jerarquía) ────────────
     if (action === 'resetear-pin' && req.method === 'POST') {
       const { admin_id, empleado_id } = body;
       if (!admin_id || !empleado_id) return err('admin_id y empleado_id requeridos', 400);
-      const { data: admin, error: aErr } = await supabase
-        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (admin_id === empleado_id) {
+        return new Response(JSON.stringify({ ok: false, error: 'Para cambiar tu propio PIN usá la sección Mi cuenta' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      const [{ data: actor, error: aErr }, { data: target, error: tErr }] = await Promise.all([
+        supabase.from('empleados').select('rol_app').eq('id', admin_id).maybeSingle(),
+        supabase.from('empleados').select('rol_app').eq('id', empleado_id).maybeSingle(),
+      ]);
       if (aErr) throw aErr;
-      if (!admin || !['admin', 'oficina'].includes(admin.rol_app))
-        return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (tErr) throw tErr;
+      if (!actor) return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (!target) return err('Empleado no encontrado', 404);
+      const canReset =
+        actor.rol_app === 'admin' ||
+        (actor.rol_app === 'oficina' && target.rol_app === 'operario');
+      if (!canReset) {
+        return new Response(JSON.stringify({ ok: false, error: 'No tenés permisos para resetear el PIN de este usuario' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
       const { error: uErr } = await supabase.from('empleados').update({ pin: '1234' }).eq('id', empleado_id);
       if (uErr) throw uErr;
       return ok({ ok: true, pin_reseteado: '1234' });
