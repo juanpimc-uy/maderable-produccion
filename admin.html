@@ -302,6 +302,31 @@
     margin-bottom: 12px;
     text-align: center;
   }
+  #timer-item-section {
+    display: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    margin-bottom: 20px;
+  }
+  #timer-item-section.visible {
+    display: block;
+    opacity: 1;
+  }
+  #timer-item-select {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+  }
+  #timer-item-select:focus { border-color: var(--amber); }
+  #timer-item-select option { background: var(--card); }
 </style>
 </head>
 <body>
@@ -495,6 +520,14 @@
     <!-- Selector centro virtual -->
     <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:10px;letter-spacing:1px;">CENTRO</div>
     <div class="timer-centro-grid" id="timer-centro-grid"></div>
+
+    <!-- Selector item (condicional) -->
+    <div id="timer-item-section">
+      <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:6px;letter-spacing:1px;">ITEM</div>
+      <select id="timer-item-select" onchange="_timerSelItemFn()">
+        <option value="">— Elegí un item —</option>
+      </select>
+    </div>
 
     <!-- Error + botones -->
     <div id="timer-modal-error"></div>
@@ -3342,16 +3375,20 @@ async function resetearPinOperario(opId, nombre) {
 // ═══════════════════════════════════════════════════════════════════════════
 // TIMER OFICINA (LOTE 4) — Pasos 3-5
 // ═══════════════════════════════════════════════════════════════════════════
-let _timerRegistro    = null;   // objeto registro activo {id, proyecto_id, proyecto_nombre, centro, inicio}
+let _timerRegistro    = null;   // objeto registro activo {id, proyecto_id, proyecto_nombre, item_id, item_nombre, centro, inicio}
 let _timerInterval    = null;   // setInterval handle para el cronómetro
 let _timerStopConfirm = false;  // estado de doble-click en Detener
 let _timerStopTimer   = null;   // timeout para resetear estado confirm
 
+// Centros que requieren item obligatorio (must match DB names exactly)
+const _CENTROS_CON_ITEM = ['Shop Drawing', 'Modelado', 'Cam'];
+
 // Centros virtuales y proyectos para el modal
 let _cvCentros   = [];
 let _cvProyectos = [];
-let _timerSelProy  = null;   // {id, numero, nombre, cliente_nombre}
-let _timerSelCentro = null;  // string nombre
+let _timerSelProy   = null;   // {id, numero, nombre, cliente_nombre, muebles}
+let _timerSelCentro = null;   // string nombre
+let _timerSelItem   = null;   // {id, codigo, nombre} o null
 
 function _fmtHMS(secs) {
   const h = Math.floor(secs / 3600);
@@ -3409,7 +3446,14 @@ function _timerBarSetActive() {
 function _timerBarActualizarTexto() {
   if (!_timerRegistro) return;
   const secs = Math.floor((Date.now() - new Date(_timerRegistro.inicio).getTime()) / 1000);
-  const label = `● ${_timerRegistro.centro}  ·  ${_timerRegistro.proyecto_nombre || '—'}  ·  ${_fmtHMS(secs)}`;
+  // Extraer código del item si existe (guardado como "MF01 · nombre" o similar)
+  let itemPart = '';
+  if (_timerRegistro.item_nombre) {
+    const cod = _timerRegistro.item_nombre.split(' · ')[0] || _timerRegistro.item_nombre;
+    itemPart = ` · ${cod}`;
+  }
+  const proyNum = (_timerRegistro.proyecto_nombre || '—').split(' · ')[0]; // solo el número
+  const label = `● ${_timerRegistro.centro}${itemPart}  en  ${proyNum}  ·  ${_fmtHMS(secs)}`;
   document.getElementById('timer-bar-icon').textContent = '';
   document.getElementById('timer-bar-text').textContent = label;
 }
@@ -3475,9 +3519,11 @@ async function _timerDetener() {
 async function _timerModalAbrir() {
   _timerSelProy   = null;
   _timerSelCentro = null;
+  _timerSelItem   = null;
   document.getElementById('timer-modal-error').textContent = '';
   document.getElementById('timer-proy-search').value = '';
   document.getElementById('timer-iniciar-btn').disabled = true;
+  _timerLimpiarItem();
   document.getElementById('timer-modal-overlay').classList.add('open');
 
   // Cargar proyectos y centros en paralelo
@@ -3491,6 +3537,11 @@ async function _timerModalAbrir() {
       numero: p.numero || '',
       nombre: p.nombre || '',
       cliente_nombre: p.cliente_nombre || p.cliente || '',
+      muebles: (p.muebles || []).map(m => ({
+        id: m.id,
+        codigo: m.codigo || '',
+        nombre: m.nombre || '',
+      })),
     }));
     _cvCentros = (rCv.centros || []).map(c => c.nombre);
   } catch(e) {
@@ -3531,6 +3582,11 @@ function _timerSelProyecto(id) {
       ? _cvProyectos.filter(p => [p.numero, p.nombre, p.cliente_nombre].join(' ').toLowerCase().includes(document.getElementById('timer-proy-search').value.toLowerCase()))
       : _cvProyectos
   );
+  if (_timerSelProy && _timerSelCentro && _CENTROS_CON_ITEM.includes(_timerSelCentro)) {
+    _timerPoblarItems();
+  } else if (!_timerSelProy) {
+    _timerLimpiarItem();
+  }
   _timerCheckIniciarBtn();
 }
 
@@ -3545,11 +3601,51 @@ function _timerRenderCentros() {
 function _timerSelCentroFn(nombre) {
   _timerSelCentro = nombre;
   _timerRenderCentros();
+  if (_timerSelProy && _CENTROS_CON_ITEM.includes(_timerSelCentro)) {
+    _timerPoblarItems();
+  } else {
+    _timerLimpiarItem();
+  }
   _timerCheckIniciarBtn();
 }
 
 function _timerCheckIniciarBtn() {
-  document.getElementById('timer-iniciar-btn').disabled = !(_timerSelProy && _timerSelCentro);
+  const baseOk = !!(  _timerSelProy && _timerSelCentro);
+  const itemOk = _CENTROS_CON_ITEM.includes(_timerSelCentro) ? !!_timerSelItem : true;
+  document.getElementById('timer-iniciar-btn').disabled = !(baseOk && itemOk);
+}
+
+function _timerPoblarItems() {
+  const sel = document.getElementById('timer-item-select');
+  const items = (_timerSelProy?.muebles || []);
+  sel.innerHTML = '<option value="">— Elegí un item —</option>' +
+    items.map(m => {
+      const label = m.codigo ? `${m.codigo} · ${m.nombre}` : m.nombre;
+      return `<option value="${m.id}" data-nombre="${label}">${label}</option>`;
+    }).join('');
+  _timerSelItem = null;
+  const section = document.getElementById('timer-item-section');
+  section.style.display = 'block';
+  requestAnimationFrame(() => section.style.opacity = '1');
+}
+
+function _timerLimpiarItem() {
+  _timerSelItem = null;
+  const sel = document.getElementById('timer-item-select');
+  if (sel) { sel.innerHTML = '<option value="">— Elegí un item —</option>'; }
+  const section = document.getElementById('timer-item-section');
+  if (section) { section.style.display = 'none'; section.style.opacity = '0'; }
+}
+
+function _timerSelItemFn() {
+  const sel = document.getElementById('timer-item-select');
+  const opt = sel.options[sel.selectedIndex];
+  if (sel.value) {
+    _timerSelItem = { id: sel.value, nombre: opt.dataset.nombre || opt.textContent };
+  } else {
+    _timerSelItem = null;
+  }
+  _timerCheckIniciarBtn();
 }
 
 async function _timerIniciar() {
@@ -3569,6 +3665,10 @@ async function _timerIniciar() {
         proyecto_id: _timerSelProy.id,
         proyecto_nombre: [_timerSelProy.numero, _timerSelProy.nombre].filter(Boolean).join(' · '),
         centro_virtual: _timerSelCentro,
+        ...((_CENTROS_CON_ITEM.includes(_timerSelCentro) && _timerSelItem) ? {
+          item_id: _timerSelItem.id,
+          item_nombre: _timerSelItem.nombre,
+        } : {}),
       }),
     });
     const json = await res.json();
