@@ -1855,7 +1855,14 @@ function _renderOpGestion() {
 const _CENTROS_DEFAULT=['corte','enchapado','armado','empaquetado']; // revision requiere asignación explícita
 
 function abrirModalOperario(opId) {
+  const _u = window.AUTH.usuarioActual();
+  if (!_u || _u.rol_app === 'operario') { window.location.href='/planta2.html'; return; }
   const op=opId?OPERARIOS.find(o=>o.id===opId):null;
+  const esAdmin = window.AUTH.esAdmin();
+  const esOficina = window.AUTH.esOficina();
+  // disabled attr + muted style for read-only fields (oficina)
+  const dis = esOficina ? 'disabled' : '';
+  const disS = esOficina ? 'opacity:0.55;cursor:not-allowed;' : '';
   const centrosOp=op?.centros&&op.centros.length?op.centros:_CENTROS_DEFAULT;
   const centrosChk=CENTROS.map(c=>{
     const chk=centrosOp.includes(c.id);
@@ -1864,40 +1871,41 @@ function abrirModalOperario(opId) {
       <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${chk?c.color:'var(--muted)'};">${c.icon} ${c.label}</span>
     </label>`;
   }).join('');
-  const _inputStyle='background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;';
+  const _inputStyle=`background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;${disS}`;
   const _labelStyle='font-family:\'JetBrains Mono\',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;';
   abrirModal(op?'EDITAR OPERARIO':'NUEVO OPERARIO',`
     <div style="display:flex;flex-direction:column;gap:14px;">
+      ${esOficina ? `<div style="font-size:11px;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:8px 12px;">Solo podés editar centros habilitados. Para cambiar otros datos, pedile a un admin.</div>` : ''}
       <div style="display:flex;gap:12px;">
         <div style="flex:1;">
           <label style="${_labelStyle}">Nombre completo</label>
-          <input id="mod-op-nombre" value="${op?.nombre||''}" placeholder="Carlos Méndez"
+          <input id="mod-op-nombre" value="${op?.nombre||''}" placeholder="Carlos Méndez" ${dis}
             oninput="const v=this.value;const a=document.getElementById('mod-op-avatar');if(a&&!a._edited)a.value=getIniciales(v);"
             style="${_inputStyle}">
         </div>
         <div style="flex:0 0 130px;">
           <label style="${_labelStyle}">Cédula</label>
-          <input id="mod-op-cedula" value="${op?.cedula||''}" placeholder="1.234.567-8"
+          <input id="mod-op-cedula" value="${op?.cedula||''}" placeholder="1.234.567-8" ${dis}
             style="${_inputStyle}">
         </div>
       </div>
       <div style="display:flex;gap:12px;">
         <div style="flex:0 0 90px;">
           <label style="${_labelStyle}">Avatar</label>
-          <input id="mod-op-avatar" value="${op?.avatar||getIniciales(op?.nombre||'')}" placeholder="CM" maxlength="2"
+          <input id="mod-op-avatar" value="${op?.avatar||getIniciales(op?.nombre||'')}" placeholder="CM" maxlength="2" ${dis}
             oninput="this._edited=true;"
-            style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;outline:none;width:100%;text-align:center;text-transform:uppercase;">
+            style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;outline:none;width:100%;text-align:center;text-transform:uppercase;${disS}">
         </div>
         <div style="flex:1;">
           <label style="${_labelStyle}">Email</label>
-          <input id="mod-op-email" type="email" value="${op?.email||''}" placeholder="opcional · requerido para oficina/admin"
+          <input id="mod-op-email" type="email" value="${op?.email||''}" placeholder="opcional · requerido para oficina/admin" ${dis}
             style="${_inputStyle}">
         </div>
       </div>
       <div style="display:flex;gap:12px;">
         <div style="flex:1;">
           <label style="${_labelStyle}">Rol de App</label>
-          <select id="mod-op-rol"
+          <select id="mod-op-rol" ${dis}
             onchange="const r=this.value;if(r==='oficina'||r==='admin'){const em=document.getElementById('mod-op-email');if(em&&!em.value.trim())em.focus();}"
             style="${_inputStyle}">
             <option value="operario">operario</option>
@@ -1905,7 +1913,7 @@ function abrirModalOperario(opId) {
             <option value="admin">admin</option>
           </select>
         </div>
-        ${window.AUTH.esAdmin() ? `<div style="flex:0 0 140px;">
+        ${esAdmin ? `<div style="flex:0 0 140px;">
           <label style="${_labelStyle}">Categoría</label>
           <select id="mod-op-cat" style="${_inputStyle}">
             <option value="directo">Directo</option>
@@ -1932,6 +1940,25 @@ function abrirModalOperario(opId) {
 }
 
 function guardarOperario(opId) {
+  const _u = window.AUTH.usuarioActual();
+  if (!_u || _u.rol_app === 'operario') { window.location.href='/planta2.html'; return; }
+  const centros=CENTROS.map(c=>c.id).filter(id=>document.getElementById('mod-op-c-'+id)?.checked);
+  const errEl=document.getElementById('mod-op-error');
+  const showErr=msg=>{if(errEl){errEl.textContent=msg;errEl.style.display='block';}else alert(msg);};
+
+  if (window.AUTH.esOficina()) {
+    // Oficina: solo actualizar centros habilitados
+    if(!centros.length){showErr('Habilitá al menos un centro de trabajo');return;}
+    if(errEl)errEl.style.display='none';
+    const op=OPERARIOS.find(o=>o.id===opId);
+    if(op){op.centros=centros;syncEmpleadoSupabase(op);}
+    guardarOperariosLS();
+    cerrarModal();
+    _renderOpGestion();
+    return;
+  }
+
+  // Admin: actualización completa
   const nombre=(document.getElementById('mod-op-nombre')?.value||'').trim();
   const cedula=(document.getElementById('mod-op-cedula')?.value||'').trim();
   const avatarInput=(document.getElementById('mod-op-avatar')?.value||'').trim().toUpperCase().slice(0,2);
@@ -1940,9 +1967,6 @@ function guardarOperario(opId) {
   const rol_app=document.getElementById('mod-op-rol')?.value||'operario';
   const catEl=document.getElementById('mod-op-cat');
   const categoria=catEl ? catEl.value : (OPERARIOS.find(o=>o.id===opId)?.categoria||'directo');
-  const centros=CENTROS.map(c=>c.id).filter(id=>document.getElementById('mod-op-c-'+id)?.checked);
-  const errEl=document.getElementById('mod-op-error');
-  const showErr=msg=>{if(errEl){errEl.textContent=msg;errEl.style.display='block';}else alert(msg);};
   if(!nombre){showErr('El nombre es obligatorio');return;}
   if(!centros.length){showErr('Habilitá al menos un centro de trabajo');return;}
   if((rol_app==='oficina'||rol_app==='admin')&&!email){showErr('Email obligatorio para rol oficina/admin');document.getElementById('mod-op-email')?.focus();return;}
