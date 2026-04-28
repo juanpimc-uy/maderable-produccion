@@ -1020,7 +1020,7 @@ async function cargarEmpleados() {
     (empleados || []).forEach(e => {
       const opt = document.createElement('option');
       opt.value = e.id;
-      opt.dataset.pin = e.pin;
+      opt.dataset.cedula = e.cedula;
       opt.dataset.centros = JSON.stringify(e.centros_autorizados || []);
       opt.dataset.nombre = e.nombre;
       opt.dataset.entrada = e.horario_entrada || '08:00';
@@ -1048,33 +1048,53 @@ function renderPin() {
 async function autenticar() {
   const sel = document.getElementById('sel-empleado');
   const opt = sel.options[sel.selectedIndex];
-  const empId = sel.value;
 
-  if (!empId) { setLoginError('Seleccioná tu nombre'); return; }
+  if (!sel.value) { setLoginError('Seleccioná tu nombre'); return; }
   if (_pin.length < 4) { setLoginError('Ingresá los 4 dígitos del PIN'); return; }
 
-  if (String(opt.dataset.pin) !== _pin) {
-    const grid = document.getElementById('pin-grid');
-    grid.classList.remove('shake');
-    void grid.offsetWidth;
-    grid.classList.add('shake');
-    pinClear();
-    setLoginError('PIN incorrecto');
-    return;
-  }
+  const cedulaIngresada = opt.dataset.cedula;
+  if (!cedulaIngresada) { setLoginError('Empleado sin cédula registrada'); return; }
 
   setLoginError('');
   document.getElementById('btn-entrar').textContent = 'Ingresando…';
   document.getElementById('btn-entrar').disabled = true;
 
+  let verificado;
   try {
-    // Armar objeto empleado
+    const resp = await fetch('/api/tiempos?action=verificar-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cedula: cedulaIngresada, pin: _pin }),
+    });
+    const json = await resp.json();
+    if (!resp.ok || !json.ok || !json.empleado) {
+      const grid = document.getElementById('pin-grid');
+      grid.classList.remove('shake');
+      void grid.offsetWidth;
+      grid.classList.add('shake');
+      pinClear();
+      setLoginError(json.error || 'Cédula o PIN incorrectos');
+      document.getElementById('btn-entrar').textContent = 'ENTRAR';
+      document.getElementById('btn-entrar').disabled = false;
+      return;
+    }
+    verificado = json.empleado;
+  } catch (e) {
+    console.error('Error de red en login:', e);
+    setLoginError('Error de conexión. Verificá el internet.');
+    document.getElementById('btn-entrar').textContent = 'ENTRAR';
+    document.getElementById('btn-entrar').disabled = false;
+    return;
+  }
+
+  try {
+    const empId = verificado.id;
+    // Armar objeto empleado desde respuesta server-side (sin pin)
     empleadoActual = {
-      id: empId,
-      nombre: opt.dataset.nombre,
-      pin: opt.dataset.pin,
-      centros_autorizados: JSON.parse(opt.dataset.centros || '[]'),
-      horario_entrada: opt.dataset.entrada,
+      id: verificado.id,
+      nombre: verificado.nombre,
+      centros_autorizados: verificado.centros_autorizados || [],
+      horario_entrada: verificado.horario_entrada || '08:00',
     };
 
     // 1. Obtener o crear jornada
