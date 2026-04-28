@@ -123,30 +123,67 @@ export default async function handler(req) {
       const nombre = (body.nombre || '').trim();
       if (!nombre) return err('nombre requerido');
 
-      const campos = {
-        nombre,
-        cedula: body.cedula || null,
-        ...(body.email !== undefined ? { email: body.email || null } : {}),
-        ...(body.rol_app ? { rol_app: body.rol_app } : {}),
-        categoria: body.categoria || 'directo',
-        centros_autorizados: body.centros_autorizados || [],
-        pin: body.pin || '1234',
-        horario_entrada: body.horario_entrada || '08:00',
-        horario_salida:  body.horario_salida  || '17:00',
-        activo: true,
-      };
+      // ── Verificar permisos del caller ──────────────────────────────────
+      const admin_id = body.admin_id;
+      if (!admin_id) return err('admin_id requerido', 400);
+      const { data: caller, error: callerErr } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (callerErr) throw callerErr;
+      if (!caller) return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      const callerRol = caller.rol_app;
+      if (callerRol === 'operario') return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
       const { data: existing } = await supabase
         .from('empleados').select('id').eq('nombre', nombre).maybeSingle();
+
+      const isInsert = !existing;
+      if (isInsert && callerRol !== 'admin') {
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede crear empleados' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+
+      let campos;
+      if (callerRol === 'oficina') {
+        // Oficina solo puede actualizar centros
+        console.log(`[perms] oficina ${admin_id} actualizando solo centros de ${nombre}`);
+        campos = { centros_autorizados: body.centros_autorizados || [] };
+      } else {
+        // Admin: actualización completa
+        campos = {
+          nombre,
+          cedula: body.cedula || null,
+          ...(body.email !== undefined ? { email: body.email || null } : {}),
+          ...(body.rol_app ? { rol_app: body.rol_app } : {}),
+          categoria: body.categoria || 'directo',
+          centros_autorizados: body.centros_autorizados || [],
+          pin: body.pin || '1234',
+          horario_entrada: body.horario_entrada || '08:00',
+          horario_salida:  body.horario_salida  || '17:00',
+          activo: true,
+        };
+      }
 
       let data, error;
       if (existing) {
         ({ data, error } = await supabase.from('empleados').update(campos).eq('id', existing.id).select().single());
       } else {
-        ({ data, error } = await supabase.from('empleados').insert(campos).select().single());
+        ({ data, error } = await supabase.from('empleados').insert({ ...campos, nombre, activo: true }).select().single());
       }
       if (error) throw error;
       return ok({ empleado: data });
+    }
+
+    // ── POST eliminar empleado (soft-delete, solo admin) ──────────────────
+    if (action === 'eliminar-empleado' && req.method === 'POST') {
+      const { admin_id, empleado_id } = body;
+      if (!admin_id || !empleado_id) return err('admin_id y empleado_id requeridos', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin') {
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede eliminar empleados' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      const { error } = await supabase.from('empleados').update({ activo: false }).eq('id', empleado_id);
+      if (error) throw error;
+      return ok({ ok: true });
     }
 
     // ── GET jornada de hoy para un empleado ──────────────────────────────

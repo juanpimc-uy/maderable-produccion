@@ -390,6 +390,7 @@ async function syncEmpleadoSupabase(op) {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
+        admin_id: window.AUTH.usuarioActual()?.id,
         nombre: op.nombre,
         cedula: op.cedula || null,
         email: op.email || null,
@@ -538,6 +539,7 @@ async function syncOperarioSupabase(op, upsert = false) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        admin_id: window.AUTH.usuarioActual()?.id,
         nombre: op.nombre,
         cedula: op.cedula || '',
         email: op.email || null,
@@ -564,6 +566,7 @@ async function syncTodosOperarios() {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
+          admin_id: window.AUTH.usuarioActual()?.id,
           nombre: op.nombre,
           cedula: op.cedula || null,
           email: op.email || null,
@@ -1985,12 +1988,25 @@ function guardarOperario(opId) {
   _renderOpGestion();
 }
 
-function eliminarOperario(opId) {
+async function eliminarOperario(opId) {
   const op=OPERARIOS.find(o=>o.id===opId);
   if(!op)return;
   const activas=SESIONES.filter(s=>s.operarioId===opId);
   if(activas.length){alert(`No se puede eliminar a ${op.nombre}: tiene ${activas.length} sesión(es) activa(s).`);return;}
   if(!confirm(`¿Eliminar a ${op.nombre}?\nEl historial de sesiones se conserva.`))return;
+  const u = window.AUTH.usuarioActual();
+  try {
+    const res = await fetch('/api/tiempos?action=eliminar-empleado', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: u.id, empleado_id: op.id }),
+    });
+    const d = await res.json();
+    if (!d.ok) { alert(d.error || 'No se pudo eliminar en Supabase'); return; }
+  } catch(e) {
+    alert('Error de conexión al eliminar');
+    return;
+  }
   OPERARIOS.splice(OPERARIOS.findIndex(o=>o.id===opId),1);
   guardarOperariosLS();
   _renderOpGestion();
