@@ -111,7 +111,7 @@ export default async function handler(req) {
     if (action === 'empleados' && req.method === 'GET') {
       const { data, error } = await supabase
         .from('empleados')
-        .select('id,nombre,cedula,email,rol_app,categoria,centros_autorizados,pin,horario_entrada,horario_salida')
+        .select('id,nombre,cedula,email,rol_app,categoria,centros_autorizados,horario_entrada,horario_salida')
         .eq('activo', true)
         .order('nombre');
       if (error) throw error;
@@ -152,26 +152,43 @@ export default async function handler(req) {
         console.log(`[perms] oficina ${admin_id} actualizando solo centros de ${nombre}`);
         campos = { centros_autorizados: body.centros_autorizados || [] };
       } else {
-        // Admin: actualización completa
-        campos = {
-          nombre,
-          cedula: body.cedula || null,
-          ...(body.email !== undefined ? { email: body.email || null } : {}),
-          ...(body.rol_app ? { rol_app: body.rol_app } : {}),
-          categoria: body.categoria || 'directo',
-          centros_autorizados: body.centros_autorizados || [],
-          pin: body.pin || '1234',
-          horario_entrada: body.horario_entrada || '08:00',
-          horario_salida:  body.horario_salida  || '17:00',
-          activo: true,
+        // Admin: solo incluir campos que vinieron en el body (no pisar con defaults en UPDATE)
+        const camposOpcionales = {
+          ...(body.cedula !== undefined    ? { cedula: body.cedula || null }                              : {}),
+          ...(body.email !== undefined     ? { email: body.email || null }                                : {}),
+          ...(body.rol_app                 ? { rol_app: body.rol_app }                                   : {}),
+          ...(body.categoria               ? { categoria: body.categoria }                               : {}),
+          ...(body.centros_autorizados !== undefined ? { centros_autorizados: body.centros_autorizados } : {}),
+          ...(body.horario_entrada         ? { horario_entrada: body.horario_entrada }                   : {}),
+          ...(body.horario_salida          ? { horario_salida:  body.horario_salida }                    : {}),
         };
+
+        if (isInsert) {
+          // INSERT: defaults explícitos + override con lo que vino
+          campos = {
+            nombre,
+            cedula: null,
+            email: null,
+            rol_app: 'operario',
+            categoria: 'directo',
+            centros_autorizados: [],
+            pin: '1234',
+            horario_entrada: '08:00',
+            horario_salida: '17:00',
+            activo: true,
+            ...camposOpcionales,
+          };
+        } else {
+          // UPDATE: solo nombre + campos que vinieron (no activo, no pin, sin defaults)
+          campos = { nombre, ...camposOpcionales };
+        }
       }
 
       let data, error;
       if (existing) {
         ({ data, error } = await supabase.from('empleados').update(campos).eq('id', existing.id).select().single());
       } else {
-        ({ data, error } = await supabase.from('empleados').insert({ ...campos, nombre, activo: true }).select().single());
+        ({ data, error } = await supabase.from('empleados').insert(campos).select().single());
       }
       if (error) throw error;
       return ok({ empleado: data });
