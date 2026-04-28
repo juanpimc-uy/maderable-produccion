@@ -515,10 +515,14 @@ export default async function handler(req) {
 
     // ── POST iniciar-tiempo-oficina ────────────────────────────────────────
     if (action === 'iniciar-tiempo-oficina' && req.method === 'POST') {
-      const { empleado_id, proyecto_id, proyecto_nombre, centro_virtual } = body;
+      const { empleado_id, proyecto_id, proyecto_nombre, centro_virtual,
+              item_id, item_nombre } = body;
       if (!empleado_id || !proyecto_id || !centro_virtual) {
         return err('empleado_id, proyecto_id y centro_virtual requeridos', 400);
       }
+
+      // centros que requieren item obligatorio
+      const CENTROS_CON_ITEM = ['Shop Drawing', 'Modelado', 'Cam'];
 
       // verificar rol
       const { data: emp, error: eErr } = await supabase
@@ -535,6 +539,15 @@ export default async function handler(req) {
         .from('centros_virtuales').select('id').eq('nombre', centro_virtual).eq('activo', true).maybeSingle();
       if (!cv) return err('Centro virtual no válido', 400);
 
+      // validar item si el centro lo requiere
+      if (CENTROS_CON_ITEM.includes(centro_virtual)) {
+        if (!item_id) {
+          return err(`El centro ${centro_virtual} requiere especificar un item`, 400);
+        }
+        // Items son JSONB embebido en proyectos_cache — no hay tabla normalizada.
+        // La existencia del item_id se confía al cliente (validado antes del POST).
+      }
+
       // verificar que no haya un timer activo del empleado
       const { data: activo } = await supabase
         .from('registros_trabajo')
@@ -547,7 +560,10 @@ export default async function handler(req) {
           { status: 409, headers: { ...CORS, 'Content-Type': 'application/json' } });
       }
 
-      // insertar registro de trabajo para oficina (sin jornada ni item)
+      // item solo se persiste si el centro lo requiere; si no, se ignora
+      const persistirItem = CENTROS_CON_ITEM.includes(centro_virtual);
+
+      // insertar registro de trabajo para oficina
       const { data, error } = await supabase
         .from('registros_trabajo')
         .insert({
@@ -555,8 +571,8 @@ export default async function handler(req) {
           jornada_id: null,
           proyecto_id,
           proyecto_nombre: proyecto_nombre || '',
-          item_id: null,
-          item_nombre: null,
+          item_id:    persistirItem ? (item_id   || null) : null,
+          item_nombre: persistirItem ? (item_nombre || null) : null,
           centro: centro_virtual,
           inicio: new Date().toISOString(),
           fin: null,
