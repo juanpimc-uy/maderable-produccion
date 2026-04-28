@@ -1899,16 +1899,16 @@ function abrirModalOperario(opId) {
             oninput="this._edited=true;"
             style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;outline:none;width:100%;text-align:center;text-transform:uppercase;${disS}">
         </div>
-        <div style="flex:1;">
+        ${esAdmin ? `<div style="flex:1;">
           <label style="${_labelStyle}">Email</label>
-          <input id="mod-op-email" type="email" value="${op?.email||''}" placeholder="opcional · requerido para oficina/admin" ${dis}
+          <input id="mod-op-email" type="email" value="${op?.email||''}" placeholder="opcional · requerido para oficina/admin"
             style="${_inputStyle}">
-        </div>
+        </div>` : ''}
       </div>
-      <div style="display:flex;gap:12px;">
+      ${esAdmin ? `<div style="display:flex;gap:12px;">
         <div style="flex:1;">
           <label style="${_labelStyle}">Rol de App</label>
-          <select id="mod-op-rol" ${dis}
+          <select id="mod-op-rol"
             onchange="const r=this.value;if(r==='oficina'||r==='admin'){const em=document.getElementById('mod-op-email');if(em&&!em.value.trim())em.focus();}"
             style="${_inputStyle}">
             <option value="operario">operario</option>
@@ -1916,7 +1916,7 @@ function abrirModalOperario(opId) {
             <option value="admin">admin</option>
           </select>
         </div>
-        ${esAdmin ? `<div style="flex:0 0 140px;">
+        <div style="flex:0 0 140px;">
           <label style="${_labelStyle}">Categoría</label>
           <select id="mod-op-cat" style="${_inputStyle}">
             <option value="directo">Directo</option>
@@ -1924,8 +1924,8 @@ function abrirModalOperario(opId) {
             <option value="tecnico">Técnico</option>
             <option value="administrativo">Administrativo</option>
           </select>
-        </div>` : ''}
-      </div>
+        </div>
+      </div>` : ''}
       <div>
         <label style="${_labelStyle}">Centros habilitados</label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">${centrosChk}</div>
