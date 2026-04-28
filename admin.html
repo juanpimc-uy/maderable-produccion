@@ -1863,6 +1863,10 @@ function abrirModalOperario(opId) {
   const op=opId?OPERARIOS.find(o=>o.id===opId):null;
   const esAdmin = window.AUTH.esAdmin();
   const esOficina = window.AUTH.esOficina();
+  if (opId && esOficina && op && op.rol_app !== 'operario') {
+    alert('No permitido. Solo un admin puede editar este usuario.');
+    return;
+  }
   // disabled attr + muted style for read-only fields (oficina)
   const dis = esOficina ? 'disabled' : '';
   const disS = esOficina ? 'opacity:0.55;cursor:not-allowed;' : '';
@@ -3106,8 +3110,15 @@ async function cambiarPinPropio() {
 }
 
 async function resetearPinOperario(opId, nombre) {
-  if (!window.confirm(`¿Resetear el PIN de ${nombre} a 1234?`)) return;
   const u = window.AUTH.usuarioActual();
+  if (window.AUTH.esOficina()) {
+    const target = OPERARIOS.find(o => o.id === opId);
+    if (target && target.rol_app !== 'operario') {
+      alert('No permitido. Solo un admin puede resetear el PIN de un oficina o admin.');
+      return;
+    }
+  }
+  if (!window.confirm(`¿Resetear el PIN de ${nombre} a 1234?`)) return;
   try {
     const res = await fetch('/api/tiempos?action=resetear-pin', {
       method: 'POST',
