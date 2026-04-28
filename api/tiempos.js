@@ -544,8 +544,19 @@ export default async function handler(req) {
         if (!item_id) {
           return err(`El centro ${centro_virtual} requiere especificar un item`, 400);
         }
-        // Items son JSONB embebido en proyectos_cache — no hay tabla normalizada.
-        // La existencia del item_id se confía al cliente (validado antes del POST).
+        // Validar que el item_id pertenezca al proyecto (items son JSONB en proyectos_cache.muebles)
+        const { data: proyecto, error: pErr } = await supabase
+          .from('proyectos_cache')
+          .select('muebles')
+          .eq('id', proyecto_id)
+          .maybeSingle();
+        if (pErr) throw pErr;
+        if (!proyecto) return err('Proyecto no encontrado', 404);
+        const muebles = Array.isArray(proyecto.muebles) ? proyecto.muebles : [];
+        const itemValido = muebles.some(m => String(m.id) === String(item_id));
+        if (!itemValido) {
+          return err('El item especificado no existe en el proyecto', 400);
+        }
       }
 
       // verificar que no haya un timer activo del empleado
