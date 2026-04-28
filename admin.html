@@ -397,7 +397,6 @@ async function syncEmpleadoSupabase(op) {
         rol_app: op.rol_app || 'operario',
         categoria: op.categoria || 'directo',
         centros_autorizados: op.centros || [],
-        pin: op.pin || '1234',
         horario_entrada: op.horario_entrada || '08:00',
         horario_salida:  op.horario_salida  || '17:00',
       })
@@ -470,7 +469,6 @@ async function cargarTodoDesdeSupabase() {
           status: 'disponible',
           centros: e.centros_autorizados || [],
           categoria: e.categoria || 'directo',
-          pin: e.pin || '1234',
           horario_entrada: e.horario_entrada || '08:00',
           horario_salida:  e.horario_salida  || '17:00',
         }));
@@ -546,7 +544,6 @@ async function syncOperarioSupabase(op, upsert = false) {
         rol_app: op.rol_app || 'operario',
         categoria: op.categoria || 'directo',
         centros_autorizados: op.centros || op.centros_autorizados || [],
-        pin: op.pin || '1234',
         horario_entrada: op.horario_entrada || '08:00',
         horario_salida:  op.horario_salida  || '17:00',
       })
@@ -573,7 +570,6 @@ async function syncTodosOperarios() {
           rol_app: op.rol_app || 'operario',
           categoria: op.categoria || 'directo',
           centros_autorizados: op.centros || [],
-          pin: op.pin || '1234',
           horario_entrada: op.horario_entrada || '08:00',
           horario_salida:  op.horario_salida  || '17:00',
         })
