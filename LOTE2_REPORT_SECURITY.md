@@ -92,3 +92,29 @@
 - [ ] **Juan edita cualquier empleado:** funciona.
 - [ ] **Juan elimina un operario:** funciona.
 - [ ] **Cambiar propio PIN desde "Mi cuenta":** funciona para todos los roles.
+
+---
+
+## Fixes adicionales — Auditoría de código
+
+### FIX 1 — PIN leak en GET empleados
+
+**Problema:** `GET /api/tiempos?action=empleados` incluía `pin` en el SELECT. Cualquier cliente con acceso al endpoint (admin.html, planta2.html, o curl autenticado) recibía el PIN en texto plano de todos los empleados activos. Esto exponía credenciales de producción en la respuesta JSON.
+
+**Fix aplicado:**
+- `api/tiempos.js`: `pin` eliminado del `.select(...)` en GET empleados.
+- `admin.html`: eliminado `pin: op.pin || '1234'` de los 4 sitios donde se enviaba al backend (`syncEmpleadoSupabase`, `syncOperarioSupabase`, `syncTodosOperarios`, mapeo en `cargarTodoDesdeSupabase`).
+
+**BLOCKER conocido — planta2.html:** `planta2.html` autentica a los operarios de planta enteramente en el cliente: carga todos los empleados vía este GET, guarda `opt.dataset.pin = e.pin`, y compara `String(opt.dataset.pin) !== _pin` localmente. Al remover `pin` del GET, `e.pin` es `undefined` y **todos los logins de planta quedan rotos**. La restricción "NO TOCAR planta2.html" aplica en esta sesión. El fix completo requiere migrar planta2 a un endpoint server-side de verificación de PIN (e.g. `POST /api/tiempos?action=verificar-pin` con `{ empleado_id, pin }`). **No deployar a producción hasta resolver este blocker.**
+
+---
+
+### FIX 2 — sync-empleado UPDATE pisaba datos existentes con defaults
+
+**Problema:** El handler `sync-empleado`/`crear-empleado` usaba un único objeto `campos` con defaults hardcodeados (`pin: body.pin || '1234'`, `categoria: body.categoria || 'directo'`, `activo: true`) tanto para INSERT como para UPDATE. En consecuencia, un sync parcial de centros enviado desde admin.html (que no incluye `pin` en el body) ejecutaba `UPDATE empleados SET pin='1234', categoria='directo', activo=true WHERE id=...`, reseteando el PIN del empleado y forzando activo=true incluso en empleados marcados como inactivos.
+
+**Fix aplicado:**
+- Separados dos paths en el bloque admin:
+  - **INSERT**: defaults explícitos (`pin:'1234'`, `categoria:'directo'`, etc.) overrideados con `camposOpcionales`.
+  - **UPDATE**: solo `{ nombre, ...camposOpcionales }` — sin `activo`, sin `pin`, sin defaults. Solo se aplican los campos que vinieron explícitamente en el body.
+- `camposOpcionales` usa spread condicional: cada campo solo se incluye si el body lo trae (`body.X !== undefined`), evitando writes nulos no intencionales.
