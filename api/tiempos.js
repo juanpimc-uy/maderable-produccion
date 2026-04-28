@@ -506,7 +506,7 @@ export default async function handler(req) {
       if (!empleado_id) return err('empleado_id requerido', 400);
       const { data } = await supabase
         .from('registros_trabajo')
-        .select('id, proyecto_id, proyecto_nombre, centro, inicio')
+        .select('id, proyecto_id, proyecto_nombre, item_id, item_nombre, centro, inicio')
         .eq('empleado_id', empleado_id)
         .eq('estado', 'activo')
         .maybeSingle();
