@@ -521,6 +521,32 @@ export default async function handler(req) {
       return ok({ ok: true });
     }
 
+    // ── POST verificar PIN (login planta — server-side, no devuelve pin) ──
+    if (action === 'verificar-pin' && req.method === 'POST') {
+      const { cedula, pin } = body;
+      if (!cedula || !pin) return err('cedula y pin requeridos', 400);
+      if (!/^\d{4}$/.test(pin)) {
+        return new Response(JSON.stringify({ ok: false, error: 'PIN inválido' }), {
+          status: 401, headers: { ...CORS, 'Content-Type': 'application/json' }
+        });
+      }
+      const { data, error } = await supabase
+        .from('empleados')
+        .select('id, nombre, cedula, email, rol_app, categoria, centros_autorizados, horario_entrada, horario_salida')
+        .eq('cedula', cedula)
+        .eq('pin', pin)
+        .eq('activo', true)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        return new Response(JSON.stringify({ ok: false, error: 'Cédula o PIN incorrectos' }), {
+          status: 401, headers: { ...CORS, 'Content-Type': 'application/json' }
+        });
+      }
+      return ok({ ok: true, empleado: data });
+    }
+
     // ── POST resetear PIN ajeno (admin/oficina con jerarquía) ────────────
     if (action === 'resetear-pin' && req.method === 'POST') {
       const { admin_id, empleado_id } = body;
