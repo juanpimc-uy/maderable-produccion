@@ -139,6 +139,169 @@
   .login-error { font-size:12px; color:var(--red); margin-top:10px; min-height:18px; text-align:center; }
   .login-planta-link { display:block; text-align:center; margin-top:14px; font-size:11px; color:var(--muted); text-decoration:none; }
   .login-planta-link:hover { color:var(--green); }
+
+  /* ── Timer bar (PASO 3-5) ───────────────────────────────────────────── */
+  #timer-bar {
+    flex-shrink: 0;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.2s;
+    user-select: none;
+  }
+  #timer-bar.idle {
+    background: #1a1a22;
+  }
+  #timer-bar.idle:hover {
+    background: var(--faint);
+  }
+  #timer-bar.active {
+    background: #FFD600;
+    cursor: default;
+  }
+  #timer-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  #timer-bar.idle #timer-bar-left { color: var(--muted); }
+  #timer-bar.active #timer-bar-left { color: #0E0F14; }
+  #timer-bar-stop {
+    background: #0E0F14;
+    color: #FFD600;
+    border: none;
+    border-radius: 5px;
+    padding: 6px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  #timer-bar-stop.confirmar {
+    background: var(--red);
+    color: #fff;
+  }
+
+  /* ── Timer modal ────────────────────────────────────────────────────── */
+  #timer-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 500;
+    align-items: center;
+    justify-content: center;
+  }
+  #timer-modal-overlay.open {
+    display: flex;
+  }
+  #timer-modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    width: 100%;
+    max-width: 460px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .timer-modal-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .timer-proyecto-search {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    margin-bottom: 8px;
+  }
+  .timer-proyecto-search:focus { border-color: var(--amber); }
+  .timer-proyecto-list {
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 20px;
+  }
+  .timer-proyecto-item {
+    padding: 10px 12px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+  .timer-proyecto-item:last-child { border-bottom: none; }
+  .timer-proyecto-item:hover { background: var(--faint); }
+  .timer-proyecto-item.sel { background: rgba(245,166,35,0.12); color: var(--amber); }
+  .timer-centro-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  .timer-centro-btn {
+    padding: 12px 8px;
+    background: var(--panel);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .timer-centro-btn:hover { border-color: var(--amber); }
+  .timer-centro-btn.sel {
+    border-color: var(--amber);
+    background: rgba(245,166,35,0.12);
+    color: var(--amber);
+  }
+  #timer-iniciar-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--amber);
+    color: #0E0F14;
+    border: none;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: opacity 0.15s;
+  }
+  #timer-iniciar-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  #timer-modal-error {
+    font-size: 11px;
+    color: var(--red);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 16px;
+    margin-bottom: 12px;
+    text-align: center;
+  }
 </style>
 </head>
 <body>
@@ -203,6 +366,15 @@
       <span class="live-dot"></span>
       <span class="mono" style="font-size:11px;color:var(--muted);" id="reloj"></span>
     </div>
+  </div>
+
+  <!-- ══ TIMER BAR (PASO 3-5) ════════════════════════════════════════════ -->
+  <div id="timer-bar" class="idle" style="display:none;" onclick="_timerBarClick(event)">
+    <div id="timer-bar-left">
+      <span id="timer-bar-icon">▶</span>
+      <span id="timer-bar-text">Marcar tiempo</span>
+    </div>
+    <button id="timer-bar-stop" style="display:none;" onclick="event.stopPropagation();_timerBarStop()">■ Detener</button>
   </div>
 
   <div class="content">
@@ -309,6 +481,27 @@
   </div><!-- /content -->
 </div><!-- /main -->
 </div><!-- /shell -->
+
+<!-- ══ TIMER MODAL ════════════════════════════════════════════════════════ -->
+<div id="timer-modal-overlay" onclick="_timerModalCerrar()">
+  <div id="timer-modal" onclick="event.stopPropagation()">
+    <div class="timer-modal-title">▶ MARCAR TIEMPO</div>
+
+    <!-- Selector proyecto -->
+    <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:6px;letter-spacing:1px;">PROYECTO</div>
+    <input class="timer-proyecto-search" id="timer-proy-search" type="text" placeholder="Buscar proyecto…" oninput="_timerFiltrarProyectos()">
+    <div class="timer-proyecto-list" id="timer-proy-list"></div>
+
+    <!-- Selector centro virtual -->
+    <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:10px;letter-spacing:1px;">CENTRO</div>
+    <div class="timer-centro-grid" id="timer-centro-grid"></div>
+
+    <!-- Error + botones -->
+    <div id="timer-modal-error"></div>
+    <button id="timer-iniciar-btn" disabled onclick="_timerIniciar()">▶ INICIAR</button>
+    <button onclick="_timerModalCerrar()" style="width:100%;margin-top:10px;padding:10px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;">Cancelar</button>
+  </div>
+</div>
 
 <!-- ═══ MODAL ════════════════════════════════════════════════════════════ -->
 <div class="overlay" id="overlay" onclick="cerrarModal()">
@@ -3146,9 +3339,260 @@ async function resetearPinOperario(opId, nombre) {
   if (rl) rl.textContent = u.rol_app;
 })();
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TIMER OFICINA (LOTE 4) — Pasos 3-5
+// ═══════════════════════════════════════════════════════════════════════════
+let _timerRegistro    = null;   // objeto registro activo {id, proyecto_id, proyecto_nombre, centro, inicio}
+let _timerInterval    = null;   // setInterval handle para el cronómetro
+let _timerStopConfirm = false;  // estado de doble-click en Detener
+let _timerStopTimer   = null;   // timeout para resetear estado confirm
+
+// Centros virtuales y proyectos para el modal
+let _cvCentros   = [];
+let _cvProyectos = [];
+let _timerSelProy  = null;   // {id, numero, nombre, cliente_nombre}
+let _timerSelCentro = null;  // string nombre
+
+function _fmtHMS(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function _fmtDurMin(min) {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60); const m = min % 60;
+  return m ? `${h}h ${m}min` : `${h}h`;
+}
+
+// ── Inicialización: muestra la barra y restaura estado activo ─────────────
+async function initTimerBar() {
+  const u = window.AUTH.usuarioActual();
+  if (!u || (u.rol_app !== 'oficina' && u.rol_app !== 'admin')) return;
+  document.getElementById('timer-bar').style.display = 'flex';
+
+  try {
+    const res = await fetch(`/api/tiempos?action=tiempo-activo&empleado_id=${u.id}`);
+    const json = await res.json();
+    if (json.activo) {
+      _timerRegistro = json.activo;
+      _timerBarSetActive();
+    } else {
+      _timerBarSetIdle();
+    }
+  } catch(e) {
+    console.warn('[timer] No se pudo verificar timer activo:', e.message);
+    _timerBarSetIdle();
+  }
+}
+
+function _timerBarSetIdle() {
+  const bar = document.getElementById('timer-bar');
+  bar.className = 'idle';
+  document.getElementById('timer-bar-icon').textContent = '▶';
+  document.getElementById('timer-bar-text').textContent = 'Marcar tiempo';
+  document.getElementById('timer-bar-stop').style.display = 'none';
+  clearInterval(_timerInterval); _timerInterval = null;
+  _timerRegistro = null;
+}
+
+function _timerBarSetActive() {
+  const bar = document.getElementById('timer-bar');
+  bar.className = 'active';
+  document.getElementById('timer-bar-stop').style.display = '';
+  _timerBarActualizarTexto();
+  clearInterval(_timerInterval);
+  _timerInterval = setInterval(_timerBarActualizarTexto, 1000);
+}
+
+function _timerBarActualizarTexto() {
+  if (!_timerRegistro) return;
+  const secs = Math.floor((Date.now() - new Date(_timerRegistro.inicio).getTime()) / 1000);
+  const label = `● ${_timerRegistro.centro}  ·  ${_timerRegistro.proyecto_nombre || '—'}  ·  ${_fmtHMS(secs)}`;
+  document.getElementById('timer-bar-icon').textContent = '';
+  document.getElementById('timer-bar-text').textContent = label;
+}
+
+// Click en la barra: si idle abre modal; si active, no hace nada (botón detener tiene su handler)
+function _timerBarClick(e) {
+  const bar = document.getElementById('timer-bar');
+  if (bar.classList.contains('idle')) _timerModalAbrir();
+}
+
+// ── Stop con double-confirm ───────────────────────────────────────────────
+function _timerBarStop() {
+  const btn = document.getElementById('timer-bar-stop');
+  if (!_timerStopConfirm) {
+    _timerStopConfirm = true;
+    btn.textContent = '¿Confirmar?';
+    btn.classList.add('confirmar');
+    _timerStopTimer = setTimeout(() => {
+      _timerStopConfirm = false;
+      btn.textContent = '■ Detener';
+      btn.classList.remove('confirmar');
+    }, 3000);
+  } else {
+    clearTimeout(_timerStopTimer);
+    _timerStopConfirm = false;
+    btn.textContent = '■ Detener';
+    btn.classList.remove('confirmar');
+    _timerDetener();
+  }
+}
+
+async function _timerDetener() {
+  const u = window.AUTH.usuarioActual();
+  if (!_timerRegistro || !u) return;
+  const btn = document.getElementById('timer-bar-stop');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/tiempos?action=detener-tiempo-oficina', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ registro_id: _timerRegistro.id, empleado_id: u.id }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) throw new Error(json.error || 'Error al detener');
+    const dur = _fmtDurMin(json.duracion_minutos || 0);
+    _timerBarSetIdle();
+    // pequeño toast reutilizando el sistema existente si existe
+    const toastEl = document.getElementById('toast-msg');
+    if (toastEl) {
+      toastEl.textContent = `✓ Tiempo registrado: ${dur}`;
+      toastEl.style.display = 'block';
+      setTimeout(() => { toastEl.style.display = 'none'; }, 3500);
+    }
+  } catch(e) {
+    console.error('[timer] Error al detener:', e.message);
+    alert('Error al detener el timer: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────
+async function _timerModalAbrir() {
+  _timerSelProy   = null;
+  _timerSelCentro = null;
+  document.getElementById('timer-modal-error').textContent = '';
+  document.getElementById('timer-proy-search').value = '';
+  document.getElementById('timer-iniciar-btn').disabled = true;
+  document.getElementById('timer-modal-overlay').classList.add('open');
+
+  // Cargar proyectos y centros en paralelo
+  try {
+    const [rProy, rCv] = await Promise.all([
+      fetch('/api/tiempos?action=proyectos-activos').then(r => r.json()),
+      fetch('/api/tiempos?action=centros-virtuales').then(r => r.json()),
+    ]);
+    _cvProyectos = (rProy.proyectos || []).map(p => ({
+      id: p.id,
+      numero: p.numero || '',
+      nombre: p.nombre || '',
+      cliente_nombre: p.cliente_nombre || p.cliente || '',
+    }));
+    _cvCentros = (rCv.centros || []).map(c => c.nombre);
+  } catch(e) {
+    document.getElementById('timer-modal-error').textContent = 'Error cargando datos: ' + e.message;
+    return;
+  }
+
+  _timerRenderProyectos(_cvProyectos);
+  _timerRenderCentros();
+}
+
+function _timerModalCerrar() {
+  document.getElementById('timer-modal-overlay').classList.remove('open');
+}
+
+function _timerRenderProyectos(lista) {
+  const el = document.getElementById('timer-proy-list');
+  if (!lista.length) { el.innerHTML = '<div style="padding:12px;font-size:11px;color:var(--muted);font-family:\'JetBrains Mono\',monospace;text-align:center;">Sin proyectos activos</div>'; return; }
+  el.innerHTML = lista.map(p => {
+    const label = [p.numero, p.nombre, p.cliente_nombre].filter(Boolean).join(' · ');
+    const sel = _timerSelProy?.id === p.id ? ' sel' : '';
+    return `<div class="timer-proyecto-item${sel}" onclick="_timerSelProyecto('${p.id}')">${label}</div>`;
+  }).join('');
+}
+
+function _timerFiltrarProyectos() {
+  const q = document.getElementById('timer-proy-search').value.toLowerCase();
+  const filtrados = q ? _cvProyectos.filter(p =>
+    [p.numero, p.nombre, p.cliente_nombre].join(' ').toLowerCase().includes(q)
+  ) : _cvProyectos;
+  _timerRenderProyectos(filtrados);
+}
+
+function _timerSelProyecto(id) {
+  _timerSelProy = _cvProyectos.find(p => p.id === id) || null;
+  _timerRenderProyectos(
+    document.getElementById('timer-proy-search').value
+      ? _cvProyectos.filter(p => [p.numero, p.nombre, p.cliente_nombre].join(' ').toLowerCase().includes(document.getElementById('timer-proy-search').value.toLowerCase()))
+      : _cvProyectos
+  );
+  _timerCheckIniciarBtn();
+}
+
+function _timerRenderCentros() {
+  const grid = document.getElementById('timer-centro-grid');
+  grid.innerHTML = _cvCentros.map(c => {
+    const sel = _timerSelCentro === c ? ' sel' : '';
+    return `<button class="timer-centro-btn${sel}" onclick="_timerSelCentroFn('${c}')">${c}</button>`;
+  }).join('');
+}
+
+function _timerSelCentroFn(nombre) {
+  _timerSelCentro = nombre;
+  _timerRenderCentros();
+  _timerCheckIniciarBtn();
+}
+
+function _timerCheckIniciarBtn() {
+  document.getElementById('timer-iniciar-btn').disabled = !(_timerSelProy && _timerSelCentro);
+}
+
+async function _timerIniciar() {
+  const u = window.AUTH.usuarioActual();
+  if (!_timerSelProy || !_timerSelCentro || !u) return;
+  const btn = document.getElementById('timer-iniciar-btn');
+  btn.disabled = true;
+  btn.textContent = 'INICIANDO…';
+  document.getElementById('timer-modal-error').textContent = '';
+
+  try {
+    const res = await fetch('/api/tiempos?action=iniciar-tiempo-oficina', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        empleado_id: u.id,
+        proyecto_id: _timerSelProy.id,
+        proyecto_nombre: [_timerSelProy.numero, _timerSelProy.nombre].filter(Boolean).join(' · '),
+        centro_virtual: _timerSelCentro,
+      }),
+    });
+    const json = await res.json();
+    if (res.status === 409) {
+      const a = json.activo;
+      document.getElementById('timer-modal-error').textContent =
+        `Ya tenés un timer corriendo en ${a?.centro || '?'} — ${a?.proyecto_nombre || '?'}. Detenelo primero.`;
+      btn.disabled = false; btn.textContent = '▶ INICIAR';
+      return;
+    }
+    if (!res.ok || !json.ok) throw new Error(json.error || 'Error al iniciar');
+    _timerRegistro = json.registro;
+    _timerModalCerrar();
+    _timerBarSetActive();
+  } catch(e) {
+    document.getElementById('timer-modal-error').textContent = 'Error: ' + e.message;
+    btn.disabled = false; btn.textContent = '▶ INICIAR';
+  }
+}
+
 renderDashboard();
 cargarTodoDesdeSupabase();
 iniciarAutoRefresh();
+initTimerBar();
 </script>
 </div><!-- /app-shell -->
 </body>
