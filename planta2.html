@@ -238,6 +238,59 @@ textarea.campo {
 .sum-row { display: flex; justify-content: space-between; align-items: center;
   padding: 10px 0; }
 .sum-row + .sum-row { border-top: 1px solid var(--border); }
+
+/* ── Placa picker (wheel) ─────────────────────────────────────────────── */
+.placa-picker {
+  position: relative;
+  height: 240px;
+  width: 100%;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.picker-scroll {
+  height: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.picker-scroll::-webkit-scrollbar { display: none; }
+.picker-item, .picker-spacer {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: center;
+  font-family: 'Space Mono', monospace;
+  transition: font-size 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+}
+.picker-spacer { pointer-events: none; }
+.picker-item {
+  font-size: 24px;
+  color: #333;
+  cursor: pointer;
+}
+.picker-item.near-1 { font-size: 36px; color: #888; }
+.picker-item.near-2 { font-size: 28px; color: #555; }
+.picker-item.selected {
+  font-size: 64px;
+  color: #FFD600;
+  font-weight: 700;
+  line-height: 1;
+}
+.picker-marker {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 60px;
+  transform: translateY(-50%);
+  border-top: 0.5px solid rgba(255, 214, 0, 0.3);
+  border-bottom: 0.5px solid rgba(255, 214, 0, 0.3);
+  pointer-events: none;
+  z-index: 2;
+}
 </style>
 </head>
 <body>
@@ -411,10 +464,70 @@ textarea.campo {
 
     <!-- Estado inicio: pedir número de placa -->
     <div id="cnc-card-inicio" style="width:100%;text-align:center;">
-      <div class="mono" style="font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:24px;">¿DESDE QUÉ PLACA ARRANCÁS?</div>
-      <input id="cnc-input-inicio" type="number" min="1" value="1"
-        style="width:140px;text-align:center;font-family:'Space Mono',monospace;font-size:56px;font-weight:700;color:var(--accent);background:var(--card2);border:2px solid var(--border);border-radius:12px;padding:12px;outline:none;-webkit-tap-highlight-color:transparent;">
-      <div style="margin-top:24px;">
+      <div class="mono" style="font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:16px;">¿DESDE QUÉ PLACA ARRANCÁS?</div>
+      <div class="placa-picker">
+        <div class="picker-marker"></div>
+        <div class="picker-scroll" id="picker-scroll-inicio">
+          <div class="picker-spacer"></div>
+          <div class="picker-spacer"></div>
+          <div class="picker-spacer"></div>
+          <div class="picker-item" data-value="0">0</div>
+          <div class="picker-item" data-value="1">1</div>
+          <div class="picker-item" data-value="2">2</div>
+          <div class="picker-item" data-value="3">3</div>
+          <div class="picker-item" data-value="4">4</div>
+          <div class="picker-item" data-value="5">5</div>
+          <div class="picker-item" data-value="6">6</div>
+          <div class="picker-item" data-value="7">7</div>
+          <div class="picker-item" data-value="8">8</div>
+          <div class="picker-item" data-value="9">9</div>
+          <div class="picker-item" data-value="10">10</div>
+          <div class="picker-item" data-value="11">11</div>
+          <div class="picker-item" data-value="12">12</div>
+          <div class="picker-item" data-value="13">13</div>
+          <div class="picker-item" data-value="14">14</div>
+          <div class="picker-item" data-value="15">15</div>
+          <div class="picker-item" data-value="16">16</div>
+          <div class="picker-item" data-value="17">17</div>
+          <div class="picker-item" data-value="18">18</div>
+          <div class="picker-item" data-value="19">19</div>
+          <div class="picker-item" data-value="20">20</div>
+          <div class="picker-item" data-value="21">21</div>
+          <div class="picker-item" data-value="22">22</div>
+          <div class="picker-item" data-value="23">23</div>
+          <div class="picker-item" data-value="24">24</div>
+          <div class="picker-item" data-value="25">25</div>
+          <div class="picker-item" data-value="26">26</div>
+          <div class="picker-item" data-value="27">27</div>
+          <div class="picker-item" data-value="28">28</div>
+          <div class="picker-item" data-value="29">29</div>
+          <div class="picker-item" data-value="30">30</div>
+          <div class="picker-item" data-value="31">31</div>
+          <div class="picker-item" data-value="32">32</div>
+          <div class="picker-item" data-value="33">33</div>
+          <div class="picker-item" data-value="34">34</div>
+          <div class="picker-item" data-value="35">35</div>
+          <div class="picker-item" data-value="36">36</div>
+          <div class="picker-item" data-value="37">37</div>
+          <div class="picker-item" data-value="38">38</div>
+          <div class="picker-item" data-value="39">39</div>
+          <div class="picker-item" data-value="40">40</div>
+          <div class="picker-item" data-value="41">41</div>
+          <div class="picker-item" data-value="42">42</div>
+          <div class="picker-item" data-value="43">43</div>
+          <div class="picker-item" data-value="44">44</div>
+          <div class="picker-item" data-value="45">45</div>
+          <div class="picker-item" data-value="46">46</div>
+          <div class="picker-item" data-value="47">47</div>
+          <div class="picker-item" data-value="48">48</div>
+          <div class="picker-item" data-value="49">49</div>
+          <div class="picker-item" data-value="50">50</div>
+          <div class="picker-spacer"></div>
+          <div class="picker-spacer"></div>
+          <div class="picker-spacer"></div>
+        </div>
+      </div>
+      <div style="margin-top:16px;">
         <button onclick="arrancarCorteCNC()" style="width:100%;min-height:80px;background:var(--accent);color:#000;border:none;border-radius:12px;font-family:'Space Mono',monospace;font-size:16px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;">▶ INICIAR CORTE</button>
       </div>
     </div>
@@ -437,10 +550,69 @@ textarea.campo {
       <div class="mono" style="font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:16px;">⏸ TIEMPO MUERTO</div>
       <div class="mono" style="font-size:48px;color:var(--muted);margin-bottom:20px;" id="cnc-idle-timer">00:00:00</div>
       <div class="mono" style="font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:8px;">PRÓXIMA PLACA</div>
-      <input id="cnc-input-idle" type="number" min="1" value="1"
-        oninput="actualizarBotonIdle()"
-        style="width:120px;text-align:center;font-family:'Space Mono',monospace;font-size:56px;font-weight:700;color:var(--accent);background:var(--card2);border:2px solid var(--border);border-radius:12px;padding:8px;outline:none;display:block;margin:0 auto 20px;-webkit-tap-highlight-color:transparent;">
-      <button onclick="iniciarCorte()" style="width:100%;min-height:80px;background:var(--accent);color:#000;border:none;border-radius:12px;font-family:'Space Mono',monospace;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;" id="cnc-btn-idle">▶ INICIAR PLACA #<span id="cnc-prox-num">1</span></button>
+      <div class="placa-picker">
+        <div class="picker-marker"></div>
+        <div class="picker-scroll" id="picker-scroll-idle">
+          <div class="picker-spacer"></div>
+          <div class="picker-spacer"></div>
+          <div class="picker-spacer"></div>
+          <div class="picker-item" data-value="0">0</div>
+          <div class="picker-item" data-value="1">1</div>
+          <div class="picker-item" data-value="2">2</div>
+          <div class="picker-item" data-value="3">3</div>
+          <div class="picker-item" data-value="4">4</div>
+          <div class="picker-item" data-value="5">5</div>
+          <div class="picker-item" data-value="6">6</div>
+          <div class="picker-item" data-value="7">7</div>
+          <div class="picker-item" data-value="8">8</div>
+          <div class="picker-item" data-value="9">9</div>
+          <div class="picker-item" data-value="10">10</div>
+          <div class="picker-item" data-value="11">11</div>
+          <div class="picker-item" data-value="12">12</div>
+          <div class="picker-item" data-value="13">13</div>
+          <div class="picker-item" data-value="14">14</div>
+          <div class="picker-item" data-value="15">15</div>
+          <div class="picker-item" data-value="16">16</div>
+          <div class="picker-item" data-value="17">17</div>
+          <div class="picker-item" data-value="18">18</div>
+          <div class="picker-item" data-value="19">19</div>
+          <div class="picker-item" data-value="20">20</div>
+          <div class="picker-item" data-value="21">21</div>
+          <div class="picker-item" data-value="22">22</div>
+          <div class="picker-item" data-value="23">23</div>
+          <div class="picker-item" data-value="24">24</div>
+          <div class="picker-item" data-value="25">25</div>
+          <div class="picker-item" data-value="26">26</div>
+          <div class="picker-item" data-value="27">27</div>
+          <div class="picker-item" data-value="28">28</div>
+          <div class="picker-item" data-value="29">29</div>
+          <div class="picker-item" data-value="30">30</div>
+          <div class="picker-item" data-value="31">31</div>
+          <div class="picker-item" data-value="32">32</div>
+          <div class="picker-item" data-value="33">33</div>
+          <div class="picker-item" data-value="34">34</div>
+          <div class="picker-item" data-value="35">35</div>
+          <div class="picker-item" data-value="36">36</div>
+          <div class="picker-item" data-value="37">37</div>
+          <div class="picker-item" data-value="38">38</div>
+          <div class="picker-item" data-value="39">39</div>
+          <div class="picker-item" data-value="40">40</div>
+          <div class="picker-item" data-value="41">41</div>
+          <div class="picker-item" data-value="42">42</div>
+          <div class="picker-item" data-value="43">43</div>
+          <div class="picker-item" data-value="44">44</div>
+          <div class="picker-item" data-value="45">45</div>
+          <div class="picker-item" data-value="46">46</div>
+          <div class="picker-item" data-value="47">47</div>
+          <div class="picker-item" data-value="48">48</div>
+          <div class="picker-item" data-value="49">49</div>
+          <div class="picker-item" data-value="50">50</div>
+          <div class="picker-spacer"></div>
+          <div class="picker-spacer"></div>
+          <div class="picker-spacer"></div>
+        </div>
+      </div>
+      <button onclick="iniciarCorte()" style="width:100%;min-height:80px;background:var(--accent);color:#000;border:none;border-radius:12px;font-family:'Space Mono',monospace;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;margin-top:16px;" id="cnc-btn-idle">▶ INICIAR PLACA #<span id="cnc-prox-num">1</span></button>
     </div>
 
     <!-- Mensaje resultado -->
@@ -474,10 +646,70 @@ textarea.campo {
   <div id="cnc-modal-saltar" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:200;flex-direction:column;align-items:center;justify-content:center;padding:24px;">
     <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px;width:100%;max-width:380px;text-align:center;">
       <div class="mono" style="font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">⏸ EN PAUSA</div>
-      <div class="mono" style="font-size:15px;font-weight:700;margin-bottom:20px;color:var(--text);">¿CUÁL ES LA PRÓXIMA PLACA?</div>
-      <input id="cnc-input-saltar" type="number" min="1" value="2"
-        style="width:140px;text-align:center;font-family:'Space Mono',monospace;font-size:56px;font-weight:700;color:var(--accent);background:var(--card2);border:2px solid var(--border);border-radius:12px;padding:12px;outline:none;display:block;margin:0 auto 20px;">
-      <button onclick="confirmarSaltar()" style="width:100%;min-height:70px;background:var(--accent);color:#000;border:none;border-radius:12px;font-family:'Space Mono',monospace;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;">CONFIRMAR</button>
+      <div class="mono" style="font-size:15px;font-weight:700;margin-bottom:16px;color:var(--text);">¿CUÁL ES LA PRÓXIMA PLACA?</div>
+      <div class="placa-picker">
+        <div class="picker-marker"></div>
+        <div class="picker-scroll" id="picker-scroll-saltar">
+          <div class="picker-spacer"></div>
+          <div class="picker-spacer"></div>
+          <div class="picker-spacer"></div>
+          <div class="picker-item" data-value="0">0</div>
+          <div class="picker-item" data-value="1">1</div>
+          <div class="picker-item" data-value="2">2</div>
+          <div class="picker-item" data-value="3">3</div>
+          <div class="picker-item" data-value="4">4</div>
+          <div class="picker-item" data-value="5">5</div>
+          <div class="picker-item" data-value="6">6</div>
+          <div class="picker-item" data-value="7">7</div>
+          <div class="picker-item" data-value="8">8</div>
+          <div class="picker-item" data-value="9">9</div>
+          <div class="picker-item" data-value="10">10</div>
+          <div class="picker-item" data-value="11">11</div>
+          <div class="picker-item" data-value="12">12</div>
+          <div class="picker-item" data-value="13">13</div>
+          <div class="picker-item" data-value="14">14</div>
+          <div class="picker-item" data-value="15">15</div>
+          <div class="picker-item" data-value="16">16</div>
+          <div class="picker-item" data-value="17">17</div>
+          <div class="picker-item" data-value="18">18</div>
+          <div class="picker-item" data-value="19">19</div>
+          <div class="picker-item" data-value="20">20</div>
+          <div class="picker-item" data-value="21">21</div>
+          <div class="picker-item" data-value="22">22</div>
+          <div class="picker-item" data-value="23">23</div>
+          <div class="picker-item" data-value="24">24</div>
+          <div class="picker-item" data-value="25">25</div>
+          <div class="picker-item" data-value="26">26</div>
+          <div class="picker-item" data-value="27">27</div>
+          <div class="picker-item" data-value="28">28</div>
+          <div class="picker-item" data-value="29">29</div>
+          <div class="picker-item" data-value="30">30</div>
+          <div class="picker-item" data-value="31">31</div>
+          <div class="picker-item" data-value="32">32</div>
+          <div class="picker-item" data-value="33">33</div>
+          <div class="picker-item" data-value="34">34</div>
+          <div class="picker-item" data-value="35">35</div>
+          <div class="picker-item" data-value="36">36</div>
+          <div class="picker-item" data-value="37">37</div>
+          <div class="picker-item" data-value="38">38</div>
+          <div class="picker-item" data-value="39">39</div>
+          <div class="picker-item" data-value="40">40</div>
+          <div class="picker-item" data-value="41">41</div>
+          <div class="picker-item" data-value="42">42</div>
+          <div class="picker-item" data-value="43">43</div>
+          <div class="picker-item" data-value="44">44</div>
+          <div class="picker-item" data-value="45">45</div>
+          <div class="picker-item" data-value="46">46</div>
+          <div class="picker-item" data-value="47">47</div>
+          <div class="picker-item" data-value="48">48</div>
+          <div class="picker-item" data-value="49">49</div>
+          <div class="picker-item" data-value="50">50</div>
+          <div class="picker-spacer"></div>
+          <div class="picker-spacer"></div>
+          <div class="picker-spacer"></div>
+        </div>
+      </div>
+      <button onclick="confirmarSaltar()" style="width:100%;min-height:70px;background:var(--accent);color:#000;border:none;border-radius:12px;font-family:'Space Mono',monospace;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;margin-top:16px;">CONFIRMAR</button>
     </div>
   </div>
 
@@ -602,6 +834,84 @@ let _pin = '';
 // Intervalos
 let _intervaloReloj  = null;
 let _intervaloTimers = null;
+
+// ── Placa picker ──────────────────────────────────────────────────────────────
+let placaSeleccionadaInicio = 0;
+let placaSeleccionadaIdle   = 0;
+let placaSeleccionadaSaltar = 0;
+
+function _initPicker(scrollEl, onSelect) {
+  if (!scrollEl) return;
+  const ITEM_H = 60;
+  const items  = Array.from(scrollEl.querySelectorAll('.picker-item'));
+
+  function updateVisuals() {
+    const center = scrollEl.scrollTop + scrollEl.clientHeight / 2;
+    let selected = null;
+    let minDist  = Infinity;
+
+    items.forEach(el => {
+      const elCenter = el.offsetTop + ITEM_H / 2;
+      const dist     = Math.abs(center - elCenter);
+      if (dist < minDist) { minDist = dist; selected = el; }
+      el.classList.remove('selected', 'near-1', 'near-2');
+    });
+
+    if (selected) {
+      selected.classList.add('selected');
+      const idx = items.indexOf(selected);
+      if (idx > 0)              items[idx - 1].classList.add('near-1');
+      if (idx > 1)              items[idx - 2].classList.add('near-2');
+      if (idx < items.length-1) items[idx + 1].classList.add('near-1');
+      if (idx < items.length-2) items[idx + 2].classList.add('near-2');
+      onSelect(parseInt(selected.dataset.value, 10));
+    }
+  }
+
+  scrollEl.addEventListener('scroll', updateVisuals, { passive: true });
+
+  items.forEach(el => {
+    el.addEventListener('click', () => {
+      const targetTop = el.offsetTop - scrollEl.clientHeight / 2 + ITEM_H / 2;
+      scrollEl.scrollTo({ top: targetTop, behavior: 'smooth' });
+    });
+  });
+
+  // Inicializar en el primer item (value=0)
+  const first = scrollEl.querySelector('.picker-item');
+  if (first) {
+    scrollEl.scrollTop = first.offsetTop - scrollEl.clientHeight / 2 + ITEM_H / 2;
+  }
+  // Defer visual update so offsetTop values are settled
+  requestAnimationFrame(updateVisuals);
+}
+
+function _scrollPickerToValue(scrollEl, value) {
+  if (!scrollEl) return;
+  const ITEM_H = 60;
+  const target = scrollEl.querySelector(`.picker-item[data-value="${value}"]`);
+  if (target) {
+    scrollEl.scrollTop = target.offsetTop - scrollEl.clientHeight / 2 + ITEM_H / 2;
+  }
+}
+
+function initPlacaPickers() {
+  _initPicker(
+    document.getElementById('picker-scroll-inicio'),
+    v => { placaSeleccionadaInicio = v; }
+  );
+  _initPicker(
+    document.getElementById('picker-scroll-idle'),
+    v => {
+      placaSeleccionadaIdle = v;
+      document.getElementById('cnc-prox-num').textContent = v;
+    }
+  );
+  _initPicker(
+    document.getElementById('picker-scroll-saltar'),
+    v => { placaSeleccionadaSaltar = v; }
+  );
+}
 
 // CNC
 let cncEstado     = 'inicio'; // 'inicio' | 'cortando' | 'idle' | 'pausado'
@@ -1102,7 +1412,11 @@ function initCNC(esRestauracion = false) {
   const cncItemEl = document.getElementById('cnc-info-item');
   cncItemEl.textContent = nombreCorto(t?.item_nombre || '');
   cncItemEl.title = t?.item_nombre || '';
-  document.getElementById('cnc-input-inicio').value = 1;
+  // Inicializar pickers (scroll a 0)
+  placaSeleccionadaInicio = 0;
+  placaSeleccionadaIdle   = 0;
+  placaSeleccionadaSaltar = 0;
+  initPlacaPickers();
 
   if (esRestauracion) {
     const savedTs     = localStorage.getItem('cnc_placa_inicio');
@@ -1149,18 +1463,19 @@ function renderCNCEstado() {
   document.getElementById('cnc-card-idle').style.display   = cncEstado === 'idle'     ? 'block' : 'none';
   document.getElementById('cnc-placa-label').textContent   = `PLACA #${cncPlacaNum}`;
   if (cncEstado === 'idle') {
-    document.getElementById('cnc-input-idle').value = cncPlacaNum;
+    // Scroll el picker de idle al número de placa actual
+    _scrollPickerToValue(document.getElementById('picker-scroll-idle'), cncPlacaNum);
+    placaSeleccionadaIdle = cncPlacaNum;
     document.getElementById('cnc-prox-num').textContent = cncPlacaNum;
   }
 }
 
 function actualizarBotonIdle() {
-  const n = parseInt(document.getElementById('cnc-input-idle').value) || cncPlacaNum;
-  document.getElementById('cnc-prox-num').textContent = n;
+  document.getElementById('cnc-prox-num').textContent = placaSeleccionadaIdle;
 }
 
 function arrancarCorteCNC() {
-  const n = parseInt(document.getElementById('cnc-input-inicio').value) || 1;
+  const n = placaSeleccionadaInicio;
   cncPlacaNum    = Math.max(1, n);
   cncEstado      = 'cortando';
   cncInicioPlaca = new Date().toISOString();
@@ -1170,7 +1485,7 @@ function arrancarCorteCNC() {
 }
 
 function iniciarCorte() {
-  const n = parseInt(document.getElementById('cnc-input-idle').value) || cncPlacaNum;
+  const n = placaSeleccionadaIdle || cncPlacaNum;
   cncPlacaNum    = Math.max(1, n);
   cncEstado      = 'cortando';
   cncInicioPlaca = new Date().toISOString();
@@ -1228,8 +1543,9 @@ async function registrarPlaca(resultado) {
     document.getElementById('cnc-modal-error').style.display = 'flex';
   } else {
     msgEl.style.display = 'none';
-    // Modal: número de próxima placa
-    document.getElementById('cnc-input-saltar').value = numActual + 1;
+    // Modal: número de próxima placa — scroll picker al siguiente
+    _scrollPickerToValue(document.getElementById('picker-scroll-saltar'), numActual + 1);
+    placaSeleccionadaSaltar = numActual + 1;
     cncEstado = 'pausado';
     document.getElementById('cnc-modal-saltar').style.display = 'flex';
   }
@@ -1258,7 +1574,7 @@ function confirmarErrorNueva() {
 }
 
 function confirmarSaltar() {
-  const n = parseInt(document.getElementById('cnc-input-saltar').value) || cncPlacaNum + 1;
+  const n = placaSeleccionadaSaltar || cncPlacaNum + 1;
   document.getElementById('cnc-modal-saltar').style.display = 'none';
   cncPlacaNum   = Math.max(1, n);
   cncEstado     = 'idle';
