@@ -770,6 +770,7 @@ async function syncEmpleadoSupabase(op) {
         centros_autorizados: op.centros || [],
         horario_entrada: op.horario_entrada || '08:00',
         horario_salida:  op.horario_salida  || '17:00',
+        descanso_modalidad: op.descanso_modalidad || null,
       })
     });
     const d = await r.json();
@@ -842,6 +843,7 @@ async function cargarTodoDesdeSupabase() {
           categoria: e.categoria || 'directo',
           horario_entrada: e.horario_entrada || '08:00',
           horario_salida:  e.horario_salida  || '17:00',
+          descanso_modalidad: e.descanso_modalidad || null,
         }));
         // merge: Supabase is source of truth; local-only employees shown but not re-synced here
         const nombresSupabase = new Set(deSupabase.map(e => e.nombre));
@@ -2302,6 +2304,20 @@ function abrirModalOperario(opId) {
         <label style="${_labelStyle}">Centros habilitados</label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">${centrosChk}</div>
       </div>
+      ${esAdmin ? `<div>
+        <label style="${_labelStyle}">Modalidad de descanso</label>
+        <select id="mod-op-descanso-modalidad" style="${_inputStyle}">
+          <option value="">— Sin configurar —</option>
+          <option value="paga_30">30 min pagos</option>
+          <option value="no_paga_60">Descansos no pagos</option>
+          <option value="sin_limite">Sin límite</option>
+        </select>
+        <div style="font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5;">
+          <b>30 min pagos</b>: hasta 30 min cuentan como tiempo pago, el exceso se descuenta.<br>
+          <b>No pagos</b>: ningún descanso cuenta como tiempo pago.<br>
+          <b>Sin límite</b>: descansos no penalizan ni suman al pago.
+        </div>
+      </div>` : ''}
       <div id="mod-op-error" style="font-size:12px;color:var(--red);display:none;"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
         <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
@@ -2311,6 +2327,7 @@ function abrirModalOperario(opId) {
   if(op){
     const rol=document.getElementById('mod-op-rol');if(rol)rol.value=op.rol_app||'operario';
     const cat=document.getElementById('mod-op-cat');if(cat)cat.value=op.categoria||'directo';
+    const mod=document.getElementById('mod-op-descanso-modalidad');if(mod)mod.value=op.descanso_modalidad||'';
   }
 }
 
@@ -2342,16 +2359,18 @@ function guardarOperario(opId) {
   const rol_app=document.getElementById('mod-op-rol')?.value||'operario';
   const catEl=document.getElementById('mod-op-cat');
   const categoria=catEl ? catEl.value : (OPERARIOS.find(o=>o.id===opId)?.categoria||'directo');
+  const modEl=document.getElementById('mod-op-descanso-modalidad');
+  const descanso_modalidad=modEl ? (modEl.value||null) : (OPERARIOS.find(o=>o.id===opId)?.descanso_modalidad||null);
   if(!nombre){showErr('El nombre es obligatorio');return;}
   if(!centros.length){showErr('Habilitá al menos un centro de trabajo');return;}
   if((rol_app==='oficina'||rol_app==='admin')&&!email){showErr('Email obligatorio para rol oficina/admin');document.getElementById('mod-op-email')?.focus();return;}
   if(errEl)errEl.style.display='none';
   if(opId){
     const op=OPERARIOS.find(o=>o.id===opId);
-    if(op){op.nombre=nombre;op.cedula=cedula;op.avatar=avatar;op.email=email;op.rol_app=rol_app;op.centros=centros;op.categoria=categoria;}
+    if(op){op.nombre=nombre;op.cedula=cedula;op.avatar=avatar;op.email=email;op.rol_app=rol_app;op.centros=centros;op.categoria=categoria;op.descanso_modalidad=descanso_modalidad;}
     syncEmpleadoSupabase(op);
   }else{
-    const nuevoOp={id:'op'+Date.now(),nombre,cedula,email,rol_app,avatar,status:'disponible',centros,categoria};
+    const nuevoOp={id:'op'+Date.now(),nombre,cedula,email,rol_app,avatar,status:'disponible',centros,categoria,descanso_modalidad};
     OPERARIOS.push(nuevoOp);
     syncEmpleadoSupabase(nuevoOp);
   }
