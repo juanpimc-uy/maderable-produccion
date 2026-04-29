@@ -141,6 +141,7 @@
   .login-planta-link:hover { color:var(--green); }
 
   /* ── Timer bar (PASO 3-5) ───────────────────────────────────────────── */
+  /* ── Timer bar ──────────────────────────────────────────────────────── */
   #timer-bar {
     flex-shrink: 0;
     height: 48px;
@@ -148,21 +149,28 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 20px;
-    cursor: pointer;
     border-bottom: 1px solid var(--border);
     transition: background 0.2s;
     user-select: none;
   }
-  #timer-bar.idle {
-    background: #1a1a22;
-  }
-  #timer-bar.idle:hover {
-    background: var(--faint);
-  }
-  #timer-bar.active {
-    background: #FFD600;
-    cursor: default;
-  }
+  /* sin-jornada (gris, clickeable) */
+  #timer-bar.sin-jornada, #timer-bar.idle { background: #1a1a22; cursor: pointer; }
+  #timer-bar.sin-jornada:hover, #timer-bar.idle:hover { background: var(--faint); }
+  #timer-bar.sin-jornada #timer-bar-left, #timer-bar.idle #timer-bar-left { color: var(--muted); }
+  /* jornada-sin-tarea (amarillo desaturado, clickeable) */
+  #timer-bar.jornada-sin-tarea { background: rgba(245,166,35,0.1); cursor: pointer; }
+  #timer-bar.jornada-sin-tarea:hover { background: rgba(245,166,35,0.2); }
+  #timer-bar.jornada-sin-tarea #timer-bar-left { color: #C8832A; }
+  /* tarea-activa (amarillo) */
+  #timer-bar.tarea-activa, #timer-bar.active { background: #FFD600; cursor: default; }
+  #timer-bar.tarea-activa #timer-bar-left, #timer-bar.active #timer-bar-left { color: #0E0F14; }
+  /* descanso-activo (cyan) */
+  #timer-bar.descanso-activo { background: #0E7490; cursor: default; }
+  #timer-bar.descanso-activo #timer-bar-left { color: #fff; }
+  /* bloqueado (rojo) */
+  #timer-bar.bloqueado { background: var(--red); cursor: default; }
+  #timer-bar.bloqueado #timer-bar-left { color: #fff; }
+
   #timer-bar-left {
     display: flex;
     align-items: center;
@@ -171,8 +179,24 @@
     font-size: 12px;
     font-weight: 700;
   }
-  #timer-bar.idle #timer-bar-left { color: var(--muted); }
-  #timer-bar.active #timer-bar-left { color: #0E0F14; }
+  .timer-bar-action-btn {
+    background: rgba(0,0,0,0.25);
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 6px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .timer-bar-action-btn:hover { background: rgba(0,0,0,0.4); }
+  .timer-bar-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  #timer-bar.tarea-activa .timer-bar-action-btn { background: #0E0F14; color: #FFD600; }
+  #timer-bar.tarea-activa .timer-bar-action-btn:hover { background: #1a1a22; }
   #timer-bar-stop {
     background: #0E0F14;
     color: #FFD600;
@@ -187,12 +211,112 @@
     transition: background 0.15s, color 0.15s;
     white-space: nowrap;
   }
-  #timer-bar-stop.confirmar {
-    background: var(--red);
-    color: #fff;
-  }
+  #timer-bar-stop.confirmar { background: var(--red); color: #fff; }
 
-  /* ── Timer modal ────────────────────────────────────────────────────── */
+  /* ── Blocking overlay ───────────────────────────────────────────────── */
+  #timer-bloqueo-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(180,20,20,0.94);
+    z-index: 9000;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    text-align: center;
+    padding: 32px;
+  }
+  #timer-bloqueo-overlay.visible { display: flex; }
+  #timer-bloqueo-overlay .bloqueo-titulo {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 2px;
+  }
+  #timer-bloqueo-overlay .bloqueo-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: rgba(255,255,255,0.85);
+    max-width: 420px;
+    line-height: 1.6;
+  }
+  #timer-bloqueo-overlay .bloqueo-btn {
+    padding: 14px 36px;
+    background: #fff;
+    color: #B91C1C;
+    border: none;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: opacity 0.15s;
+  }
+  #timer-bloqueo-overlay .bloqueo-btn:hover { opacity: 0.9; }
+
+  /* ── Metrics panel ──────────────────────────────────────────────────── */
+  #timer-metrics-panel {
+    flex-shrink: 0;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.25s ease, padding 0.25s;
+    padding: 0 20px;
+  }
+  #timer-metrics-panel.abierto { max-height: 80px; padding: 10px 20px; }
+  .timer-metrics-row { display: flex; gap: 28px; flex-wrap: wrap; align-items: center; }
+  .timer-metric-item { display: flex; flex-direction: column; gap: 2px; }
+  .timer-metric-label { color: var(--muted); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+  .timer-metric-val { color: var(--text); font-weight: 700; }
+  .timer-metric-val.warn { color: var(--red); }
+
+  /* ── Entrada modal ──────────────────────────────────────────────────── */
+  #timer-entrada-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 500;
+    align-items: center;
+    justify-content: center;
+  }
+  #timer-entrada-overlay.open { display: flex; }
+  #timer-entrada-modal {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    width: 100%;
+    max-width: 380px;
+  }
+  .timer-entrada-opcion {
+    width: 100%;
+    padding: 16px 18px;
+    background: var(--panel);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s, background 0.15s;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .timer-entrada-opcion:hover { border-color: var(--amber); background: rgba(245,166,35,0.06); }
+  .timer-entrada-opcion .op-sub { font-size: 10px; color: var(--muted); font-weight: 400; letter-spacing: 0.5px; }
+
+  /* ── Timer modal (tarea) ────────────────────────────────────────────── */
   #timer-modal-overlay {
     display: none;
     position: fixed;
@@ -202,9 +326,7 @@
     align-items: center;
     justify-content: center;
   }
-  #timer-modal-overlay.open {
-    display: flex;
-  }
+  #timer-modal-overlay.open { display: flex; }
   #timer-modal {
     background: var(--card);
     border: 1px solid var(--border);
@@ -274,11 +396,7 @@
     transition: border-color 0.15s, background 0.15s;
   }
   .timer-centro-btn:hover { border-color: var(--amber); }
-  .timer-centro-btn.sel {
-    border-color: var(--amber);
-    background: rgba(245,166,35,0.12);
-    color: var(--amber);
-  }
+  .timer-centro-btn.sel { border-color: var(--amber); background: rgba(245,166,35,0.12); color: var(--amber); }
   #timer-iniciar-btn {
     width: 100%;
     padding: 14px;
@@ -308,10 +426,7 @@
     transition: opacity 0.2s ease;
     margin-bottom: 20px;
   }
-  #timer-item-section.visible {
-    display: block;
-    opacity: 1;
-  }
+  #timer-item-section.visible { display: block; opacity: 1; }
   #timer-item-select {
     width: 100%;
     background: var(--panel);
@@ -393,14 +508,21 @@
     </div>
   </div>
 
-  <!-- ══ TIMER BAR (PASO 3-5) ════════════════════════════════════════════ -->
-  <div id="timer-bar" class="idle" style="display:none;" onclick="_timerBarClick(event)">
+  <!-- ══ TIMER BAR ═══════════════════════════════════════════════════════ -->
+  <div id="timer-bar" class="sin-jornada" style="display:none;" onclick="_timerBarClick(event)">
     <div id="timer-bar-left">
       <span id="timer-bar-icon">▶</span>
-      <span id="timer-bar-text">Marcar tiempo</span>
+      <span id="timer-bar-text">Marcar entrada</span>
     </div>
-    <button id="timer-bar-stop" style="display:none;" onclick="event.stopPropagation();_timerBarStop()">■ Detener</button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button id="timer-btn-descanso" class="timer-bar-action-btn" style="display:none;" onclick="event.stopPropagation();_timerDescanso()">☕ Descanso</button>
+      <button id="timer-btn-finalizar" class="timer-bar-action-btn" style="display:none;" onclick="event.stopPropagation();_timerFinalizar()">✓ Finalizar</button>
+      <button id="timer-btn-volver" class="timer-bar-action-btn" style="display:none;" onclick="event.stopPropagation();_timerVolverATarea()">▶ Volver a tarea</button>
+      <button id="timer-btn-salida" class="timer-bar-action-btn" style="display:none;" onclick="event.stopPropagation();_timerSalida()">⏹ Salida</button>
+      <button id="timer-bar-stop" style="display:none;" onclick="event.stopPropagation();_timerBarStop()">■ Detener</button>
+    </div>
   </div>
+  <div id="timer-metrics-panel"></div>
 
   <div class="content">
 
@@ -507,17 +629,17 @@
 </div><!-- /main -->
 </div><!-- /shell -->
 
-<!-- ══ TIMER MODAL ════════════════════════════════════════════════════════ -->
+<!-- ══ TIMER MODAL (tarea) ═══════════════════════════════════════════════ -->
 <div id="timer-modal-overlay" onclick="_timerModalCerrar()">
   <div id="timer-modal" onclick="event.stopPropagation()">
-    <div class="timer-modal-title">▶ MARCAR TIEMPO</div>
+    <div class="timer-modal-title" id="timer-modal-title-label">▶ INICIAR TAREA</div>
 
     <!-- Selector proyecto -->
     <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:6px;letter-spacing:1px;">PROYECTO</div>
     <input class="timer-proyecto-search" id="timer-proy-search" type="text" placeholder="Buscar proyecto…" oninput="_timerFiltrarProyectos()">
     <div class="timer-proyecto-list" id="timer-proy-list"></div>
 
-    <!-- Selector centro virtual -->
+    <!-- Selector centro virtual (sin Descanso) -->
     <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:10px;letter-spacing:1px;">CENTRO</div>
     <div class="timer-centro-grid" id="timer-centro-grid"></div>
 
@@ -534,6 +656,29 @@
     <button id="timer-iniciar-btn" disabled onclick="_timerIniciar()">▶ INICIAR</button>
     <button onclick="_timerModalCerrar()" style="width:100%;margin-top:10px;padding:10px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;">Cancelar</button>
   </div>
+</div>
+
+<!-- ══ ENTRADA MODAL ══════════════════════════════════════════════════════ -->
+<div id="timer-entrada-overlay" onclick="_timerEntradaCerrar()">
+  <div id="timer-entrada-modal" onclick="event.stopPropagation()">
+    <div class="timer-modal-title">ENTRADA DEL DÍA</div>
+    <button class="timer-entrada-opcion" onclick="_timerEntradaOpcionA()">
+      <span>▶ Entrada + Iniciar tarea</span>
+      <span class="op-sub">REGISTRA LA ENTRADA Y ABRE EL SELECTOR DE TAREA</span>
+    </button>
+    <button class="timer-entrada-opcion" onclick="_timerEntradaOpcionB()">
+      <span>⏵ Solo marcar entrada</span>
+      <span class="op-sub">REGISTRA LA ENTRADA SIN INICIAR UNA TAREA TODAVÍA</span>
+    </button>
+    <button onclick="_timerEntradaCerrar()" style="width:100%;padding:10px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;">Cancelar</button>
+  </div>
+</div>
+
+<!-- ══ BLOQUEO OVERLAY ════════════════════════════════════════════════════ -->
+<div id="timer-bloqueo-overlay">
+  <div class="bloqueo-titulo">⚠ TIEMPO SIN CLASIFICAR</div>
+  <div class="bloqueo-sub" id="bloqueo-mensaje">Llevas más de 15 minutos sin registrar en qué estás trabajando.</div>
+  <button class="bloqueo-btn" onclick="_timerModalAbrir()">▶ INICIAR TAREA</button>
 </div>
 
 <!-- ═══ MODAL ════════════════════════════════════════════════════════════ -->
@@ -3373,22 +3518,24 @@ async function resetearPinOperario(opId, nombre) {
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TIMER OFICINA (LOTE 4) — Pasos 3-5
+// TIMER OFICINA (LOTE 4.3) — Estado completo del día
 // ═══════════════════════════════════════════════════════════════════════════
-let _timerRegistro    = null;   // objeto registro activo {id, proyecto_id, proyecto_nombre, item_id, item_nombre, centro, inicio}
-let _timerInterval    = null;   // setInterval handle para el cronómetro
-let _timerStopConfirm = false;  // estado de doble-click en Detener
-let _timerStopTimer   = null;   // timeout para resetear estado confirm
+let _timerRegistro    = null;   // registro activo actual (desde metricas-dia)
+let _timerJornada     = null;   // jornada del día
+let _timerEstado      = null;   // 'sin-jornada'|'jornada-sin-tarea'|'tarea-activa'|'descanso-activo'|'bloqueado'
+let _timerInterval    = null;   // setInterval para cronómetro (1s)
+let _timerMetricasInt = null;   // setInterval para polling metricas (30s)
+let _timerMetricas    = null;   // última respuesta de metricas-dia
+let _timerStopConfirm = false;
+let _timerStopTimer   = null;
+const _UMBRAL_BLOQUEO = 15;     // minutos sin tarea → bloqueo
 
-// Centros que requieren item obligatorio (must match DB names exactly)
 const _CENTROS_CON_ITEM = ['Shop Drawing', 'Modelado', 'Cam'];
-
-// Centros virtuales y proyectos para el modal
-let _cvCentros   = [];
+let _cvCentros   = [];   // [{id, nombre, es_descanso}]
 let _cvProyectos = [];
-let _timerSelProy   = null;   // {id, numero, nombre, cliente_nombre, muebles}
-let _timerSelCentro = null;   // string nombre
-let _timerSelItem   = null;   // {id, codigo, nombre} o null
+let _timerSelProy   = null;
+let _timerSelCentro = null;
+let _timerSelItem   = null;
 
 function _fmtHMS(secs) {
   const h = Math.floor(secs / 3600);
@@ -3403,130 +3550,206 @@ function _fmtDurMin(min) {
   return m ? `${h}h ${m}min` : `${h}h`;
 }
 
-// ── Inicialización: muestra la barra y restaura estado activo ─────────────
+function _timerIsDescanso(centro) {
+  const cv = _cvCentros.find(c => c.nombre === centro);
+  return cv?.es_descanso || false;
+}
+
+// ── Inicialización ────────────────────────────────────────────────────────
 async function initTimerBar() {
   const u = window.AUTH.usuarioActual();
   if (!u || (u.rol_app !== 'oficina' && u.rol_app !== 'admin')) return;
   document.getElementById('timer-bar').style.display = 'flex';
-
   try {
-    const res = await fetch(`/api/tiempos?action=tiempo-activo&empleado_id=${u.id}`);
+    const rCv = await fetch('/api/tiempos?action=centros-virtuales').then(r => r.json());
+    _cvCentros = rCv.centros || [];
+  } catch(e) { console.warn('[timer] No se cargaron centros:', e.message); }
+  await _timerActualizarEstado();
+  _timerMetricasInt = setInterval(_timerActualizarEstado, 30000);
+}
+
+// ── Actualizar estado desde servidor ─────────────────────────────────────
+async function _timerActualizarEstado() {
+  const u = window.AUTH.usuarioActual();
+  if (!u) return;
+  try {
+    const res = await fetch(`/api/tiempos?action=metricas-dia&empleado_id=${u.id}`);
     const json = await res.json();
-    if (json.activo) {
-      _timerRegistro = json.activo;
-      _timerBarSetActive();
+    if (!json.ok) return;
+    _timerMetricas = json;
+    _timerJornada  = json.jornada;
+    _timerRegistro = json.tarea_activa;
+    if (!json.jornada) {
+      _timerSetEstado('sin-jornada');
+    } else if (!json.tarea_activa) {
+      const noClas = json.totales?.tiempo_no_clasificado_minutos || 0;
+      _timerSetEstado(noClas >= _UMBRAL_BLOQUEO ? 'bloqueado' : 'jornada-sin-tarea');
+    } else if (_timerIsDescanso(json.tarea_activa.centro)) {
+      _timerSetEstado('descanso-activo');
     } else {
-      _timerBarSetIdle();
+      _timerSetEstado('tarea-activa');
     }
+    _timerRenderMetricas(json);
   } catch(e) {
-    console.warn('[timer] No se pudo verificar timer activo:', e.message);
-    _timerBarSetIdle();
+    console.warn('[timer] Error actualizando estado:', e.message);
   }
 }
 
-function _timerBarSetIdle() {
+// ── Máquina de estados visual ─────────────────────────────────────────────
+function _timerSetEstado(nuevoEstado) {
+  _timerEstado = nuevoEstado;
   const bar = document.getElementById('timer-bar');
-  bar.className = 'idle';
-  document.getElementById('timer-bar-icon').textContent = '▶';
-  document.getElementById('timer-bar-text').textContent = 'Marcar tiempo';
-  document.getElementById('timer-bar-stop').style.display = 'none';
+  bar.className = nuevoEstado;
   clearInterval(_timerInterval); _timerInterval = null;
-  _timerRegistro = null;
-}
 
-function _timerBarSetActive() {
-  const bar = document.getElementById('timer-bar');
-  bar.className = 'active';
-  document.getElementById('timer-bar-stop').style.display = '';
-  _timerBarActualizarTexto();
-  clearInterval(_timerInterval);
-  _timerInterval = setInterval(_timerBarActualizarTexto, 1000);
+  const ids = ['timer-btn-descanso','timer-btn-finalizar','timer-btn-volver','timer-btn-salida','timer-bar-stop'];
+  ids.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+
+  const icon    = document.getElementById('timer-bar-icon');
+  const text    = document.getElementById('timer-bar-text');
+  const overlay = document.getElementById('timer-bloqueo-overlay');
+
+  if (nuevoEstado === 'sin-jornada') {
+    icon.textContent = '▶';
+    text.textContent = 'Marcar entrada';
+    overlay.classList.remove('visible');
+
+  } else if (nuevoEstado === 'jornada-sin-tarea') {
+    icon.textContent = '◌';
+    text.textContent = 'Jornada activa · sin tarea — click para iniciar';
+    document.getElementById('timer-btn-salida').style.display = '';
+    overlay.classList.remove('visible');
+
+  } else if (nuevoEstado === 'tarea-activa') {
+    icon.textContent = '';
+    _timerBarActualizarTexto();
+    _timerInterval = setInterval(_timerBarActualizarTexto, 1000);
+    document.getElementById('timer-btn-descanso').style.display = '';
+    document.getElementById('timer-btn-finalizar').style.display = '';
+    document.getElementById('timer-btn-salida').style.display = '';
+    overlay.classList.remove('visible');
+
+  } else if (nuevoEstado === 'descanso-activo') {
+    icon.textContent = '';
+    _timerBarActualizarTextoDescanso();
+    _timerInterval = setInterval(_timerBarActualizarTextoDescanso, 1000);
+    document.getElementById('timer-btn-volver').style.display = '';
+    document.getElementById('timer-btn-salida').style.display = '';
+    overlay.classList.remove('visible');
+
+  } else if (nuevoEstado === 'bloqueado') {
+    const noClas = _timerMetricas?.totales?.tiempo_no_clasificado_minutos || 0;
+    icon.textContent = '⚠';
+    text.textContent = `Sin tarea — ${_fmtDurMin(noClas)} sin clasificar`;
+    document.getElementById('bloqueo-mensaje').textContent =
+      `Llevas ${_fmtDurMin(noClas)} sin registrar en qué estás trabajando.`;
+    overlay.classList.add('visible');
+  }
 }
 
 function _timerBarActualizarTexto() {
   if (!_timerRegistro) return;
   const secs = Math.floor((Date.now() - new Date(_timerRegistro.inicio).getTime()) / 1000);
-  // Extraer código del item si existe (guardado como "MF01 · nombre" o similar)
   let itemPart = '';
   if (_timerRegistro.item_nombre) {
     const cod = _timerRegistro.item_nombre.split(' · ')[0] || _timerRegistro.item_nombre;
     itemPart = ` · ${cod}`;
   }
-  const proyNum = (_timerRegistro.proyecto_nombre || '—').split(' · ')[0]; // solo el número
-  const label = `● ${_timerRegistro.centro}${itemPart}  en  ${proyNum}  ·  ${_fmtHMS(secs)}`;
-  document.getElementById('timer-bar-icon').textContent = '';
-  document.getElementById('timer-bar-text').textContent = label;
+  const proyNum = (_timerRegistro.proyecto_nombre || '—').split(' · ')[0];
+  document.getElementById('timer-bar-text').textContent =
+    `● ${_timerRegistro.centro}${itemPart}  en  ${proyNum}  ·  ${_fmtHMS(secs)}`;
 }
 
-// Click en la barra: si idle abre modal; si active, no hace nada (botón detener tiene su handler)
+function _timerBarActualizarTextoDescanso() {
+  if (!_timerRegistro) return;
+  const secs = Math.floor((Date.now() - new Date(_timerRegistro.inicio).getTime()) / 1000);
+  document.getElementById('timer-bar-text').textContent = `☕ Descanso · ${_fmtHMS(secs)}`;
+}
+
+// ── Panel de métricas ─────────────────────────────────────────────────────
+function _timerRenderMetricas(data) {
+  const panel = document.getElementById('timer-metrics-panel');
+  if (!data?.jornada) { panel.classList.remove('abierto'); return; }
+  const t = data.totales || {};
+  const warn = (t.tiempo_no_clasificado_minutos || 0) > 5;
+  panel.innerHTML = `<div class="timer-metrics-row">
+    <div class="timer-metric-item">
+      <span class="timer-metric-label">JORNADA</span>
+      <span class="timer-metric-val">${_fmtDurMin(t.duracion_jornada_minutos || 0)}</span>
+    </div>
+    <div class="timer-metric-item">
+      <span class="timer-metric-label">CLASIFICADO</span>
+      <span class="timer-metric-val">${_fmtDurMin(t.tiempo_clasificado_minutos || 0)}</span>
+    </div>
+    <div class="timer-metric-item">
+      <span class="timer-metric-label">DESCANSO</span>
+      <span class="timer-metric-val">${_fmtDurMin(t.descanso_acumulado_minutos || 0)}</span>
+    </div>
+    <div class="timer-metric-item">
+      <span class="timer-metric-label">SIN CLASIFICAR</span>
+      <span class="timer-metric-val${warn ? ' warn' : ''}">${_fmtDurMin(t.tiempo_no_clasificado_minutos || 0)}</span>
+    </div>
+  </div>`;
+  panel.classList.add('abierto');
+}
+
+// Click en la barra
 function _timerBarClick(e) {
-  const bar = document.getElementById('timer-bar');
-  if (bar.classList.contains('idle')) _timerModalAbrir();
+  if (_timerEstado === 'sin-jornada') _timerEntradaAbrir();
+  else if (_timerEstado === 'jornada-sin-tarea' || _timerEstado === 'bloqueado') _timerModalAbrir();
 }
 
-// ── Stop con double-confirm ───────────────────────────────────────────────
-function _timerBarStop() {
-  const btn = document.getElementById('timer-bar-stop');
-  if (!_timerStopConfirm) {
-    _timerStopConfirm = true;
-    btn.textContent = '¿Confirmar?';
-    btn.classList.add('confirmar');
-    _timerStopTimer = setTimeout(() => {
-      _timerStopConfirm = false;
-      btn.textContent = '■ Detener';
-      btn.classList.remove('confirmar');
-    }, 3000);
-  } else {
-    clearTimeout(_timerStopTimer);
-    _timerStopConfirm = false;
-    btn.textContent = '■ Detener';
-    btn.classList.remove('confirmar');
-    _timerDetener();
-  }
+// ── Entrada del día (PASO 4) ──────────────────────────────────────────────
+function _timerEntradaAbrir() {
+  document.getElementById('timer-entrada-overlay').classList.add('open');
 }
-
-async function _timerDetener() {
+function _timerEntradaCerrar() {
+  document.getElementById('timer-entrada-overlay').classList.remove('open');
+}
+async function _timerEntradaOpcionA() {
+  _timerEntradaCerrar();
+  const ok = await _timerHacerEntrada();
+  if (ok) _timerModalAbrir();
+}
+async function _timerEntradaOpcionB() {
+  const ok = await _timerHacerEntrada();
+  if (ok) _timerEntradaCerrar();
+}
+async function _timerHacerEntrada() {
   const u = window.AUTH.usuarioActual();
-  if (!_timerRegistro || !u) return;
-  const btn = document.getElementById('timer-bar-stop');
-  btn.disabled = true;
+  if (!u) return false;
   try {
-    const res = await fetch('/api/tiempos?action=detener-tiempo-oficina', {
+    const res = await fetch('/api/tiempos?action=entrada-v2', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ registro_id: _timerRegistro.id, empleado_id: u.id }),
+      body: JSON.stringify({ empleado_id: u.id }),
     });
     const json = await res.json();
-    if (!res.ok || !json.ok) throw new Error(json.error || 'Error al detener');
-    const dur = _fmtDurMin(json.duracion_minutos || 0);
-    _timerBarSetIdle();
-    // pequeño toast reutilizando el sistema existente si existe
-    const toastEl = document.getElementById('toast-msg');
-    if (toastEl) {
-      toastEl.textContent = `✓ Tiempo registrado: ${dur}`;
-      toastEl.style.display = 'block';
-      setTimeout(() => { toastEl.style.display = 'none'; }, 3500);
-    }
+    if (!res.ok || !json.ok) throw new Error(json.error || 'Error al marcar entrada');
+    _timerJornada = json.jornada;
+    await _timerActualizarEstado();
+    return true;
   } catch(e) {
-    console.error('[timer] Error al detener:', e.message);
-    alert('Error al detener el timer: ' + e.message);
-  } finally {
-    btn.disabled = false;
+    alert('Error al marcar entrada: ' + e.message);
+    return false;
   }
 }
 
-// ── Modal ─────────────────────────────────────────────────────────────────
+// ── Modal de tarea (PASO 5) ───────────────────────────────────────────────
 async function _timerModalAbrir() {
   _timerSelProy   = null;
   _timerSelCentro = null;
   _timerSelItem   = null;
   document.getElementById('timer-modal-error').textContent = '';
   document.getElementById('timer-proy-search').value = '';
+  const hayTarea = !!_timerRegistro && !_timerIsDescanso(_timerRegistro?.centro);
+  const btnLabel = hayTarea ? '⇄ CAMBIAR TAREA' : '▶ INICIAR';
+  document.getElementById('timer-iniciar-btn').textContent = btnLabel;
   document.getElementById('timer-iniciar-btn').disabled = true;
+  document.getElementById('timer-modal-title-label').textContent = hayTarea ? '⇄ CAMBIAR TAREA' : '▶ INICIAR TAREA';
   _timerLimpiarItem();
   document.getElementById('timer-modal-overlay').classList.add('open');
 
-  // Cargar proyectos y centros en paralelo
   try {
     const [rProy, rCv] = await Promise.all([
       fetch('/api/tiempos?action=proyectos-activos').then(r => r.json()),
@@ -3537,13 +3760,9 @@ async function _timerModalAbrir() {
       numero: p.numero || '',
       nombre: p.nombre || '',
       cliente_nombre: p.cliente_nombre || p.cliente || '',
-      muebles: (p.muebles || []).map(m => ({
-        id: m.id,
-        codigo: m.codigo || '',
-        nombre: m.nombre || '',
-      })),
+      muebles: (p.muebles || []).map(m => ({ id: m.id, codigo: m.codigo || '', nombre: m.nombre || '' })),
     }));
-    _cvCentros = (rCv.centros || []).map(c => c.nombre);
+    _cvCentros = rCv.centros || [];
   } catch(e) {
     document.getElementById('timer-modal-error').textContent = 'Error cargando datos: ' + e.message;
     return;
@@ -3559,7 +3778,10 @@ function _timerModalCerrar() {
 
 function _timerRenderProyectos(lista) {
   const el = document.getElementById('timer-proy-list');
-  if (!lista.length) { el.innerHTML = '<div style="padding:12px;font-size:11px;color:var(--muted);font-family:\'JetBrains Mono\',monospace;text-align:center;">Sin proyectos activos</div>'; return; }
+  if (!lista.length) {
+    el.innerHTML = '<div style="padding:12px;font-size:11px;color:var(--muted);font-family:\'JetBrains Mono\',monospace;text-align:center;">Sin proyectos activos</div>';
+    return;
+  }
   el.innerHTML = lista.map(p => {
     const label = [p.numero, p.nombre, p.cliente_nombre].filter(Boolean).join(' · ');
     const sel = _timerSelProy?.id === p.id ? ' sel' : '';
@@ -3592,9 +3814,11 @@ function _timerSelProyecto(id) {
 
 function _timerRenderCentros() {
   const grid = document.getElementById('timer-centro-grid');
-  grid.innerHTML = _cvCentros.map(c => {
-    const sel = _timerSelCentro === c ? ' sel' : '';
-    return `<button class="timer-centro-btn${sel}" onclick="_timerSelCentroFn('${c}')">${c}</button>`;
+  // Filtrar centros de descanso — no aparecen en el modal de tarea
+  const centros = _cvCentros.filter(c => !c.es_descanso);
+  grid.innerHTML = centros.map(c => {
+    const sel = _timerSelCentro === c.nombre ? ' sel' : '';
+    return `<button class="timer-centro-btn${sel}" onclick="_timerSelCentroFn('${c.nombre}')">${c.nombre}</button>`;
   }).join('');
 }
 
@@ -3610,14 +3834,14 @@ function _timerSelCentroFn(nombre) {
 }
 
 function _timerCheckIniciarBtn() {
-  const baseOk = !!(  _timerSelProy && _timerSelCentro);
+  const baseOk = !!(_timerSelProy && _timerSelCentro);
   const itemOk = _CENTROS_CON_ITEM.includes(_timerSelCentro) ? !!_timerSelItem : true;
   document.getElementById('timer-iniciar-btn').disabled = !(baseOk && itemOk);
 }
 
 function _timerPoblarItems() {
   const sel = document.getElementById('timer-item-select');
-  const items = (_timerSelProy?.muebles || []);
+  const items = _timerSelProy?.muebles || [];
   sel.innerHTML = '<option value="">— Elegí un item —</option>' +
     items.map(m => {
       const label = m.codigo ? `${m.codigo} · ${m.nombre}` : m.nombre;
@@ -3632,7 +3856,7 @@ function _timerPoblarItems() {
 function _timerLimpiarItem() {
   _timerSelItem = null;
   const sel = document.getElementById('timer-item-select');
-  if (sel) { sel.innerHTML = '<option value="">— Elegí un item —</option>'; }
+  if (sel) sel.innerHTML = '<option value="">— Elegí un item —</option>';
   const section = document.getElementById('timer-item-section');
   if (section) { section.style.display = 'none'; section.style.opacity = '0'; }
 }
@@ -3640,11 +3864,7 @@ function _timerLimpiarItem() {
 function _timerSelItemFn() {
   const sel = document.getElementById('timer-item-select');
   const opt = sel.options[sel.selectedIndex];
-  if (sel.value) {
-    _timerSelItem = { id: sel.value, nombre: opt.dataset.nombre || opt.textContent };
-  } else {
-    _timerSelItem = null;
-  }
+  _timerSelItem = sel.value ? { id: sel.value, nombre: opt.dataset.nombre || opt.textContent } : null;
   _timerCheckIniciarBtn();
 }
 
@@ -3652,19 +3872,20 @@ async function _timerIniciar() {
   const u = window.AUTH.usuarioActual();
   if (!_timerSelProy || !_timerSelCentro || !u) return;
   const btn = document.getElementById('timer-iniciar-btn');
+  const labelOrig = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'INICIANDO…';
+  btn.textContent = 'PROCESANDO…';
   document.getElementById('timer-modal-error').textContent = '';
 
   try {
-    const res = await fetch('/api/tiempos?action=iniciar-tiempo-oficina', {
+    const res = await fetch('/api/tiempos?action=iniciar-tarea-v2', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         empleado_id: u.id,
         proyecto_id: _timerSelProy.id,
         proyecto_nombre: [_timerSelProy.numero, _timerSelProy.nombre].filter(Boolean).join(' · '),
-        centro_virtual: _timerSelCentro,
+        centro: _timerSelCentro,
         ...((_CENTROS_CON_ITEM.includes(_timerSelCentro) && _timerSelItem) ? {
           item_id: _timerSelItem.id,
           item_nombre: _timerSelItem.nombre,
@@ -3672,20 +3893,106 @@ async function _timerIniciar() {
       }),
     });
     const json = await res.json();
-    if (res.status === 409) {
-      const a = json.activo;
-      document.getElementById('timer-modal-error').textContent =
-        `Ya tenés un timer corriendo en ${a?.centro || '?'} — ${a?.proyecto_nombre || '?'}. Detenelo primero.`;
-      btn.disabled = false; btn.textContent = '▶ INICIAR';
-      return;
-    }
     if (!res.ok || !json.ok) throw new Error(json.error || 'Error al iniciar');
     _timerRegistro = json.registro;
     _timerModalCerrar();
-    _timerBarSetActive();
+    await _timerActualizarEstado();
   } catch(e) {
     document.getElementById('timer-modal-error').textContent = 'Error: ' + e.message;
-    btn.disabled = false; btn.textContent = '▶ INICIAR';
+    btn.disabled = false;
+    btn.textContent = labelOrig;
+  }
+}
+
+// ── Handlers descanso / finalizar / salida (PASO 6) ───────────────────────
+async function _timerDescanso() {
+  const u = window.AUTH.usuarioActual();
+  if (!u) return;
+  const descansoCenter = _cvCentros.find(c => c.es_descanso);
+  if (!descansoCenter) { alert('Centro Descanso no configurado en la base de datos.'); return; }
+  const btn = document.getElementById('timer-btn-descanso');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/tiempos?action=iniciar-tarea-v2', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ empleado_id: u.id, centro: descansoCenter.nombre }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) throw new Error(json.error || 'Error al iniciar descanso');
+    _timerRegistro = json.registro;
+    await _timerActualizarEstado();
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function _timerFinalizar() {
+  const u = window.AUTH.usuarioActual();
+  if (!u || !_timerRegistro) return;
+  const btn = document.getElementById('timer-btn-finalizar');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/tiempos?action=finalizar-tarea-v2', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ empleado_id: u.id, registro_id: _timerRegistro.id }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) throw new Error(json.error || 'Error al finalizar');
+    await _timerActualizarEstado();
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function _timerVolverATarea() {
+  _timerModalAbrir();
+}
+
+async function _timerSalida() {
+  const u = window.AUTH.usuarioActual();
+  if (!u || !_timerJornada) return;
+  if (!confirm('¿Confirmar salida del día? Se cerrará la jornada activa.')) return;
+  const btn = document.getElementById('timer-btn-salida');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/tiempos?action=salida-v2', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ empleado_id: u.id }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) throw new Error(json.error || 'Error al registrar salida');
+    await _timerActualizarEstado();
+  } catch(e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false;
+  }
+}
+
+// ── Stop legacy (backward compat, no se usa en nuevos estados) ────────────
+function _timerBarStop() {
+  const btn = document.getElementById('timer-bar-stop');
+  if (!_timerStopConfirm) {
+    _timerStopConfirm = true;
+    btn.textContent = '¿Confirmar?';
+    btn.classList.add('confirmar');
+    _timerStopTimer = setTimeout(() => {
+      _timerStopConfirm = false;
+      btn.textContent = '■ Detener';
+      btn.classList.remove('confirmar');
+    }, 3000);
+  } else {
+    clearTimeout(_timerStopTimer);
+    _timerStopConfirm = false;
+    btn.textContent = '■ Detener';
+    btn.classList.remove('confirmar');
+    _timerFinalizar();
   }
 }
 
