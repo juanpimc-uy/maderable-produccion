@@ -292,13 +292,33 @@ async function _finalizarTareaImpl(sb, {
     .eq('id', registroId).select().single();
   if (error) throw error;
 
-  // 5. Si es descanso y hay jornada: acumular en jornadas.descanso_minutos
+  // 5. Si es descanso y hay jornada: acumular según modalidad del empleado
   if (es_descanso && r.jornada_id) {
+    const { data: empMod } = await sb.from('empleados')
+      .select('descanso_modalidad').eq('id', empleado_id).maybeSingle();
+    const modalidad = empMod?.descanso_modalidad || 'sin_limite';
+
     const { data: jornada } = await sb.from('jornadas')
-      .select('descanso_minutos').eq('id', r.jornada_id).maybeSingle();
-    const nuevoDescanso = (jornada?.descanso_minutos || 0) + durMin;
+      .select('descanso_minutos, descanso_excedido_minutos')
+      .eq('id', r.jornada_id).maybeSingle();
+    const acumActual = jornada?.descanso_minutos || 0;
+    const exceActual = jornada?.descanso_excedido_minutos || 0;
+
+    let aDescanso = durMin;
+    let aExcedido = 0;
+
+    if (modalidad === 'paga_30') {
+      const espacioDisp = Math.max(0, 30 - acumActual);
+      aDescanso = Math.min(durMin, espacioDisp);
+      aExcedido = durMin - aDescanso;
+    }
+
     await sb.from('jornadas')
-      .update({ descanso_minutos: nuevoDescanso }).eq('id', r.jornada_id);
+      .update({
+        descanso_minutos: acumActual + aDescanso,
+        descanso_excedido_minutos: exceActual + aExcedido,
+      })
+      .eq('id', r.jornada_id);
   }
 
   return { registro: data, duracion_minutos: durMin };
@@ -330,7 +350,7 @@ export default async function handler(req) {
     if (action === 'empleados' && req.method === 'GET') {
       const { data, error } = await supabase
         .from('empleados')
-        .select('id,nombre,cedula,email,rol_app,categoria,centros_autorizados,horario_entrada,horario_salida')
+        .select('id,nombre,cedula,email,rol_app,categoria,centros_autorizados,horario_entrada,horario_salida,descanso_modalidad')
         .eq('activo', true)
         .order('nombre');
       if (error) throw error;
@@ -372,6 +392,13 @@ export default async function handler(req) {
         campos = { centros_autorizados: body.centros_autorizados || [] };
       } else {
         // Admin: solo incluir campos que vinieron en el body (no pisar con defaults en UPDATE)
+        // Validar descanso_modalidad si viene
+        if (body.descanso_modalidad !== undefined && body.descanso_modalidad !== null) {
+          const modalidadesValidas = ['paga_30', 'no_paga_60', 'sin_limite'];
+          if (!modalidadesValidas.includes(body.descanso_modalidad)) {
+            return err('descanso_modalidad debe ser paga_30, no_paga_60 o sin_limite', 400);
+          }
+        }
         const camposOpcionales = {
           ...(body.cedula !== undefined    ? { cedula: body.cedula || null }                              : {}),
           ...(body.email !== undefined     ? { email: body.email || null }                                : {}),
@@ -380,6 +407,9 @@ export default async function handler(req) {
           ...(body.centros_autorizados !== undefined ? { centros_autorizados: body.centros_autorizados } : {}),
           ...(body.horario_entrada         ? { horario_entrada: body.horario_entrada }                   : {}),
           ...(body.horario_salida          ? { horario_salida:  body.horario_salida }                    : {}),
+          ...(body.descanso_modalidad !== undefined ? {
+            descanso_modalidad: body.descanso_modalidad || null,
+          } : {}),
         };
 
         if (isInsert) {
@@ -1049,7 +1079,7 @@ export default async function handler(req) {
       const regs = registros || [];
       const tarea_activa = regs.find(r => r.estado === 'activo') || null;
 
-      // 3. Determinar qué centros son descanso
+      // 3. Determinar qué centros son descanso + modalidad del empleado
       const centroNames = [...new Set(regs.map(r => r.centro).filter(Boolean))];
       const descanso_centros = new Set();
       if (centroNames.length > 0) {
@@ -1058,10 +1088,26 @@ export default async function handler(req) {
         (cvs || []).forEach(cv => { if (cv.es_descanso) descanso_centros.add(cv.nombre); });
       }
 
+      const { data: empDescanso } = await supabase
+        .from('empleados').select('descanso_modalidad').eq('id', empleado_id).maybeSingle();
+      const descanso_modalidad = empDescanso?.descanso_modalidad || null;
+
       // 4. Calcular totales
       const fin_ref = jornada.salida ? new Date(jornada.salida) : ahora;
       const duracion_jornada_minutos = Math.round((fin_ref - new Date(jornada.entrada)) / 60000);
       const descanso_acumulado_minutos = jornada.descanso_minutos || 0;
+      const descanso_excedido_minutos  = jornada.descanso_excedido_minutos || 0;
+
+      // Minutos de la sesión de descanso activa en curso (si la hay)
+      let descanso_minutos_actual_sesion = 0;
+      if (tarea_activa && descanso_centros.has(tarea_activa.centro)) {
+        descanso_minutos_actual_sesion = Math.round((ahora - new Date(tarea_activa.inicio)) / 60000);
+      }
+
+      // Exceso visible (solo relevante para paga_30)
+      const descanso_total = descanso_acumulado_minutos + descanso_minutos_actual_sesion;
+      const descanso_excede_limite = descanso_modalidad === 'paga_30' && descanso_total > 30;
+      const descanso_exceso_minutos = descanso_excede_limite ? Math.max(0, descanso_total - 30) : 0;
 
       // tiempo_no_clasificado: gaps entre registros (ordenados por inicio)
       let tiempo_no_clasificado_minutos = 0;
@@ -1090,11 +1136,22 @@ export default async function handler(req) {
         }
       }
 
+      // tiempo_pago: trabajo + descanso pago según modalidad
+      const tiempo_pago_minutos = descanso_modalidad === 'paga_30'
+        ? tiempo_clasificado_minutos + descanso_acumulado_minutos
+        : tiempo_clasificado_minutos;
+
       return ok({ ok: true, jornada, tarea_activa, registros_dia: regs, totales: {
         duracion_jornada_minutos,
         descanso_acumulado_minutos,
+        descanso_excedido_minutos,
+        descanso_minutos_actual_sesion,
+        descanso_excede_limite,
+        descanso_exceso_minutos,
         tiempo_clasificado_minutos,
+        tiempo_pago_minutos,
         tiempo_no_clasificado_minutos,
+        descanso_modalidad,
       }});
     }
 
