@@ -706,7 +706,7 @@ export default async function handler(req) {
         item_nombre,
         _autoJornada: true,
       });
-      return ok(result);
+      return ok({ ok: true, ...result });
     }
 
     // ── POST detener-tiempo-oficina (wrapper → _finalizarTareaImpl) ───────
@@ -718,7 +718,7 @@ export default async function handler(req) {
         registro_id,
         estado_final: 'finalizado',
       });
-      return ok({ registro: result.registro, duracion_minutos: result.duracion_minutos });
+      return ok({ ok: true, registro: result.registro, duracion_minutos: result.duracion_minutos });
     }
 
     // ══════════════════════════════════════════════════════════════════════
