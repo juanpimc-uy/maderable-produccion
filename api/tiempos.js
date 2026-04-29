@@ -119,9 +119,16 @@ async function _entradaImpl(sb, { empleado_id }) {
 async function _salidaImpl(sb, { empleado_id }) {
   const hoy = new Date().toISOString().split('T')[0];
   const ahora = new Date().toISOString();
-  await sb.from('registros_trabajo')
-    .update({ fin: ahora, estado: 'pausado' })
-    .eq('empleado_id', empleado_id).eq('estado', 'activo');
+  // Cerrar registro activo como 'pausado'; si era descanso, acumular sus minutos
+  const { data: activoSalida } = await sb.from('registros_trabajo')
+    .select('id').eq('empleado_id', empleado_id).eq('estado', 'activo').maybeSingle();
+  if (activoSalida) {
+    await _finalizarTareaImpl(sb, {
+      empleado_id,
+      registro_id: activoSalida.id,
+      estado_final: 'pausado',
+    });
+  }
   const { data } = await sb.from('jornadas')
     .update({ salida: ahora })
     .eq('empleado_id', empleado_id).eq('fecha', hoy).is('salida', null)
@@ -210,9 +217,16 @@ async function _iniciarTareaImpl(sb, {
   }
 
   // 5. Cerrar registro activo anterior como 'pausado'
-  await sb.from('registros_trabajo')
-    .update({ fin: ahora, estado: 'pausado' })
-    .eq('empleado_id', empleado_id).eq('estado', 'activo');
+  // Si era un descanso, _finalizarTareaImpl acumula sus minutos en jornadas.descanso_minutos
+  const { data: activoPrev } = await sb.from('registros_trabajo')
+    .select('id').eq('empleado_id', empleado_id).eq('estado', 'activo').maybeSingle();
+  if (activoPrev) {
+    await _finalizarTareaImpl(sb, {
+      empleado_id,
+      registro_id: activoPrev.id,
+      estado_final: 'pausado',
+    });
+  }
 
   // 6. Insertar nuevo registro
   const persistirItem = !es_descanso && CENTROS_CON_ITEM.includes(centro);
