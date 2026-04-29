@@ -87,6 +87,211 @@ function err(msg, status = 400) {
   });
 }
 
+// ── Error controlado desde helpers ────────────────────────────────────────
+class ApiError extends Error {
+  constructor(message, status = 400) {
+    super(message);
+    this.status = status;
+  }
+}
+
+// ── Constantes compartidas ─────────────────────────────────────────────────
+const CENTROS_CON_ITEM = ['Shop Drawing', 'Modelado', 'Cam'];
+
+// ── Helpers unificados ─────────────────────────────────────────────────────
+
+async function _entradaImpl(sb, { empleado_id }) {
+  const hoy = new Date().toISOString().split('T')[0];
+  const ahora = new Date().toISOString();
+  const { data: emp } = await sb
+    .from('empleados').select('horario_entrada').eq('id', empleado_id).single();
+  const [h, m] = (emp?.horario_entrada || '08:00').split(':');
+  const esperado = new Date();
+  esperado.setHours(parseInt(h), parseInt(m), 0, 0);
+  const tarde = new Date() > new Date(esperado.getTime() + 10 * 60000);
+  const { data, error } = await sb.from('jornadas')
+    .upsert({ empleado_id, fecha: hoy, entrada: ahora, tarde }, { onConflict: 'empleado_id,fecha' })
+    .select().single();
+  if (error) throw error;
+  return { jornada: data };
+}
+
+async function _salidaImpl(sb, { empleado_id }) {
+  const hoy = new Date().toISOString().split('T')[0];
+  const ahora = new Date().toISOString();
+  await sb.from('registros_trabajo')
+    .update({ fin: ahora, estado: 'pausado' })
+    .eq('empleado_id', empleado_id).eq('estado', 'activo');
+  const { data } = await sb.from('jornadas')
+    .update({ salida: ahora })
+    .eq('empleado_id', empleado_id).eq('fecha', hoy).is('salida', null)
+    .select().maybeSingle();
+  return { jornada: data };
+}
+
+async function _tiempoActivoImpl(sb, { empleado_id }) {
+  if (!empleado_id) throw new ApiError('empleado_id requerido', 400);
+  const { data } = await sb.from('registros_trabajo')
+    .select('id, jornada_id, proyecto_id, proyecto_nombre, item_id, item_nombre, centro, inicio, estado')
+    .eq('empleado_id', empleado_id).eq('estado', 'activo').maybeSingle();
+  if (!data) return { activo: null };
+  let es_descanso = false;
+  if (data.centro) {
+    const { data: cv } = await sb.from('centros_virtuales')
+      .select('es_descanso').eq('nombre', data.centro).maybeSingle();
+    es_descanso = cv?.es_descanso || false;
+  }
+  return { activo: { ...data, es_descanso } };
+}
+
+async function _iniciarTareaImpl(sb, {
+  empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre,
+  _jornada_id = null,   // pasar directamente para wrappers legacy (planta)
+  _autoJornada = false, // auto-upsert jornada para wrappers legacy (oficina)
+}) {
+  const hoy  = new Date().toISOString().split('T')[0];
+  const ahora = new Date().toISOString();
+
+  // 1. Verificar empleado activo y obtener rol + centros autorizados
+  const { data: emp } = await sb.from('empleados')
+    .select('rol_app, centros_autorizados')
+    .eq('id', empleado_id).eq('activo', true).maybeSingle();
+  if (!emp) throw new ApiError('Empleado no encontrado o inactivo', 404);
+
+  // 2. Resolver jornada_id
+  let jornada_id = _jornada_id;
+  if (!jornada_id) {
+    const { data: jornada } = await sb.from('jornadas')
+      .select('id')
+      .eq('empleado_id', empleado_id).eq('fecha', hoy).is('salida', null)
+      .maybeSingle();
+    if (!jornada) {
+      if (_autoJornada) {
+        const res = await _entradaImpl(sb, { empleado_id });
+        jornada_id = res.jornada.id;
+      } else {
+        throw new ApiError('Sin jornada activa. Registrá la entrada primero.', 400);
+      }
+    } else {
+      jornada_id = jornada.id;
+    }
+  }
+
+  // 3. Validar centro y determinar es_descanso
+  let es_descanso = false;
+  if (emp.rol_app === 'operario') {
+    // Operario: validar contra centros_autorizados (solo si hay lista configurada)
+    const autorizados = emp.centros_autorizados || [];
+    if (autorizados.length > 0 && centro && !autorizados.includes(centro)) {
+      throw new ApiError('Centro no autorizado para este empleado', 400);
+    }
+  } else {
+    // Oficina / admin: validar contra centros_virtuales
+    const { data: cv } = await sb.from('centros_virtuales')
+      .select('id, es_descanso').eq('nombre', centro).eq('activo', true).maybeSingle();
+    if (!cv) throw new ApiError('Centro virtual no válido', 400);
+    es_descanso = cv.es_descanso || false;
+  }
+
+  // 4. Validar proyecto / item (omitir si es descanso)
+  if (!es_descanso) {
+    if (!proyecto_id) throw new ApiError('proyecto_id requerido', 400);
+    if (CENTROS_CON_ITEM.includes(centro)) {
+      if (!item_id) throw new ApiError(`El centro ${centro} requiere especificar un item`, 400);
+      const { data: proyecto, error: pErr } = await sb.from('proyectos_cache')
+        .select('muebles').eq('id', proyecto_id).maybeSingle();
+      if (pErr) throw pErr;
+      if (!proyecto) throw new ApiError('Proyecto no encontrado', 404);
+      const muebles = Array.isArray(proyecto.muebles) ? proyecto.muebles : [];
+      if (!muebles.some(m => String(m.id) === String(item_id))) {
+        throw new ApiError('El item especificado no existe en el proyecto', 400);
+      }
+    }
+  }
+
+  // 5. Cerrar registro activo anterior como 'pausado'
+  await sb.from('registros_trabajo')
+    .update({ fin: ahora, estado: 'pausado' })
+    .eq('empleado_id', empleado_id).eq('estado', 'activo');
+
+  // 6. Insertar nuevo registro
+  const persistirItem = !es_descanso && CENTROS_CON_ITEM.includes(centro);
+  const { data, error } = await sb.from('registros_trabajo')
+    .insert({
+      empleado_id,
+      jornada_id,
+      proyecto_id:     es_descanso ? null : (proyecto_id     || null),
+      proyecto_nombre: es_descanso ? null : (proyecto_nombre || ''),
+      item_id:    persistirItem ? (item_id    || null) : null,
+      item_nombre: persistirItem ? (item_nombre || null) : null,
+      centro,
+      inicio: ahora,
+      fin: null,
+      estado: 'activo',
+      es_retrabajo: false,
+    })
+    .select().single();
+  if (error) throw error;
+  return { registro: data };
+}
+
+async function _finalizarTareaImpl(sb, {
+  empleado_id, registro_id, estado_final = 'finalizado', motivo_retrabajo = null,
+}) {
+  // 1. Resolver registro_id (usa el activo si no viene)
+  let registroId = registro_id;
+  if (!registroId) {
+    const { data: activo } = await sb.from('registros_trabajo')
+      .select('id').eq('empleado_id', empleado_id).eq('estado', 'activo').maybeSingle();
+    if (!activo) throw new ApiError('Sin registro activo', 400);
+    registroId = activo.id;
+  }
+
+  // 2. Verificar que el registro exista y sea del empleado
+  const { data: r, error: rErr } = await sb.from('registros_trabajo')
+    .select('id, empleado_id, inicio, fin, estado, centro, jornada_id')
+    .eq('id', registroId).maybeSingle();
+  if (rErr) throw rErr;
+  if (!r) throw new ApiError('Registro no encontrado', 404);
+  if (r.empleado_id !== empleado_id) throw new ApiError('No autorizado', 403);
+  if (r.estado !== 'activo') throw new ApiError('El registro ya está cerrado', 400);
+
+  // 3. Determinar si el centro es descanso
+  let es_descanso = false;
+  if (r.centro) {
+    const { data: cv } = await sb.from('centros_virtuales')
+      .select('es_descanso').eq('nombre', r.centro).maybeSingle();
+    es_descanso = cv?.es_descanso || false;
+  }
+
+  const fin = new Date().toISOString();
+  const durMin = Math.round((new Date(fin) - new Date(r.inicio)) / 60000);
+
+  // 4. Actualizar el registro
+  const { data, error } = await sb.from('registros_trabajo')
+    .update({
+      fin,
+      estado: es_descanso ? 'finalizado' : estado_final,
+      es_retrabajo: estado_final === 'retrabajo',
+      motivo_retrabajo: estado_final === 'retrabajo' ? (motivo_retrabajo || null) : null,
+    })
+    .eq('id', registroId).select().single();
+  if (error) throw error;
+
+  // 5. Si es descanso y hay jornada: acumular en jornadas.descanso_minutos
+  if (es_descanso && r.jornada_id) {
+    const { data: jornada } = await sb.from('jornadas')
+      .select('descanso_minutos').eq('id', r.jornada_id).maybeSingle();
+    const nuevoDescanso = (jornada?.descanso_minutos || 0) + durMin;
+    await sb.from('jornadas')
+      .update({ descanso_minutos: nuevoDescanso }).eq('id', r.jornada_id);
+  }
+
+  return { registro: data, duracion_minutos: durMin };
+}
+
+// ── Handler principal ──────────────────────────────────────────────────────
+
 export default async function handler(req) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers: CORS });
 
@@ -220,79 +425,47 @@ export default async function handler(req) {
       return ok({ jornada: data });
     }
 
-    // ── POST marcar entrada ───────────────────────────────────────────────
+    // ── POST marcar entrada (wrapper → _entradaImpl) ──────────────────────
     if (action === 'entrada' && req.method === 'POST') {
       const { empleado_id } = body;
-      const hoy = new Date().toISOString().split('T')[0];
-      const ahora = new Date().toISOString();
-
-      const { data: emp } = await supabase
-        .from('empleados').select('horario_entrada').eq('id', empleado_id).single();
-
-      const [h, m] = (emp?.horario_entrada || '08:00').split(':');
-      const esperado = new Date();
-      esperado.setHours(parseInt(h), parseInt(m), 0, 0);
-      const tarde = new Date() > new Date(esperado.getTime() + 10 * 60000);
-
-      const { data, error } = await supabase
-        .from('jornadas')
-        .upsert({ empleado_id, fecha: hoy, entrada: ahora, tarde }, { onConflict: 'empleado_id,fecha' })
-        .select().single();
-      if (error) throw error;
-      return ok({ jornada: data });
+      const result = await _entradaImpl(supabase, { empleado_id });
+      return ok(result);
     }
 
-    // ── POST marcar salida ────────────────────────────────────────────────
+    // ── POST marcar salida (wrapper → _salidaImpl) ────────────────────────
     if (action === 'salida' && req.method === 'POST') {
-      const { empleado_id, jornada_id } = body;
-      const ahora = new Date().toISOString();
-
-      await supabase.from('registros_trabajo')
-        .update({ fin: ahora, estado: 'pausado' })
-        .eq('empleado_id', empleado_id).eq('estado', 'activo');
-
-      const { data } = await supabase
-        .from('jornadas').update({ salida: ahora }).eq('id', jornada_id).select().single();
-      return ok({ jornada: data });
+      const { empleado_id } = body;
+      const result = await _salidaImpl(supabase, { empleado_id });
+      return ok(result);
     }
 
-    // ── POST iniciar tarea ────────────────────────────────────────────────
+    // ── POST iniciar tarea (wrapper → _iniciarTareaImpl) ──────────────────
     if (action === 'iniciar-tarea' && req.method === 'POST') {
       const { empleado_id, jornada_id, proyecto_id, proyecto_nombre,
               item_id, item_nombre, centro } = body;
-      const ahora = new Date().toISOString();
-
-      await supabase.from('registros_trabajo')
-        .update({ fin: ahora, estado: 'pausado' })
-        .eq('empleado_id', empleado_id).eq('estado', 'activo');
-
-      const { data, error } = await supabase.from('registros_trabajo')
-        .insert({ empleado_id, jornada_id, proyecto_id, proyecto_nombre,
-                  item_id, item_nombre, centro, inicio: ahora, estado: 'activo' })
-        .select().single();
-      if (error) throw error;
-      return ok({ registro: data });
+      const result = await _iniciarTareaImpl(supabase, {
+        empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre,
+        _jornada_id: jornada_id, // usa el jornada_id que manda planta directamente
+      });
+      return ok(result);
     }
 
-    // ── POST finalizar tarea ──────────────────────────────────────────────
+    // ── POST finalizar tarea (wrapper → _finalizarTareaImpl + checklist) ──
     if (action === 'finalizar-tarea' && req.method === 'POST') {
       const { registro_id, empleado_id, respuestas_checklist,
               es_retrabajo, motivo_retrabajo } = body;
-      const ahora = new Date().toISOString();
-
-      const { data } = await supabase.from('registros_trabajo')
-        .update({ fin: ahora,
-                  estado: es_retrabajo ? 'retrabajo' : 'finalizado',
-                  es_retrabajo: es_retrabajo || false,
-                  motivo_retrabajo: motivo_retrabajo || null })
-        .eq('id', registro_id).select().single();
-
+      const result = await _finalizarTareaImpl(supabase, {
+        empleado_id,
+        registro_id,
+        estado_final: es_retrabajo ? 'retrabajo' : 'finalizado',
+        motivo_retrabajo: motivo_retrabajo || null,
+      });
       if (respuestas_checklist && Object.keys(respuestas_checklist).length > 0) {
         await supabase.from('checklist_respuestas').insert({
           registro_trabajo_id: registro_id, empleado_id, respuestas: respuestas_checklist,
         });
       }
-      return ok({ registro: data });
+      return ok({ registro: result.registro });
     }
 
     // ── POST registro CNC placa individual ────────────────────────────────
@@ -493,38 +666,28 @@ export default async function handler(req) {
     if (action === 'centros-virtuales' && req.method === 'GET') {
       const { data, error } = await supabase
         .from('centros_virtuales')
-        .select('id, nombre')
+        .select('id, nombre, es_descanso')
         .eq('activo', true)
         .order('nombre');
       if (error) throw error;
       return ok({ centros: data || [] });
     }
 
-    // ── GET tiempo-activo (timer en curso de un empleado) ─────────────────
+    // ── GET tiempo-activo (wrapper → _tiempoActivoImpl) ───────────────────
     if (action === 'tiempo-activo' && req.method === 'GET') {
       const empleado_id = url.searchParams.get('empleado_id');
-      if (!empleado_id) return err('empleado_id requerido', 400);
-      const { data } = await supabase
-        .from('registros_trabajo')
-        .select('id, proyecto_id, proyecto_nombre, item_id, item_nombre, centro, inicio')
-        .eq('empleado_id', empleado_id)
-        .eq('estado', 'activo')
-        .maybeSingle();
-      return ok({ activo: data || null });
+      const result = await _tiempoActivoImpl(supabase, { empleado_id });
+      return ok(result);
     }
 
-    // ── POST iniciar-tiempo-oficina ────────────────────────────────────────
+    // ── POST iniciar-tiempo-oficina (wrapper → _iniciarTareaImpl) ─────────
     if (action === 'iniciar-tiempo-oficina' && req.method === 'POST') {
       const { empleado_id, proyecto_id, proyecto_nombre, centro_virtual,
               item_id, item_nombre } = body;
-      if (!empleado_id || !proyecto_id || !centro_virtual) {
-        return err('empleado_id, proyecto_id y centro_virtual requeridos', 400);
+      if (!empleado_id || !centro_virtual) {
+        return err('empleado_id y centro_virtual requeridos', 400);
       }
-
-      // centros que requieren item obligatorio
-      const CENTROS_CON_ITEM = ['Shop Drawing', 'Modelado', 'Cam'];
-
-      // verificar rol
+      // Verificar rol explícitamente (mantiene 403 igual que antes)
       const { data: emp, error: eErr } = await supabase
         .from('empleados').select('rol_app').eq('id', empleado_id).maybeSingle();
       if (eErr) throw eErr;
@@ -533,98 +696,85 @@ export default async function handler(req) {
         return new Response(JSON.stringify({ ok: false, error: 'Rol no autorizado para marcar tiempo de oficina' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       }
-
-      // verificar centro virtual válido
-      const { data: cv } = await supabase
-        .from('centros_virtuales').select('id').eq('nombre', centro_virtual).eq('activo', true).maybeSingle();
-      if (!cv) return err('Centro virtual no válido', 400);
-
-      // validar item si el centro lo requiere
-      if (CENTROS_CON_ITEM.includes(centro_virtual)) {
-        if (!item_id) {
-          return err(`El centro ${centro_virtual} requiere especificar un item`, 400);
-        }
-        // Validar que el item_id pertenezca al proyecto (items son JSONB en proyectos_cache.muebles)
-        const { data: proyecto, error: pErr } = await supabase
-          .from('proyectos_cache')
-          .select('muebles')
-          .eq('id', proyecto_id)
-          .maybeSingle();
-        if (pErr) throw pErr;
-        if (!proyecto) return err('Proyecto no encontrado', 404);
-        const muebles = Array.isArray(proyecto.muebles) ? proyecto.muebles : [];
-        const itemValido = muebles.some(m => String(m.id) === String(item_id));
-        if (!itemValido) {
-          return err('El item especificado no existe en el proyecto', 400);
-        }
-      }
-
-      // verificar que no haya un timer activo del empleado
-      const { data: activo } = await supabase
-        .from('registros_trabajo')
-        .select('id, proyecto_nombre, centro, inicio')
-        .eq('empleado_id', empleado_id)
-        .eq('estado', 'activo')
-        .maybeSingle();
-      if (activo) {
-        return new Response(JSON.stringify({ ok: false, error: 'Ya tenés un timer activo', activo }),
-          { status: 409, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      }
-
-      // item solo se persiste si el centro lo requiere; si no, se ignora
-      const persistirItem = CENTROS_CON_ITEM.includes(centro_virtual);
-
-      // insertar registro de trabajo para oficina
-      const { data, error } = await supabase
-        .from('registros_trabajo')
-        .insert({
-          empleado_id,
-          jornada_id: null,
-          proyecto_id,
-          proyecto_nombre: proyecto_nombre || '',
-          item_id:    persistirItem ? (item_id   || null) : null,
-          item_nombre: persistirItem ? (item_nombre || null) : null,
-          centro: centro_virtual,
-          inicio: new Date().toISOString(),
-          fin: null,
-          estado: 'activo',
-          es_retrabajo: false,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      return ok({ registro: data });
+      // Delegar a helper unificado (auto-crea jornada si no existe)
+      const result = await _iniciarTareaImpl(supabase, {
+        empleado_id,
+        proyecto_id,
+        proyecto_nombre,
+        centro: centro_virtual,
+        item_id,
+        item_nombre,
+        _autoJornada: true,
+      });
+      return ok(result);
     }
 
-    // ── POST detener-tiempo-oficina ────────────────────────────────────────
+    // ── POST detener-tiempo-oficina (wrapper → _finalizarTareaImpl) ───────
     if (action === 'detener-tiempo-oficina' && req.method === 'POST') {
       const { registro_id, empleado_id } = body;
       if (!registro_id || !empleado_id) return err('registro_id y empleado_id requeridos', 400);
-
-      const { data: r, error: rErr } = await supabase
-        .from('registros_trabajo')
-        .select('id, empleado_id, inicio, fin, estado')
-        .eq('id', registro_id)
-        .maybeSingle();
-      if (rErr) throw rErr;
-      if (!r) return err('Registro no encontrado', 404);
-      if (r.empleado_id !== empleado_id) {
-        return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
-          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      }
-      if (r.estado !== 'activo') return err('El registro ya está cerrado', 400);
-
-      const fin = new Date().toISOString();
-      const { data, error } = await supabase
-        .from('registros_trabajo')
-        .update({ fin, estado: 'finalizado' })
-        .eq('id', registro_id)
-        .select()
-        .single();
-      if (error) throw error;
-      const durMin = Math.round((new Date(fin) - new Date(r.inicio)) / 60000);
-      return ok({ registro: data, duracion_minutos: durMin });
+      const result = await _finalizarTareaImpl(supabase, {
+        empleado_id,
+        registro_id,
+        estado_final: 'finalizado',
+      });
+      return ok({ registro: result.registro, duracion_minutos: result.duracion_minutos });
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // ENDPOINTS V2 UNIFICADOS
+    // ══════════════════════════════════════════════════════════════════════
+
+    // ── POST entrada-v2 ───────────────────────────────────────────────────
+    if (action === 'entrada-v2' && req.method === 'POST') {
+      const { empleado_id } = body;
+      if (!empleado_id) return err('empleado_id requerido', 400);
+      const result = await _entradaImpl(supabase, { empleado_id });
+      return ok({ ok: true, ...result });
+    }
+
+    // ── POST salida-v2 ────────────────────────────────────────────────────
+    if (action === 'salida-v2' && req.method === 'POST') {
+      const { empleado_id } = body;
+      if (!empleado_id) return err('empleado_id requerido', 400);
+      const result = await _salidaImpl(supabase, { empleado_id });
+      return ok({ ok: true, ...result });
+    }
+
+    // ── POST iniciar-tarea-v2 ─────────────────────────────────────────────
+    if (action === 'iniciar-tarea-v2' && req.method === 'POST') {
+      const { empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre } = body;
+      if (!empleado_id || !centro) return err('empleado_id y centro requeridos', 400);
+      const result = await _iniciarTareaImpl(supabase, {
+        empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre,
+        // _autoJornada: false — v2 requiere jornada activa explícita
+      });
+      return ok({ ok: true, ...result });
+    }
+
+    // ── POST finalizar-tarea-v2 ───────────────────────────────────────────
+    if (action === 'finalizar-tarea-v2' && req.method === 'POST') {
+      const { empleado_id, registro_id, estado_final = 'finalizado' } = body;
+      if (!empleado_id) return err('empleado_id requerido', 400);
+      const result = await _finalizarTareaImpl(supabase, {
+        empleado_id,
+        registro_id,
+        estado_final,
+      });
+      return ok({ ok: true, ...result });
+    }
+
+    // ── GET tiempo-activo-v2 ──────────────────────────────────────────────
+    if (action === 'tiempo-activo-v2' && req.method === 'GET') {
+      const empleado_id = url.searchParams.get('empleado_id');
+      if (!empleado_id) return err('empleado_id requerido', 400);
+      const result = await _tiempoActivoImpl(supabase, { empleado_id });
+      return ok({ ok: true, ...result });
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // AUTENTICACIÓN Y USUARIOS
+    // ══════════════════════════════════════════════════════════════════════
 
     // ── POST login admin (email + PIN) ───────────────────────────────────
     if (action === 'login-admin' && req.method === 'POST') {
@@ -854,6 +1004,7 @@ export default async function handler(req) {
     return err('Acción no reconocida: ' + action);
 
   } catch (e) {
+    if (e instanceof ApiError) return err(e.message, e.status);
     return err(e.message, 500);
   }
 }
