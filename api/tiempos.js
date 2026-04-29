@@ -696,7 +696,7 @@ export default async function handler(req) {
         return new Response(JSON.stringify({ ok: false, error: 'Rol no autorizado para marcar tiempo de oficina' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       }
-      // Delegar a helper unificado (auto-crea jornada si no existe)
+      // Delegar a helper unificado — requiere jornada activa explícita (sin _autoJornada)
       const result = await _iniciarTareaImpl(supabase, {
         empleado_id,
         proyecto_id,
@@ -704,7 +704,6 @@ export default async function handler(req) {
         centro: centro_virtual,
         item_id,
         item_nombre,
-        _autoJornada: true,
       });
       return ok({ ok: true, ...result });
     }
@@ -999,6 +998,90 @@ export default async function handler(req) {
         .select().single();
       if (error) throw error;
       return ok({ ok: true });
+    }
+
+    // ── GET metricas-dia (estado completo del día para admin) ─────────────
+    if (action === 'metricas-dia' && req.method === 'GET') {
+      const empleado_id = url.searchParams.get('empleado_id');
+      if (!empleado_id) return err('empleado_id requerido', 400);
+
+      const hoy = new Date().toISOString().split('T')[0];
+      const ahora = new Date();
+
+      // 1. Jornada abierta de hoy
+      const { data: jornada, error: jErr } = await supabase
+        .from('jornadas').select('*')
+        .eq('empleado_id', empleado_id).eq('fecha', hoy).is('salida', null)
+        .maybeSingle();
+      if (jErr) throw jErr;
+
+      if (!jornada) {
+        return ok({ ok: true, jornada: null, tarea_activa: null, registros_dia: [], totales: {
+          duracion_jornada_minutos: 0,
+          descanso_acumulado_minutos: 0,
+          tiempo_clasificado_minutos: 0,
+          tiempo_no_clasificado_minutos: 0,
+        }});
+      }
+
+      // 2. Registros del día ordenados por inicio
+      const { data: registros, error: rErr } = await supabase
+        .from('registros_trabajo').select('*')
+        .eq('empleado_id', empleado_id)
+        .eq('jornada_id', jornada.id)
+        .order('inicio', { ascending: true });
+      if (rErr) throw rErr;
+
+      const regs = registros || [];
+      const tarea_activa = regs.find(r => r.estado === 'activo') || null;
+
+      // 3. Determinar qué centros son descanso
+      const centroNames = [...new Set(regs.map(r => r.centro).filter(Boolean))];
+      const descanso_centros = new Set();
+      if (centroNames.length > 0) {
+        const { data: cvs } = await supabase
+          .from('centros_virtuales').select('nombre, es_descanso').in('nombre', centroNames);
+        (cvs || []).forEach(cv => { if (cv.es_descanso) descanso_centros.add(cv.nombre); });
+      }
+
+      // 4. Calcular totales
+      const fin_ref = jornada.salida ? new Date(jornada.salida) : ahora;
+      const duracion_jornada_minutos = Math.round((fin_ref - new Date(jornada.entrada)) / 60000);
+      const descanso_acumulado_minutos = jornada.descanso_minutos || 0;
+
+      // tiempo_no_clasificado: gaps entre registros (ordenados por inicio)
+      let tiempo_no_clasificado_minutos = 0;
+      let gap_start = new Date(jornada.entrada);
+      for (const reg of regs) {
+        const reg_inicio = new Date(reg.inicio);
+        if (reg_inicio > gap_start) {
+          tiempo_no_clasificado_minutos += Math.round((reg_inicio - gap_start) / 60000);
+        }
+        const reg_fin = reg.fin ? new Date(reg.fin) : (reg.estado === 'activo' ? ahora : null);
+        if (reg_fin && reg_fin > gap_start) gap_start = reg_fin;
+      }
+      // Trailing gap solo si no hay tarea activa
+      if (!tarea_activa && gap_start < fin_ref) {
+        tiempo_no_clasificado_minutos += Math.round((fin_ref - gap_start) / 60000);
+      }
+
+      // tiempo_clasificado: suma de duraciones de registros no-descanso
+      let tiempo_clasificado_minutos = 0;
+      for (const reg of regs) {
+        if (descanso_centros.has(reg.centro)) continue;
+        const reg_inicio = new Date(reg.inicio);
+        const reg_fin = reg.fin ? new Date(reg.fin) : (reg.estado === 'activo' ? ahora : null);
+        if (reg_fin) {
+          tiempo_clasificado_minutos += Math.max(0, Math.round((reg_fin - reg_inicio) / 60000));
+        }
+      }
+
+      return ok({ ok: true, jornada, tarea_activa, registros_dia: regs, totales: {
+        duracion_jornada_minutos,
+        descanso_acumulado_minutos,
+        tiempo_clasificado_minutos,
+        tiempo_no_clasificado_minutos,
+      }});
     }
 
     return err('Acción no reconocida: ' + action);
