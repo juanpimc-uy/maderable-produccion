@@ -3649,9 +3649,9 @@ function _timerSetEstado(nuevoEstado) {
     overlay.classList.remove('visible');
 
   } else if (nuevoEstado === 'descanso-activo') {
-    icon.textContent = '';
-    _timerBarActualizarTextoDescanso();
-    _timerInterval = setInterval(_timerBarActualizarTextoDescanso, 1000);
+    icon.textContent = '☕';
+    _timerBarActualizarDescanso();
+    // Sin cronómetro de 1s — el polling de 30s actualiza el exceso si aplica
     document.getElementById('timer-btn-volver').style.display = '';
     document.getElementById('timer-btn-salida').style.display = '';
     overlay.classList.remove('visible');
@@ -3679,10 +3679,16 @@ function _timerBarActualizarTexto() {
     `● ${_timerRegistro.centro}${itemPart}  en  ${proyNum}  ·  ${_fmtHMS(secs)}`;
 }
 
-function _timerBarActualizarTextoDescanso() {
-  if (!_timerRegistro) return;
-  const secs = Math.floor((Date.now() - new Date(_timerRegistro.inicio).getTime()) / 1000);
-  document.getElementById('timer-bar-text').textContent = `☕ Descanso · ${_fmtHMS(secs)}`;
+function _timerBarActualizarDescanso() {
+  const t = _timerMetricas?.totales || {};
+  const textEl = document.getElementById('timer-bar-text');
+  if (t.descanso_excede_limite && (t.descanso_exceso_minutos || 0) > 0) {
+    textEl.textContent = `Descanso · ⚠ +${t.descanso_exceso_minutos}min`;
+    textEl.style.color = '#c00000';
+  } else {
+    textEl.textContent = 'Descanso';
+    textEl.style.color = '';
+  }
 }
 
 // ── Panel de métricas ─────────────────────────────────────────────────────
@@ -3691,23 +3697,43 @@ function _timerRenderMetricas(data) {
   if (!data?.jornada) { panel.classList.remove('abierto'); return; }
   const t = data.totales || {};
   const warn = (t.tiempo_no_clasificado_minutos || 0) > 5;
+  const modalidad = t.descanso_modalidad;
+  const modalidadLabel = modalidad === 'paga_30' ? '30 min pagos'
+    : modalidad === 'no_paga_60' ? 'No pagos'
+    : modalidad === 'sin_limite' ? 'Sin límite'
+    : '—';
+  const excedido = t.descanso_excedido_minutos || 0;
+  const excedidoRow = (modalidad === 'paga_30' && excedido > 0)
+    ? `<div class="timer-metric-item">
+        <span class="timer-metric-label">EXCEDIDO</span>
+        <span class="timer-metric-val warn">${_fmtDurMin(excedido)}</span>
+       </div>`
+    : '';
+  const pagoRow = modalidad
+    ? `<div class="timer-metric-item">
+        <span class="timer-metric-label">TIEMPO PAGO</span>
+        <span class="timer-metric-val" style="color:var(--green);">${_fmtDurMin(t.tiempo_pago_minutos || 0)}</span>
+       </div>`
+    : '';
   panel.innerHTML = `<div class="timer-metrics-row">
     <div class="timer-metric-item">
       <span class="timer-metric-label">JORNADA</span>
       <span class="timer-metric-val">${_fmtDurMin(t.duracion_jornada_minutos || 0)}</span>
     </div>
     <div class="timer-metric-item">
-      <span class="timer-metric-label">CLASIFICADO</span>
+      <span class="timer-metric-label">TRABAJO</span>
       <span class="timer-metric-val">${_fmtDurMin(t.tiempo_clasificado_minutos || 0)}</span>
     </div>
     <div class="timer-metric-item">
       <span class="timer-metric-label">DESCANSO</span>
       <span class="timer-metric-val">${_fmtDurMin(t.descanso_acumulado_minutos || 0)}</span>
     </div>
+    ${excedidoRow}
     <div class="timer-metric-item">
       <span class="timer-metric-label">SIN CLASIFICAR</span>
       <span class="timer-metric-val${warn ? ' warn' : ''}">${_fmtDurMin(t.tiempo_no_clasificado_minutos || 0)}</span>
     </div>
+    ${pagoRow}
   </div>`;
   panel.classList.add('abierto');
 }
