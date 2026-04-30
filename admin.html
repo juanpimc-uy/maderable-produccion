@@ -519,6 +519,7 @@
       <button id="timer-btn-finalizar" class="timer-bar-action-btn" style="display:none;" onclick="event.stopPropagation();_timerFinalizar()">✓ Finalizar</button>
       <button id="timer-btn-volver" class="timer-bar-action-btn" style="display:none;" onclick="event.stopPropagation();_timerVolverATarea()">▶ Volver a tarea</button>
       <button id="timer-btn-salida" class="timer-bar-action-btn" style="display:none;" onclick="event.stopPropagation();_timerSalida()">⏹ Salida</button>
+      <button id="timer-btn-huerfanas" class="timer-bar-action-btn" style="display:none;background:#7c3aed;" onclick="event.stopPropagation();_timerHuerfanasAbrir()">⚠ Jornadas sin cerrar <span id="timer-huerfanas-badge"></span></button>
       <button id="timer-bar-stop" style="display:none;" onclick="event.stopPropagation();_timerBarStop()">■ Detener</button>
     </div>
   </div>
@@ -671,6 +672,16 @@
       <span class="op-sub">REGISTRA LA ENTRADA SIN INICIAR UNA TAREA TODAVÍA</span>
     </button>
     <button onclick="_timerEntradaCerrar()" style="width:100%;padding:10px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;">Cancelar</button>
+  </div>
+</div>
+
+<!-- ══ HUERFANAS MODAL ════════════════════════════════════════════════════ -->
+<div id="timer-huerfanas-overlay" onclick="_timerHuerfanasCerrar()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9500;align-items:center;justify-content:center;">
+  <div onclick="event.stopPropagation()" style="background:var(--card);border-radius:12px;padding:32px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto;">
+    <div class="timer-modal-title" style="margin-bottom:16px;">⚠ JORNADAS SIN CERRAR</div>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:20px;">Las siguientes jornadas quedaron abiertas. Cerrá cada una para que las horas queden registradas correctamente.</p>
+    <div id="timer-huerfanas-lista"></div>
+    <button onclick="_timerHuerfanasCerrar()" style="margin-top:20px;width:100%;padding:10px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;">Cerrar</button>
   </div>
 </div>
 
@@ -3579,11 +3590,13 @@ async function initTimerBar() {
   const u = window.AUTH.usuarioActual();
   if (!u || (u.rol_app !== 'oficina' && u.rol_app !== 'admin')) return;
   document.getElementById('timer-bar').style.display = 'flex';
+  _timerSetEstado('cargando');
   try {
     const rCv = await fetch('/api/tiempos?action=centros-virtuales').then(r => r.json());
     _cvCentros = rCv.centros || [];
   } catch(e) { console.warn('[timer] No se cargaron centros:', e.message); }
   await _timerActualizarEstado();
+  _timerCheckJornadasHuerfanas();
   _timerMetricasInt = setInterval(_timerActualizarEstado, 30000);
 }
 
@@ -3662,7 +3675,12 @@ function _timerSetEstado(nuevoEstado) {
     text.textContent = `Sin tarea — ${_fmtDurMin(noClas)} sin clasificar`;
     document.getElementById('bloqueo-mensaje').textContent =
       `Llevas ${_fmtDurMin(noClas)} sin registrar en qué estás trabajando.`;
+    document.getElementById('timer-btn-salida').style.display = '';
     overlay.classList.add('visible');
+  } else if (nuevoEstado === 'cargando') {
+    icon.textContent = '…';
+    text.textContent = 'Cargando…';
+    overlay.classList.remove('visible');
   }
 }
 
@@ -3740,6 +3758,7 @@ function _timerRenderMetricas(data) {
 
 // Click en la barra
 function _timerBarClick(e) {
+  if (!_timerEstado || _timerEstado === 'cargando') return;
   if (_timerEstado === 'sin-jornada') _timerEntradaAbrir();
   else if (_timerEstado === 'jornada-sin-tarea' || _timerEstado === 'bloqueado') _timerModalAbrir();
 }
@@ -3819,6 +3838,84 @@ async function _timerModalAbrir() {
 
 function _timerModalCerrar() {
   document.getElementById('timer-modal-overlay').classList.remove('open');
+}
+
+// ── Jornadas huérfanas ────────────────────────────────────────────────────
+let _huerfanasData = [];
+
+async function _timerCheckJornadasHuerfanas() {
+  const u = window.AUTH.usuarioActual();
+  if (!u) return;
+  try {
+    const res = await fetch(`/api/tiempos?action=jornadas-abiertas-anteriores&empleado_id=${u.id}`);
+    const json = await res.json();
+    if (!json.ok) return;
+    _huerfanasData = json.jornadas || [];
+    const btn = document.getElementById('timer-btn-huerfanas');
+    const badge = document.getElementById('timer-huerfanas-badge');
+    if (_huerfanasData.length > 0) {
+      badge.textContent = `(${_huerfanasData.length})`;
+      btn.style.display = '';
+    } else {
+      btn.style.display = 'none';
+    }
+  } catch(e) {
+    console.warn('[timer] Error chequeando jornadas huérfanas:', e.message);
+  }
+}
+
+function _timerHuerfanasAbrir() {
+  const lista = document.getElementById('timer-huerfanas-lista');
+  if (!_huerfanasData.length) {
+    lista.innerHTML = '<p style="color:var(--muted);font-size:13px;">No hay jornadas pendientes.</p>';
+  } else {
+    lista.innerHTML = _huerfanasData.map(j => {
+      const fecha = j.fecha; // YYYY-MM-DD
+      const [y, m, d] = fecha.split('-');
+      const fechaLeg = `${d}/${m}/${y}`;
+      const entradaHora = j.entrada ? new Date(j.entrada).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) : '—';
+      const ultimoHora = j.ultimo_fin ? new Date(j.ultimo_fin).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) : null;
+      const estimada = j.ultimo_fin || j.entrada;
+      return `<div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Jornada del ${fechaLeg}</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+          Entrada: ${entradaHora}${ultimoHora ? ` · Último registro: ${ultimoHora}` : ''} · ${j.total_registros} registro(s)
+        </div>
+        <button onclick="_timerCerrarHuerfana('${j.id}','${estimada}')"
+          style="padding:8px 16px;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">
+          Cerrar con hora estimada (${ultimoHora || entradaHora})
+        </button>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('timer-huerfanas-overlay').style.display = 'flex';
+}
+
+function _timerHuerfanasCerrar() {
+  document.getElementById('timer-huerfanas-overlay').style.display = 'none';
+}
+
+async function _timerCerrarHuerfana(jornada_id, salida_estimada) {
+  const u = window.AUTH.usuarioActual();
+  if (!u) return;
+  try {
+    const res = await fetch('/api/tiempos?action=cerrar-jornada-huerfana', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ empleado_id: u.id, jornada_id, salida_estimada }),
+    });
+    const json = await res.json();
+    if (!json.ok) { alert('Error al cerrar jornada: ' + (json.error || 'desconocido')); return; }
+    // Refrescar la lista
+    await _timerCheckJornadasHuerfanas();
+    if (_huerfanasData.length === 0) {
+      _timerHuerfanasCerrar();
+    } else {
+      _timerHuerfanasAbrir(); // re-render con la lista actualizada
+    }
+  } catch(e) {
+    alert('Error de red al cerrar jornada');
+  }
 }
 
 function _timerRenderProyectos(lista) {

@@ -784,6 +784,74 @@ export default async function handler(req) {
       return ok({ ok: true, ...result });
     }
 
+    // ── GET jornadas-abiertas-anteriores ─────────────────────────────────
+    if (action === 'jornadas-abiertas-anteriores' && req.method === 'GET') {
+      const empleado_id = url.searchParams.get('empleado_id');
+      if (!empleado_id) return err('empleado_id requerido', 400);
+      const hoy = new Date().toISOString().split('T')[0];
+      const { data: jornadasHuerfanas, error: jHErr } = await supabase
+        .from('jornadas')
+        .select('id, fecha, entrada')
+        .eq('empleado_id', empleado_id)
+        .is('salida', null)
+        .lt('fecha', hoy)
+        .order('fecha', { ascending: false });
+      if (jHErr) throw jHErr;
+      if (!jornadasHuerfanas || jornadasHuerfanas.length === 0) {
+        return ok({ ok: true, jornadas: [] });
+      }
+      // Para cada jornada, obtener el último registro finalizado y el conteo
+      const jornadasConMeta = await Promise.all(jornadasHuerfanas.map(async (j) => {
+        const { data: regs } = await supabase
+          .from('registros_trabajo')
+          .select('id, fin, estado')
+          .eq('jornada_id', j.id)
+          .order('fin', { ascending: false });
+        const total = regs?.length || 0;
+        const ultimoFin = regs?.find(r => r.fin)?.fin || null;
+        return { ...j, total_registros: total, ultimo_fin: ultimoFin };
+      }));
+      return ok({ ok: true, jornadas: jornadasConMeta });
+    }
+
+    // ── POST cerrar-jornada-huerfana ──────────────────────────────────────
+    if (action === 'cerrar-jornada-huerfana' && req.method === 'POST') {
+      const { empleado_id, jornada_id, salida_estimada } = body;
+      if (!empleado_id || !jornada_id) return err('empleado_id y jornada_id requeridos', 400);
+      // Verificar que la jornada pertenece al empleado y está abierta
+      const { data: jornada, error: jErr } = await supabase
+        .from('jornadas')
+        .select('id, fecha, salida')
+        .eq('id', jornada_id)
+        .eq('empleado_id', empleado_id)
+        .maybeSingle();
+      if (jErr) throw jErr;
+      if (!jornada) return err('Jornada no encontrada', 404);
+      if (jornada.salida) return err('La jornada ya tiene salida registrada', 400);
+      // Cerrar cualquier registro activo en esta jornada
+      const { data: activoHuerfano } = await supabase
+        .from('registros_trabajo')
+        .select('id')
+        .eq('jornada_id', jornada_id)
+        .eq('estado', 'activo')
+        .maybeSingle();
+      if (activoHuerfano) {
+        await _finalizarTareaImpl(supabase, {
+          empleado_id,
+          registro_id: activoHuerfano.id,
+          estado_final: 'pausado',
+        });
+      }
+      const ahora = salida_estimada || new Date().toISOString();
+      const { data: jornadaCerrada } = await supabase
+        .from('jornadas')
+        .update({ salida: ahora })
+        .eq('id', jornada_id)
+        .select()
+        .maybeSingle();
+      return ok({ ok: true, jornada: jornadaCerrada });
+    }
+
     // ── POST iniciar-tarea-v2 ─────────────────────────────────────────────
     if (action === 'iniciar-tarea-v2' && req.method === 'POST') {
       const { empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre } = body;
