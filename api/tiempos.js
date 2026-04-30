@@ -867,27 +867,15 @@ export default async function handler(req) {
         }
         salida = salidaDate.toISOString();
       }
-      // Cerrar cualquier registro activo en esta jornada
-      const { data: activoHuerfano } = await supabase
-        .from('registros_trabajo')
-        .select('id')
+      // Cerrar registros activos con la misma hora de salida (consistencia)
+      await supabase.from('registros_trabajo')
+        .update({ fin: salida, estado: 'pausado' })
         .eq('jornada_id', jornada_id)
-        .eq('estado', 'activo')
-        .maybeSingle();
-      if (activoHuerfano) {
-        await _finalizarTareaImpl(supabase, {
-          empleado_id,
-          registro_id: activoHuerfano.id,
-          estado_final: 'pausado',
-        });
-      }
-      const { data: jornadaCerrada } = await supabase
-        .from('jornadas')
-        .update({ salida })
-        .eq('id', jornada_id)
-        .select()
-        .maybeSingle();
-      return ok({ ok: true, jornada: jornadaCerrada });
+        .eq('estado', 'activo');
+      const { data, error: uErr } = await supabase.from('jornadas')
+        .update({ salida }).eq('id', jornada_id).select().single();
+      if (uErr) throw uErr;
+      return ok({ ok: true, jornada: data });
     }
 
     // ── POST iniciar-tarea-v2 ─────────────────────────────────────────────

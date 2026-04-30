@@ -442,6 +442,76 @@
   }
   #timer-item-select:focus { border-color: var(--amber); }
   #timer-item-select option { background: var(--card); }
+
+  /* ── Jornadas huérfanas modal ───────────────────────────────────────── */
+  .huerfana-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .huerfana-header { margin-bottom: 10px; }
+  .huerfana-header strong { display: block; font-size: 13px; margin-bottom: 3px; }
+  .huerfana-header small { font-size: 11px; color: var(--muted); }
+  .huerfana-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .huerfana-btn-estimada {
+    padding: 8px 14px;
+    background: #7c3aed;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .huerfana-btn-manual {
+    padding: 8px 14px;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .huerfana-btn-manual:hover { border-color: var(--amber); color: var(--amber); }
+  .huerfana-manual-input { margin-top: 12px; }
+  .huerfana-manual-input label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .huerfana-manual-input input[type="datetime-local"] {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: var(--text);
+    font-size: 12px;
+    outline: none;
+    width: 100%;
+    margin-bottom: 8px;
+    box-sizing: border-box;
+  }
+  .huerfana-manual-input input[type="datetime-local"]:focus { border-color: var(--amber); }
+  .huerfana-manual-input input[type="datetime-local"].invalid { border-color: var(--red); }
+  .huerfana-manual-error { font-size: 11px; color: var(--red); margin-bottom: 8px; display: none; }
+  .huerfana-manual-btns { display: flex; gap: 8px; }
+  .huerfana-btn-confirmar {
+    padding: 8px 16px;
+    background: #0E7490;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .huerfana-btn-cancelar {
+    padding: 8px 16px;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
@@ -3872,34 +3942,65 @@ function _timerHuerfanasAbrir() {
     lista.innerHTML = _huerfanasData.map(j => {
       const [y, m, d] = j.fecha.split('-');
       const fechaLeg = `${d}/${m}/${y}`;
-      const entradaHora = j.entrada
-        ? new Date(j.entrada).toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'})
-        : '—';
-      const ultimoHora = j.ultimo_fin
-        ? new Date(j.ultimo_fin).toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'})
+      const fmt = ts => ts
+        ? new Date(ts).toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'})
         : null;
-      // Valor por defecto del input: último registro o entrada, en HH:MM
-      const defaultHora = ultimoHora || entradaHora;
-      const inputId = `huerfana-hora-${j.id}`;
-      return `<div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;">
-        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Jornada del ${fechaLeg}</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">
-          Entrada: ${entradaHora}${ultimoHora ? ` · Último registro: ${ultimoHora}` : ''} · ${j.total_registros} registro(s)
+      const entradaHora = fmt(j.entrada) || '—';
+      const ultimoHora  = fmt(j.ultimo_fin);
+      const etiquetaEstimada = ultimoHora || entradaHora;
+
+      // Default del datetime-local: último registro o entrada, en formato local YYYY-MM-DDTHH:MM
+      const defaultTs = j.ultimo_fin || j.entrada;
+      const defaultDT = defaultTs
+        ? (() => {
+            const d = new Date(defaultTs);
+            const pad = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+          })()
+        : '';
+      // min = entrada en local
+      const minDT = j.entrada
+        ? (() => {
+            const d = new Date(j.entrada);
+            const pad = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+          })()
+        : '';
+      // max = ahora en local
+      const maxDT = (() => {
+        const d = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      })();
+
+      return `<div class="huerfana-card" id="hcard-${j.id}">
+        <div class="huerfana-header">
+          <strong>Jornada del ${fechaLeg}</strong>
+          <small>Entrada: ${entradaHora}${ultimoHora ? ` · Último registro: ${ultimoHora}` : ''} · ${j.total_registros} registro(s)</small>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <button onclick="_timerCerrarHuerfana('${j.id}','estimada')"
-            style="padding:8px 14px;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;white-space:nowrap;">
-            Usar estimada (${defaultHora})
+        <div class="huerfana-actions" id="hactions-${j.id}">
+          <button class="huerfana-btn-estimada" onclick="_hCerrarEstimada('${j.id}', this)">
+            Cerrar con hora estimada (${etiquetaEstimada})
           </button>
-          <span style="color:var(--muted);font-size:12px;">o ingresar hora:</span>
-          <input id="${inputId}" type="time" value="${defaultHora}"
-            style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;width:90px;" />
-          <button onclick="_timerCerrarHuerfanaManual('${j.id}','${j.fecha}','${inputId}')"
-            style="padding:8px 14px;background:#0E7490;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">
-            Usar hora ingresada
+          <button class="huerfana-btn-manual" onclick="_hMostrarManual('${j.id}')">
+            Cerrar con hora manual
           </button>
         </div>
-        <div id="huerfana-error-${j.id}" style="color:var(--red);font-size:11px;margin-top:6px;display:none;"></div>
+        <div class="huerfana-manual-input hidden" id="hinput-${j.id}">
+          <label>Hora de salida real:</label>
+          <input type="datetime-local"
+            id="hdt-${j.id}"
+            value="${defaultDT}"
+            min="${minDT}"
+            max="${maxDT}"
+            oninput="_hValidarInput('${j.id}','${minDT}')"
+          />
+          <div class="huerfana-manual-error" id="herr-${j.id}"></div>
+          <div class="huerfana-manual-btns">
+            <button class="huerfana-btn-confirmar" onclick="_hConfirmarManual('${j.id}')">Confirmar</button>
+            <button class="huerfana-btn-cancelar" onclick="_hCancelarManual('${j.id}')">Cancelar</button>
+          </div>
+        </div>
       </div>`;
     }).join('');
   }
@@ -3910,74 +4011,110 @@ function _timerHuerfanasCerrar() {
   document.getElementById('timer-huerfanas-overlay').style.display = 'none';
 }
 
-async function _timerCerrarHuerfana(jornada_id, modo) {
-  const u = window.AUTH.usuarioActual();
-  if (!u) return;
-  try {
-    const res = await fetch('/api/tiempos?action=cerrar-jornada-huerfana', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ empleado_id: u.id, jornada_id, modo }),
-    });
-    const json = await res.json();
-    if (!json.ok) { alert('Error al cerrar jornada: ' + (json.error || 'desconocido')); return; }
-    await _timerCheckJornadasHuerfanas();
-    if (_huerfanasData.length === 0) {
-      _timerHuerfanasCerrar();
-    } else {
-      _timerHuerfanasAbrir();
-    }
-  } catch(e) {
-    alert('Error de red al cerrar jornada');
+// Helpers internos de cada card
+function _hMostrarManual(jid) {
+  document.getElementById(`hactions-${jid}`).classList.add('hidden');
+  document.getElementById(`hinput-${jid}`).classList.remove('hidden');
+}
+
+function _hCancelarManual(jid) {
+  document.getElementById(`hinput-${jid}`).classList.add('hidden');
+  document.getElementById(`hactions-${jid}`).classList.remove('hidden');
+  const errEl = document.getElementById(`herr-${jid}`);
+  errEl.textContent = '';
+  errEl.style.display = 'none';
+  document.getElementById(`hdt-${jid}`).classList.remove('invalid');
+}
+
+function _hValidarInput(jid, minDT) {
+  const inputEl = document.getElementById(`hdt-${jid}`);
+  const errEl   = document.getElementById(`herr-${jid}`);
+  const val = inputEl.value;
+  if (!val) { inputEl.classList.remove('invalid'); errEl.style.display = 'none'; return true; }
+  const sel  = new Date(val);
+  const min  = new Date(minDT);
+  const ahora = new Date();
+  if (sel < min) {
+    const horaMin = minDT.slice(11, 16); // HH:MM del min
+    inputEl.classList.add('invalid');
+    errEl.textContent = `La hora debe ser después de la entrada (${horaMin})`;
+    errEl.style.display = '';
+    return false;
+  }
+  if (sel > new Date(ahora.getTime() + 60000)) {
+    inputEl.classList.add('invalid');
+    errEl.textContent = 'La hora no puede ser en el futuro';
+    errEl.style.display = '';
+    return false;
+  }
+  inputEl.classList.remove('invalid');
+  errEl.textContent = '';
+  errEl.style.display = 'none';
+  return true;
+}
+
+async function _hRefrescarTrasExito() {
+  await _timerCheckJornadasHuerfanas();
+  if (_huerfanasData.length === 0) {
+    _timerHuerfanasCerrar();
+  } else {
+    _timerHuerfanasAbrir();
   }
 }
 
-async function _timerCerrarHuerfanaManual(jornada_id, fecha, inputId) {
+async function _hCerrarEstimada(jornada_id, btn) {
   const u = window.AUTH.usuarioActual();
   if (!u) return;
-  const errorEl = document.getElementById(`huerfana-error-${jornada_id}`);
-  const horaVal = document.getElementById(inputId)?.value;
-  if (!horaVal) {
-    errorEl.textContent = 'Ingresá una hora válida.';
-    errorEl.style.display = '';
-    return;
-  }
-  // Construir ISO timestamp combinando fecha de la jornada con la hora ingresada
-  // fecha = 'YYYY-MM-DD', horaVal = 'HH:MM'
-  // Interpretamos en zona local del cliente
-  const salidaLocal = new Date(`${fecha}T${horaVal}:00`);
-  if (isNaN(salidaLocal.getTime())) {
-    errorEl.textContent = 'Hora inválida.';
-    errorEl.style.display = '';
-    return;
-  }
-  errorEl.style.display = 'none';
+  btn.disabled = true;
   try {
     const res = await fetch('/api/tiempos?action=cerrar-jornada-huerfana', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        empleado_id: u.id,
-        jornada_id,
-        modo: 'manual',
-        salida_manual: salidaLocal.toISOString(),
-      }),
+      body: JSON.stringify({ empleado_id: u.id, jornada_id, modo: 'estimada' }),
+    });
+    const json = await res.json();
+    if (!json.ok) { alert(json.error || 'Error al cerrar jornada'); btn.disabled = false; return; }
+    await _hRefrescarTrasExito();
+  } catch(e) {
+    alert('Error de red al cerrar jornada');
+    btn.disabled = false;
+  }
+}
+
+async function _hConfirmarManual(jornada_id) {
+  const u = window.AUTH.usuarioActual();
+  if (!u) return;
+  const inputEl = document.getElementById(`hdt-${jornada_id}`);
+  const errEl   = document.getElementById(`herr-${jornada_id}`);
+  const minDT   = inputEl.min;
+  if (!_hValidarInput(jornada_id, minDT)) return;
+  if (!inputEl.value) {
+    errEl.textContent = 'Ingresá una hora.';
+    errEl.style.display = '';
+    return;
+  }
+  // datetime-local devuelve "YYYY-MM-DDTHH:MM" sin tz → interpretar como local
+  const salidaISO = new Date(inputEl.value).toISOString();
+  const btn = inputEl.closest('.huerfana-manual-input').querySelector('.huerfana-btn-confirmar');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/tiempos?action=cerrar-jornada-huerfana', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ empleado_id: u.id, jornada_id, modo: 'manual', salida_manual: salidaISO }),
     });
     const json = await res.json();
     if (!json.ok) {
-      errorEl.textContent = json.error || 'Error al cerrar jornada.';
-      errorEl.style.display = '';
+      errEl.textContent = json.error || 'Error al cerrar jornada.';
+      errEl.style.display = '';
+      btn.disabled = false;
       return;
     }
-    await _timerCheckJornadasHuerfanas();
-    if (_huerfanasData.length === 0) {
-      _timerHuerfanasCerrar();
-    } else {
-      _timerHuerfanasAbrir();
-    }
+    await _hRefrescarTrasExito();
   } catch(e) {
-    errorEl.textContent = 'Error de red.';
-    errorEl.style.display = '';
+    errEl.textContent = 'Error de red.';
+    errEl.style.display = '';
+    btn.disabled = false;
   }
 }
 
