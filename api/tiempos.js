@@ -1259,6 +1259,159 @@ export default async function handler(req) {
       }});
     }
 
+    // ── GET tarifas-horarias ──────────────────────────────────────────────
+    if (action === 'tarifas-horarias' && req.method === 'GET') {
+      const { data, error } = await supabase
+        .from('tarifas_horarias')
+        .select('categoria, monto_usd, actualizado_en')
+        .order('categoria');
+      if (error) throw error;
+      return ok({ tarifas: data });
+    }
+
+    // ── POST actualizar-tarifa (solo admin) ───────────────────────────────
+    if (action === 'actualizar-tarifa' && req.method === 'POST') {
+      const { admin_id, categoria, monto_usd } = body;
+      if (!admin_id || !categoria || monto_usd === undefined) {
+        return err('admin_id, categoria y monto_usd requeridos', 400);
+      }
+      if (!['directo','indirecto','tecnico','administrativo'].includes(categoria)) {
+        return err('categoría inválida', 400);
+      }
+      if (typeof monto_usd !== 'number' || monto_usd < 0) {
+        return err('monto_usd debe ser número >= 0', 400);
+      }
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin') {
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede modificar tarifas' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      const { data, error } = await supabase
+        .from('tarifas_horarias')
+        .update({ monto_usd, actualizado_en: new Date().toISOString() })
+        .eq('categoria', categoria)
+        .select().single();
+      if (error) throw error;
+      return ok({ ok: true, tarifa: data });
+    }
+
+    // ── GET costos-proyecto (solo admin) ──────────────────────────────────
+    if (action === 'costos-proyecto' && req.method === 'GET') {
+      const proyecto_id = url.searchParams.get('proyecto_id');
+      const admin_id    = url.searchParams.get('admin_id');
+      if (!proyecto_id) return err('proyecto_id requerido', 400);
+      if (!admin_id)    return err('admin_id requerido', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin') {
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede ver costos' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      // Proyecto
+      const { data: pr } = await supabase
+        .from('proyectos_cache')
+        .select('id, numero, nombre, obra, cliente_nombre, materiales')
+        .eq('id', proyecto_id).maybeSingle();
+      if (!pr) return err('Proyecto no encontrado', 404);
+      // Registros de trabajo finalizados
+      const { data: regs, error: rErr } = await supabase
+        .from('registros_trabajo')
+        .select('inicio, fin, empleado_id')
+        .eq('proyecto_id', proyecto_id)
+        .not('fin', 'is', null);
+      if (rErr) throw rErr;
+      // Categorías de empleados
+      const empIds = [...new Set((regs || []).map(r => r.empleado_id))];
+      let catMap = {};
+      if (empIds.length) {
+        const { data: emps } = await supabase
+          .from('empleados').select('id, categoria').in('id', empIds);
+        catMap = Object.fromEntries((emps || []).map(e => [e.id, e.categoria]));
+      }
+      // Tarifas
+      const { data: tarifasArr } = await supabase
+        .from('tarifas_horarias').select('categoria, monto_usd');
+      const tarifaMap = Object.fromEntries((tarifasArr || []).map(t => [t.categoria, t.monto_usd]));
+      // Calcular MO por categoría
+      const horasCat = {};
+      let registros_sin_categoria = 0;
+      for (const r of (regs || [])) {
+        const cat = catMap[r.empleado_id];
+        if (!cat) { registros_sin_categoria++; continue; }
+        const horas = (new Date(r.fin) - new Date(r.inicio)) / 3600000;
+        horasCat[cat] = (horasCat[cat] || 0) + horas;
+      }
+      const CATS = ['directo','indirecto','tecnico','administrativo'];
+      const por_categoria = CATS
+        .filter(c => horasCat[c] !== undefined)
+        .map(c => ({
+          categoria: c,
+          horas: Math.round(horasCat[c] * 100) / 100,
+          tarifa_usd: tarifaMap[c] || 0,
+          subtotal_usd: Math.round(horasCat[c] * (tarifaMap[c] || 0) * 100) / 100,
+        }));
+      const total_horas = por_categoria.reduce((a, x) => a + x.horas, 0);
+      const mo_total_usd = por_categoria.reduce((a, x) => a + x.subtotal_usd, 0);
+      // Calcular materiales
+      const matsArr = pr.materiales || [];
+      let mat_total_usd = 0;
+      let materiales_sin_costo = 0;
+      const matItems = matsArr.map((m, i) => {
+        const cant = m.requerido || m.cantidad || 0;
+        const cu = m.costo_unitario_usd != null ? Number(m.costo_unitario_usd) : null;
+        if (cu == null) { materiales_sin_costo++; }
+        const ct = cu != null ? Math.round(cant * cu * 100) / 100 : null;
+        if (ct != null) mat_total_usd += ct;
+        return { index: i, nombre: m.nombre, cantidad: cant, unidad: m.unidad, costo_unitario_usd: cu, costo_total_usd: ct };
+      });
+      const total_proyecto_usd = Math.round((mo_total_usd + mat_total_usd) * 100) / 100;
+      return ok({
+        ok: true,
+        proyecto: { id: pr.id, codigo: pr.numero, nombre: pr.nombre || pr.obra, cliente_nombre: pr.cliente_nombre },
+        mano_obra: { por_categoria, total_horas: Math.round(total_horas * 100) / 100, total_usd: Math.round(mo_total_usd * 100) / 100 },
+        materiales: { items: matItems, total_usd: Math.round(mat_total_usd * 100) / 100 },
+        total_proyecto_usd,
+        sin_costear: { registros_sin_categoria, materiales_sin_costo },
+      });
+    }
+
+    // ── POST editar-costo-material (solo admin) ───────────────────────────
+    if (action === 'editar-costo-material' && req.method === 'POST') {
+      const { admin_id, proyecto_id, material_index, costo_unitario_usd } = body;
+      if (!admin_id || !proyecto_id || material_index === undefined || costo_unitario_usd === undefined) {
+        return err('admin_id, proyecto_id, material_index y costo_unitario_usd requeridos', 400);
+      }
+      if (typeof costo_unitario_usd !== 'number' || costo_unitario_usd < 0) {
+        return err('costo_unitario_usd debe ser número >= 0', 400);
+      }
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin') {
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede editar costos' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      const { data: pr, error: prErr } = await supabase
+        .from('proyectos_cache').select('materiales').eq('id', proyecto_id).maybeSingle();
+      if (prErr) throw prErr;
+      if (!pr) return err('Proyecto no encontrado', 404);
+      const mats = pr.materiales || [];
+      const idx = Number(material_index);
+      if (isNaN(idx) || idx < 0 || idx >= mats.length) {
+        return err('material_index fuera de rango', 400);
+      }
+      const cant = mats[idx].requerido || mats[idx].cantidad || 0;
+      mats[idx] = {
+        ...mats[idx],
+        costo_unitario_usd,
+        costo_total_usd: Math.round(cant * costo_unitario_usd * 100) / 100,
+      };
+      const { error: uErr } = await supabase
+        .from('proyectos_cache').update({ materiales: mats }).eq('id', proyecto_id);
+      if (uErr) throw uErr;
+      return ok({ ok: true, material: mats[idx] });
+    }
+
     return err('Acción no reconocida: ' + action);
 
   } catch (e) {
