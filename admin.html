@@ -3684,8 +3684,8 @@ async function _timerActualizarEstado() {
     if (!json.jornada) {
       _timerSetEstado('sin-jornada');
     } else if (!json.tarea_activa) {
-      const noClas = json.totales?.tiempo_no_clasificado_minutos || 0;
-      _timerSetEstado(noClas >= _UMBRAL_BLOQUEO ? 'bloqueado' : 'jornada-sin-tarea');
+      const huecoActual = json.totales?.hueco_actual_minutos || 0;
+      _timerSetEstado(huecoActual >= _UMBRAL_BLOQUEO ? 'bloqueado' : 'jornada-sin-tarea');
     } else if (_timerIsDescanso(json.tarea_activa.centro)) {
       _timerSetEstado('descanso-activo');
     } else {
@@ -3734,7 +3734,7 @@ function _timerSetEstado(nuevoEstado) {
   } else if (nuevoEstado === 'descanso-activo') {
     icon.textContent = '☕';
     _timerBarActualizarDescanso();
-    // Sin cronómetro de 1s — el polling de 30s actualiza el exceso si aplica
+    _timerInterval = setInterval(_timerBarActualizarDescanso, 1000);
     document.getElementById('timer-btn-volver').style.display = '';
     document.getElementById('timer-btn-salida').style.display = '';
     overlay.classList.remove('visible');
@@ -3770,11 +3770,15 @@ function _timerBarActualizarTexto() {
 function _timerBarActualizarDescanso() {
   const t = _timerMetricas?.totales || {};
   const textEl = document.getElementById('timer-bar-text');
+  const secs = _timerRegistro
+    ? Math.floor((Date.now() - new Date(_timerRegistro.inicio).getTime()) / 1000)
+    : 0;
+  const cronometro = _fmtHMS(secs);
   if (t.descanso_excede_limite && (t.descanso_exceso_minutos || 0) > 0) {
-    textEl.textContent = `Descanso · ⚠ +${t.descanso_exceso_minutos}min`;
-    textEl.style.color = '#c00000';
+    textEl.innerHTML = `Descanso · ${cronometro} · <span style="color:#c00000;">⚠ +${t.descanso_exceso_minutos}min</span>`;
+    textEl.style.color = '';
   } else {
-    textEl.textContent = 'Descanso';
+    textEl.textContent = `Descanso · ${cronometro}`;
     textEl.style.color = '';
   }
 }

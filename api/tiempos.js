@@ -1203,7 +1203,7 @@ export default async function handler(req) {
       const descanso_excede_limite = descanso_modalidad === 'paga_30' && descanso_total > 30;
       const descanso_exceso_minutos = descanso_excede_limite ? Math.max(0, descanso_total - 30) : 0;
 
-      // tiempo_no_clasificado: gaps entre registros (ordenados por inicio)
+      // tiempo_no_clasificado: gaps entre registros (ordenados por inicio) — acumulado del día
       let tiempo_no_clasificado_minutos = 0;
       let gap_start = new Date(jornada.entrada);
       for (const reg of regs) {
@@ -1217,6 +1217,15 @@ export default async function handler(req) {
       // Trailing gap solo si no hay tarea activa
       if (!tarea_activa && gap_start < fin_ref) {
         tiempo_no_clasificado_minutos += Math.round((fin_ref - gap_start) / 60000);
+      }
+
+      // hueco_actual: solo el gap vigente desde el fin del último registro hasta ahora
+      // Usado para decidir el bloqueo (≠ acumulado del día)
+      let hueco_actual_minutos = 0;
+      if (!tarea_activa && jornada) {
+        // gap_start quedó apuntando al fin del último registro (o entrada si no hay)
+        // Reutilizamos esa variable que ya tiene el valor correcto
+        hueco_actual_minutos = Math.max(0, Math.round((ahora - gap_start) / 60000));
       }
 
       // tiempo_clasificado: suma de duraciones de registros no-descanso
@@ -1245,6 +1254,7 @@ export default async function handler(req) {
         tiempo_clasificado_minutos,
         tiempo_pago_minutos,
         tiempo_no_clasificado_minutos,
+        hueco_actual_minutos,
         descanso_modalidad,
       }});
     }
