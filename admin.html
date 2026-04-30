@@ -1439,7 +1439,9 @@ function renderDetallePr(pr, sub) {
   clearTimers();
   const hA=hAcumPr(pr.id), hE=hEstPr(pr);
   const byCentro=hByCentro(pr.id), byOp=hByOp(pr.id);
-  const SUBS=['resumen','ítems','materiales','tiempos'];
+  const _u = window.AUTH.usuarioActual();
+  const SUBS=['resumen','ítems','materiales','tiempos',...(_u?.rol_app==='admin'?['costos']:[])];
+
 
   const hdrContent = editMode
     ? `<input id="ed-cliente" value="${pr.clienteNombre}" style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:5px 9px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10px;width:100%;margin-bottom:6px;outline:none;"><input id="ed-nombre" value="${pr.nombre}" style="background:var(--faint);border:1px solid var(--amber);border-radius:5px;padding:7px 11px;color:var(--text);font-size:18px;font-weight:700;width:100%;outline:none;">`
@@ -1875,7 +1877,139 @@ function renderDetallePr(pr, sub) {
     }
   }
 
+  // ── COSTOS (solo admin) ──
+  if (sub === 'costos') {
+    html += `<div class="card" id="costos-pr-panel">
+      <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:2px;margin-bottom:16px;">CARGANDO COSTOS…</div>
+    </div>`;
+    document.getElementById('pr-detalle').innerHTML = html;
+    _renderCostosPr(pr.id);
+    return;
+  }
+
   document.getElementById('pr-detalle').innerHTML = html;
+}
+
+async function _renderCostosPr(prId) {
+  const panel = document.getElementById('costos-pr-panel');
+  if (!panel) return;
+  const u = window.AUTH.usuarioActual();
+  if (!u) return;
+  try {
+    const res = await fetch(`/api/tiempos?action=costos-proyecto&proyecto_id=${prId}&admin_id=${u.id}`);
+    const data = await res.json();
+    if (!data.ok) { panel.innerHTML = `<div style="color:var(--red);font-size:13px;">${data.error || 'Error al cargar costos'}</div>`; return; }
+
+    const fmtUSD = n => n != null ? `$${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
+    const fmtH2  = h => `${Number(h).toFixed(1)}h`;
+    const catLabel = {directo:'Directo',indirecto:'Indirecto',tecnico:'Técnico',administrativo:'Administrativo'};
+
+    // Mano de obra
+    const mo = data.mano_obra;
+    const moRows = mo.por_categoria.length
+      ? mo.por_categoria.map(r =>
+          `<tr>
+            <td style="font-size:12px;">${catLabel[r.categoria]||r.categoria}</td>
+            <td class="mono" style="text-align:right;">${fmtH2(r.horas)}</td>
+            <td class="mono" style="text-align:right;color:var(--muted);">${fmtUSD(r.tarifa_usd)}</td>
+            <td class="mono" style="text-align:right;font-weight:600;">${fmtUSD(r.subtotal_usd)}</td>
+          </tr>`).join('')
+      : `<tr><td colspan="4" style="color:var(--muted);font-size:12px;padding:8px 0;">Sin registros de trabajo</td></tr>`;
+
+    // Materiales
+    const mats = data.materiales;
+    const matRows = mats.items.length
+      ? mats.items.map((m, localIdx) =>
+          `<tr>
+            <td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${m.nombre}">${m.nombre||'—'}</td>
+            <td class="mono" style="text-align:right;">${m.cantidad}</td>
+            <td class="mono" style="text-align:right;color:var(--muted);">${m.unidad||'u'}</td>
+            <td class="mono" style="text-align:right;" id="cost-cu-val-${m.index}">${fmtUSD(m.costo_unitario_usd)}</td>
+            <td class="mono" style="text-align:right;font-weight:600;" id="cost-ct-val-${m.index}">${fmtUSD(m.costo_total_usd)}</td>
+            <td style="text-align:center;"><button onclick="_editarCostoMat('${prId}',${m.index},${m.cantidad})" style="background:transparent;border:none;cursor:pointer;color:var(--muted);font-size:13px;" title="Editar costo">✏</button></td>
+          </tr>`).join('')
+      : `<tr><td colspan="6" style="color:var(--muted);font-size:12px;padding:8px 0;">Sin materiales cargados</td></tr>`;
+
+    // Alertas
+    const sc = data.sin_costear;
+    const alertas = [
+      sc.registros_sin_categoria ? `<div style="color:#C8832A;font-size:12px;margin-top:6px;">⚠ ${sc.registros_sin_categoria} registro(s) sin categoría de empleado — no costeados</div>` : '',
+      sc.materiales_sin_costo    ? `<div style="color:#C8832A;font-size:12px;margin-top:4px;">⚠ ${sc.materiales_sin_costo} material(es) sin precio — no costeados</div>` : '',
+    ].join('');
+
+    panel.innerHTML = `
+      <div class="sec-title" style="margin-bottom:16px;">Costos del Proyecto (USD)</div>
+      <div class="sec-title" style="font-size:10px;margin-bottom:8px;">MANO DE OBRA</div>
+      <div style="overflow-x:auto;margin-bottom:4px;"><table style="width:100%;border-collapse:collapse;">
+        <thead><tr>
+          <th style="text-align:left;font-size:11px;color:var(--muted);padding:6px 0;font-weight:600;">Categoría</th>
+          <th style="text-align:right;font-size:11px;color:var(--muted);padding:6px 0;font-weight:600;">Horas</th>
+          <th style="text-align:right;font-size:11px;color:var(--muted);padding:6px 0;font-weight:600;">$/h</th>
+          <th style="text-align:right;font-size:11px;color:var(--muted);padding:6px 0;font-weight:600;">Subtotal</th>
+        </tr></thead>
+        <tbody>${moRows}</tbody>
+        <tfoot><tr style="border-top:1px solid var(--border);">
+          <td colspan="2" style="font-size:12px;color:var(--muted);padding:8px 0;font-family:'JetBrains Mono',monospace;">TOTAL MO</td>
+          <td></td>
+          <td class="mono" style="text-align:right;font-size:14px;font-weight:700;">${fmtUSD(mo.total_usd)}</td>
+        </tr></tfoot>
+      </table></div>
+
+      <div class="sec-title" style="font-size:10px;margin-top:20px;margin-bottom:8px;">MATERIALES</div>
+      <div style="overflow-x:auto;margin-bottom:4px;"><table style="width:100%;border-collapse:collapse;">
+        <thead><tr>
+          <th style="text-align:left;font-size:11px;color:var(--muted);padding:6px 0;font-weight:600;">Ítem</th>
+          <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">Cant.</th>
+          <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">Unid.</th>
+          <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">$/u</th>
+          <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">Total</th>
+          <th></th>
+        </tr></thead>
+        <tbody>${matRows}</tbody>
+        <tfoot><tr style="border-top:1px solid var(--border);">
+          <td colspan="4" style="font-size:12px;color:var(--muted);padding:8px 0;font-family:'JetBrains Mono',monospace;">TOTAL MATERIALES</td>
+          <td class="mono" style="text-align:right;font-size:14px;font-weight:700;">${fmtUSD(mats.total_usd)}</td>
+          <td></td>
+        </tr></tfoot>
+      </table></div>
+
+      <div style="border-top:2px solid var(--border);margin-top:16px;padding-top:12px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;">TOTAL PROYECTO</div>
+        <div class="mono" style="font-size:22px;font-weight:700;color:var(--green);">${fmtUSD(data.total_proyecto_usd)}</div>
+      </div>
+      ${alertas}`;
+  } catch(e) {
+    if (panel) panel.innerHTML = `<div style="color:var(--red);font-size:13px;">Error: ${e.message}</div>`;
+  }
+}
+
+async function _editarCostoMat(prId, matIndex, cantidad) {
+  const u = window.AUTH.usuarioActual();
+  if (!u) return;
+  const valActual = document.getElementById(`cost-cu-val-${matIndex}`)?.textContent?.replace('$','').replace(',','') || '0';
+  const nuevo = prompt(`Nuevo costo unitario (USD) para ítem #${matIndex+1}:`, valActual);
+  if (nuevo === null) return;
+  const val = parseFloat(nuevo);
+  if (isNaN(val) || val < 0) { alert('Valor inválido'); return; }
+  try {
+    const res = await fetch('/api/tiempos?action=editar-costo-material', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_id: u.id, proyecto_id: prId, material_index: matIndex, costo_unitario_usd: val }),
+    });
+    const data = await res.json();
+    if (!data.ok) { alert(data.error || 'Error al guardar'); return; }
+    // Actualizar la fila visualmente sin reload completo
+    const cuEl = document.getElementById(`cost-cu-val-${matIndex}`);
+    const ctEl = document.getElementById(`cost-ct-val-${matIndex}`);
+    const fmtUSD = n => `$${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+    if (cuEl) cuEl.textContent = fmtUSD(data.material.costo_unitario_usd);
+    if (ctEl) ctEl.textContent = fmtUSD(data.material.costo_total_usd);
+    // Recargar totales del panel
+    _renderCostosPr(prId);
+  } catch(e) {
+    alert('Error de red: ' + e.message);
+  }
 }
 
 function volverListaPr() {
