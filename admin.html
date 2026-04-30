@@ -689,6 +689,19 @@
         <button class="btn btn-ghost" onclick="fResetear()">Restaurar defaults</button>
         <button class="btn btn-primary" onclick="fGuardar()">✓ Guardar Fórmula</button>
       </div>
+
+      <!-- Tarifas horarias — solo admin -->
+      <div id="ajustes-tarifas-section" style="display:none;margin-top:28px;">
+        <div class="card">
+          <div class="sec-title" style="margin-bottom:4px;">Tarifas horarias ($/h en USD)</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
+            Usadas para calcular costos de mano de obra en todos los proyectos.
+            <strong style="color:#C8832A;">Sin versionado</strong> — cambiar una tarifa modifica los costos calculados de proyectos pasados.
+          </div>
+          <div id="tarifas-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:460px;"></div>
+          <div id="tarifas-toast" style="font-size:11px;color:var(--green);margin-top:8px;min-height:16px;"></div>
+        </div>
+      </div>
     </div>
 
     <!-- ══ MI CUENTA ══════════════════════════════════════════════════════ -->
@@ -1253,7 +1266,7 @@ function renderView(v) {
   if(v==='operarios')  renderOperarios();
   if(v==='tiempos')    renderTiempos();
   if(v==='materiales') renderMateriales();
-  if(v==='ajustes')    fInit();
+  if(v==='ajustes')    { fInit(); tarifasInit(); }
   if(v==='mi-cuenta')  renderMiCuenta();
 }
 
@@ -3651,6 +3664,68 @@ function fResetear(){
   if(!confirm('¿Restaurar valores por defecto?'))return;
   localStorage.removeItem('coef');localStorage.removeItem('dif');
   fInit();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TARIFAS HORARIAS (Ajustes — solo admin)
+// ═══════════════════════════════════════════════════════════════════════════
+const TARIFA_LABELS = { directo:'Directo', indirecto:'Indirecto', tecnico:'Técnico', administrativo:'Administrativo' };
+
+async function tarifasInit() {
+  const u = window.AUTH.usuarioActual();
+  const sec = document.getElementById('ajustes-tarifas-section');
+  if (!sec) return;
+  if (!u || u.rol_app !== 'admin') { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  const grid = document.getElementById('tarifas-grid');
+  if (!grid) return;
+  grid.innerHTML = '<div style="font-size:12px;color:var(--muted);grid-column:1/-1;">Cargando…</div>';
+  try {
+    const r = await fetch('/api/tiempos?action=tarifas-horarias');
+    const data = await r.json();
+    if (!r.ok || !data.tarifas) throw new Error(data.error || 'Error');
+    grid.innerHTML = data.tarifas.map(t => `
+      <div style="background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">${TARIFA_LABELS[t.categoria] || t.categoria}</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:11px;color:var(--muted);">USD</span>
+          <input type="number" step="0.01" min="0"
+            id="tarifa-input-${t.categoria}"
+            value="${t.monto_usd}"
+            style="width:90px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px;color:var(--text);font-family:inherit;"
+            onblur="tarifasGuardar('${t.categoria}',this)"
+            onkeydown="if(event.key==='Enter'){this.blur();}"
+          />
+          <span id="tarifa-upd-${t.categoria}" style="font-size:10px;color:var(--muted);">${t.actualizado_en ? new Date(t.actualizado_en).toLocaleDateString('es-UY') : ''}</span>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    grid.innerHTML = `<div style="font-size:12px;color:var(--red);grid-column:1/-1;">Error al cargar tarifas: ${e.message}</div>`;
+  }
+}
+
+async function tarifasGuardar(categoria, input) {
+  const monto = parseFloat(input.value);
+  if (isNaN(monto) || monto < 0) { input.style.borderColor = 'var(--red)'; return; }
+  input.style.borderColor = 'var(--border)';
+  input.disabled = true;
+  const toast = document.getElementById('tarifas-toast');
+  try {
+    const r = await fetch('/api/tiempos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'actualizar-tarifa', categoria, monto_usd: monto })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Error');
+    const updEl = document.getElementById(`tarifa-upd-${categoria}`);
+    if (updEl) updEl.textContent = new Date().toLocaleDateString('es-UY');
+    if (toast) { toast.textContent = `✓ Tarifa "${TARIFA_LABELS[categoria]}" guardada`; setTimeout(()=>{ if(toast) toast.textContent=''; }, 3000); }
+  } catch(e) {
+    if (toast) { toast.style.color = 'var(--red)'; toast.textContent = `Error: ${e.message}`; setTimeout(()=>{ if(toast){ toast.textContent=''; toast.style.color='var(--green)'; } }, 4000); }
+  } finally {
+    input.disabled = false;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
