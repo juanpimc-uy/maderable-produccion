@@ -816,18 +816,57 @@ export default async function handler(req) {
 
     // ── POST cerrar-jornada-huerfana ──────────────────────────────────────
     if (action === 'cerrar-jornada-huerfana' && req.method === 'POST') {
-      const { empleado_id, jornada_id, salida_estimada } = body;
-      if (!empleado_id || !jornada_id) return err('empleado_id y jornada_id requeridos', 400);
-      // Verificar que la jornada pertenece al empleado y está abierta
-      const { data: jornada, error: jErr } = await supabase
+      const { empleado_id, jornada_id, modo, salida_manual } = body;
+      if (!empleado_id || !jornada_id || !modo) {
+        return err('empleado_id, jornada_id y modo requeridos', 400);
+      }
+      if (!['estimada', 'manual'].includes(modo)) {
+        return err('modo debe ser estimada o manual', 400);
+      }
+      if (modo === 'manual' && !salida_manual) {
+        return err('salida_manual requerido para modo manual', 400);
+      }
+      // Verificar jornada
+      const { data: j, error: jErr } = await supabase
         .from('jornadas')
-        .select('id, fecha, salida')
+        .select('id, empleado_id, fecha, entrada, salida')
         .eq('id', jornada_id)
-        .eq('empleado_id', empleado_id)
         .maybeSingle();
       if (jErr) throw jErr;
-      if (!jornada) return err('Jornada no encontrada', 404);
-      if (jornada.salida) return err('La jornada ya tiene salida registrada', 400);
+      if (!j) return err('Jornada no encontrada', 404);
+      if (j.empleado_id !== empleado_id) {
+        return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      if (j.salida) return err('Jornada ya cerrada', 400);
+      // Calcular salida según modo
+      let salida;
+      if (modo === 'estimada') {
+        const { data: ultimo } = await supabase
+          .from('registros_trabajo')
+          .select('fin')
+          .eq('jornada_id', jornada_id)
+          .not('fin', 'is', null)
+          .order('fin', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        salida = ultimo?.fin || j.entrada;
+      } else {
+        // modo === 'manual'
+        const salidaDate = new Date(salida_manual);
+        if (isNaN(salidaDate.getTime())) {
+          return err('salida_manual no es una fecha válida', 400);
+        }
+        const entradaDate = new Date(j.entrada);
+        const ahoraConMargen = new Date(Date.now() + 60000);
+        if (salidaDate < entradaDate) {
+          return err('La hora de salida no puede ser antes de la entrada', 400);
+        }
+        if (salidaDate > ahoraConMargen) {
+          return err('La hora de salida no puede ser en el futuro', 400);
+        }
+        salida = salidaDate.toISOString();
+      }
       // Cerrar cualquier registro activo en esta jornada
       const { data: activoHuerfano } = await supabase
         .from('registros_trabajo')
@@ -842,10 +881,9 @@ export default async function handler(req) {
           estado_final: 'pausado',
         });
       }
-      const ahora = salida_estimada || new Date().toISOString();
       const { data: jornadaCerrada } = await supabase
         .from('jornadas')
-        .update({ salida: ahora })
+        .update({ salida })
         .eq('id', jornada_id)
         .select()
         .maybeSingle();

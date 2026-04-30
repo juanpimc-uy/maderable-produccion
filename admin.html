@@ -3870,21 +3870,36 @@ function _timerHuerfanasAbrir() {
     lista.innerHTML = '<p style="color:var(--muted);font-size:13px;">No hay jornadas pendientes.</p>';
   } else {
     lista.innerHTML = _huerfanasData.map(j => {
-      const fecha = j.fecha; // YYYY-MM-DD
-      const [y, m, d] = fecha.split('-');
+      const [y, m, d] = j.fecha.split('-');
       const fechaLeg = `${d}/${m}/${y}`;
-      const entradaHora = j.entrada ? new Date(j.entrada).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) : '—';
-      const ultimoHora = j.ultimo_fin ? new Date(j.ultimo_fin).toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) : null;
-      const estimada = j.ultimo_fin || j.entrada;
+      const entradaHora = j.entrada
+        ? new Date(j.entrada).toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'})
+        : '—';
+      const ultimoHora = j.ultimo_fin
+        ? new Date(j.ultimo_fin).toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'})
+        : null;
+      // Valor por defecto del input: último registro o entrada, en HH:MM
+      const defaultHora = ultimoHora || entradaHora;
+      const inputId = `huerfana-hora-${j.id}`;
       return `<div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px;">
         <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Jornada del ${fechaLeg}</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">
           Entrada: ${entradaHora}${ultimoHora ? ` · Último registro: ${ultimoHora}` : ''} · ${j.total_registros} registro(s)
         </div>
-        <button onclick="_timerCerrarHuerfana('${j.id}','${estimada}')"
-          style="padding:8px 16px;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">
-          Cerrar con hora estimada (${ultimoHora || entradaHora})
-        </button>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button onclick="_timerCerrarHuerfana('${j.id}','estimada')"
+            style="padding:8px 14px;background:#7c3aed;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;white-space:nowrap;">
+            Usar estimada (${defaultHora})
+          </button>
+          <span style="color:var(--muted);font-size:12px;">o ingresar hora:</span>
+          <input id="${inputId}" type="time" value="${defaultHora}"
+            style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;width:90px;" />
+          <button onclick="_timerCerrarHuerfanaManual('${j.id}','${j.fecha}','${inputId}')"
+            style="padding:8px 14px;background:#0E7490;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">
+            Usar hora ingresada
+          </button>
+        </div>
+        <div id="huerfana-error-${j.id}" style="color:var(--red);font-size:11px;margin-top:6px;display:none;"></div>
       </div>`;
     }).join('');
   }
@@ -3895,26 +3910,74 @@ function _timerHuerfanasCerrar() {
   document.getElementById('timer-huerfanas-overlay').style.display = 'none';
 }
 
-async function _timerCerrarHuerfana(jornada_id, salida_estimada) {
+async function _timerCerrarHuerfana(jornada_id, modo) {
   const u = window.AUTH.usuarioActual();
   if (!u) return;
   try {
     const res = await fetch('/api/tiempos?action=cerrar-jornada-huerfana', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ empleado_id: u.id, jornada_id, salida_estimada }),
+      body: JSON.stringify({ empleado_id: u.id, jornada_id, modo }),
     });
     const json = await res.json();
     if (!json.ok) { alert('Error al cerrar jornada: ' + (json.error || 'desconocido')); return; }
-    // Refrescar la lista
     await _timerCheckJornadasHuerfanas();
     if (_huerfanasData.length === 0) {
       _timerHuerfanasCerrar();
     } else {
-      _timerHuerfanasAbrir(); // re-render con la lista actualizada
+      _timerHuerfanasAbrir();
     }
   } catch(e) {
     alert('Error de red al cerrar jornada');
+  }
+}
+
+async function _timerCerrarHuerfanaManual(jornada_id, fecha, inputId) {
+  const u = window.AUTH.usuarioActual();
+  if (!u) return;
+  const errorEl = document.getElementById(`huerfana-error-${jornada_id}`);
+  const horaVal = document.getElementById(inputId)?.value;
+  if (!horaVal) {
+    errorEl.textContent = 'Ingresá una hora válida.';
+    errorEl.style.display = '';
+    return;
+  }
+  // Construir ISO timestamp combinando fecha de la jornada con la hora ingresada
+  // fecha = 'YYYY-MM-DD', horaVal = 'HH:MM'
+  // Interpretamos en zona local del cliente
+  const salidaLocal = new Date(`${fecha}T${horaVal}:00`);
+  if (isNaN(salidaLocal.getTime())) {
+    errorEl.textContent = 'Hora inválida.';
+    errorEl.style.display = '';
+    return;
+  }
+  errorEl.style.display = 'none';
+  try {
+    const res = await fetch('/api/tiempos?action=cerrar-jornada-huerfana', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        empleado_id: u.id,
+        jornada_id,
+        modo: 'manual',
+        salida_manual: salidaLocal.toISOString(),
+      }),
+    });
+    const json = await res.json();
+    if (!json.ok) {
+      errorEl.textContent = json.error || 'Error al cerrar jornada.';
+      errorEl.style.display = '';
+      return;
+    }
+    await _timerCheckJornadasHuerfanas();
+    if (_huerfanasData.length === 0) {
+      _timerHuerfanasCerrar();
+    } else {
+      _timerHuerfanasAbrir();
+    }
+  } catch(e) {
+    errorEl.textContent = 'Error de red.';
+    errorEl.style.display = '';
   }
 }
 
