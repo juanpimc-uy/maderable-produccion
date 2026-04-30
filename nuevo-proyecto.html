@@ -583,10 +583,13 @@ async function buscarSO4(){
     materiales=[...materiales,...items.map((item,i)=>({
       id:'mat_'+Date.now()+'_'+i,
       nombre:item.name||item.description||'',
-      unidad:'unidades',
+      unidad:item.unit||'unidades',
       requerido:item.quantity||0,
       recibido:0,
-      soOrigen:soNum
+      soOrigen:soNum,
+      sku:item.sku||item.item_code||null,
+      costo_unitario_usd:item.rate!=null?Number(item.rate)||null:null,
+      costo_total_usd:item.item_total!=null?Number(item.item_total)||null:null,
     }))];
     sosCargadas.push({numero:soNum,count:items.length});
     renderSoChips4();
