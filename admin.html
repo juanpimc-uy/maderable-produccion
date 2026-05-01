@@ -1256,6 +1256,11 @@ function navTo(v) {
     if(el.textContent.trim().toLowerCase().startsWith(VIEW_LABELS[v].toLowerCase().slice(0,4))) el.classList.add('active');
   });
   document.getElementById('topbar-title').textContent = VIEW_LABELS[v];
+  // Si el usuario sale de Ajustes con un input de tarifa activo, guardar antes de navegar
+  if (currentView === 'ajustes') {
+    const active = document.activeElement;
+    if (active?.id?.startsWith('tarifa-input-')) active.blur();
+  }
   currentView = v;
   if (v !== 'ajustes') { const g = document.getElementById('tarifas-grid'); if (g) delete g.dataset.loaded; }
   renderView(v);
@@ -3701,6 +3706,7 @@ async function tarifasInit(force = false) {
           <input type="number" step="0.01" min="0"
             id="tarifa-input-${t.categoria}"
             value="${t.monto_usd}"
+            data-original="${t.monto_usd}"
             style="width:90px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px;color:var(--text);font-family:inherit;"
             onblur="tarifasGuardar('${t.categoria}',this)"
             onkeydown="if(event.key==='Enter'){this.blur();}"
@@ -3715,24 +3721,60 @@ async function tarifasInit(force = false) {
 }
 
 async function tarifasGuardar(categoria, input) {
-  const monto = parseFloat(input.value);
-  if (isNaN(monto) || monto < 0) { input.style.borderColor = 'var(--red)'; return; }
-  input.style.borderColor = 'var(--border)';
+  const original = parseFloat(input.dataset.original ?? '');
+  const raw = input.value.trim();
+  const monto = parseFloat(raw);
+
+  // Vacío o inválido → revertir al valor original
+  if (raw === '' || isNaN(monto) || monto < 0) {
+    input.style.borderColor = 'var(--red)';
+    input.title = 'Debe ser un número ≥ 0';
+    if (!isNaN(original)) input.value = original;
+    setTimeout(() => { input.style.borderColor = 'var(--border)'; input.title = ''; }, 2000);
+    return;
+  }
+
+  // Sin cambios → no hacer nada
+  if (!isNaN(original) && monto === original) return;
+
+  // En vuelo: borde amarillo + opacidad reducida
+  input.style.borderColor = 'var(--amber)';
+  input.style.opacity = '0.6';
   input.disabled = true;
-  const toast = document.getElementById('tarifas-toast');
+
+  const u = window.AUTH.usuarioActual();
   try {
     const r = await fetch('/api/tiempos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'actualizar-tarifa', categoria, monto_usd: monto })
+      body: JSON.stringify({ action: 'actualizar-tarifa', categoria, monto_usd: monto, admin_id: u?.id })
     });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'Error');
+
+    // Éxito: actualizar data-original, borde verde 1.5s, fecha del servidor
+    input.dataset.original = monto;
+    input.style.opacity = '1';
+    input.style.borderColor = 'var(--green)';
     const updEl = document.getElementById(`tarifa-upd-${categoria}`);
-    if (updEl) updEl.textContent = new Date().toLocaleDateString('es-UY');
-    if (toast) { toast.textContent = `✓ Tarifa "${TARIFA_LABELS[categoria]}" guardada`; setTimeout(()=>{ if(toast) toast.textContent=''; }, 3000); }
+    if (updEl) {
+      const ts = data.tarifa?.actualizado_en || new Date().toISOString();
+      updEl.textContent = new Date(ts).toLocaleDateString('es-UY');
+    }
+    setTimeout(() => { input.style.borderColor = 'var(--border)'; }, 1500);
   } catch(e) {
-    if (toast) { toast.style.color = 'var(--red)'; toast.textContent = `Error: ${e.message}`; setTimeout(()=>{ if(toast){ toast.textContent=''; toast.style.color='var(--green)'; } }, 4000); }
+    // Error: borde rojo, tooltip, revertir al valor original
+    input.style.opacity = '1';
+    input.style.borderColor = 'var(--red)';
+    input.title = e.message;
+    if (!isNaN(original)) input.value = original;
+    setTimeout(() => { input.style.borderColor = 'var(--border)'; input.title = ''; }, 3000);
+    const toast = document.getElementById('tarifas-toast');
+    if (toast) {
+      toast.style.color = 'var(--red)';
+      toast.textContent = `Error: ${e.message}`;
+      setTimeout(() => { if (toast) { toast.textContent = ''; toast.style.color = 'var(--green)'; } }, 4000);
+    }
   } finally {
     input.disabled = false;
   }
