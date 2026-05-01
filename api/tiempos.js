@@ -1644,24 +1644,19 @@ export default async function handler(req) {
       return ok({ ok: true, costo: nuevo });
     }
 
-    // ── GET costos-directos-proyecto (solo admin) ─────────────────────────
+    // ── GET costos-directos-proyecto ─────────────────────────────────────
     if (action === 'costos-directos-proyecto' && req.method === 'GET') {
       const proyecto_id = url.searchParams.get('proyecto_id');
-      const admin_id    = url.searchParams.get('admin_id');
-      if (!proyecto_id || !admin_id) return err('proyecto_id y admin_id requeridos', 400);
-      const { data: caller } = await supabase
-        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
-      if (!caller || caller.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
-          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (!proyecto_id) return err('proyecto_id requerido', 400);
       const { data, error } = await supabase
         .from('costos_directos_proyecto')
-        .select('*')
+        .select('id, tipo, oc_numero, oc_total_usd, descripcion, monto_usd, moneda_original, monto_original, tc_aplicado, fecha, creado_por, creado_en')
         .eq('proyecto_id', proyecto_id)
-        .order('fecha', { ascending: false });
+        .order('fecha', { ascending: false })
+        .order('creado_en', { ascending: false });
       if (error) throw error;
       const total_usd = (data || []).reduce((a, r) => a + Number(r.monto_usd), 0);
-      return ok({ ok: true, costos: data || [], total_usd: Math.round(total_usd * 100) / 100 });
+      return ok({ costos: data || [], total_usd: Math.round(total_usd * 100) / 100 });
     }
 
     // ── POST editar-costo-directo (solo admin) ────────────────────────────
@@ -1723,17 +1718,21 @@ export default async function handler(req) {
 
     // ── POST eliminar-costo-directo (solo admin) ──────────────────────────
     if (action === 'eliminar-costo-directo' && req.method === 'POST') {
-      const { admin_id, id: costo_id } = body;
-      if (!admin_id || !costo_id) return err('admin_id e id requeridos', 400);
+      const { admin_id, costo_id } = body;
+      if (!admin_id || !costo_id) return err('admin_id y costo_id requeridos', 400);
       const { data: caller } = await supabase
         .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
       if (!caller || caller.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede eliminar costos directos' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      const { data: existente, error: fetchErr } = await supabase
+        .from('costos_directos_proyecto').select('id').eq('id', costo_id).maybeSingle();
+      if (fetchErr) throw fetchErr;
+      if (!existente) return err('Costo directo no encontrado', 404);
       const { error } = await supabase
         .from('costos_directos_proyecto').delete().eq('id', costo_id);
       if (error) throw error;
-      return ok({ ok: true });
+      return ok({ eliminado: { id: costo_id } });
     }
 
     return err('Acción no reconocida: ' + action);
