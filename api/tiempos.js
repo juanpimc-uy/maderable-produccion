@@ -1736,59 +1736,160 @@ export default async function handler(req) {
 
     // ── POST editar-costo-directo (solo admin) ────────────────────────────
     if (action === 'editar-costo-directo' && req.method === 'POST') {
-      const { admin_id, id: costo_id, descripcion, monto_usd: nuevo_monto, zoho_token } = body;
-      if (!admin_id || !costo_id || !descripcion || nuevo_monto === undefined)
-        return err('admin_id, id, descripcion y monto_usd requeridos', 400);
-      const nuevoMonto = Number(nuevo_monto);
-      if (isNaN(nuevoMonto) || nuevoMonto <= 0)
-        return err('monto_usd debe ser número > 0', 400);
+      const { admin_id, costo_id, fecha,
+              monto_original: mont_orig_raw, moneda_original,
+              oc_numero: oc_raw, descripcion } = body;
+
+      // 1) Campos comunes obligatorios
+      if (!admin_id || !costo_id || !fecha || mont_orig_raw === undefined || !moneda_original)
+        return err('admin_id, costo_id, fecha, monto_original y moneda_original son requeridos', 400);
+
+      // 2) Admin check
       const { data: caller } = await supabase
         .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
       if (!caller || caller.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede editar costos directos' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      // 3) Buscar registro existente (tipo y proyecto_id son inmutables)
       const { data: costo, error: fetchErr } = await supabase
         .from('costos_directos_proyecto').select('*').eq('id', costo_id).maybeSingle();
       if (fetchErr) throw fetchErr;
-      if (!costo) return err('Costo no encontrado', 404);
-      // Si es tipo OC y el monto aumenta, re-validar disponible excluyendo este registro
-      if (costo.tipo === 'oc' && nuevoMonto > Number(costo.monto_usd)) {
-        if (!zoho_token) return err('zoho_token requerido para re-validar OC', 400);
-        const orgId = process.env.ZOHO_ORG_ID;
-        const zUrl = `https://www.zohoapis.com/books/v3/purchaseorders/${costo.oc_zoho_id}?organization_id=${orgId}`;
+      if (!costo) return err('Costo directo no encontrado', 404);
+      const { tipo } = costo;
+
+      // 4) monto_original > 0
+      const monto_original = Number(mont_orig_raw);
+      if (isNaN(monto_original) || monto_original <= 0)
+        return err('monto_original debe ser número > 0', 400);
+
+      // 5) moneda_original soportada
+      if (!['USD', 'UYU'].includes(moneda_original))
+        return err(`Moneda ${moneda_original} no soportada. Solo USD o UYU.`, 422);
+
+      // 6) fecha formato YYYY-MM-DD
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha))
+        return err('fecha debe tener formato YYYY-MM-DD', 400);
+
+      // 7) oc_numero requerido si tipo === 'oc'
+      if (tipo === 'oc' && (!oc_raw || !String(oc_raw).trim()))
+        return err('oc_numero es requerido para tipo oc', 400);
+
+      // 8) descripcion requerida si tipo === 'manual'
+      if (tipo === 'manual' && (!descripcion || !String(descripcion).trim()))
+        return err('descripcion es requerida para tipo manual', 400);
+
+      let monto_usd, tc_aplicado = null;
+
+      // ── LOGICA MANUAL ──────────────────────────────────────────────────
+      if (tipo === 'manual') {
+        if (moneda_original === 'USD') {
+          monto_usd = monto_original;
+        } else {
+          const { data: tcRow, error: tcErr } = await supabase
+            .from('tipo_cambio').select('valor')
+            .eq('moneda_origen', 'UYU').eq('moneda_destino', 'USD').maybeSingle();
+          if (tcErr) throw tcErr;
+          const tcValor = tcRow ? Number(tcRow.valor) : 0;
+          if (!tcValor || tcValor <= 0)
+            return err('Tipo de cambio UYU/USD no configurado', 500);
+          tc_aplicado = tcValor;
+          monto_usd = Math.round((monto_original / tcValor) * 100) / 100;
+        }
+        const { data: updated, error: updErr } = await supabase
+          .from('costos_directos_proyecto')
+          .update({
+            descripcion: String(descripcion).trim(),
+            monto_usd, moneda_original, monto_original, tc_aplicado, fecha,
+          })
+          .eq('id', costo_id)
+          .select().single();
+        if (updErr) throw updErr;
+        return ok({ costo: updated });
+      }
+
+      // ── LOGICA OC ─────────────────────────────────────────────────────
+      // a) Buscar OC en Zoho server-side (3 formatos, token server-side)
+      const zoho_token = await getZohoToken();
+      const orgId = process.env.ZOHO_ORG_ID;
+      const base = String(oc_raw).replace(/^(OC-|oc-)/i, '').trim();
+      const candidatos = [`OC-${base}`, `OC-${base.padStart(5, '0')}`, base];
+      let ocSummary = null, ocNumUsado = null;
+      for (const candidato of candidatos) {
+        const zUrl = `https://www.zohoapis.com/books/v3/purchaseorders?purchaseorder_number=${encodeURIComponent(candidato)}&organization_id=${orgId}`;
         const zRes = await fetch(zUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zoho_token}` } });
         const zData = await zRes.json();
-        const oc = zData.purchaseorder;
-        if (!oc) return err('No se pudo verificar la OC en Zoho', 502);
-        const moneda = oc.currency_code || 'USD';
-        const oc_total_moneda = Number(oc.total) || 0;
-        let oc_total_usd = oc_total_moneda;
-        let tc = null;
-        if (moneda === 'UYU') {
-          const { data: tcRow } = await supabase.from('tipo_cambio')
-            .select('valor').eq('moneda_origen', 'UYU').eq('moneda_destino', 'USD').maybeSingle();
-          tc = tcRow ? Number(tcRow.valor) : 0;
-          if (!tc || tc <= 0) return err('Configurá el tipo de cambio UYU/USD en Ajustes', 422);
-          oc_total_usd = oc_total_moneda / tc;
-        }
-        // Ya imputado excluyendo el registro actual
-        const { data: otros } = await supabase
-          .from('costos_directos_proyecto').select('monto_usd')
-          .eq('oc_numero', costo.oc_numero)
-          .neq('id', costo_id);
-        const ya_otros = (otros || []).reduce((a, r) => a + Number(r.monto_usd), 0);
-        const disponible = oc_total_usd - ya_otros;
-        if (nuevoMonto > disponible + 0.001) {
-          return err(`OC ${costo.oc_numero}: disponible ${disponible.toFixed(2)} USD (excluyendo este registro). Monto solicitado: ${nuevoMonto.toFixed(2)} USD.`, 422);
-        }
+        const found = zData.purchaseorders?.[0];
+        if (found) { ocSummary = found; ocNumUsado = candidato; break; }
       }
+      if (!ocSummary) return err(`OC "${oc_raw}" no encontrada en Zoho Books`, 404);
+
+      const zDetailUrl = `https://www.zohoapis.com/books/v3/purchaseorders/${ocSummary.purchaseorder_id}?organization_id=${orgId}`;
+      const zDetailRes = await fetch(zDetailUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zoho_token}` } });
+      const zDetail = await zDetailRes.json();
+      const oc = zDetail.purchaseorder;
+      if (!oc) return err('Error al obtener detalle de la OC desde Zoho', 502);
+
+      // b) Verificar que la moneda de la OC coincide con moneda_original del body
+      const oc_currency = oc.currency_code || 'USD';
+      if (oc_currency !== moneda_original)
+        return err(`La moneda de la OC en Zoho (${oc_currency}) no coincide con la indicada (${moneda_original})`, 422);
+
+      // c) Calcular oc_total_usd y tc (mismo TC que se usará en d)
+      const oc_total_moneda = Number(oc.total) || 0;
+      let tc = null, oc_total_usd;
+      if (oc_currency === 'USD') {
+        oc_total_usd = oc_total_moneda;
+        tc_aplicado = null;
+      } else {
+        const { data: tcRow, error: tcErr } = await supabase
+          .from('tipo_cambio').select('valor')
+          .eq('moneda_origen', 'UYU').eq('moneda_destino', 'USD').maybeSingle();
+        if (tcErr) throw tcErr;
+        tc = tcRow ? Number(tcRow.valor) : 0;
+        if (!tc || tc <= 0)
+          return err('Tipo de cambio UYU/USD no configurado', 500);
+        oc_total_usd = oc_total_moneda / tc;
+        tc_aplicado = tc;
+      }
+
+      // d) Calcular monto_usd a imputar (mismo TC que paso c)
+      if (moneda_original === 'USD') {
+        monto_usd = monto_original;
+      } else {
+        monto_usd = Math.round((monto_original / tc) * 100) / 100;
+      }
+
+      // e) Validar cross-project excluyendo el registro actual
+      const { data: imputados, error: impErr } = await supabase
+        .from('costos_directos_proyecto').select('monto_usd')
+        .eq('oc_numero', ocNumUsado)
+        .neq('id', costo_id);
+      if (impErr) throw impErr;
+      const ya_imputado_usd = (imputados || []).reduce((a, r) => a + Number(r.monto_usd), 0);
+      const disponible_usd = oc_total_usd - ya_imputado_usd;
+      if (monto_usd > disponible_usd + 0.01) {
+        return err(
+          `Monto excede disponible. Disponible: $${disponible_usd.toFixed(2)} USD. ` +
+          `Intentas imputar: $${monto_usd.toFixed(2)} USD. ` +
+          `Ya imputado en otros proyectos: $${ya_imputado_usd.toFixed(2)} USD.`,
+          422
+        );
+      }
+
+      // f) UPDATE OC
       const { data: updated, error: updErr } = await supabase
         .from('costos_directos_proyecto')
-        .update({ descripcion, monto_usd: Math.round(nuevoMonto * 100) / 100, actualizado_en: new Date().toISOString() })
+        .update({
+          oc_numero: ocNumUsado,
+          oc_total_usd: Math.round(oc_total_usd * 100) / 100,
+          monto_usd: Math.round(monto_usd * 100) / 100,
+          moneda_original, monto_original, tc_aplicado, fecha,
+        })
         .eq('id', costo_id)
         .select().single();
       if (updErr) throw updErr;
-      return ok({ ok: true, costo: updated });
+      return ok({ costo: updated });
     }
 
     // ── POST eliminar-costo-directo (solo admin) ──────────────────────────
