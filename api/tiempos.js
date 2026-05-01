@@ -1259,6 +1259,38 @@ export default async function handler(req) {
       }});
     }
 
+    // ── GET tipos-cambio ─────────────────────────────────────────────────
+    if (action === 'tipos-cambio' && req.method === 'GET') {
+      const { data, error } = await supabase
+        .from('tipo_cambio')
+        .select('id, moneda_origen, moneda_destino, valor, actualizado_en')
+        .order('moneda_origen');
+      if (error) throw error;
+      return ok({ tipos: data });
+    }
+
+    // ── POST actualizar-tipo-cambio (solo admin) ──────────────────────────
+    if (action === 'actualizar-tipo-cambio' && req.method === 'POST') {
+      const { admin_id, moneda_origen, moneda_destino, valor } = body;
+      if (!admin_id || !moneda_origen || !moneda_destino || valor === undefined)
+        return err('admin_id, moneda_origen, moneda_destino y valor requeridos', 400);
+      if (typeof valor !== 'number' || valor < 0)
+        return err('valor debe ser número >= 0', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede modificar el tipo de cambio' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      const { data, error } = await supabase
+        .from('tipo_cambio')
+        .update({ valor, actualizado_en: new Date().toISOString() })
+        .eq('moneda_origen', moneda_origen)
+        .eq('moneda_destino', moneda_destino)
+        .select().single();
+      if (error) throw error;
+      return ok({ ok: true, tipo_cambio: data });
+    }
+
     // ── GET tarifas-horarias ──────────────────────────────────────────────
     if (action === 'tarifas-horarias' && req.method === 'GET') {
       const { data, error } = await supabase
