@@ -1418,20 +1418,25 @@ export default async function handler(req) {
         return { index: i, nombre: m.nombre, cantidad: cant, unidad: m.unidad, costo_unitario_usd: cu, costo_total_usd: ct };
       });
       // Costos directos
-      const { data: costosDir } = await supabase
+      const { data: costosDir, error: cdErr } = await supabase
         .from('costos_directos_proyecto')
-        .select('id, tipo, descripcion, monto_usd, fecha, moneda_original, monto_original, tc_aplicado, oc_numero, oc_proveedor, creado_en')
+        .select('id, tipo, descripcion, monto_usd, fecha, moneda_original, monto_original, tc_aplicado, oc_numero, oc_total_usd, creado_en')
         .eq('proyecto_id', proyecto_id)
-        .order('fecha', { ascending: false });
+        .order('fecha', { ascending: false })
+        .order('creado_en', { ascending: false });
+      if (cdErr) throw cdErr;
       const costos_directos = costosDir || [];
       const costos_directos_total_usd = costos_directos.reduce((a, r) => a + Number(r.monto_usd), 0);
-      const total_proyecto_usd = Math.round((mo_total_usd + mat_total_usd + costos_directos_total_usd) * 100) / 100;
+      // Totales redondeados primero para que la suma sea consistente con los parciales mostrados
+      const mo_total_usd_round = Math.round(mo_total_usd * 100) / 100;
+      const mat_total_usd_round = Math.round(mat_total_usd * 100) / 100;
+      const cd_total_usd_round = Math.round(costos_directos_total_usd * 100) / 100;
+      const total_proyecto_usd = Math.round((mo_total_usd_round + mat_total_usd_round + cd_total_usd_round) * 100) / 100;
       return ok({
-        ok: true,
         proyecto: { id: pr.id, codigo: pr.numero, nombre: pr.nombre || pr.obra, cliente_nombre: pr.cliente_nombre },
-        mano_obra: { por_categoria, total_horas: Math.round(total_horas * 100) / 100, total_usd: Math.round(mo_total_usd * 100) / 100 },
-        materiales: { items: matItems, total_usd: Math.round(mat_total_usd * 100) / 100 },
-        costos_directos: { items: costos_directos, total_usd: Math.round(costos_directos_total_usd * 100) / 100 },
+        mano_obra: { por_categoria, total_horas: Math.round(total_horas * 100) / 100, total_usd: mo_total_usd_round },
+        materiales: { items: matItems, total_usd: mat_total_usd_round },
+        costos_directos: { items: costos_directos, total_usd: cd_total_usd_round },
         total_proyecto_usd,
         sin_costear: { registros_sin_categoria, materiales_sin_costo },
       });
