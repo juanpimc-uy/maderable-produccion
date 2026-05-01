@@ -4554,6 +4554,16 @@ function _timerBarStop() {
   }
 }
 
+// Ocultar nav-items restringidos según rol
+(function _applyRoleNav() {
+  const u = window.AUTH.usuarioActual();
+  if (!u || u.rol_app !== 'admin') {
+    document.querySelectorAll('.nav-item').forEach(el => {
+      if (el.textContent.trim().startsWith('Ajustes')) el.style.display = 'none';
+    });
+  }
+})();
+
 renderDashboard();
 cargarTodoDesdeSupabase();
 iniciarAutoRefresh();
