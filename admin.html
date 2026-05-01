@@ -705,6 +705,31 @@
           <div id="tarifas-toast" style="font-size:11px;color:var(--green);margin-top:8px;min-height:16px;"></div>
         </div>
       </div>
+
+      <!-- Tipo de cambio — solo admin -->
+      <div id="ajustes-tc-section" style="display:none;margin-top:16px;">
+        <div class="card">
+          <div class="sec-title" style="margin-bottom:4px;">TIPO DE CAMBIO</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
+            Conversión UYU → USD. Snapshot al imputar costos en otra moneda.
+          </div>
+          <div id="tc-wrapper">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span style="font-size:13px;color:var(--muted);font-family:'JetBrains Mono',monospace;">1 USD =</span>
+              <input type="number" step="0.01" min="0.01"
+                id="tc-input-uyu"
+                data-original=""
+                style="width:100px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px;color:var(--text);font-family:inherit;"
+                onblur="tcGuardar(this)"
+                onkeydown="if(event.key==='Enter'){this.blur();}"
+              />
+              <span style="font-size:13px;color:var(--muted);font-family:'JetBrains Mono',monospace;">UYU</span>
+              <span id="tc-upd" style="font-size:10px;color:var(--muted);margin-left:4px;"></span>
+            </div>
+          </div>
+          <div id="tc-toast" style="font-size:11px;color:var(--green);margin-top:8px;min-height:16px;"></div>
+        </div>
+      </div>
     </div>
 
     <!-- ══ MI CUENTA ══════════════════════════════════════════════════════ -->
@@ -783,6 +808,96 @@
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title" id="modal-title"></div>
     <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- ══ COSTOS DIRECTOS — MODAL OC ════════════════════════════════════════ -->
+<div id="modal-cd-oc" onclick="_cdCerrar()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9500;align-items:center;justify-content:center;">
+  <div onclick="event.stopPropagation()" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:28px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto;">
+    <div id="cd-oc-title" class="timer-modal-title">AGREGAR OC</div>
+
+    <div style="margin-bottom:14px;">
+      <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:6px;">NÚMERO DE OC</div>
+      <input type="text" id="cd-oc-num" placeholder="OC-05430" autocomplete="off"
+        style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;color:var(--text);font-family:'JetBrains Mono',monospace;box-sizing:border-box;"
+        oninput="_cdOcNumInput()" />
+      <div id="cd-oc-status" style="font-size:11px;color:var(--muted);margin-top:5px;min-height:16px;"></div>
+    </div>
+
+    <div id="cd-oc-info" style="display:none;background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;">
+      <div style="display:flex;flex-direction:column;gap:5px;">
+        <div style="display:flex;justify-content:space-between;gap:8px;"><span style="font-size:11px;color:var(--muted);flex-shrink:0;">Total OC</span><span id="cd-oc-total" class="mono" style="font-size:11px;text-align:right;"></span></div>
+        <div style="display:flex;justify-content:space-between;gap:8px;"><span style="font-size:11px;color:var(--muted);flex-shrink:0;">Moneda</span><span id="cd-oc-moneda" class="mono" style="font-size:11px;"></span></div>
+        <div style="display:flex;justify-content:space-between;gap:8px;"><span style="font-size:11px;color:var(--muted);flex-shrink:0;">Disponible</span><span id="cd-oc-disp" class="mono" style="font-size:11px;font-weight:700;color:var(--green);text-align:right;"></span></div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <div id="cd-oc-monto-label" style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:6px;">MONTO A IMPUTAR</div>
+      <input type="number" id="cd-oc-monto" min="0.01" step="0.01" placeholder="0.00" disabled
+        style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;color:var(--text);font-family:'JetBrains Mono',monospace;box-sizing:border-box;" />
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:6px;">FECHA</div>
+      <input type="date" id="cd-oc-fecha"
+        style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;color:var(--text);font-family:inherit;box-sizing:border-box;" />
+    </div>
+
+    <div id="cd-oc-err" style="color:var(--red);font-size:12px;margin-bottom:12px;min-height:16px;"></div>
+    <button id="cd-oc-submit" onclick="_cdSubmitOC()"
+      style="width:100%;padding:10px;background:var(--amber);border:none;border-radius:8px;color:#0E0F14;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;">
+      CONFIRMAR
+    </button>
+    <button onclick="_cdCerrar()"
+      style="width:100%;padding:10px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;">
+      CANCELAR
+    </button>
+  </div>
+</div>
+
+<!-- ══ COSTOS DIRECTOS — MODAL MANUAL ════════════════════════════════════ -->
+<div id="modal-cd-manual" onclick="_cdCerrar()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9500;align-items:center;justify-content:center;">
+  <div onclick="event.stopPropagation()" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:28px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto;">
+    <div id="cd-man-title" class="timer-modal-title">AGREGAR MANUAL</div>
+
+    <div style="margin-bottom:14px;">
+      <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:6px;">DESCRIPCIÓN</div>
+      <input type="text" id="cd-man-desc" placeholder="Descripción del costo"
+        style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;color:var(--text);font-family:inherit;box-sizing:border-box;" />
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:14px;">
+      <div style="flex:1;">
+        <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:6px;">MONTO</div>
+        <input type="number" id="cd-man-monto" min="0.01" step="0.01" placeholder="0.00"
+          style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;color:var(--text);font-family:'JetBrains Mono',monospace;box-sizing:border-box;" />
+      </div>
+      <div style="flex:0 0 110px;">
+        <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:6px;">MONEDA</div>
+        <select id="cd-man-moneda"
+          style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;color:var(--text);font-family:'JetBrains Mono',monospace;box-sizing:border-box;">
+          <option value="USD">USD</option>
+          <option value="UYU">UYU</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:6px;">FECHA</div>
+      <input type="date" id="cd-man-fecha"
+        style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;color:var(--text);font-family:inherit;box-sizing:border-box;" />
+    </div>
+
+    <div id="cd-man-err" style="color:var(--red);font-size:12px;margin-bottom:12px;min-height:16px;"></div>
+    <button id="cd-man-submit" onclick="_cdSubmitManual()"
+      style="width:100%;padding:10px;background:var(--amber);border:none;border-radius:8px;color:#0E0F14;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;">
+      CONFIRMAR
+    </button>
+    <button onclick="_cdCerrar()"
+      style="width:100%;padding:10px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;">
+      CANCELAR
+    </button>
   </div>
 </div>
 
@@ -1256,13 +1371,17 @@ function navTo(v) {
     if(el.textContent.trim().toLowerCase().startsWith(VIEW_LABELS[v].toLowerCase().slice(0,4))) el.classList.add('active');
   });
   document.getElementById('topbar-title').textContent = VIEW_LABELS[v];
-  // Si el usuario sale de Ajustes con un input de tarifa activo, guardar antes de navegar
+  // Si el usuario sale de Ajustes con un input activo, guardar antes de navegar
   if (currentView === 'ajustes') {
     const active = document.activeElement;
     if (active?.id?.startsWith('tarifa-input-')) active.blur();
+    if (active?.id === 'tc-input-uyu') active.blur();
   }
   currentView = v;
-  if (v !== 'ajustes') { const g = document.getElementById('tarifas-grid'); if (g) delete g.dataset.loaded; }
+  if (v !== 'ajustes') {
+    const g = document.getElementById('tarifas-grid'); if (g) delete g.dataset.loaded;
+    const w = document.getElementById('tc-wrapper'); if (w) delete w.dataset.loaded;
+  }
   renderView(v);
   // reset proyectos
   if(v==='proyectos') { document.getElementById('pr-lista').style.display='block'; document.getElementById('pr-detalle').style.display='none'; }
@@ -1275,7 +1394,7 @@ function renderView(v) {
   if(v==='operarios')  renderOperarios();
   if(v==='tiempos')    renderTiempos();
   if(v==='materiales') renderMateriales();
-  if(v==='ajustes')    { fInit(); tarifasInit(); }
+  if(v==='ajustes')    { fInit(); tarifasInit(); tcInit(); }
   if(v==='mi-cuenta')  renderMiCuenta();
 }
 
@@ -1462,7 +1581,7 @@ function renderDetallePr(pr, sub) {
   const hA=hAcumPr(pr.id), hE=hEstPr(pr);
   const byCentro=hByCentro(pr.id), byOp=hByOp(pr.id);
   const _u = window.AUTH.usuarioActual();
-  const SUBS=['resumen','ítems','materiales','tiempos',...(_u?.rol_app==='admin'?['costos']:[])];
+  const SUBS=['resumen','ítems','materiales','tiempos',...(_u?.rol_app==='admin'?['costos','costos-directos']:[])];
 
 
   const hdrContent = editMode
@@ -1909,6 +2028,16 @@ function renderDetallePr(pr, sub) {
     return;
   }
 
+  // ── COSTOS DIRECTOS (solo admin) ──
+  if (sub === 'costos-directos') {
+    html += `<div class="card" id="costos-directos-panel">
+      <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:2px;">CARGANDO…</div>
+    </div>`;
+    document.getElementById('pr-detalle').innerHTML = html;
+    _renderCostosDirectosPr(pr.id);
+    return;
+  }
+
   document.getElementById('pr-detalle').innerHTML = html;
 }
 
@@ -1959,6 +2088,24 @@ async function _renderCostosPr(prId) {
       sc.materiales_sin_costo    ? `<div style="color:#C8832A;font-size:12px;margin-top:4px;">⚠ ${sc.materiales_sin_costo} material(es) sin precio — no costeados</div>` : '',
     ].join('');
 
+    // Costos directos
+    const cd = data.costos_directos;
+    const cdRows = cd.items.length
+      ? cd.items.map(c => {
+          const desc = c.tipo === 'oc' ? (c.oc_numero || '—') : (c.descripcion || '—');
+          const fecha = c.fecha ? c.fecha.slice(0, 10) : '—';
+          const montoOrig = c.moneda_original !== 'USD'
+            ? `${_fmtNum(c.monto_original)} ${c.moneda_original}`
+            : '—';
+          return `<tr>
+            <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${desc}">${desc}</td>
+            <td class="mono" style="text-align:right;color:var(--muted);">${fecha}</td>
+            <td class="mono" style="text-align:right;color:var(--muted);">${montoOrig}</td>
+            <td class="mono" style="text-align:right;font-weight:600;">${fmtUSD(c.monto_usd)}</td>
+          </tr>`;
+        }).join('')
+      : `<tr><td colspan="4" style="color:var(--muted);font-size:12px;padding:8px 0;">Sin costos directos imputados</td></tr>`;
+
     panel.innerHTML = `
       <div class="sec-title" style="margin-bottom:16px;">Costos del Proyecto (USD)</div>
       <div class="sec-title" style="font-size:10px;margin-bottom:8px;">MANO DE OBRA</div>
@@ -1992,6 +2139,21 @@ async function _renderCostosPr(prId) {
           <td colspan="4" style="font-size:12px;color:var(--muted);padding:8px 0;font-family:'JetBrains Mono',monospace;">TOTAL MATERIALES</td>
           <td class="mono" style="text-align:right;font-size:14px;font-weight:700;">${fmtUSD(mats.total_usd)}</td>
           <td></td>
+        </tr></tfoot>
+      </table></div>
+
+      <div class="sec-title" style="font-size:10px;margin-top:20px;margin-bottom:8px;">COSTOS DIRECTOS</div>
+      <div style="overflow-x:auto;margin-bottom:4px;"><table style="width:100%;border-collapse:collapse;">
+        <thead><tr>
+          <th style="text-align:left;font-size:11px;color:var(--muted);padding:6px 0;font-weight:600;">Descripción</th>
+          <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">Fecha</th>
+          <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">Orig.</th>
+          <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">USD</th>
+        </tr></thead>
+        <tbody>${cdRows}</tbody>
+        <tfoot><tr style="border-top:1px solid var(--border);">
+          <td colspan="3" style="font-size:12px;color:var(--muted);padding:8px 0;font-family:'JetBrains Mono',monospace;">TOTAL COSTOS DIRECTOS</td>
+          <td class="mono" style="text-align:right;font-size:14px;font-weight:700;">${fmtUSD(cd.total_usd)}</td>
         </tr></tfoot>
       </table></div>
 
@@ -3781,6 +3943,107 @@ async function tarifasGuardar(categoria, input) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TIPO DE CAMBIO (Ajustes — solo admin)
+// ═══════════════════════════════════════════════════════════════════════════
+function _relTime(isoStr) {
+  if (!isoStr) return '';
+  const diff = Math.floor((Date.now() - new Date(isoStr)) / 1000);
+  if (diff < 60)  return `Actualizado hace ${diff}s`;
+  if (diff < 3600) return `Actualizado hace ${Math.floor(diff/60)}m`;
+  if (diff < 86400) return `Actualizado hace ${Math.floor(diff/3600)}h`;
+  return `Actualizado hace ${Math.floor(diff/86400)}d`;
+}
+
+async function tcInit(force = false) {
+  const u = window.AUTH.usuarioActual();
+  const sec = document.getElementById('ajustes-tc-section');
+  if (!sec) return;
+  if (!u || u.rol_app !== 'admin') { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  const wrapper = document.getElementById('tc-wrapper');
+  if (!wrapper) return;
+  if (!force && wrapper.dataset.loaded === '1') return;
+  const input = document.getElementById('tc-input-uyu');
+  const updEl = document.getElementById('tc-upd');
+  if (input) { input.disabled = true; input.placeholder = 'Cargando…'; }
+  const toast = document.getElementById('tc-toast');
+  if (toast) { toast.textContent = ''; toast.style.color = 'var(--green)'; }
+  try {
+    const r = await fetch('/api/tiempos?action=tipos-cambio');
+    const data = await r.json();
+    if (!r.ok || !data.tipos_cambio) throw new Error(data.error || 'Error');
+    const fila = data.tipos_cambio.find(t => t.moneda_origen === 'UYU' && t.moneda_destino === 'USD');
+    if (!fila) throw new Error('Fila UYU→USD no encontrada');
+    if (input) {
+      input.value = fila.valor;
+      input.dataset.original = fila.valor;
+      input.disabled = false;
+      input.placeholder = '';
+    }
+    if (updEl) updEl.textContent = _relTime(fila.actualizado_en);
+    wrapper.dataset.loaded = '1';
+  } catch(e) {
+    if (input) { input.disabled = false; input.placeholder = 'Error'; }
+    const toast = document.getElementById('tc-toast');
+    if (toast) { toast.style.color = 'var(--red)'; toast.textContent = `Error al cargar: ${e.message}`; }
+  }
+}
+
+async function tcGuardar(input) {
+  const original = parseFloat(input.dataset.original ?? '');
+  const raw = input.value.trim();
+  const valor = parseFloat(raw);
+
+  if (raw === '' || isNaN(valor) || valor <= 0) {
+    input.style.borderColor = 'var(--red)';
+    input.title = 'Debe ser un número > 0';
+    if (!isNaN(original)) input.value = original;
+    setTimeout(() => { input.style.borderColor = 'var(--border)'; input.title = ''; }, 2000);
+    return;
+  }
+
+  if (!isNaN(original) && valor === original) return;
+
+  input.style.borderColor = 'var(--amber)';
+  input.style.opacity = '0.6';
+  input.disabled = true;
+
+  const u = window.AUTH.usuarioActual();
+  try {
+    const r = await fetch('/api/tiempos?action=actualizar-tipo-cambio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ moneda_origen: 'UYU', moneda_destino: 'USD', valor, admin_id: u?.id })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Error');
+    input.dataset.original = valor;
+    input.style.opacity = '1';
+    input.style.borderColor = 'var(--green)';
+    const updEl = document.getElementById('tc-upd');
+    if (updEl) updEl.textContent = _relTime(data.tipo_cambio?.actualizado_en || new Date().toISOString());
+    // Resetear loaded para que el próximo poll refresque el texto de "Actualizado hace X"
+    const wrapper = document.getElementById('tc-wrapper');
+    if (wrapper) delete wrapper.dataset.loaded;
+    setTimeout(() => { input.style.borderColor = 'var(--border)'; }, 1500);
+  } catch(e) {
+    input.style.opacity = '1';
+    input.style.borderColor = 'var(--red)';
+    input.title = e.message;
+    if (!isNaN(original)) input.value = original;
+    setTimeout(() => { input.style.borderColor = 'var(--border)'; input.title = ''; }, 3000);
+    const toast = document.getElementById('tc-toast');
+    if (toast) {
+      toast.style.color = 'var(--red)';
+      toast.textContent = `Error: ${e.message}`;
+      setTimeout(() => { if (toast) { toast.textContent = ''; toast.style.color = 'var(--green)'; } }, 4000);
+    }
+  } finally {
+    input.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MI CUENTA
 // ═══════════════════════════════════════════════════════════════════════════
 function renderMiCuenta() {
@@ -4601,6 +4864,293 @@ function _timerBarStop() {
     btn.classList.remove('confirmar');
     _timerFinalizar();
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOAST HELPER
+// ═══════════════════════════════════════════════════════════════════════════
+function _toast(msg, isError = false) {
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:99999;padding:12px 18px;border-radius:8px;font-size:13px;font-family:'JetBrains Mono',monospace;color:#fff;background:${isError ? '#a33' : '#1a6b3a'};box-shadow:0 4px 16px rgba(0,0,0,0.4);max-width:360px;line-height:1.4;pointer-events:none;`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COSTOS DIRECTOS — Tab de proyecto
+// ═══════════════════════════════════════════════════════════════════════════
+let _cdPrId = null;
+let _cdItem = null;
+let _cdOcData = null;
+let _cdDebounce = null;
+let _cdCostosMap = {};
+
+const _fmtUSD = n => n != null ? `$${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
+const _fmtNum = n => Number(n).toLocaleString('es-UY',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+async function _renderCostosDirectosPr(prId) {
+  const panel = document.getElementById('costos-directos-panel');
+  if (!panel) return;
+  _cdPrId = prId;
+  _cdCostosMap = {};
+  try {
+    const res = await fetch(`/api/tiempos?action=costos-directos-proyecto&proyecto_id=${encodeURIComponent(prId)}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error al cargar');
+    const costos = data.costos || [];
+    const total = Number(data.total_usd) || 0;
+    costos.forEach(c => { _cdCostosMap[c.id] = c; });
+
+    const rows = costos.length
+      ? costos.map(c => {
+          const esOC = c.tipo === 'oc';
+          const label = esOC
+            ? `<span class="mono" style="font-size:12px;font-weight:600;color:var(--text);">${c.oc_numero || '—'}</span>`
+            : `<span style="font-size:12px;">${c.descripcion || '—'}</span>`;
+          const montoLine = `<span class="mono" style="font-size:13px;font-weight:700;">${_fmtUSD(c.monto_usd)} USD</span>`
+            + (c.moneda_original === 'UYU' && c.monto_original
+              ? `<span style="font-size:11px;color:var(--muted);margin-left:6px;">· ${_fmtNum(c.monto_original)} UYU @ TC ${c.tc_aplicado}</span>`
+              : '');
+          const editFn = esOC ? `_cdAbrirOC('${prId}','${c.id}')` : `_cdAbrirManual('${prId}','${c.id}')`;
+          return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+            <div style="flex:1;min-width:0;">
+              ${label}
+              <div style="margin-top:3px;">${montoLine}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px;">${c.fecha || ''}</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0;">
+              <button onclick="${editFn}" style="padding:4px 10px;font-size:11px;font-family:'JetBrains Mono',monospace;background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--muted);cursor:pointer;">EDITAR</button>
+              <button onclick="_cdEliminar('${c.id}','${prId}')" style="padding:4px 10px;font-size:11px;font-family:'JetBrains Mono',monospace;background:transparent;border:1px solid rgba(240,92,92,.3);border-radius:5px;color:var(--red);cursor:pointer;">ELIMINAR</button>
+            </div>
+          </div>`;
+        }).join('')
+      : `<div style="color:var(--muted);font-size:13px;padding:16px 0;">Sin costos directos imputados a este proyecto.</div>`;
+
+    panel.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:10px;flex-wrap:wrap;">
+        <div class="sec-title">COSTOS DIRECTOS</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary btn-sm" onclick="_cdAbrirOC('${prId}',null)">+ AGREGAR OC</button>
+          <button class="btn btn-ghost btn-sm" onclick="_cdAbrirManual('${prId}',null)">+ AGREGAR MANUAL</button>
+        </div>
+      </div>
+      <div>${rows}</div>
+      <div style="border-top:2px solid var(--border);margin-top:12px;padding-top:12px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:1px;">TOTAL COSTOS DIRECTOS</div>
+        <div class="mono" style="font-size:18px;font-weight:700;">${_fmtUSD(total)} USD</div>
+      </div>`;
+  } catch(e) {
+    if (panel) panel.innerHTML = `<div style="color:var(--red);font-size:13px;">Error: ${e.message}</div>`;
+  }
+}
+
+function _cdAbrirOC(prId, costoId) {
+  _cdPrId = prId;
+  _cdItem = costoId ? (_cdCostosMap[costoId] || null) : null;
+  _cdOcData = null;
+  clearTimeout(_cdDebounce);
+
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('cd-oc-title').textContent = _cdItem ? 'EDITAR OC' : 'AGREGAR OC';
+  document.getElementById('cd-oc-num').value = _cdItem ? (_cdItem.oc_numero || '') : '';
+  document.getElementById('cd-oc-monto').value = _cdItem ? (_cdItem.monto_original || '') : '';
+  document.getElementById('cd-oc-monto').disabled = true;
+  document.getElementById('cd-oc-fecha').value = _cdItem ? (_cdItem.fecha || today) : today;
+  document.getElementById('cd-oc-monto-label').textContent = 'MONTO A IMPUTAR';
+  document.getElementById('cd-oc-info').style.display = 'none';
+  document.getElementById('cd-oc-status').textContent = '';
+  document.getElementById('cd-oc-err').textContent = '';
+  document.getElementById('modal-cd-oc').style.display = 'flex';
+
+  // En edición, buscar la OC inmediatamente (incluye excluir_costo_id)
+  if (_cdItem && _cdItem.oc_numero) _cdBuscarOC();
+}
+
+function _cdOcNumInput() {
+  clearTimeout(_cdDebounce);
+  document.getElementById('cd-oc-info').style.display = 'none';
+  document.getElementById('cd-oc-monto').disabled = true;
+  _cdOcData = null;
+  _cdDebounce = setTimeout(_cdBuscarOC, 500);
+}
+
+async function _cdBuscarOC() {
+  const ocNum = document.getElementById('cd-oc-num').value.trim();
+  const statusEl = document.getElementById('cd-oc-status');
+  const infoEl = document.getElementById('cd-oc-info');
+  const montoEl = document.getElementById('cd-oc-monto');
+  if (!ocNum) {
+    statusEl.textContent = '';
+    infoEl.style.display = 'none';
+    montoEl.disabled = true;
+    return;
+  }
+  statusEl.style.color = 'var(--muted)';
+  statusEl.textContent = 'Buscando en Zoho…';
+  infoEl.style.display = 'none';
+  montoEl.disabled = true;
+  _cdOcData = null;
+  try {
+    // [C] siempre pasar excluir_costo_id en modo edición, incluso si oc_numero no cambió
+    let url = `/api/tiempos?action=buscar-oc-zoho&oc_numero=${encodeURIComponent(ocNum)}`;
+    if (_cdItem) url += `&excluir_costo_id=${encodeURIComponent(_cdItem.id)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    _cdOcData = data;
+    const oc = data.oc;
+    const imp = data.imputaciones;
+    const dispUSD = imp.disponible_usd;
+
+    // [B] mostrar disponible: ambos si UYU, solo USD si USD
+    let dispText = `${_fmtUSD(dispUSD)} USD`;
+    if (oc.moneda_original === 'UYU' && oc.tc_aplicado) {
+      dispText += `  ≈  ${_fmtNum(dispUSD * oc.tc_aplicado)} UYU`;
+    }
+    const totalText = oc.moneda_original === 'UYU'
+      ? `${_fmtNum(oc.total_original)} UYU  (${_fmtUSD(oc.total_usd)} USD @ TC ${oc.tc_aplicado})`
+      : `${_fmtUSD(oc.total_usd)} USD`;
+
+    document.getElementById('cd-oc-total').textContent = totalText;
+    document.getElementById('cd-oc-moneda').textContent = oc.moneda_original;
+    document.getElementById('cd-oc-disp').textContent = dispText;
+    document.getElementById('cd-oc-monto-label').textContent = `MONTO A IMPUTAR (${oc.moneda_original})`;
+    infoEl.style.display = '';
+    montoEl.disabled = false;
+    statusEl.textContent = '';
+  } catch(e) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = e.message.includes('no encontrada')
+      ? `OC "${ocNum}" no encontrada en Zoho Books`
+      : `Error: ${e.message}`;
+    infoEl.style.display = 'none';
+    montoEl.disabled = true;
+  }
+}
+
+async function _cdSubmitOC() {
+  const errEl = document.getElementById('cd-oc-err');
+  errEl.textContent = '';
+  const showErr = msg => { errEl.textContent = msg; };
+  if (!_cdOcData) { showErr('Buscá y validá la OC primero.'); return; }
+
+  const oc = _cdOcData.oc;
+  const ocNumero = document.getElementById('cd-oc-num').value.trim();
+  const fecha = document.getElementById('cd-oc-fecha').value;
+  const monto = parseFloat(document.getElementById('cd-oc-monto').value);
+  if (!fecha) { showErr('Ingresá la fecha.'); return; }
+  if (isNaN(monto) || monto <= 0) { showErr('El monto debe ser mayor a 0.'); return; }
+
+  // [B] validación laxa client-side en moneda original de la OC
+  const dispUSD = _cdOcData.imputaciones.disponible_usd;
+  const dispEnMoneda = (oc.moneda_original === 'UYU' && oc.tc_aplicado)
+    ? dispUSD * oc.tc_aplicado
+    : dispUSD;
+  if (monto > dispEnMoneda * 1.01) {
+    const msg = oc.moneda_original === 'UYU'
+      ? `Excede disponible. Disponible: ${_fmtUSD(dispUSD)} USD ≈ ${_fmtNum(dispEnMoneda)} UYU`
+      : `Excede disponible. Disponible: ${_fmtUSD(dispUSD)} USD`;
+    showErr(msg); return;
+  }
+
+  const u = window.AUTH.usuarioActual();
+  const btn = document.getElementById('cd-oc-submit');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  try {
+    const action = _cdItem ? 'editar-costo-directo' : 'agregar-costo-directo';
+    const body = _cdItem
+      ? { costo_id: _cdItem.id, oc_numero: ocNumero, monto_original: monto, moneda_original: oc.moneda_original, fecha, admin_id: u.id }
+      : { proyecto_id: _cdPrId, tipo: 'oc', oc_numero: ocNumero, monto_original: monto, moneda_original: oc.moneda_original, fecha, admin_id: u.id };
+    const res = await fetch(`/api/tiempos?action=${action}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    _cdCerrar();
+    _renderCostosDirectosPr(_cdPrId);
+    _toast(_cdItem ? 'Costo actualizado.' : 'Costo agregado.');
+  } catch(e) {
+    showErr(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'CONFIRMAR';
+  }
+}
+
+function _cdAbrirManual(prId, costoId) {
+  _cdPrId = prId;
+  _cdItem = costoId ? (_cdCostosMap[costoId] || null) : null;
+
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('cd-man-title').textContent = _cdItem ? 'EDITAR MANUAL' : 'AGREGAR MANUAL';
+  document.getElementById('cd-man-desc').value = _cdItem ? (_cdItem.descripcion || '') : '';
+  document.getElementById('cd-man-monto').value = _cdItem ? (_cdItem.monto_original || '') : '';
+  document.getElementById('cd-man-moneda').value = _cdItem ? (_cdItem.moneda_original || 'USD') : 'USD';
+  document.getElementById('cd-man-fecha').value = _cdItem ? (_cdItem.fecha || today) : today;
+  document.getElementById('cd-man-err').textContent = '';
+  document.getElementById('modal-cd-manual').style.display = 'flex';
+}
+
+async function _cdSubmitManual() {
+  const errEl = document.getElementById('cd-man-err');
+  errEl.textContent = '';
+  const showErr = msg => { errEl.textContent = msg; };
+
+  const desc = document.getElementById('cd-man-desc').value.trim();
+  const monto = parseFloat(document.getElementById('cd-man-monto').value);
+  const moneda = document.getElementById('cd-man-moneda').value;
+  const fecha = document.getElementById('cd-man-fecha').value;
+
+  if (!desc) { showErr('La descripción es obligatoria.'); return; }
+  if (isNaN(monto) || monto <= 0) { showErr('El monto debe ser mayor a 0.'); return; }
+  if (!fecha) { showErr('Ingresá la fecha.'); return; }
+
+  const u = window.AUTH.usuarioActual();
+  const btn = document.getElementById('cd-man-submit');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  try {
+    const action = _cdItem ? 'editar-costo-directo' : 'agregar-costo-directo';
+    const body = _cdItem
+      ? { costo_id: _cdItem.id, descripcion: desc, monto_original: monto, moneda_original: moneda, fecha, admin_id: u.id }
+      : { proyecto_id: _cdPrId, tipo: 'manual', descripcion: desc, monto_original: monto, moneda_original: moneda, fecha, admin_id: u.id };
+    const res = await fetch(`/api/tiempos?action=${action}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    _cdCerrar();
+    _renderCostosDirectosPr(_cdPrId);
+    _toast(_cdItem ? 'Costo actualizado.' : 'Costo agregado.');
+  } catch(e) {
+    showErr(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'CONFIRMAR';
+  }
+}
+
+async function _cdEliminar(costoId, prId) {
+  if (!confirm('¿Eliminar este costo directo? No se puede deshacer.')) return;
+  const u = window.AUTH.usuarioActual();
+  try {
+    const res = await fetch('/api/tiempos?action=eliminar-costo-directo', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ costo_id: costoId, admin_id: u.id })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error al eliminar');
+    _renderCostosDirectosPr(prId);
+    _toast('Costo eliminado.');
+  } catch(e) {
+    _toast(e.message, true);
+  }
+}
+
+function _cdCerrar() {
+  document.getElementById('modal-cd-oc').style.display = 'none';
+  document.getElementById('modal-cd-manual').style.display = 'none';
+  clearTimeout(_cdDebounce);
+  _cdItem = null;
+  _cdOcData = null;
 }
 
 // Ocultar nav-items restringidos según rol
