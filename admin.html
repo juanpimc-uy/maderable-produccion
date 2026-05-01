@@ -3744,10 +3744,10 @@ async function tarifasGuardar(categoria, input) {
 
   const u = window.AUTH.usuarioActual();
   try {
-    const r = await fetch('/api/tiempos', {
+    const r = await fetch('/api/tiempos?action=actualizar-tarifa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'actualizar-tarifa', categoria, monto_usd: monto, admin_id: u?.id })
+      body: JSON.stringify({ categoria, monto_usd: monto, admin_id: u?.id })
     });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'Error');
