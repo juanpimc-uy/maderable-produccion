@@ -654,40 +654,43 @@
 
     <!-- ══ AJUSTES ════════════════════════════════════════════════════════ -->
     <div class="view" id="v-ajustes">
-      <div class="sub-tabs"><button class="sub-tab active">Fórmula de tiempos</button></div>
-      <div class="ok-banner-f" id="ok-banner-f">✓ Fórmula guardada correctamente.</div>
-      <div style="background:rgba(91,141,239,.06);border:1px solid rgba(91,141,239,.2);border-radius:8px;padding:14px 18px;font-size:13px;color:var(--blue);margin-bottom:20px;line-height:1.6;">
-        Esta configuración es <strong>global</strong> — aplica a todos los proyectos activos y futuros. Las horas estimadas se calculan como: <strong>Placas × Coeficiente del centro × Factor de dificultad</strong>.
-      </div>
-      <div class="card" style="margin-bottom:16px;">
-        <div class="sec-title">Fórmula</div>
-        <div class="formula-display-f">
-          Horas<sub style="font-size:10px;">centro</sub> =
-          <span style="color:var(--amber);font-weight:700;">Placas</span> ×
-          <span style="color:var(--amber);font-weight:700;">Coef<sub style="font-size:10px;">centro</sub></span> ×
-          <span style="color:var(--amber);font-weight:700;">Factor<sub style="font-size:10px;">dificultad</sub></span>
+      <!-- Fórmula de tiempos — solo admin -->
+      <div id="ajustes-formula-section" style="display:none;">
+        <div class="sub-tabs"><button class="sub-tab active">Fórmula de tiempos</button></div>
+        <div class="ok-banner-f" id="ok-banner-f">✓ Fórmula guardada correctamente.</div>
+        <div style="background:rgba(91,141,239,.06);border:1px solid rgba(91,141,239,.2);border-radius:8px;padding:14px 18px;font-size:13px;color:var(--blue);margin-bottom:20px;line-height:1.6;">
+          Esta configuración es <strong>global</strong> — aplica a todos los proyectos activos y futuros. Las horas estimadas se calculan como: <strong>Placas × Coeficiente del centro × Factor de dificultad</strong>.
         </div>
-        <div style="font-size:11px;color:var(--muted);text-align:center;">
-          Ejemplo con 8 placas, dificultad 3 → Armado = 8 × <span id="f-ej-coef" style="color:var(--amber);">0.80</span> × <span id="f-ej-dif" style="color:var(--amber);">1.5</span> = <span id="f-ej-result" style="color:var(--green);font-weight:700;">9.6h</span>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="sec-title">Fórmula</div>
+          <div class="formula-display-f">
+            Horas<sub style="font-size:10px;">centro</sub> =
+            <span style="color:var(--amber);font-weight:700;">Placas</span> ×
+            <span style="color:var(--amber);font-weight:700;">Coef<sub style="font-size:10px;">centro</sub></span> ×
+            <span style="color:var(--amber);font-weight:700;">Factor<sub style="font-size:10px;">dificultad</sub></span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);text-align:center;">
+            Ejemplo con 8 placas, dificultad 3 → Armado = 8 × <span id="f-ej-coef" style="color:var(--amber);">0.80</span> × <span id="f-ej-dif" style="color:var(--amber);">1.5</span> = <span id="f-ej-result" style="color:var(--green);font-weight:700;">9.6h</span>
+          </div>
         </div>
-      </div>
-      <div class="card" style="margin-bottom:16px;">
-        <div class="sec-title">Coeficiente de horas por placa · por centro de trabajo</div>
-        <div class="coef-grid-f" id="f-coef-grid"></div>
-        <div style="font-size:11px;color:var(--muted);">Un valor de 0.50 significa que cada placa requiere 0.50h en ese centro (con dificultad base 2).</div>
-      </div>
-      <div class="card" style="margin-bottom:16px;">
-        <div class="sec-title">Factores de dificultad</div>
-        <div class="dif-grid-f" id="f-dif-grid"></div>
-      </div>
-      <div class="card" style="margin-bottom:20px;">
-        <div class="sec-title">Tabla de referencia · Horas estimadas</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Horas totales (suma de todos los centros) según cantidad de placas y dificultad.</div>
-        <div style="overflow-x:auto;"><table class="preview-table-f" id="f-preview-table"></table></div>
-      </div>
-      <div style="display:flex;gap:12px;justify-content:flex-end;">
-        <button class="btn btn-ghost" onclick="fResetear()">Restaurar defaults</button>
-        <button class="btn btn-primary" onclick="fGuardar()">✓ Guardar Fórmula</button>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="sec-title">Coeficiente de horas por placa · por centro de trabajo</div>
+          <div class="coef-grid-f" id="f-coef-grid"></div>
+          <div style="font-size:11px;color:var(--muted);">Un valor de 0.50 significa que cada placa requiere 0.50h en ese centro (con dificultad base 2).</div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="sec-title">Factores de dificultad</div>
+          <div class="dif-grid-f" id="f-dif-grid"></div>
+        </div>
+        <div class="card" style="margin-bottom:20px;">
+          <div class="sec-title">Tabla de referencia · Horas estimadas</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Horas totales (suma de todos los centros) según cantidad de placas y dificultad.</div>
+          <div style="overflow-x:auto;"><table class="preview-table-f" id="f-preview-table"></table></div>
+        </div>
+        <div style="display:flex;gap:12px;justify-content:flex-end;">
+          <button class="btn btn-ghost" onclick="fResetear()">Restaurar defaults</button>
+          <button class="btn btn-primary" onclick="fGuardar()">✓ Guardar Fórmula</button>
+        </div>
       </div>
 
       <!-- Tarifas horarias — solo admin -->
@@ -3631,6 +3634,10 @@ function fRenderTable(){
 }
 
 function fInit(){
+  const u = window.AUTH.usuarioActual();
+  const sec = document.getElementById('ajustes-formula-section');
+  if (!u || u.rol_app !== 'admin') { if (sec) sec.style.display = 'none'; return; }
+  if (sec) sec.style.display = '';
   const COEF=JSON.parse(localStorage.getItem('coef')||JSON.stringify(F_COEF_DEF));
   const DIF=JSON.parse(localStorage.getItem('dif')||JSON.stringify(F_DIF_DEF));
   const cg=document.getElementById('f-coef-grid');
