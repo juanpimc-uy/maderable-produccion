@@ -68,6 +68,25 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || ''
 );
 
+// ── Zoho token cache (module-level, persiste mientras la instancia Edge está caliente)
+// Mismo patrón que api/zoho-token.js pero self-contained para no cruzar funciones.
+let _zohoToken = null;
+let _zohoTokenExpiry = 0;
+async function getZohoToken() {
+  if (_zohoToken && _zohoTokenExpiry > Date.now() + 60000) return _zohoToken;
+  const params = new URLSearchParams();
+  params.append('client_id',     process.env.ZOHO_CLIENT_ID);
+  params.append('client_secret', process.env.ZOHO_CLIENT_SECRET);
+  params.append('refresh_token', process.env.ZOHO_REFRESH_TOKEN);
+  params.append('grant_type',    'refresh_token');
+  const res  = await fetch('https://accounts.zoho.com/oauth/v2/token', { method: 'POST', body: params });
+  const data = await res.json();
+  if (!data.access_token) throw new Error('No se pudo obtener token de Zoho: ' + (data.error || JSON.stringify(data)));
+  _zohoToken       = data.access_token;
+  _zohoTokenExpiry = Date.now() + ((data.expires_in || 3600) * 1000);
+  return _zohoToken;
+}
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
@@ -1454,18 +1473,16 @@ export default async function handler(req) {
       return ok({ ok: true, material: mats[idx] });
     }
 
-    // ── GET buscar-oc-zoho (solo admin) ──────────────────────────────────
+    // ── GET buscar-oc-zoho ────────────────────────────────────────────────
     if (action === 'buscar-oc-zoho' && req.method === 'GET') {
-      const oc_raw    = url.searchParams.get('oc_numero');
-      const admin_id  = url.searchParams.get('admin_id');
-      const zoho_token = url.searchParams.get('zoho_token');
-      if (!oc_raw || !admin_id || !zoho_token)
-        return err('oc_numero, admin_id y zoho_token requeridos', 400);
-      const { data: caller } = await supabase
-        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
-      if (!caller || caller.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
-          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      const oc_raw           = url.searchParams.get('oc_numero');
+      const excluir_costo_id = url.searchParams.get('excluir_costo_id') || null;
+      if (!oc_raw) return err('oc_numero requerido', 400);
+
+      // Token obtenido server-side (no expuesto al cliente)
+      const zoho_token = await getZohoToken();
+
+      // Búsqueda en Zoho: 3 formatos de número (strip prefix, sin padding, con padding 5 dígitos)
       const orgId = process.env.ZOHO_ORG_ID;
       const base = oc_raw.replace(/^(OC-|oc-)/i, '').trim();
       const candidatos = [`OC-${base}`, `OC-${base.padStart(5, '0')}`, base];
@@ -1478,46 +1495,62 @@ export default async function handler(req) {
         if (found) { ocSummary = found; ocNumUsado = candidato; break; }
       }
       if (!ocSummary) return err(`OC "${oc_raw}" no encontrada en Zoho Books`, 404);
-      // Detalle completo
+
+      // Detalle completo (para total, fecha, moneda)
       const zDetailUrl = `https://www.zohoapis.com/books/v3/purchaseorders/${ocSummary.purchaseorder_id}?organization_id=${orgId}`;
       const zDetailRes = await fetch(zDetailUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zoho_token}` } });
       const zDetail = await zDetailRes.json();
       const oc = zDetail.purchaseorder;
       if (!oc) return err('Error al obtener detalle de la OC desde Zoho', 502);
-      const moneda = oc.currency_code || 'USD';
-      if (!['USD', 'UYU'].includes(moneda))
-        return err(`La OC está en ${moneda}. Solo se admiten OCs en USD o UYU. Usá un costo manual.`, 422);
-      const oc_total_moneda = Number(oc.total) || 0;
-      let oc_total_usd = oc_total_moneda;
-      let tc = null;
-      if (moneda === 'UYU') {
-        const { data: tcRow } = await supabase.from('tipo_cambio')
-          .select('valor').eq('moneda_origen', 'UYU').eq('moneda_destino', 'USD').maybeSingle();
-        tc = tcRow ? Number(tcRow.valor) : 0;
-        if (!tc || tc <= 0)
-          return err('Configurá el tipo de cambio UYU/USD en Ajustes antes de imputar OCs en UYU', 422);
-        oc_total_usd = oc_total_moneda / tc;
+
+      // Moneda y conversión
+      const moneda_original = oc.currency_code || 'USD';
+      const total_original  = Number(oc.total) || 0;
+      let total_usd = total_original;
+      let tc_aplicado = null;
+      if (moneda_original === 'UYU') {
+        const { data: tcRow, error: tcErr } = await supabase
+          .from('tipo_cambio').select('valor')
+          .eq('moneda_origen', 'UYU').eq('moneda_destino', 'USD').maybeSingle();
+        if (tcErr) throw tcErr;
+        const tcValor = tcRow ? Number(tcRow.valor) : 0;
+        if (!tcValor || tcValor <= 0)
+          return err('Tipo de cambio UYU/USD no configurado', 500);
+        tc_aplicado = tcValor;
+        total_usd   = total_original / tcValor;
+      } else if (moneda_original !== 'USD') {
+        return err(`Moneda ${moneda_original} no soportada. Usá un costo manual para imputar este gasto.`, 422);
       }
-      // Tracking cross-project
-      const { data: imputados } = await supabase
-        .from('costos_directos_proyecto').select('monto_usd, proyecto_id').eq('oc_numero', ocNumUsado);
+
+      // Cross-project: suma de lo ya imputado para esta OC
+      let imputadosQ = supabase
+        .from('costos_directos_proyecto')
+        .select('id, proyecto_id, monto_usd, fecha')
+        .eq('oc_numero', ocNumUsado);
+      if (excluir_costo_id) imputadosQ = imputadosQ.neq('id', excluir_costo_id);
+      const { data: imputados, error: impErr } = await imputadosQ;
+      if (impErr) throw impErr;
       const ya_imputado_usd = (imputados || []).reduce((a, r) => a + Number(r.monto_usd), 0);
-      const disponible_usd = Math.max(0, oc_total_usd - ya_imputado_usd);
+      const disponible_usd  = total_usd - ya_imputado_usd; // puede ser negativo, no es error
+
       return ok({
-        ok: true,
         oc: {
-          numero: ocNumUsado,
-          zoho_id: oc.purchaseorder_id,
-          proveedor: oc.vendor_name,
-          moneda,
-          total_moneda_original: Math.round(oc_total_moneda * 100) / 100,
-          total_usd: Math.round(oc_total_usd * 100) / 100,
-          tc_uyu_usd: tc,
+          numero:          ocNumUsado,
+          fecha:           oc.date || null,
+          moneda_original,
+          total_original:  Math.round(total_original * 100) / 100,
+          total_usd:       Math.round(total_usd * 100) / 100,
+          tc_aplicado,
         },
-        tracking: {
+        imputaciones: {
           ya_imputado_usd: Math.round(ya_imputado_usd * 100) / 100,
-          disponible_usd: Math.round(disponible_usd * 100) / 100,
-          imputaciones: (imputados || []).map(r => ({ proyecto_id: r.proyecto_id, monto_usd: Number(r.monto_usd) })),
+          disponible_usd:  Math.round(disponible_usd * 100) / 100,
+          detalle: (imputados || []).map(r => ({
+            costo_id:   r.id,
+            proyecto_id: r.proyecto_id,
+            monto_usd:  Number(r.monto_usd),
+            fecha:      r.fecha,
+          })),
         },
       });
     }
