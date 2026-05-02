@@ -1433,6 +1433,7 @@ export default async function handler(req) {
       const cd_total_usd_round = Math.round(costos_directos_total_usd * 100) / 100;
       const total_proyecto_usd = Math.round((mo_total_usd_round + mat_total_usd_round + cd_total_usd_round) * 100) / 100;
       return ok({
+        ok: true,
         proyecto: { id: pr.id, codigo: pr.numero, nombre: pr.nombre || pr.obra, cliente_nombre: pr.cliente_nombre },
         mano_obra: { por_categoria, total_horas: Math.round(total_horas * 100) / 100, total_usd: mo_total_usd_round },
         materiales: { items: matItems, total_usd: mat_total_usd_round },
@@ -1736,7 +1737,7 @@ export default async function handler(req) {
         .order('creado_en', { ascending: false });
       if (error) throw error;
       const total_usd = (data || []).reduce((a, r) => a + Number(r.monto_usd), 0);
-      return ok({ costos: data || [], total_usd: Math.round(total_usd * 100) / 100 });
+      return ok({ ok: true, costos: data || [], total_usd: Math.round(total_usd * 100) / 100 });
     }
 
     // ── POST editar-costo-directo (solo admin) ────────────────────────────
