@@ -349,7 +349,7 @@ const FLUJOS_TERC     = FLUJOS.filter(f=>f.tipo==='tercerizado');
 const COEF_DEF={corte:0.50,enchapado:0.30,armado:0.80,revision:0.20,empaquetado:0.20};
 const DIF_DEF ={1:0.7,2:1.0,3:1.5,4:2.2};
 const CENTROS =['corte','enchapado','armado','revision','empaquetado'];
-const C_LABEL ={corte:'Corte',enchapado:'Enchapado',armado:'Armado',revision:'Revisión',empaquetado:'Empaq.'};
+const C_LABEL ={corte:'Corte',enchapado:'Enchapado',armado:'Armado',revision:'Revisión',empaquetado:'COLOCACION'};
 const DIF_NAMES={1:'Simple',2:'Medio',3:'Complejo',4:'Muy Comp.'};
 function getCoef(){return JSON.parse(localStorage.getItem('coef')||JSON.stringify(COEF_DEF));}
 function getDif() {return JSON.parse(localStorage.getItem('dif') ||JSON.stringify(DIF_DEF));}

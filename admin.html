@@ -1229,7 +1229,7 @@ const CENTROS = [
   {id:'enchapado',    label:'Enchapado/Perf.',   icon:'◈', color:'var(--blue)',   familia:'planta'},
   {id:'armado',       label:'Armado',            icon:'⬗', color:'var(--purple)', familia:'planta'},
   {id:'revision',     label:'Revisión',          icon:'◎', color:'var(--teal)',   familia:'planta'},
-  {id:'empaquetado',  label:'Empaquetado/Coloc.',icon:'▣', color:'var(--green)',  familia:'planta'},
+  {id:'empaquetado',  label:'COLOCACION',        icon:'▣', color:'var(--green)',  familia:'planta'},
   // ── Administración ───────────────────────────────────────────────────────
   {id:'Compras',      label:'Compras',           icon:'◉', color:'#3B82F6', familia:'administracion'},
   {id:'Coordinacion', label:'Coordinacion',      icon:'◫', color:'#3B82F6', familia:'administracion'},
@@ -2111,7 +2111,7 @@ async function _renderCostosPr(prId) {
     // Alertas
     const sc = data.sin_costear;
     const alertas = [
-      sc.registros_sin_categoria ? `<div style="color:#C8832A;font-size:12px;margin-top:6px;">⚠ ${sc.registros_sin_categoria} registro(s) sin categoría de empleado — no costeados</div>` : '',
+      sc.registros_sin_categoria ? `<div style="color:#C8832A;font-size:12px;margin-top:6px;">⚠ ${sc.registros_sin_categoria} registro(s) sin categoría de operario — no costeados</div>` : '',
       sc.materiales_sin_costo    ? `<div style="color:#C8832A;font-size:12px;margin-top:4px;">⚠ ${sc.materiales_sin_costo} material(es) sin precio — no costeados</div>` : '',
     ].join('');
 
@@ -2744,20 +2744,6 @@ function abrirModalOperario(opId) {
         <label style="${_labelStyle}">Centros habilitados</label>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">${centrosChk}</div>
       </div>
-      ${esAdmin ? `<div>
-        <label style="${_labelStyle}">Modalidad de descanso</label>
-        <select id="mod-op-descanso-modalidad" style="${_inputStyle}">
-          <option value="">— Sin configurar —</option>
-          <option value="paga_30">30 min pagos</option>
-          <option value="no_paga_60">Descansos no pagos</option>
-          <option value="sin_limite">Sin límite</option>
-        </select>
-        <div style="font-size:10px;color:var(--muted);margin-top:5px;line-height:1.5;">
-          <b>30 min pagos</b>: hasta 30 min cuentan como tiempo pago, el exceso se descuenta.<br>
-          <b>No pagos</b>: ningún descanso cuenta como tiempo pago.<br>
-          <b>Sin límite</b>: descansos no penalizan ni suman al pago.
-        </div>
-      </div>` : ''}
       <div id="mod-op-error" style="font-size:12px;color:var(--red);display:none;"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
         <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
@@ -3787,7 +3773,7 @@ function confirmarModulo(prId){
 // AJUSTES — FÓRMULA DE TIEMPOS
 // ═══════════════════════════════════════════════════════════════════════════
 const F_CENTROS      = ['corte','enchapado','armado','revision','empaquetado'];
-const F_CENTRO_LABEL = {corte:'Corte',enchapado:'Enchapado/Perf.',armado:'Armado',revision:'Revisión',empaquetado:'Empaquetado'};
+const F_CENTRO_LABEL = {corte:'Corte',enchapado:'Enchapado/Perf.',armado:'Armado',revision:'Revisión',empaquetado:'COLOCACION'};
 const F_CENTRO_ICON  = {corte:'⬡',enchapado:'◈',armado:'⬗',revision:'◎',empaquetado:'▣'};
 const F_CENTRO_COLOR = {corte:'var(--amber)',enchapado:'var(--blue)',armado:'var(--purple)',revision:'var(--teal)',empaquetado:'var(--green)'};
 const F_COEF_DEF = {corte:0.50,enchapado:0.30,armado:0.80,revision:0.20,empaquetado:0.20};

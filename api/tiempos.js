@@ -1001,6 +1001,29 @@ export default async function handler(req) {
       return ok({ registros: data || [] });
     }
 
+    // ── GET verifica si existe registro finalizado para combinación empleado/proyecto/item/centro ──
+    if (action === 'registro-finalizado-existe' && req.method === 'GET') {
+      const empleado_id = url.searchParams.get('empleado_id');
+      const proyecto_id = url.searchParams.get('proyecto_id');
+      const item_id     = url.searchParams.get('item_id');
+      const centro      = url.searchParams.get('centro');
+      if (!empleado_id || !proyecto_id || !item_id || !centro)
+        return err('empleado_id, proyecto_id, item_id y centro son requeridos', 400);
+      const { data, error } = await supabase
+        .from('registros_trabajo')
+        .select('id, fin')
+        .eq('empleado_id', empleado_id)
+        .eq('proyecto_id', proyecto_id)
+        .eq('item_id',     item_id)
+        .eq('centro',      centro)
+        .eq('estado',      'finalizado')
+        .eq('eliminada',   false)
+        .order('fin', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      return ok({ ok: true, existe: data && data.length > 0, ultimo: data?.[0] || null });
+    }
+
     // ── GET detalle de placas CNC para un registro de trabajo ────────────
     if (action === 'detalle-cnc' && req.method === 'GET') {
       const registro_trabajo_id = url.searchParams.get('registro_trabajo_id');
