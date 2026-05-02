@@ -1704,7 +1704,7 @@ function renderDetallePr(pr, sub) {
           <td class="mono" style="color:var(--amber);font-size:12px;">${m.codigo||'—'}</td>
           <td><input id="edm-nombre-${m.id}" value="${(m.nombre||'').replace(/"/g,'&quot;')}" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:13px;width:100%;outline:none;"></td>
           <td><input type="number" id="edm-cant-${m.id}" value="${m.cant||1}" min="1" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:13px;width:60px;text-align:center;outline:none;"></td>
-          <td><input type="number" id="edm-dif-${m.id}" value="${m.dif||2}" min="1" max="4" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;width:50px;text-align:center;outline:none;"></td>
+          <td><div style="display:flex;gap:4px;">${[1,2,3,4].map(d=>{const DL={1:'F',2:'M',3:'D',4:'UH'};const sel=(m.dif||2)===d;return`<button id="edm-dif-btn-${m.id}-${d}" onclick="edmSetDif('${m.id}',${d})" style="padding:4px 7px;border:1px solid ${sel?'var(--amber)':'var(--border)'};border-radius:4px;background:${sel?'rgba(245,166,35,.2)':'transparent'};color:${sel?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;transition:all .15s;">${DL[d]}</button>`;}).join('')}<input type="hidden" id="edm-dif-${m.id}" value="${m.dif||2}"></div></td>
           <td class="mono" style="color:var(--muted);font-size:12px;">${fmtH(Object.values(m.horas||{}).reduce((a,v)=>a+Number(v||0),0))}</td>
         </tr>`).join('')}
         </tbody></table></div>`;
@@ -1723,7 +1723,8 @@ function renderDetallePr(pr, sub) {
         const sem=!mats.length?'🟢':critPend.length?'🔴':allPend.length?'🟡':'🟢';
         const FLUJOS_INTERNO=['madera_maciza','herreria','electricidad'];
         const flujoChips=FLUJOS_ORDER.map(f=>{const fc=FLUJOS_CONF[f];const sel=m.flujos&&m.flujos.includes(f);const btn=`<button onclick="toggleFlujoInline('${pr.id}','${m.id}','${f}')" style="padding:4px 10px;border:1px solid ${sel?fc.color:'var(--border)'};border-radius:20px;background:${sel?fc.color+'18':'transparent'};color:${sel?fc.color:'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;transition:all .15s;">${fc.label}</button>`;if(sel&&FLUJOS_INTERNO.includes(f)){const hrs=(m.hrsExtra||{})[f]||'';return`<span style="display:inline-flex;align-items:center;gap:4px;">${btn}<input type="number" min="0" step="0.5" value="${hrs}" placeholder="h" onchange="setHrsExtraInline('${pr.id}','${m.id}','${f}',this.value)" style="width:48px;background:var(--faint);border:1px solid ${fc.color}44;border-radius:4px;padding:3px 5px;color:${fc.color};font-family:'JetBrains Mono',monospace;font-size:10px;text-align:center;outline:none;" title="Horas estimadas ${fc.label}"></span>`;}return btn;}).join('');
-        const difBtns=[1,2,3,4].map(d=>{const sel=(m.dif||2)===d;return`<button onclick="setDifInline('${pr.id}','${m.id}',${d})" style="width:26px;height:22px;border:1px solid ${sel?'var(--amber)':'var(--border)'};border-radius:4px;background:${sel?'rgba(245,166,35,.2)':'transparent'};color:${sel?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;transition:all .15s;">${d}</button>`;}).join('');
+        const DIF_LABEL={1:'F',2:'M',3:'D',4:'UH'};
+        const difBtns=[1,2,3,4].map(d=>{const sel=(m.dif||2)===d;return`<button onclick="setDifInline('${pr.id}','${m.id}',${d})" style="width:26px;height:22px;border:1px solid ${sel?'var(--amber)':'var(--border)'};border-radius:4px;background:${sel?'rgba(245,166,35,.2)':'transparent'};color:${sel?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;transition:all .15s;">${DIF_LABEL[d]}</button>`;}).join('');
         html+=`<div style="background:var(--card);border:1px solid ${sesAct.length?'rgba(245,166,35,.4)':'var(--border)'};border-radius:8px;padding:18px;">
           <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;">
             <div class="mono" style="font-size:11px;font-weight:700;color:var(--amber);min-width:38px;padding-top:2px;">${m.codigo||'—'}</div>
@@ -2205,6 +2206,20 @@ function volverListaPr() {
   document.getElementById('pr-lista').style.display = 'block';
   document.getElementById('pr-detalle').style.display = 'none';
   renderProyectos();
+}
+
+function edmSetDif(mId, val) {
+  const hidden = document.getElementById('edm-dif-'+mId);
+  if (hidden) hidden.value = val;
+  const DL = {1:'F',2:'M',3:'D',4:'UH'};
+  [1,2,3,4].forEach(d => {
+    const btn = document.getElementById('edm-dif-btn-'+mId+'-'+d);
+    if (!btn) return;
+    const sel = d === val;
+    btn.style.borderColor  = sel ? 'var(--amber)' : 'var(--border)';
+    btn.style.background   = sel ? 'rgba(245,166,35,.2)' : 'transparent';
+    btn.style.color        = sel ? 'var(--amber)' : 'var(--muted)';
+  });
 }
 
 function guardarProyecto(prId, sub) {

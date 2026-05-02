@@ -631,7 +631,8 @@ function renderMuebles(){
     renderHorasTotales(); return;
   }
   const rows=muebles.map((m,idx)=>{
-    const difBtns=[1,2,3,4].map(d=>`<button onclick="tblDif(${idx},${d})" style="padding:3px 5px;border:1px solid ${m.dif===d?'var(--amber)':'var(--border)'};border-radius:3px;background:${m.dif===d?'rgba(245,166,35,.12)':'var(--faint)'};color:${m.dif===d?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;">${d}</button>`).join('');
+    const DIF_LABEL={1:'F',2:'M',3:'D',4:'UH'};
+    const difBtns=[1,2,3,4].map(d=>`<button onclick="tblDif(${idx},${d})" style="padding:3px 5px;border:1px solid ${m.dif===d?'var(--amber)':'var(--border)'};border-radius:3px;background:${m.dif===d?'rgba(245,166,35,.12)':'var(--faint)'};color:${m.dif===d?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;">${DIF_LABEL[d]}</button>`).join('');
     const chips=FC.map(f=>{
       const on=m.flujos.includes(f.id);
       return `<button class="fc-chip ${on?f.cls:''}" onclick="tblFlujo(${idx},'${f.id}')">${f.label}</button>`
