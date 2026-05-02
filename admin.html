@@ -1224,11 +1224,22 @@ const FLUJOS_CONF = {
 const FLUJOS_ORDER = ['lustre','madera_maciza','herreria','tapiceria','electricidad'];
 
 const CENTROS = [
-  {id:'corte',       label:'Corte',              icon:'⬡',color:'var(--amber)'},
-  {id:'enchapado',   label:'Enchapado/Perf.',     icon:'◈',color:'var(--blue)' },
-  {id:'armado',      label:'Armado',              icon:'⬗',color:'var(--purple)'},
-  {id:'revision',    label:'Revisión',            icon:'◎',color:'var(--teal)' },
-  {id:'empaquetado', label:'Empaquetado/Coloc.',  icon:'▣',color:'var(--green)'},
+  // ── Planta ───────────────────────────────────────────────────────────────
+  {id:'corte',        label:'Corte',             icon:'⬡', color:'var(--amber)',  familia:'planta'},
+  {id:'enchapado',    label:'Enchapado/Perf.',   icon:'◈', color:'var(--blue)',   familia:'planta'},
+  {id:'armado',       label:'Armado',            icon:'⬗', color:'var(--purple)', familia:'planta'},
+  {id:'revision',     label:'Revisión',          icon:'◎', color:'var(--teal)',   familia:'planta'},
+  {id:'empaquetado',  label:'Empaquetado/Coloc.',icon:'▣', color:'var(--green)',  familia:'planta'},
+  // ── Administración ───────────────────────────────────────────────────────
+  {id:'Compras',      label:'Compras',           icon:'◉', color:'#3B82F6', familia:'administracion'},
+  {id:'Coordinacion', label:'Coordinacion',      icon:'◫', color:'#3B82F6', familia:'administracion'},
+  {id:'Supervision',  label:'Supervision',       icon:'⊞', color:'#3B82F6', familia:'administracion'},
+  {id:'Obra',         label:'Obra',              icon:'⬒', color:'#3B82F6', familia:'administracion'},
+  {id:'Reunion',      label:'Reunion',           icon:'⊟', color:'#3B82F6', familia:'administracion'},
+  // ── Oficina Técnica ──────────────────────────────────────────────────────
+  {id:'Shop Drawing', label:'Shop Drawing',      icon:'◧', color:'#8B5CF6', familia:'oficina_tecnica'},
+  {id:'Modelado',     label:'Modelado',          icon:'⬙', color:'#8B5CF6', familia:'oficina_tecnica'},
+  {id:'Cam',          label:'Cam',               icon:'◩', color:'#8B5CF6', familia:'oficina_tecnica'},
 ];
 
 function mapProyectoFromDB(p) {
@@ -1609,7 +1620,7 @@ function renderDetallePr(pr, sub) {
     const maxH=Math.max(...Object.values(byCentro),...Object.values(byOp).length?Object.values(byOp):[0],1);
     html+=`<div class="grid2">
       <div class="card"><div class="sec-title">Horas por Centro</div>`;
-    CENTROS.forEach(c=>{
+    CENTROS.filter(c=>(byCentro[c.id]||0)>0).forEach(c=>{
       html+=`<div style="margin-bottom:14px;">
         <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
           <span style="font-size:12px;color:${c.color};font-weight:600;">${c.icon} ${c.label}</span>
@@ -2658,7 +2669,7 @@ function abrirModalOperario(opId) {
   const dis = esOficina ? 'disabled' : '';
   const disS = esOficina ? 'opacity:0.55;cursor:not-allowed;' : '';
   const centrosOp=op?.centros&&op.centros.length?op.centros:_CENTROS_DEFAULT;
-  const centrosChk=CENTROS.map(c=>{
+  const centrosChk=CENTROS.filter(c=>c.familia==='planta').map(c=>{
     const chk=centrosOp.includes(c.id);
     return`<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 10px;border:1px solid ${chk?c.color+'66':'var(--border)'};border-radius:6px;background:${chk?c.color+'12':'transparent'};transition:all .15s;">
       <input type="checkbox" id="mod-op-c-${c.id}" ${chk?'checked':''} style="width:15px;height:15px;accent-color:${c.color};cursor:pointer;">
@@ -2751,7 +2762,7 @@ function abrirModalOperario(opId) {
 function guardarOperario(opId) {
   const _u = window.AUTH.usuarioActual();
   if (!_u || _u.rol_app === 'operario') { window.location.href='/planta2.html'; return; }
-  const centros=CENTROS.map(c=>c.id).filter(id=>document.getElementById('mod-op-c-'+id)?.checked);
+  const centros=CENTROS.filter(c=>c.familia==='planta').map(c=>c.id).filter(id=>document.getElementById('mod-op-c-'+id)?.checked);
   const errEl=document.getElementById('mod-op-error');
   const showErr=msg=>{if(errEl){errEl.textContent=msg;errEl.style.display='block';}else alert(msg);};
 
@@ -3055,7 +3066,7 @@ function renderTiempos() {
     </div>
     <div class="grid2" style="margin-bottom:16px;">
       <div class="card"><div class="sec-title">Por Centro de Trabajo</div>`;
-  CENTROS.forEach(c=>{
+  CENTROS.filter(c=>(byCentro[c.id]||0)>0).forEach(c=>{
     const h=byCentro[c.id]||0;
     html+=`<div style="margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
