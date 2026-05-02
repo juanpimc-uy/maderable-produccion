@@ -1540,6 +1540,7 @@ export default async function handler(req) {
       const disponible_usd  = total_usd - ya_imputado_usd; // puede ser negativo, no es error
 
       return ok({
+        ok: true,
         oc: {
           numero:          ocNumUsado,
           fecha:           oc.date || null,
