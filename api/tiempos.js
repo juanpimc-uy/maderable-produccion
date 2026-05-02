@@ -1285,7 +1285,7 @@ export default async function handler(req) {
         .select('id, moneda_origen, moneda_destino, valor, actualizado_en')
         .order('moneda_origen');
       if (error) throw error;
-      return ok({ tipos_cambio: data });
+      return ok({ ok: true, tipos_cambio: data });
     }
 
     // ── POST actualizar-tipo-cambio (solo admin) ──────────────────────────
@@ -1308,7 +1308,7 @@ export default async function handler(req) {
         )
         .select().single();
       if (error) throw error;
-      return ok({ tipo_cambio: data });
+      return ok({ ok: true, tipo_cambio: data });
     }
 
     // ── GET tarifas-horarias ──────────────────────────────────────────────
@@ -1318,7 +1318,7 @@ export default async function handler(req) {
         .select('categoria, monto_usd, actualizado_en')
         .order('categoria');
       if (error) throw error;
-      return ok({ tarifas: data });
+      return ok({ ok: true, tarifas: data });
     }
 
     // ── POST actualizar-tarifa (solo admin) ───────────────────────────────
@@ -1639,7 +1639,7 @@ export default async function handler(req) {
           })
           .select().single();
         if (insErr) throw insErr;
-        return ok({ costo: nuevo });
+        return ok({ ok: true, costo: nuevo });
       }
 
       // ── LOGICA OC ─────────────────────────────────────────────────────
@@ -1723,7 +1723,7 @@ export default async function handler(req) {
         })
         .select().single();
       if (insErr) throw insErr;
-      return ok({ costo: nuevo });
+      return ok({ ok: true, costo: nuevo });
     }
 
     // ── GET costos-directos-proyecto ─────────────────────────────────────
@@ -1812,7 +1812,7 @@ export default async function handler(req) {
           .eq('id', costo_id)
           .select().single();
         if (updErr) throw updErr;
-        return ok({ costo: updated });
+        return ok({ ok: true, costo: updated });
       }
 
       // ── LOGICA OC ─────────────────────────────────────────────────────
@@ -1915,7 +1915,7 @@ export default async function handler(req) {
       const { error } = await supabase
         .from('costos_directos_proyecto').delete().eq('id', costo_id);
       if (error) throw error;
-      return ok({ eliminado: { id: costo_id } });
+      return ok({ ok: true, eliminado: { id: costo_id } });
     }
 
     return err('Acción no reconocida: ' + action);

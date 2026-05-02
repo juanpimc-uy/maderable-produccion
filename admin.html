@@ -4954,6 +4954,13 @@ function _cdAbrirOC(prId, costoId) {
   _cdOcData = null;
   clearTimeout(_cdDebounce);
 
+  // Reset campo monto explícitamente para evitar que quede valor del modal anterior
+  const montoEl = document.getElementById('cd-oc-monto');
+  if (montoEl) {
+    montoEl.value = _cdItem ? (_cdItem.monto_original || '') : '';
+    montoEl.disabled = true;
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   document.getElementById('cd-oc-title').textContent = _cdItem ? 'EDITAR OC' : 'AGREGAR OC';
   document.getElementById('cd-oc-num').value = _cdItem ? (_cdItem.oc_numero || '') : '';
