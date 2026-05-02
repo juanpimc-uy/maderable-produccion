@@ -480,6 +480,7 @@ async function seleccionarODF(invoiceId,numFallback,btn){
     const invoice=d.invoice;
     if(!invoice)throw new Error('Sin detalle de factura');
     const items=invoice.line_items||[];
+    if(items[0]){console.log('=== LINE ITEM 0 KEYS ===',Object.keys(items[0]));console.log('=== LINE ITEM 0 FULL ===',items[0]);console.log('=== LINE ITEM 0 CUSTOM_FIELDS ===',items[0].item_custom_fields||items[0].custom_fields||'NO HAY');}
     sv('f-num',invoice.invoice_number||numFallback||'');
     sv('f-obra',invoice.subject||invoice.reference_number||'');
     sv('f-cliente',invoice.customer_name||'');
@@ -548,6 +549,7 @@ async function buscarODF(){
     if(!gv('f-obra'))sv('f-obra',invoice.subject||invoice.reference_number||'');
     if(!gv('f-cliente'))sv('f-cliente',invoice.customer_name||'');
     const items=invoice.line_items||[];
+    if(items[0]){console.log('=== LINE ITEM 0 KEYS ===',Object.keys(items[0]));console.log('=== LINE ITEM 0 FULL ===',items[0]);console.log('=== LINE ITEM 0 CUSTOM_FIELDS ===',items[0].item_custom_fields||items[0].custom_fields||'NO HAY');}
     if(!items.length){showErr('odf','ODF encontrado pero sin ítems — revisá la consola para ver la estructura');return;}
     muebles=items.map((item,i)=>({
       id:'mf_'+i,
