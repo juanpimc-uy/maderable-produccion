@@ -603,13 +603,347 @@ export default async function handler(req) {
       return ok({ proyecto: (data || [])[0] || null, ok: true });
     }
 
-    // ── PATCH editar jornada (supervisor) ─────────────────────────────────
-    if (action === 'editar-jornada' && req.method === 'PATCH') {
+    // ── PATCH/POST editar jornada ─────────────────────────────────────────
+    if (action === 'editar-jornada' && (req.method === 'PATCH' || req.method === 'POST')) {
       const { jornada_id, entrada, salida, descanso_minutos, editor_id } = body;
-      const { data } = await supabase.from('jornadas')
-        .update({ entrada, salida, descanso_minutos, descanso_editado: true, editado_por: editor_id })
-        .eq('id', jornada_id).select().single();
-      return ok({ jornada: data });
+
+      if (!editor_id)  return err('editor_id requerido', 400);
+      if (!jornada_id) return err('jornada_id requerido', 400);
+
+      // Permisos
+      const { data: editor, error: edErr } = await supabase
+        .from('empleados').select('rol_app, nombre').eq('id', editor_id).maybeSingle();
+      if (edErr) throw edErr;
+      if (!editor)
+        return new Response(JSON.stringify({ ok: false, error: 'Editor no encontrado' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (editor.rol_app !== 'admin' && editor.rol_app !== 'oficina')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden editar jornadas' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      // Cargar jornada
+      const { data: jornada, error: jErr } = await supabase
+        .from('jornadas').select('id, empleado_id, fecha, entrada, salida')
+        .eq('id', jornada_id).maybeSingle();
+      if (jErr) throw jErr;
+      if (!jornada) return err('Jornada no encontrada', 404);
+
+      // Oficina solo puede editar sus propias jornadas
+      if (editor.rol_app === 'oficina' && jornada.empleado_id !== editor_id)
+        return new Response(JSON.stringify({ ok: false, error: 'Solo puede editar sus propias jornadas' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      // Validar entrada
+      if (entrada !== undefined && entrada !== null) {
+        if (new Date(entrada).toString() === 'Invalid Date')
+          return err('entrada no es una fecha válida', 400);
+      }
+      // Validar salida
+      if (salida !== undefined && salida !== null) {
+        if (new Date(salida).toString() === 'Invalid Date')
+          return err('salida no es una fecha válida', 400);
+      }
+      // Validar entrada < salida si ambas definidas
+      const entradaEfectiva = entrada !== undefined ? entrada : jornada.entrada;
+      const salidaEfectiva  = salida  !== undefined ? salida  : jornada.salida;
+      if (entradaEfectiva && salidaEfectiva && new Date(entradaEfectiva) >= new Date(salidaEfectiva))
+        return err('La entrada debe ser anterior a la salida', 400);
+      // Validar descanso_minutos
+      if (descanso_minutos !== undefined && descanso_minutos !== null) {
+        if (!Number.isInteger(descanso_minutos) || descanso_minutos < 0)
+          return err('descanso_minutos debe ser entero >= 0', 400);
+      }
+      // Consistencia: si entrada cambia, no puede haber registros con inicio anterior
+      if (entrada !== undefined && entrada !== null && entrada !== jornada.entrada) {
+        const { data: conflictos } = await supabase
+          .from('registros_trabajo')
+          .select('id, inicio')
+          .eq('jornada_id', jornada_id)
+          .eq('eliminada', false)
+          .lt('inicio', entrada);
+        if (conflictos && conflictos.length > 0) {
+          return new Response(JSON.stringify({
+            ok: false,
+            error: 'No se puede mover entrada de jornada porque hay registros con inicio anterior. Editá o eliminá esos registros primero.',
+            conflictos: conflictos.map(r => r.id),
+          }), { status: 409, headers: { ...CORS, 'Content-Type': 'application/json' } });
+        }
+      }
+
+      const camposJ = {};
+      if (entrada          !== undefined) camposJ.entrada          = entrada;
+      if (salida           !== undefined) camposJ.salida           = salida;
+      if (descanso_minutos !== undefined) camposJ.descanso_minutos = descanso_minutos;
+      camposJ.descanso_editado = true;
+      camposJ.editado_por      = editor_id;
+
+      const { data: jornadaUpd, error: uJErr } = await supabase
+        .from('jornadas').update(camposJ).eq('id', jornada_id).select().single();
+      if (uJErr) throw uJErr;
+      return ok({ ok: true, jornada: jornadaUpd });
+    }
+
+    // ── GET jornadas-rango ────────────────────────────────────────────────
+    if (action === 'jornadas-rango' && req.method === 'GET') {
+      const desde     = url.searchParams.get('desde');
+      const hasta     = url.searchParams.get('hasta');
+      const emp_param = url.searchParams.get('empleado_id');
+      const caller_id = url.searchParams.get('caller_id');
+
+      if (!desde || !hasta) return err('desde y hasta requeridos (YYYY-MM-DD)', 400);
+      if (!caller_id)       return err('caller_id requerido', 400);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))
+        return err('desde y hasta deben tener formato YYYY-MM-DD', 400);
+      if (desde > hasta) return err('desde debe ser anterior o igual a hasta', 400);
+      if ((new Date(hasta) - new Date(desde)) / 86400000 > 31)
+        return err('Rango máximo permitido: 31 días', 400);
+
+      const { data: callerR, error: cRErr } = await supabase
+        .from('empleados').select('rol_app').eq('id', caller_id).maybeSingle();
+      if (cRErr) throw cRErr;
+      if (!callerR)
+        return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (callerR.rol_app !== 'admin' && callerR.rol_app !== 'oficina')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden consultar jornadas' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      let empleado_id_filtro = emp_param || null;
+      if (callerR.rol_app === 'oficina') {
+        if (emp_param && emp_param !== caller_id)
+          return new Response(JSON.stringify({ ok: false, error: 'Solo puede consultar sus propias jornadas' }),
+            { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+        empleado_id_filtro = caller_id;
+      }
+
+      let jornadasQ = supabase
+        .from('jornadas')
+        .select('id, empleado_id, fecha, entrada, salida, descanso_minutos, descanso_excedido_minutos, descanso_editado, editado_por, notas, alerta_15h, tarde, ausente')
+        .gte('fecha', desde)
+        .lte('fecha', hasta)
+        .order('fecha', { ascending: true })
+        .order('empleado_id', { ascending: true });
+      if (empleado_id_filtro) jornadasQ = jornadasQ.eq('empleado_id', empleado_id_filtro);
+      const { data: jornadasData, error: jRErr } = await jornadasQ;
+      if (jRErr) throw jRErr;
+
+      if (!jornadasData || jornadasData.length === 0)
+        return ok({ ok: true, rango: { desde, hasta }, empleados: [], jornadas: [] });
+
+      const jornadaIds  = jornadasData.map(j => j.id);
+      const empleadoIds = [...new Set(jornadasData.map(j => j.empleado_id))];
+
+      const [{ data: registrosR, error: rRErr }, { data: empleadosData, error: eRErr }] = await Promise.all([
+        supabase.from('registros_trabajo')
+          .select('id, jornada_id, inicio, fin, estado, centro, proyecto_id, proyecto_nombre, item_id, item_nombre, es_retrabajo, motivo_retrabajo')
+          .in('jornada_id', jornadaIds)
+          .eq('eliminada', false)
+          .order('inicio', { ascending: true }),
+        supabase.from('empleados')
+          .select('id, nombre, categoria, descanso_modalidad')
+          .in('id', empleadoIds),
+      ]);
+      if (rRErr) throw rRErr;
+      if (eRErr) throw eRErr;
+
+      const regsMapR = {};
+      (registrosR || []).forEach(r => {
+        if (!regsMapR[r.jornada_id]) regsMapR[r.jornada_id] = [];
+        regsMapR[r.jornada_id].push(r);
+      });
+
+      return ok({
+        ok: true,
+        rango: { desde, hasta },
+        empleados: empleadosData || [],
+        jornadas: jornadasData.map(j => ({
+          id: j.id, empleado_id: j.empleado_id, fecha: j.fecha,
+          entrada: j.entrada, salida: j.salida,
+          descanso_minutos: j.descanso_minutos,
+          descanso_excedido_minutos: j.descanso_excedido_minutos,
+          descanso_editado: j.descanso_editado, editado_por: j.editado_por,
+          notas: j.notas, alerta_15h: j.alerta_15h, tarde: j.tarde, ausente: j.ausente,
+          sesiones: regsMapR[j.id] || [],
+        })),
+      });
+    }
+
+    // ── POST editar-sesion ────────────────────────────────────────────────
+    if (action === 'editar-sesion' && req.method === 'POST') {
+      const { registro_id, inicio, fin, centro, proyecto_id, proyecto_nombre,
+              item_id, item_nombre, caller_id } = body;
+
+      if (!registro_id) return err('registro_id requerido', 400);
+      if (!caller_id)   return err('caller_id requerido', 400);
+
+      const { data: regS, error: regSErr } = await supabase
+        .from('registros_trabajo')
+        .select('id, empleado_id, jornada_id, inicio, fin, eliminada')
+        .eq('id', registro_id).maybeSingle();
+      if (regSErr) throw regSErr;
+      if (!regS || regS.eliminada) return err('Registro no encontrado o ya eliminado', 404);
+
+      const { data: callerS, error: cSErr } = await supabase
+        .from('empleados').select('rol_app').eq('id', caller_id).maybeSingle();
+      if (cSErr) throw cSErr;
+      if (!callerS)
+        return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (callerS.rol_app !== 'admin' && callerS.rol_app !== 'oficina')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden editar sesiones' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (callerS.rol_app === 'oficina' && regS.empleado_id !== caller_id)
+        return new Response(JSON.stringify({ ok: false, error: 'Solo puede editar sus propias sesiones' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      if (inicio !== undefined && inicio !== null && new Date(inicio).toString() === 'Invalid Date')
+        return err('inicio no es una fecha válida', 400);
+      if (fin !== undefined && fin !== null && new Date(fin).toString() === 'Invalid Date')
+        return err('fin no es una fecha válida', 400);
+
+      const inicioEfectivo = inicio !== undefined ? inicio : regS.inicio;
+      const finEfectivo    = fin    !== undefined ? fin    : regS.fin;
+      if (inicioEfectivo && finEfectivo && new Date(inicioEfectivo) >= new Date(finEfectivo))
+        return err('inicio debe ser anterior a fin', 400);
+
+      // Solapamiento (fin null en DB = sesión activa, equivale a infinito)
+      const inicioISO   = inicioEfectivo ? new Date(inicioEfectivo).toISOString() : null;
+      const finChequeoS = finEfectivo
+        ? new Date(finEfectivo).toISOString()
+        : '9999-12-31T23:59:59Z';
+      if (inicioISO) {
+        const { data: solapadosS } = await supabase
+          .from('registros_trabajo')
+          .select('id, inicio, fin')
+          .eq('empleado_id', regS.empleado_id)
+          .eq('eliminada', false)
+          .neq('id', registro_id)
+          .lt('inicio', finChequeoS)
+          .or(`fin.is.null,fin.gt.${inicioISO}`);
+        if (solapadosS && solapadosS.length > 0) {
+          const s = solapadosS[0];
+          return new Response(JSON.stringify({
+            ok: false, error: `Solapamiento con sesión ${s.id} (${s.inicio} - ${s.fin})`,
+          }), { status: 409, headers: { ...CORS, 'Content-Type': 'application/json' } });
+        }
+      }
+
+      const camposS = {};
+      if (inicio          !== undefined) camposS.inicio          = inicio;
+      if (fin             !== undefined) camposS.fin             = fin;
+      if (centro          !== undefined) camposS.centro          = centro;
+      if (proyecto_id     !== undefined) camposS.proyecto_id     = proyecto_id;
+      if (proyecto_nombre !== undefined) camposS.proyecto_nombre = proyecto_nombre;
+      if (item_id         !== undefined) camposS.item_id         = item_id;
+      if (item_nombre     !== undefined) camposS.item_nombre     = item_nombre;
+
+      const { data: regSUpd, error: uSErr } = await supabase
+        .from('registros_trabajo').update(camposS).eq('id', registro_id).select().single();
+      if (uSErr) throw uSErr;
+      return ok({ ok: true, registro: regSUpd });
+    }
+
+    // ── POST agregar-sesion ───────────────────────────────────────────────
+    if (action === 'agregar-sesion' && req.method === 'POST') {
+      const { jornada_id, inicio, fin, centro, proyecto_id, proyecto_nombre,
+              item_id, item_nombre, caller_id } = body;
+
+      if (!jornada_id) return err('jornada_id requerido', 400);
+      if (!inicio)     return err('inicio requerido', 400);
+      if (!fin)        return err('fin requerido', 400);
+      if (!centro)     return err('centro requerido', 400);
+      if (!caller_id)  return err('caller_id requerido', 400);
+      if (new Date(inicio).toString() === 'Invalid Date') return err('inicio no es una fecha válida', 400);
+      if (new Date(fin).toString()    === 'Invalid Date') return err('fin no es una fecha válida', 400);
+      if (new Date(inicio) >= new Date(fin)) return err('inicio debe ser anterior a fin', 400);
+
+      const { data: jornAg, error: jAgErr } = await supabase
+        .from('jornadas').select('id, empleado_id, fecha, entrada, salida')
+        .eq('id', jornada_id).maybeSingle();
+      if (jAgErr) throw jAgErr;
+      if (!jornAg) return err('Jornada no encontrada', 404);
+
+      const { data: callerAg, error: cAgErr } = await supabase
+        .from('empleados').select('rol_app').eq('id', caller_id).maybeSingle();
+      if (cAgErr) throw cAgErr;
+      if (!callerAg)
+        return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (callerAg.rol_app !== 'admin' && callerAg.rol_app !== 'oficina')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden agregar sesiones' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (callerAg.rol_app === 'oficina' && jornAg.empleado_id !== caller_id)
+        return new Response(JSON.stringify({ ok: false, error: 'Solo puede agregar sesiones a sus propias jornadas' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      const inicioISO = new Date(inicio).toISOString();
+      const finISO    = new Date(fin).toISOString();
+      const { data: solapadosAg } = await supabase
+        .from('registros_trabajo')
+        .select('id, inicio, fin')
+        .eq('empleado_id', jornAg.empleado_id)
+        .eq('eliminada', false)
+        .lt('inicio', finISO)
+        .or(`fin.is.null,fin.gt.${inicioISO}`);
+      if (solapadosAg && solapadosAg.length > 0) {
+        const s = solapadosAg[0];
+        return new Response(JSON.stringify({
+          ok: false, error: `Solapamiento con sesión ${s.id} (${s.inicio} - ${s.fin})`,
+        }), { status: 409, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+
+      const { data: regNew, error: insAgErr } = await supabase
+        .from('registros_trabajo')
+        .insert({
+          jornada_id,
+          empleado_id:     jornAg.empleado_id,
+          inicio, fin, centro,
+          proyecto_id:     proyecto_id     || null,
+          proyecto_nombre: proyecto_nombre || null,
+          item_id:         item_id         || null,
+          item_nombre:     item_nombre     || null,
+          estado: 'finalizado',
+          eliminada: false,
+        })
+        .select().single();
+      if (insAgErr) throw insAgErr;
+      return ok({ ok: true, registro: regNew });
+    }
+
+    // ── POST eliminar-sesion (soft delete) ────────────────────────────────
+    if (action === 'eliminar-sesion' && req.method === 'POST') {
+      const { registro_id, caller_id } = body;
+
+      if (!registro_id) return err('registro_id requerido', 400);
+      if (!caller_id)   return err('caller_id requerido', 400);
+
+      const { data: regDel, error: regDelErr } = await supabase
+        .from('registros_trabajo')
+        .select('id, empleado_id, eliminada')
+        .eq('id', registro_id).maybeSingle();
+      if (regDelErr) throw regDelErr;
+      if (!regDel || regDel.eliminada) return err('Registro no encontrado o ya eliminado', 404);
+
+      const { data: callerDel, error: cDelErr } = await supabase
+        .from('empleados').select('rol_app').eq('id', caller_id).maybeSingle();
+      if (cDelErr) throw cDelErr;
+      if (!callerDel)
+        return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (callerDel.rol_app !== 'admin' && callerDel.rol_app !== 'oficina')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden eliminar sesiones' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (callerDel.rol_app === 'oficina' && regDel.empleado_id !== caller_id)
+        return new Response(JSON.stringify({ ok: false, error: 'Solo puede eliminar sus propias sesiones' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      const eliminada_en = new Date().toISOString();
+      const { error: uDelErr } = await supabase
+        .from('registros_trabajo')
+        .update({ eliminada: true, eliminada_en, eliminada_por: caller_id })
+        .eq('id', registro_id);
+      if (uDelErr) throw uDelErr;
+      return ok({ ok: true, eliminada: { id: registro_id, eliminada_en, eliminada_por: caller_id } });
     }
 
     // ── PATCH actualizar empleado existente ───────────────────────────────
@@ -1371,7 +1705,8 @@ export default async function handler(req) {
         .from('registros_trabajo')
         .select('inicio, fin, empleado_id')
         .eq('proyecto_id', proyecto_id)
-        .not('fin', 'is', null);
+        .not('fin', 'is', null)
+        .eq('eliminada', false);
       if (rErr) throw rErr;
       // Categorías de empleados
       const empIds = [...new Set((regs || []).map(r => r.empleado_id))];
@@ -1896,7 +2231,7 @@ export default async function handler(req) {
         .eq('id', costo_id)
         .select().single();
       if (updErr) throw updErr;
-      return ok({ costo: updated });
+      return ok({ ok: true, costo: updated });
     }
 
     // ── POST eliminar-costo-directo (solo admin) ──────────────────────────
