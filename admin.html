@@ -5006,10 +5006,16 @@ async function _cdBuscarOC() {
     const imp = data.imputaciones;
     const dispUSD = imp.disponible_usd;
 
-    // [B] mostrar disponible: ambos si UYU, solo USD si USD
-    let dispText = `${_fmtUSD(dispUSD)} USD`;
-    if (oc.moneda_original === 'UYU' && oc.tc_aplicado) {
-      dispText += `  ≈  ${_fmtNum(dispUSD * oc.tc_aplicado)} UYU`;
+    // [B] mostrar disponible: normalizar negativos, rojo si sin disponible
+    const dispUSDNormalizado = Math.max(0, dispUSD);
+    let dispText;
+    if (dispUSDNormalizado <= 0.01) {
+      dispText = `<span style="color:var(--red);">Sin disponible</span>`;
+    } else {
+      dispText = `${_fmtUSD(dispUSDNormalizado)} USD`;
+      if (oc.moneda_original === 'UYU' && oc.tc_aplicado) {
+        dispText += `  ≈  ${_fmtNum(dispUSDNormalizado * oc.tc_aplicado)} UYU`;
+      }
     }
     const totalText = oc.moneda_original === 'UYU'
       ? `${_fmtNum(oc.total_original)} UYU  (${_fmtUSD(oc.total_usd)} USD @ TC ${oc.tc_aplicado})`
@@ -5017,13 +5023,24 @@ async function _cdBuscarOC() {
 
     document.getElementById('cd-oc-total').textContent = totalText;
     document.getElementById('cd-oc-moneda').textContent = oc.moneda_original;
-    document.getElementById('cd-oc-disp').textContent = dispText;
+    document.getElementById('cd-oc-disp').innerHTML = dispText;
     document.getElementById('cd-oc-monto-label').textContent = `MONTO A IMPUTAR (${oc.moneda_original})`;
     infoEl.style.display = '';
     if (!_cdItem) {
       const valActual = parseFloat(montoEl.value);
-      if (!montoEl.value || isNaN(valActual) || valActual === 0) {
-        montoEl.value = oc.total_original;
+      const necesitaPrecarga = !montoEl.value || isNaN(valActual) || valActual === 0;
+      if (necesitaPrecarga) {
+        let dispEnMonedaOriginal;
+        if (oc.moneda_original === 'USD') {
+          dispEnMonedaOriginal = dispUSD;
+        } else if (oc.moneda_original === 'UYU' && oc.tc_aplicado) {
+          dispEnMonedaOriginal = dispUSD * oc.tc_aplicado;
+        } else {
+          dispEnMonedaOriginal = 0;
+        }
+        if (dispEnMonedaOriginal > 0.01) {
+          montoEl.value = Math.round(dispEnMonedaOriginal * 100) / 100;
+        }
       }
     }
     montoEl.disabled = false;
