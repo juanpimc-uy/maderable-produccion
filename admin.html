@@ -1242,6 +1242,18 @@ const CENTROS = [
   {id:'Cam',          label:'Cam',               icon:'◩', color:'#8B5CF6', familia:'oficina_tecnica'},
 ];
 
+// getCentro(id) — lookup case-insensitive; nunca devuelve undefined.
+// Retorna null solo si centroId es null/undefined/''.
+// Retorna fallback object si el ID no está en CENTROS (y loguea warning).
+function getCentro(centroId) {
+  if (!centroId && centroId !== 0) return null;
+  const key = String(centroId).toLowerCase().trim();
+  const found = CENTROS.find(c => c.id.toLowerCase().trim() === key);
+  if (found) return found;
+  console.warn(`[CENTROS] centro desconocido: "${centroId}"`);
+  return { id: centroId, label: String(centroId), icon: '○', color: 'var(--muted)', familia: 'desconocido' };
+}
+
 function mapProyectoFromDB(p) {
   const muebles = p.muebles || p.items || [];
   return {
@@ -1328,7 +1340,7 @@ function hRetrabajoIt(prId,itId) {
 function hByCentro(prId) {
   const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId);
   const m={}; CENTROS.forEach(c=>{m[c.id]=0;});
-  all.forEach(s=>{m[s.centroId]=(m[s.centroId]||0)+msH(s.fin-s.inicio);});
+  all.forEach(s=>{const k=getCentro(s.centroId)?.id||s.centroId;m[k]=(m[k]||0)+msH(s.fin-s.inicio);});
   return m;
 }
 function hByOp(prId) {
@@ -1455,7 +1467,7 @@ function renderDashboard() {
   let opHtml = '';
   OPERARIOS.forEach(op=>{
     const ses = SESIONES.find(s=>s.operarioId===op.id);
-    const c   = ses?CENTROS.find(x=>x.id===ses.centroId):null;
+    const c   = ses?getCentro(ses.centroId):null;
     const pr  = ses?PROYECTOS.find(p=>p.id===ses.proyectoId):null;
     const it  = ses&&pr?pr.items.find(i=>i.id===ses.itemId):null;
     const tid = `t-dash-${op.id}`;
@@ -1759,7 +1771,7 @@ function renderDetallePr(pr, sub) {
             <span class="mono" style="font-size:11px;color:${excessColor(hA2,hEst)};white-space:nowrap;">${fmtH(hA2)} / ${fmtH(hEst)} <span style="font-size:9px;">${fmtExceso(hA2,hEst)}</span></span>
             ${barHoras(hA2,hEst)}
           </div>
-          ${sesAct.length?`<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px;">${sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);const c=CENTROS.find(x=>x.id===s.centroId);const tid='t-it-'+s.id;return`<div style="display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:5px;padding:4px 9px;border:1px solid rgba(245,166,35,.3);"><div class="av active" style="width:20px;height:20px;font-size:9px;">${op?.avatar}</div><span style="font-size:11px;">${op?.nombre}</span><span class="mono" style="font-size:11px;color:var(--amber);" id="${tid}">–</span></div>`;}).join('')}</div>`:''}
+          ${sesAct.length?`<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px;">${sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);const c=getCentro(s.centroId);const tid='t-it-'+s.id;return`<div style="display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:5px;padding:4px 9px;border:1px solid rgba(245,166,35,.3);"><div class="av active" style="width:20px;height:20px;font-size:9px;">${op?.avatar}</div><span style="font-size:11px;">${op?.nombre}</span><span class="mono" style="font-size:11px;color:var(--amber);" id="${tid}">–</span></div>`;}).join('')}</div>`:''}
         </div>`;
       });
       html+=`</div>`;
@@ -1772,7 +1784,7 @@ function renderDetallePr(pr, sub) {
           <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
             <div style="flex:1;">
               <div style="font-size:16px;font-weight:600;margin-bottom:8px;">${it.nombre}</div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap;">${it.centros.map(cId=>{const c=CENTROS.find(x=>x.id===cId);return`<span class="pill" style="color:${c?.color};border:1px solid ${c?.color}33;background:${c?.color}10">${c?.label}</span>`;}).join('')}</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">${it.centros.map(cId=>{const c=getCentro(cId);return`<span class="pill" style="color:${c.color};border:1px solid ${c.color}33;background:${c.color}10">${c.label}</span>`;}).join('')}</div>
             </div>
             <div style="text-align:right;">
               <div class="mono" style="font-size:20px;font-weight:700;color:${excessColor(hA2,it.hEst)};">${fmtH(hA2)}</div>
@@ -1781,7 +1793,7 @@ function renderDetallePr(pr, sub) {
           </div>
           ${barHoras(hA2,it.hEst||0,5)}
           ${it.nota?`<div class="nota-box" style="margin-top:12px;">${it.nota}</div>`:''}
-          ${sesAct.length?`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">${sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);const c=CENTROS.find(x=>x.id===s.centroId);const tid='t-it-'+s.id;return`<div style="display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:5px;padding:5px 10px;border:1px solid rgba(245,166,35,.3);"><div class="av active" style="width:22px;height:22px;font-size:9px;">${op?.avatar}</div><span style="font-size:11px;">${op?.nombre}</span><span style="font-size:11px;color:${c?.color};">${c?.icon}</span><span class="mono" style="font-size:11px;color:var(--amber);" id="${tid}">–</span></div>`;}).join('')}</div>`:''}
+          ${sesAct.length?`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">${sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);const c=getCentro(s.centroId);const tid='t-it-'+s.id;return`<div style="display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:5px;padding:5px 10px;border:1px solid rgba(245,166,35,.3);"><div class="av active" style="width:22px;height:22px;font-size:9px;">${op?.avatar}</div><span style="font-size:11px;">${op?.nombre}</span><span style="font-size:11px;color:${c.color};">${c.icon}</span><span class="mono" style="font-size:11px;color:var(--amber);" id="${tid}">–</span></div>`;}).join('')}</div>`:''}
         </div>`;
       });
       html+=`</div>`;
@@ -1969,7 +1981,7 @@ function renderDetallePr(pr, sub) {
           const nCorto=row.codigo||(row.nombre||'').split(' – ')[0]||row.id;
           const expandHtml=rowSes.length?rowSes.map(s=>{
             const op=OPERARIOS.find(o=>o.id===s.operarioId);
-            const c=CENTROS.find(x=>x.id===s.centroId);
+            const c=getCentro(s.centroId);
             const dur=msH(s.fin-s.inicio);
             const ts=new Date(s.inicio).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
             const isRet=s.tipo==='retrabajo';
@@ -2013,7 +2025,7 @@ function renderDetallePr(pr, sub) {
       html+=`<div class="card"><div class="sec-title" style="margin-bottom:12px;">Detalle por sesión</div>`;
       allSes.forEach(s=>{
         const op=OPERARIOS.find(o=>o.id===s.operarioId);
-        const c=CENTROS.find(x=>x.id===s.centroId);
+        const c=getCentro(s.centroId);
         const row=(pr.muebles||[]).find(m=>m.id===s.itemId)||(pr.items||[]).find(i=>i.id===s.itemId);
         const dur=msH(s.fin-s.inicio);
         const ts=new Date(s.inicio).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
@@ -2581,7 +2593,7 @@ function _renderOpEstado() {
   let html = '';
   OPERARIOS.forEach(op=>{
     const ses=SESIONES.find(s=>s.operarioId===op.id);
-    const c=ses?CENTROS.find(x=>x.id===ses.centroId):null;
+    const c=ses?getCentro(ses.centroId):null;
     const pr=ses?PROYECTOS.find(p=>p.id===ses.proyectoId):null;
     const it=ses&&pr?(pr.muebles||pr.items).find(i=>i.id===ses.itemId):null;
     const hist=HISTORIAL.filter(h=>h.operarioId===op.id);
@@ -2596,13 +2608,13 @@ function _renderOpEstado() {
         <div style="font-size:16px;font-weight:700;margin-bottom:2px;">${op.nombre}</div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">${op.rol_app||'operario'}</div>
         ${ses?`<div style="background:var(--panel);border:1px solid rgba(245,166,35,.25);border-radius:7px;padding:12px 16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px;">
-          <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">CENTRO</div><div style="font-size:13px;color:${c?.color};font-weight:600;">${c?.icon} ${c?.label}</div></div>
+          <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">CENTRO</div><div style="font-size:13px;color:${c.color};font-weight:600;">${c.icon} ${c.label}</div></div>
           <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">PROYECTO</div><div style="font-size:13px;">${pr?.nombre}</div></div>
           <div><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">ÍTEM</div><div style="font-size:13px;">${it?.nombre||'—'}</div></div>
           <div style="margin-left:auto;text-align:right;"><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">TIEMPO</div><span class="mono" style="font-size:13px;color:var(--amber);font-weight:700;" id="${tid}">–</span></div>
         </div>`:`<div style="margin-bottom:10px;">${pill('Sin tarea activa','var(--muted)')}</div>`}
         ${!ses?`<div style="display:flex;flex-direction:column;gap:4px;">
-          ${hist.slice(-3).reverse().map(h=>{const hc=CENTROS.find(x=>x.id===h.centroId);const hp=PROYECTOS.find(x=>x.id===h.proyectoId);const hi=(hp?.muebles||hp?.items||[]).find(x=>x.id===h.itemId);return`<div style="font-size:11px;color:var(--muted);display:flex;gap:10px;"><span style="color:${hc?.color}">${hc?.icon}</span><span>${hp?.nombre||'—'} · ${hi?.nombre||'—'}</span><span style="margin-left:auto;font-family:'JetBrains Mono',monospace;">${fmtH(msH(h.fin-h.inicio))}</span></div>`;}).join('')}
+          ${hist.slice(-3).reverse().map(h=>{const hc=getCentro(h.centroId);const hp=PROYECTOS.find(x=>x.id===h.proyectoId);const hi=(hp?.muebles||hp?.items||[]).find(x=>x.id===h.itemId);return`<div style="font-size:11px;color:var(--muted);display:flex;gap:10px;"><span style="color:${hc?.color}">${hc?.icon}</span><span>${hp?.nombre||'—'} · ${hi?.nombre||'—'}</span><span style="margin-left:auto;font-family:'JetBrains Mono',monospace;">${fmtH(msH(h.fin-h.inicio))}</span></div>`;}).join('')}
         </div>`:''}
       </div>
     </div>`;
@@ -2635,7 +2647,7 @@ function _renderOpGestion() {
           <div style="flex:1;">
             <div style="font-size:15px;font-weight:700;">${op.nombre}</div>
             <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">${op.rol_app||'operario'}${window.AUTH.esAdmin()?` · <span style="color:var(--amber);font-size:10px;">${op.categoria||'directo'}</span>`:''} · ${hist.length} sesiones · ${fmtH(totalH)} totales</div>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;">${(op.centros&&op.centros.length?op.centros:_CENTROS_DEFAULT).map(cid=>{const c=CENTROS.find(x=>x.id===cid);return c?`<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:1px 6px;border-radius:3px;color:${c.color};background:${c.color}12;border:1px solid ${c.color}44;">${c.icon} ${c.label}</span>`:''}).join('')}</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">${(op.centros&&op.centros.length?op.centros:_CENTROS_DEFAULT).map(cid=>{const c=getCentro(cid);return c?`<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:1px 6px;border-radius:3px;color:${c.color};background:${c.color}12;border:1px solid ${c.color}44;">${c.icon} ${c.label}</span>`:''}).join('')}</div>
           </div>
           <span style="font-size:13px;color:var(--muted);margin-right:8px;">${exp?'▴':'▾'}</span>
         </div>
@@ -2881,7 +2893,7 @@ function _buildHistorialOpHTML(opId, rango) {
     daySes.forEach(s=>{
       const pr=PROYECTOS.find(p=>p.id===s.proyectoId);
       const it=(pr?.muebles||pr?.items||[]).find(i=>i.id===s.itemId);
-      const c=CENTROS.find(x=>x.id===s.centroId);
+      const c=getCentro(s.centroId);
       const inicio=new Date(s.inicio).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'});
       const fin=new Date(s.fin).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'});
       const dur=msH(s.fin-s.inicio);
@@ -3106,14 +3118,14 @@ function renderTiempos() {
     ].sort((a,b)=>b.inicio-a.inicio);
     const sesHTML=allSes.length?allSes.map(s=>{
       const op=OPERARIOS.find(o=>o.id===s.operarioId);
-      const c=CENTROS.find(x=>x.id===s.centroId);
+      const c=getCentro(s.centroId);
       const esRet=s.tipo==='retrabajo';
       const dur=msH((s.fin||Date.now())-s.inicio);
       const dStr=new Date(s.inicio).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+new Date(s.inicio).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'});
       return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(37,40,54,.3);flex-wrap:wrap;">
         <div class="av ${s.activa?'active':'idle'}" style="width:26px;height:26px;font-size:9px;flex-shrink:0;">${op?.avatar||'?'}</div>
         <span style="font-size:12px;flex:1;min-width:100px;">${op?.nombre||'—'}</span>
-        <span style="font-size:11px;color:${c?.color||'var(--muted)'};">${c?.icon||''} ${c?.label||'—'}</span>
+        <span style="font-size:11px;color:${c.color};">${c.icon} ${c.label}</span>
         ${esRet
           ?`<span class="pill" style="font-size:9px;color:var(--red);background:rgba(240,92,92,.12);border:1px solid rgba(240,92,92,.3);">⚠ RETRABAJO</span>`
           :`<span class="mono" style="font-size:11px;color:var(--amber);">${s.activa?'En curso':fmtH(dur)}</span>`}
