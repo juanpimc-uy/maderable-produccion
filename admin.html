@@ -818,9 +818,12 @@
 
     <div style="margin-bottom:14px;">
       <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:6px;">NÚMERO DE OC</div>
-      <input type="text" id="cd-oc-num" placeholder="OC-05430" autocomplete="off"
-        style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:13px;color:var(--text);font-family:'JetBrains Mono',monospace;box-sizing:border-box;"
-        oninput="_cdOcNumInput()" />
+      <div style="display:flex;align-items:stretch;background:var(--faint);border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+        <span style="display:flex;align-items:center;padding:0 10px;background:var(--card);color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:13px;border-right:1px solid var(--border);">OC-</span>
+        <input type="text" id="cd-oc-num" placeholder="5496" autocomplete="off" inputmode="numeric"
+          style="flex:1;background:transparent;border:none;padding:7px 10px;font-size:13px;color:var(--text);font-family:'JetBrains Mono',monospace;box-sizing:border-box;outline:none;"
+          oninput="_cdOcNumInput()" />
+      </div>
       <div id="cd-oc-status" style="font-size:11px;color:var(--muted);margin-top:5px;min-height:16px;"></div>
     </div>
 
@@ -5017,6 +5020,12 @@ async function _cdBuscarOC() {
     document.getElementById('cd-oc-disp').textContent = dispText;
     document.getElementById('cd-oc-monto-label').textContent = `MONTO A IMPUTAR (${oc.moneda_original})`;
     infoEl.style.display = '';
+    if (!_cdItem) {
+      const valActual = parseFloat(montoEl.value);
+      if (!montoEl.value || isNaN(valActual) || valActual === 0) {
+        montoEl.value = oc.total_original;
+      }
+    }
     montoEl.disabled = false;
     statusEl.textContent = '';
   } catch(e) {

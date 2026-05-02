@@ -1490,7 +1490,7 @@ export default async function handler(req) {
 
       // Búsqueda en Zoho: 3 formatos de número (strip prefix, sin padding, con padding 5 dígitos)
       const orgId = process.env.ZOHO_ORG_ID;
-      const base = oc_raw.replace(/^(OC-|oc-)/i, '').trim();
+      const base = oc_raw.replace(/^OC-?/i, '').trim();
       const candidatos = [`OC-${base}`, `OC-${base.padStart(5, '0')}`, base];
       let ocSummary = null, ocNumUsado = null;
       for (const candidato of candidatos) {
