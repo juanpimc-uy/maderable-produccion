@@ -870,6 +870,12 @@ function volverAElegirOperario() {
   cambiarEmpleado();
 }
 
+const PLANTA_CENTRO_LABEL = {
+  corte:'CORTE', enchapado:'ENCHAPADO/PERF', armado:'ARMADO',
+  revision:'REVISION', colocacion:'COLOCACION',
+  herreria:'HERRERIA', electrica:'ELECTRICA', macizo:'MACIZO',
+};
+
 // ── Placa picker ──────────────────────────────────────────────────────────────
 let placaSeleccionadaInicio = 0;
 let placaSeleccionadaIdle   = 0;
@@ -1358,21 +1364,26 @@ function selItem(id) {
   document.getElementById('paso-confirmar').style.display = 'none';
   document.getElementById('aviso-centro').style.display = 'none';
 
-  const centros = empleadoActual?.centros_autorizados || [];
+  const centros = [...new Set(
+    (empleadoActual?.centros_autorizados || []).map(c => c === 'empaquetado' ? 'colocacion' : c)
+  )];
   console.log('centros_autorizados del empleado:', centros);
   const el = document.getElementById('lista-centros');
   if (!centros.length) {
     el.innerHTML = '<div class="warn-box">⚠ Este operario no tiene centros autorizados configurados. Contactá al administrador.</div>';
   } else {
-    el.innerHTML = centros.map(c => `
+    el.innerHTML = centros.map(c => {
+      const label = PLANTA_CENTRO_LABEL[c] || c.toUpperCase();
+      return `
       <button class="centro-btn" id="ct-${esc(c)}" onclick="selCentro('${esc(c)}','${c}')">
         <span class="centro-dot"></span>
         <div style="display:flex;flex-direction:column;gap:3px;">
-          <span>${c}</span>
+          <span>${label}</span>
           <span id="ct-last-${esc(c)}" style="font-size:13px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--muted);font-family:'DM Sans',sans-serif;">Cargando…</span>
         </div>
       </button>
-    `).join('');
+    `;
+    }).join('');
 
     // consultas paralelas para último registro por centro
     if (proyectoSel && itemSel) {
