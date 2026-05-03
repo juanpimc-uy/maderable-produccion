@@ -554,6 +554,170 @@ export default async function handler(req) {
       return ok({ jornadas, activos, todos_empleados: todos, cnc_activo });
     }
 
+    // ── GET dashboard-snapshot (U1.B — vista completa para admin) ────────────
+    if (action === 'dashboard-snapshot' && req.method === 'GET') {
+      const ahora = new Date();
+      const hoy = ahora.toISOString().split('T')[0];
+      const UMBRAL_INACTIVIDAD_MIN = 15;
+
+      // 1. Pull paralelo: empleados activos + jornadas hoy + registros activos
+      const [empleadosRes, jornadasRes, activosRes] = await Promise.all([
+        supabase.from('empleados')
+          .select('id, nombre, activo, rol_app, horario_entrada')
+          .eq('activo', true),
+        supabase.from('jornadas')
+          .select('id, empleado_id, entrada, salida')
+          .eq('fecha', hoy),
+        supabase.from('registros_trabajo')
+          .select('id, empleado_id, jornada_id, proyecto_id, proyecto_nombre, item_id, item_nombre, centro, inicio, ultima_actividad')
+          .eq('estado', 'activo'),
+      ]);
+
+      if (empleadosRes.error) throw empleadosRes.error;
+      if (jornadasRes.error) throw jornadasRes.error;
+      if (activosRes.error) throw activosRes.error;
+
+      const empleados = empleadosRes.data || [];
+      const jornadas  = jornadasRes.data  || [];
+      const activos   = activosRes.data   || [];
+
+      // 2. Pull proyectos para resolver cliente/obra y nombre real del mueble
+      const proyectoIds = [...new Set(activos.map(r => r.proyecto_id).filter(Boolean))];
+      let proyectosMap = {};
+      if (proyectoIds.length > 0) {
+        const { data: proys, error: pErr } = await supabase
+          .from('proyectos_cache')
+          .select('id, cliente, cliente_nombre, obra, nombre, muebles')
+          .in('id', proyectoIds);
+        if (pErr) throw pErr;
+        for (const p of (proys || [])) proyectosMap[p.id] = p;
+      }
+
+      // 3. Construir índices auxiliares
+      const jornadaPorEmp = {};
+      for (const j of jornadas) {
+        if (!j.salida) jornadaPorEmp[j.empleado_id] = j;
+      }
+      const activoPorEmp = {};
+      for (const r of activos) activoPorEmp[r.empleado_id] = r;
+
+      // 4. Construir lista de operarios
+      const operariosOut = empleados.map(emp => {
+        const jornada = jornadaPorEmp[emp.id] || null;
+        const activo  = activoPorEmp[emp.id]  || null;
+        let estado;
+        let inactivo_minutos = 0;
+        let tiempo_minutos   = 0;
+
+        if (!jornada) {
+          estado = 'ausente';
+        } else if (!activo) {
+          estado = 'sin_tarea';
+        } else {
+          const ultMs   = new Date(activo.ultima_actividad).getTime();
+          const diffMin = Math.floor((ahora.getTime() - ultMs) / 60000);
+          const inicioMs = new Date(activo.inicio).getTime();
+          tiempo_minutos = Math.floor((ahora.getTime() - inicioMs) / 60000);
+          if (diffMin > UMBRAL_INACTIVIDAD_MIN) {
+            estado = 'inactivo';
+            inactivo_minutos = diffMin;
+          } else {
+            estado = 'en_tarea';
+          }
+        }
+
+        let proyectoOut = null;
+        let muebleOut   = null;
+        if (activo && activo.proyecto_id) {
+          const p = proyectosMap[activo.proyecto_id];
+          proyectoOut = {
+            id:      activo.proyecto_id,
+            odf:     p?.nombre          || activo.proyecto_nombre || '',
+            cliente: p?.cliente_nombre  || p?.cliente             || '',
+            obra:    p?.obra            || '',
+          };
+          if (activo.item_id) {
+            const muebles = Array.isArray(p?.muebles) ? p.muebles : [];
+            const m = muebles.find(x => String(x.id) === String(activo.item_id));
+            muebleOut = {
+              id:     activo.item_id,
+              codigo: m?.codigo || '',
+              nombre: m?.nombre || activo.item_nombre || '',
+            };
+          }
+        }
+
+        return {
+          id:               emp.id,
+          nombre:           emp.nombre,
+          entrada:          jornada?.entrada || null,
+          estado,
+          centro:           activo?.centro  || null,
+          centro_label:     activo?.centro ? (CENTRO_LABEL[activo.centro] || activo.centro.toUpperCase()) : null,
+          proyecto:         proyectoOut,
+          mueble:           muebleOut,
+          tiempo_minutos,
+          inactivo_minutos,
+          registro_id:      activo?.id      || null,
+        };
+      });
+
+      // 5. Ordenar: inactivo → en_tarea → sin_tarea → ausente; alfabético dentro
+      const ordenEstado = { inactivo: 0, en_tarea: 1, sin_tarea: 2, ausente: 3 };
+      operariosOut.sort((a, b) => {
+        const oa = ordenEstado[a.estado] ?? 9;
+        const ob = ordenEstado[b.estado] ?? 9;
+        if (oa !== ob) return oa - ob;
+        return (a.nombre || '').localeCompare(b.nombre || '', 'es');
+      });
+
+      // 6. Counters
+      const counters = {
+        total:     operariosOut.length,
+        en_tarea:  operariosOut.filter(o => o.estado === 'en_tarea').length,
+        inactivos: operariosOut.filter(o => o.estado === 'inactivo').length,
+        sin_tarea: operariosOut.filter(o => o.estado === 'sin_tarea').length,
+        ausentes:  operariosOut.filter(o => o.estado === 'ausente').length,
+      };
+
+      // 7. Agrupar por centro
+      const CENTRO_LABEL = {
+        corte: 'CORTE', enchapado: 'ENCHAPADO/PERF', armado: 'ARMADO',
+        revision: 'REVISION', colocacion: 'COLOCACION',
+        herreria: 'HERRERIA', electrica: 'ELECTRICA', macizo: 'MACIZO',
+      };
+      const CENTROS_FIJOS      = ['corte', 'enchapado', 'armado', 'colocacion'];
+      const CENTROS_OPCIONALES = ['revision', 'herreria', 'electrica', 'macizo'];
+      const porCentro = {};
+      for (const op of operariosOut) {
+        if (op.estado !== 'en_tarea' && op.estado !== 'inactivo') continue;
+        if (!op.centro) continue;
+        if (!porCentro[op.centro]) porCentro[op.centro] = { centro: op.centro, label: CENTRO_LABEL[op.centro] || op.centro.toUpperCase(), total: 0, inactivos: 0, muebles: [] };
+        porCentro[op.centro].total++;
+        if (op.estado === 'inactivo') porCentro[op.centro].inactivos++;
+        porCentro[op.centro].muebles.push({
+          odf:          op.proyecto?.odf  || '',
+          mueble_codigo: op.mueble?.codigo || '',
+          mueble_nombre: op.mueble?.nombre || '',
+          inactivo:     op.estado === 'inactivo',
+        });
+      }
+      const centrosOut = [];
+      for (const c of CENTROS_FIJOS) {
+        centrosOut.push(porCentro[c] || { centro: c, label: CENTRO_LABEL[c], total: 0, inactivos: 0, muebles: [] });
+      }
+      for (const c of CENTROS_OPCIONALES) {
+        if (porCentro[c]) centrosOut.push(porCentro[c]);
+      }
+
+      return ok({
+        timestamp: ahora.toISOString(),
+        counters,
+        operarios: operariosOut,
+        centros:   centrosOut,
+      });
+    }
+
     // ── GET registros de trabajo de un empleado hoy ───────────────────────
     if (action === 'registros-hoy' && req.method === 'GET') {
       const empleado_id = url.searchParams.get('empleado_id');
