@@ -130,9 +130,10 @@ select.select-big option { background: var(--card); }
 
 /* ── Lista proyectos / ítems ──────────────────────────────────────────── */
 .item-btn {
-  width: 100%; min-height: 64px; background: var(--card2); border: 2px solid var(--border);
-  border-radius: 10px; padding: 14px 18px; text-align: left; cursor: pointer;
-  display: flex; flex-direction: column; gap: 4px; user-select: none;
+  width: 100%; min-height: 72px; background: var(--card2); border: 2px solid var(--border);
+  border-radius: 10px; padding: 18px 24px; text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; gap: 6px; user-select: none;
+  color: var(--text);
   transition: border-color 0.15s, background 0.15s;
 }
 .item-btn:active  { transform: scale(0.98); }
@@ -143,15 +144,15 @@ select.select-big option { background: var(--card); }
 
 /* ── Centro buttons ───────────────────────────────────────────────────── */
 .centro-btn {
-  width: 100%; min-height: 62px; background: var(--card2); border: 2px solid var(--border);
-  border-radius: 10px; padding: 0 18px; text-align: left; cursor: pointer;
-  font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700;
-  text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px;
+  width: 100%; min-height: 72px; background: var(--card2); border: 2px solid var(--border);
+  border-radius: 10px; padding: 18px 24px; text-align: left; cursor: pointer;
+  font-family: 'DM Sans', sans-serif; font-size: 18px; font-weight: 700;
+  color: var(--text); letter-spacing: 0;
   display: flex; align-items: center; gap: 12px; user-select: none;
   transition: border-color 0.15s, color 0.15s;
 }
 .centro-btn:active { transform: scale(0.98); }
-.centro-btn.sel { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.centro-btn.sel { border-color: var(--accent); color: var(--text); background: var(--accent-dim); }
 .centro-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; flex-shrink: 0; }
 .centro-btn.sel .centro-dot { background: var(--accent); }
 
@@ -357,23 +358,35 @@ textarea.campo {
   </div>
   <div class="contenido">
 
-    <!-- Cambiar empleado -->
-    <div>
-      <button onclick="cambiarEmpleado()" style="min-height:44px;background:#1e1e1e;border:1px solid #444;border-radius:8px;color:#888;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;padding:0 16px;cursor:pointer;letter-spacing:0.5px;">← Cambiar OPERARIO</button>
-    </div>
+    <!-- Cambiar OPERARIO — botón grande prominente -->
+    <button onclick="cambiarEmpleado()" class="btn btn-ghost" style="min-height:60px;font-size:13px;">
+      ← CAMBIAR OPERARIO
+    </button>
 
     <!-- Tarea activa -->
     <div id="card-tarea-activa" class="card card-accent" style="display:none;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <span class="lbl" style="margin:0;color:var(--accent);">▶ EN CURSO</span>
         <div style="display:flex;align-items:center;gap:8px;">
           <div class="sema" id="menu-sema"></div>
           <span class="task-timer" id="menu-timer">0h 00m</span>
         </div>
       </div>
-      <div style="font-family:'Space Mono',monospace;font-size:14px;color:var(--muted);margin-bottom:4px;" id="menu-task-proyecto"></div>
-      <div style="font-size:24px;font-weight:700;margin-bottom:4px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;text-overflow:ellipsis;" id="menu-task-item"></div>
-      <div style="font-family:'Space Mono',monospace;font-size:14px;color:var(--muted);" id="menu-task-centro"></div>
+
+      <!-- Proyecto: ODF / OBRA / CLIENTE -->
+      <div id="menu-task-proyecto" style="font-size:16px;font-weight:700;color:var(--text);line-height:1.4;"></div>
+      <div id="menu-task-obra"     style="font-size:16px;font-weight:700;color:var(--text);line-height:1.4;"></div>
+      <div id="menu-task-cliente"  style="font-size:16px;color:var(--muted);line-height:1.4;"></div>
+
+      <div style="border-top:1px solid var(--border);margin:10px 0;"></div>
+
+      <!-- Mueble: código + nombre -->
+      <div id="menu-task-item" style="font-size:18px;font-weight:700;color:var(--text);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;text-overflow:ellipsis;"></div>
+
+      <div style="border-top:1px solid var(--border);margin:10px 0;"></div>
+
+      <!-- Centro — muy prominente -->
+      <div id="menu-task-centro" style="font-size:28px;font-weight:700;color:var(--accent);letter-spacing:1px;text-transform:uppercase;"></div>
     </div>
 
     <div id="card-sin-tarea" class="card" style="text-align:center;padding:28px;color:var(--muted);font-size:14px;">
@@ -1193,8 +1206,23 @@ function renderMenuTarea() {
     card.style.display = 'block';
     sin.style.display  = 'none';
     btnF.disabled = false;
+
+    // Lookup proyecto completo para obra y cliente
+    const proyInfo  = proyectos.find(p => p.id === registroActivo.proyecto_id) || {};
+    const obraStr   = proyInfo.obra   || '';
+    const clienteStr = proyInfo.cliente || proyInfo.cliente_nombre || '';
+    // Lookup codigo del mueble
+    const itemsArr  = proyInfo.muebles || proyInfo.items || [];
+    const itemInfo  = itemsArr.find(m => String(m.id) === String(registroActivo.item_id)) || {};
+    const codigoStr = itemInfo.codigo || '';
+    const itemLabel = codigoStr
+      ? `${codigoStr} — ${registroActivo.item_nombre || ''}`
+      : (registroActivo.item_nombre || '');
+
     document.getElementById('menu-task-proyecto').textContent = registroActivo.proyecto_nombre || '';
-    document.getElementById('menu-task-item').textContent     = nombreCorto(registroActivo.item_nombre || '');
+    document.getElementById('menu-task-obra').textContent     = obraStr;
+    document.getElementById('menu-task-cliente').textContent  = clienteStr;
+    document.getElementById('menu-task-item').textContent     = itemLabel;
     document.getElementById('menu-task-item').title           = registroActivo.item_nombre || '';
     document.getElementById('menu-task-centro').textContent   = registroActivo.centro || '';
     tickMenuTimer();
@@ -1250,9 +1278,9 @@ function initTarea() {
   }
   el.innerHTML = proyectos.map(p => `
     <button class="item-btn" id="pr-${p.id}" onclick="selProyecto('${p.id}')">
-      <span style="font-size:15px;font-weight:700;">${p.nombre}</span>
-      ${p.obra && p.obra !== p.nombre ? `<span style="font-size:15px;font-weight:700;">${p.obra}</span>` : ''}
-      ${p.cliente ? `<span style="font-size:15px;font-weight:700;">${p.cliente}</span>` : ''}
+      <span style="font-size:18px;font-weight:700;line-height:1.3;">${p.nombre}</span>
+      ${p.obra && p.obra !== p.nombre ? `<span style="font-size:18px;font-weight:700;line-height:1.3;">${p.obra}</span>` : ''}
+      ${p.cliente ? `<span style="font-size:18px;font-weight:700;line-height:1.3;">${p.cliente}</span>` : ''}
     </button>
   `).join('');
 }
@@ -1277,11 +1305,11 @@ function selProyecto(id) {
   } else {
     el.innerHTML = items.map(it => `
       <button class="item-btn" id="it-${it.id}" onclick="selItem('${it.id}')" title="${(it.nombre||'').replace(/"/g,'&quot;')}">
-        <div style="display:flex;align-items:baseline;gap:8px;">
-          ${it.codigo ? `<span style="font-size:15px;font-weight:700;flex-shrink:0;">${it.codigo}</span>` : ''}
-          <span style="font-size:15px;font-weight:700;">${nombreCorto(it.nombre)}</span>
+        <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+          ${it.codigo ? `<span style="font-size:18px;font-weight:700;flex-shrink:0;line-height:1.3;">${it.codigo}</span>` : ''}
+          <span style="font-size:18px;font-weight:700;line-height:1.3;">${nombreCorto(it.nombre)}</span>
         </div>
-        ${it.hEst ? `<span class="item-sub">Est. ${it.hEst}h</span>` : ''}
+        ${it.hEst ? `<span style="font-size:13px;color:var(--muted);">Est. ${it.hEst}h</span>` : ''}
       </button>
     `).join('');
   }
@@ -1313,7 +1341,7 @@ function selItem(id) {
         <span class="centro-dot"></span>
         <div style="display:flex;flex-direction:column;gap:3px;">
           <span>${c}</span>
-          <span id="ct-last-${esc(c)}" style="font-size:10px;font-weight:400;letter-spacing:0;text-transform:none;color:#666;font-family:sans-serif;">Cargando…</span>
+          <span id="ct-last-${esc(c)}" style="font-size:13px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--muted);font-family:'DM Sans',sans-serif;">Cargando…</span>
         </div>
       </button>
     `).join('');
