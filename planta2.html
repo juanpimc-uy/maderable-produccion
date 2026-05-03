@@ -1164,7 +1164,32 @@ async function autenticar() {
     proyectos = pList || [];
     console.log('Total proyectos:', proyectos.length, proyectos);
 
-    // Si tiene tarea activa en CNC, restaurar pantalla CNC directamente
+    // ====================================================
+    // FLUJO CNC (PLACA PICKER) — DESACTIVADO 2/5/2026
+    // Razón: JP decidió no trackear placas en CORTE en esta etapa.
+    // El detector original disparaba si el centro contenía "CNC"
+    // en el nombre. Como ya no hay ningún centro con "CNC" en el
+    // string (corte se llama "corte" a secas), esta rama nunca
+    // se ejecutaría — pero se comenta explícitamente para dejarlo
+    // claro y evitar confusión futura.
+    //
+    // Para reactivar: descomentar el if/else de abajo y cambiar la
+    // condición a la que corresponda al centro objetivo
+    // (ej: registroActivo.centro === 'corte').
+    //
+    // El código de soporte sigue intacto en planta2.html:
+    // - CSS placa picker (líneas 191-294)
+    // - HTML pantalla-cnc (líneas 456-754)
+    // - Variables globales y _initPicker (líneas 879-955)
+    // - Funciones initCNC, registrarPlaca, etc. (líneas 1508-1750)
+    //
+    // Endpoints backend siguen vivos:
+    // - api/tiempos.js?action=cnc-placa
+    // - api/tiempos.js?action=get-cnc-activo
+    // - api/tiempos.js?action=detalle-cnc
+    // Tabla registros_cnc en BD intacta.
+    // ====================================================
+    /*
     if (registroActivo && registroActivo.centro && registroActivo.centro.toUpperCase().includes('CNC')) {
       proyectoSel = { id: registroActivo.proyecto_id, nombre: registroActivo.proyecto_nombre };
       itemSel     = { id: registroActivo.item_id,     nombre: registroActivo.item_nombre };
@@ -1196,6 +1221,9 @@ async function autenticar() {
       initCNC(true); ir('pantalla-cnc');
     } else {
       irAlMenu();
+    }
+    */
+    irAlMenu();
     }
   } catch (e) {
     setLoginError('Error: ' + e.message);
@@ -1489,12 +1517,26 @@ async function confirmarTarea() {
     const nuevo = [centroSel, ...prev.filter(c => c !== centroSel)].slice(0, 3);
     localStorage.setItem(key, JSON.stringify(nuevo));
 
+    // ====================================================
+    // FLUJO CNC (PLACA PICKER) — DESACTIVADO 2/5/2026
+    // Ver comentario completo en zona "Restore CNC al login".
+    // Antes esta rama abría la pantalla del placa picker para
+    // centros con "CNC" en el nombre. Ahora todos los centros
+    // (incluido CORTE) van directo al menú post-confirmación.
+    //
+    // Para reactivar: descomentar el if/else completo y ajustar
+    // la condición al centro objetivo.
+    // ====================================================
+    /*
     if (centroSel.toUpperCase().includes('CNC')) {
       initCNC(); ir('pantalla-cnc');
     } else {
       toast('Tarea iniciada ✓', 'var(--green)');
       renderMenuTarea(); ir('pantalla-menu');
     }
+    */
+    toast('Tarea iniciada ✓', 'var(--green)');
+    renderMenuTarea(); ir('pantalla-menu');
   } catch (e) {
     toast('Error: ' + e.message, 'var(--red)');
     btn.disabled = false;
