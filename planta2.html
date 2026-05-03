@@ -848,6 +848,7 @@ let _pin = '';
 // Intervalos
 let _intervaloReloj  = null;
 let _intervaloTimers = null;
+let _heartbeatInterval = null;
 
 // Timeout automático de 30s (pantalla compartida)
 let _timeout30s    = null;
@@ -1027,6 +1028,27 @@ async function apiPost(action, body) {
   });
   if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || r.statusText); }
   return r.json();
+}
+
+function _iniciarHeartbeat(empleado_id, registro_id) {
+  _detenerHeartbeat();
+  if (!empleado_id || !registro_id) return;
+  _heartbeatInterval = setInterval(() => {
+    fetch('/api/tiempos?action=heartbeat', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ empleado_id, registro_id })
+    }).catch(err => {
+      console.warn('[heartbeat] fallo:', err);
+    });
+  }, 60000); // 60 s
+}
+
+function _detenerHeartbeat() {
+  if (_heartbeatInterval) {
+    clearInterval(_heartbeatInterval);
+    _heartbeatInterval = null;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1509,6 +1531,7 @@ async function confirmarTarea() {
     });
     registroActivo = registro;
     if (registro) registrosHoy = [...registrosHoy.filter(r => r.id !== registro.id), registro];
+    if (registro) _iniciarHeartbeat(empleadoActual.id, registro.id);
 
     // Guardar centro como reciente
     const key = `centros_recientes_${empleadoActual.id}`;
@@ -1841,6 +1864,7 @@ async function finalizarOk() {
       registrosHoy = [...registrosHoy.filter(r => r.id !== registroActivo.id),
         { ...registroActivo, estado: 'finalizado' }];
     }
+    _detenerHeartbeat();
     registroActivo = null;
     toast('Tarea finalizada ✓', 'var(--green)');
     renderMenuTarea(); ir('pantalla-menu');
@@ -1864,6 +1888,7 @@ async function confirmarRetrabajo() {
       es_retrabajo: true,
       motivo_retrabajo: motivo || null,
     });
+    _detenerHeartbeat();
     registroActivo = null;
     _accionEnCurso = false;
     toast('Retrabajo registrado', 'var(--yellow)');
@@ -1924,6 +1949,7 @@ async function confirmarSalida() {
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
 cargarEmpleados();
+window.addEventListener('beforeunload', () => { _detenerHeartbeat(); });
 </script>
 <script>
   if ('serviceWorker' in navigator) {
