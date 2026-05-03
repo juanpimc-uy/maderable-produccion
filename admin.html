@@ -1225,11 +1225,14 @@ const FLUJOS_ORDER = ['lustre','madera_maciza','herreria','tapiceria','electrici
 
 const CENTROS = [
   // ── Planta ───────────────────────────────────────────────────────────────
-  {id:'corte',        label:'Corte',             icon:'⬡', color:'var(--amber)',  familia:'planta'},
-  {id:'enchapado',    label:'Enchapado/Perf.',   icon:'◈', color:'var(--blue)',   familia:'planta'},
-  {id:'armado',       label:'Armado',            icon:'⬗', color:'var(--purple)', familia:'planta'},
-  {id:'revision',     label:'Revisión',          icon:'◎', color:'var(--teal)',   familia:'planta'},
-  {id:'empaquetado',  label:'COLOCACION',        icon:'▣', color:'var(--green)',  familia:'planta'},
+  {id:'corte',      label:'CORTE',          icon:'⬡', color:'var(--amber)',  familia:'planta'},
+  {id:'enchapado',  label:'ENCHAPADO/PERF', icon:'◈', color:'var(--blue)',   familia:'planta'},
+  {id:'armado',     label:'ARMADO',         icon:'⬗', color:'var(--purple)', familia:'planta'},
+  {id:'revision',   label:'REVISION',       icon:'◎', color:'var(--teal)',   familia:'planta'},
+  {id:'colocacion', label:'COLOCACION',     icon:'▣', color:'var(--green)',  familia:'planta'},
+  {id:'herreria',   label:'HERRERIA',       icon:'○', color:'#94a3b8',      familia:'planta'},
+  {id:'electrica',  label:'ELECTRICA',      icon:'◇', color:'var(--yellow)', familia:'planta'},
+  {id:'macizo',     label:'MACIZO',         icon:'◆', color:'#f97316',      familia:'planta'},
   // ── Administración ───────────────────────────────────────────────────────
   {id:'Compras',      label:'Compras',           icon:'◉', color:'#3B82F6', familia:'administracion'},
   {id:'Coordinacion', label:'Coordinacion',      icon:'◫', color:'#3B82F6', familia:'administracion'},
@@ -2409,12 +2412,12 @@ function setPlacasInline(prId,mId,val){
   if(!m)return;
   m.placas=Number(val)||1;
   // recalculate horas using stored coef/dif
-  const COEF_DEF={corte:0.5,enchapado:0.3,armado:0.8,revision:0.2,empaquetado:0.15};
+  const COEF_DEF={corte:0.5,enchapado:0.3,armado:0.8,revision:0.2,colocacion:0.15,herreria:0.20,electrica:0.20,macizo:0.20};
   const DIF_DEF={1:0.7,2:1.0,3:1.5,4:2.2};
   const coef=JSON.parse(localStorage.getItem('coef')||JSON.stringify(COEF_DEF));
   const dif=JSON.parse(localStorage.getItem('dif')||JSON.stringify(DIF_DEF));
   const f=dif[m.dif||2]||1;
-  const horas={};['corte','enchapado','armado','revision','empaquetado'].forEach(k=>{horas[k]=Math.round(m.placas*(coef[k]||0)*f*10)/10;});
+  const horas={};['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'].forEach(k=>{horas[k]=Math.round(m.placas*(coef[k]||0)*f*10)/10;});
   m.horas=horas;
   guardarMueblesLS(prId,pr);
   // update items so hEstPr works correctly
@@ -2427,12 +2430,12 @@ function setDifInline(prId,mId,dif){
   const m=pr?.muebles?.find(x=>x.id===mId);
   if(!m)return;
   m.dif=dif;
-  const COEF_DEF={corte:0.5,enchapado:0.3,armado:0.8,revision:0.2,empaquetado:0.15};
+  const COEF_DEF={corte:0.5,enchapado:0.3,armado:0.8,revision:0.2,colocacion:0.15,herreria:0.20,electrica:0.20,macizo:0.20};
   const DIF_DEF={1:0.7,2:1.0,3:1.5,4:2.2};
   const coef=JSON.parse(localStorage.getItem('coef')||JSON.stringify(COEF_DEF));
   const dif_map=JSON.parse(localStorage.getItem('dif')||JSON.stringify(DIF_DEF));
   const f=dif_map[dif]||1;
-  const horas={};['corte','enchapado','armado','revision','empaquetado'].forEach(k=>{horas[k]=Math.round((m.placas||4)*(coef[k]||0)*f*10)/10;});
+  const horas={};['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'].forEach(k=>{horas[k]=Math.round((m.placas||4)*(coef[k]||0)*f*10)/10;});
   m.horas=horas;
   guardarMueblesLS(prId,pr);
   pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
@@ -2665,7 +2668,7 @@ function _renderOpGestion() {
   document.getElementById('op-lista').innerHTML = html;
 }
 
-const _CENTROS_DEFAULT=['corte','enchapado','armado','empaquetado']; // revision requiere asignación explícita
+const _CENTROS_DEFAULT=['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'];
 
 function abrirModalOperario(opId) {
   const _u = window.AUTH.usuarioActual();
@@ -3772,11 +3775,11 @@ function confirmarModulo(prId){
 // ═══════════════════════════════════════════════════════════════════════════
 // AJUSTES — FÓRMULA DE TIEMPOS
 // ═══════════════════════════════════════════════════════════════════════════
-const F_CENTROS      = ['corte','enchapado','armado','revision','empaquetado'];
-const F_CENTRO_LABEL = {corte:'Corte',enchapado:'Enchapado/Perf.',armado:'Armado',revision:'Revisión',empaquetado:'COLOCACION'};
-const F_CENTRO_ICON  = {corte:'⬡',enchapado:'◈',armado:'⬗',revision:'◎',empaquetado:'▣'};
-const F_CENTRO_COLOR = {corte:'var(--amber)',enchapado:'var(--blue)',armado:'var(--purple)',revision:'var(--teal)',empaquetado:'var(--green)'};
-const F_COEF_DEF = {corte:0.50,enchapado:0.30,armado:0.80,revision:0.20,empaquetado:0.20};
+const F_CENTROS      = ['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'];
+const F_CENTRO_LABEL = {corte:'CORTE',enchapado:'ENCHAPADO/PERF',armado:'ARMADO',revision:'REVISION',colocacion:'COLOCACION',herreria:'HERRERIA',electrica:'ELECTRICA',macizo:'MACIZO'};
+const F_CENTRO_ICON  = {corte:'⬡',enchapado:'◈',armado:'⬗',revision:'◎',colocacion:'▣',herreria:'○',electrica:'◇',macizo:'◆'};
+const F_CENTRO_COLOR = {corte:'var(--amber)',enchapado:'var(--blue)',armado:'var(--purple)',revision:'var(--teal)',colocacion:'var(--green)',herreria:'#94a3b8',electrica:'var(--yellow)',macizo:'#f97316'};
+const F_COEF_DEF = {corte:0.50,enchapado:0.30,armado:0.80,revision:0.20,colocacion:0.20,herreria:0.20,electrica:0.20,macizo:0.20};
 const F_DIF_DEF  = {1:0.7,2:1.0,3:1.5,4:2.2};
 const F_DIF_NAMES = {1:'Simple',2:'Medio',3:'Complejo',4:'Muy complejo'};
 const F_DIF_DESC  = {

@@ -389,8 +389,8 @@ textarea.campo {
       <div id="menu-task-centro" style="font-size:28px;font-weight:700;color:var(--accent);letter-spacing:1px;text-transform:uppercase;"></div>
     </div>
 
-    <div id="card-sin-tarea" class="card" style="text-align:center;padding:28px;color:var(--muted);font-size:14px;">
-      Sin tarea activa
+    <div id="card-sin-tarea" class="card" style="text-align:center;padding:28px;color:var(--red);font-size:20px;font-weight:700;border-color:var(--red);">
+      ⚠ SIN TAREA ACTIVA
     </div>
 
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
@@ -733,6 +733,10 @@ textarea.campo {
         <span class="mono" style="font-size:12px;font-weight:700;letter-spacing:1px;">OPCIONES</span>
         <button onclick="cerrarOpcionesCNC()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0 4px;line-height:1;-webkit-tap-highlight-color:transparent;">✕</button>
       </div>
+      <button onclick="cambiarOperarioCNC()" style="width:100%;min-height:70px;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:'Space Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;padding:0 20px;text-align:left;display:flex;flex-direction:column;gap:4px;justify-content:center;-webkit-tap-highlight-color:transparent;">
+        <span>← CAMBIAR OPERARIO</span>
+        <span style="color:var(--muted);font-size:10px;font-weight:400;font-family:'DM Sans',sans-serif;">Vuelve a selección de operario, mantiene la sesión activa</span>
+      </button>
       <button onclick="cambiarTareaCNC()" style="width:100%;min-height:70px;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:'Space Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;padding:0 20px;text-align:left;display:flex;flex-direction:column;gap:4px;justify-content:center;-webkit-tap-highlight-color:transparent;">
         <span>▶ CAMBIAR DE TAREA</span>
         <span style="color:var(--muted);font-size:10px;font-weight:400;font-family:'DM Sans',sans-serif;">Pausa CNC, va a selección de tarea</span>
@@ -844,6 +848,27 @@ let _pin = '';
 // Intervalos
 let _intervaloReloj  = null;
 let _intervaloTimers = null;
+
+// Timeout automático de 30s (pantalla compartida)
+let _timeout30s    = null;
+let _accionEnCurso = false;
+
+function arrancarTimeout30s() {
+  if (_timeout30s) clearTimeout(_timeout30s);
+  _timeout30s = setTimeout(() => {
+    if (_accionEnCurso) { arrancarTimeout30s(); return; }
+    volverAElegirOperario();
+  }, 30000);
+}
+
+function cancelarTimeout30s() {
+  if (_timeout30s) { clearTimeout(_timeout30s); _timeout30s = null; }
+}
+
+function volverAElegirOperario() {
+  cancelarTimeout30s();
+  cambiarEmpleado();
+}
 
 // ── Placa picker ──────────────────────────────────────────────────────────────
 let placaSeleccionadaInicio = 0;
@@ -1018,6 +1043,9 @@ function ir(id) {
   document.querySelectorAll('.pantalla').forEach(p => p.classList.remove('activa'));
   document.getElementById(id).classList.add('activa');
   window.scrollTo(0, 0);
+  // Timeout 30s: arranca al entrar al menú del operario, cancela en cualquier otra pantalla
+  if (id === 'pantalla-menu' && empleadoActual) arrancarTimeout30s();
+  else cancelarTimeout30s();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1429,6 +1457,7 @@ async function confirmarTarea() {
 
   const btn = document.getElementById('btn-confirmar-tarea');
   btn.textContent = 'Iniciando…'; btn.disabled = true;
+  _accionEnCurso = true;
 
   try {
     const { registro } = await apiPost('iniciar-tarea', {
@@ -1461,6 +1490,7 @@ async function confirmarTarea() {
   } finally {
     btn.textContent = 'CONFIRMAR TAREA';
     btn.disabled = false;
+    _accionEnCurso = false;
   }
 }
 
@@ -1669,6 +1699,8 @@ function _cncLimpiarPlaca() {
 function abrirOpcionesCNC()  { document.getElementById('cnc-modal-opciones').style.display = 'flex'; }
 function cerrarOpcionesCNC() { document.getElementById('cnc-modal-opciones').style.display = 'none'; }
 
+function cambiarOperarioCNC() { cerrarOpcionesCNC(); cambiarEmpleado(); }
+
 function cambiarTareaCNC() {
   cerrarOpcionesCNC();
   _cncLimpiarPlaca();
@@ -1745,6 +1777,7 @@ function toggleRetrabajo() {
 async function finalizarOk() {
   const btn = document.getElementById('btn-finalizar-ok');
   btn.textContent = 'Guardando…'; btn.disabled = true;
+  _accionEnCurso = true;
   try {
     const reg = await apiPost('finalizar-tarea', {
       registro_id: registroActivo.id,
@@ -1764,10 +1797,12 @@ async function finalizarOk() {
     btn.disabled = false;
   } finally {
     btn.textContent = '✓ FINALIZADO — TODO OK';
+    _accionEnCurso = false;
   }
 }
 
 async function confirmarRetrabajo() {
+  _accionEnCurso = true;
   const motivo = document.getElementById('retrabajo-motivo').value.trim();
   try {
     await apiPost('finalizar-tarea', {
@@ -1778,9 +1813,11 @@ async function confirmarRetrabajo() {
       motivo_retrabajo: motivo || null,
     });
     registroActivo = null;
+    _accionEnCurso = false;
     toast('Retrabajo registrado', 'var(--yellow)');
     renderMenuTarea(); ir('pantalla-menu');
   } catch (e) {
+    _accionEnCurso = false;
     toast('Error: ' + e.message, 'var(--red)');
   }
 }
@@ -1811,6 +1848,7 @@ async function initSalida() {
 }
 
 async function confirmarSalida() {
+  _accionEnCurso = true;
   try {
     await apiPost('salida', { empleado_id: empleadoActual.id, jornada_id: jornada.id });
     const nombre = empleadoActual.nombre;
@@ -1825,6 +1863,7 @@ async function confirmarSalida() {
     toast(`✓ Hasta mañana, ${nombre}!`, 'var(--green)');
     ir('pantalla-login');
   } catch (e) {
+    _accionEnCurso = false;
     toast('Error: ' + e.message, 'var(--red)');
   }
 }

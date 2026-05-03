@@ -114,11 +114,14 @@
       <div style="font-size:22px;font-weight:700;">¿En qué estación estás?</div>
     </div>
     <div class="centro-grid">
-      <button class="centro-btn" style="color:var(--amber)"   onclick="elegirCentro('corte','Corte')">          <span style="font-size:22px">⬡</span> Corte</button>
+      <button class="centro-btn" style="color:var(--amber)"   onclick="elegirCentro('corte','Corte')">               <span style="font-size:22px">⬡</span> Corte</button>
       <button class="centro-btn" style="color:#5B8DEF"        onclick="elegirCentro('enchapado','Enchapado/Perforado')"><span style="font-size:22px">◈</span> Enchapado/<br>Perforado</button>
-      <button class="centro-btn" style="color:var(--purple)"  onclick="elegirCentro('armado','Armado')">        <span style="font-size:22px">⬗</span> Armado</button>
-      <button class="centro-btn" style="color:var(--teal)"    onclick="elegirCentro('revision','Revisión')">    <span style="font-size:22px">◎</span> Revisión</button>
-      <button class="centro-btn" style="color:var(--green); grid-column:span 2" onclick="elegirCentro('empaquetado','Colocación')"><span style="font-size:22px">▣</span> Colocación</button>
+      <button class="centro-btn" style="color:var(--purple)"  onclick="elegirCentro('armado','Armado')">               <span style="font-size:22px">⬗</span> Armado</button>
+      <button class="centro-btn" style="color:var(--teal)"    onclick="elegirCentro('revision','Revisión')">           <span style="font-size:22px">◎</span> Revisión</button>
+      <button class="centro-btn" style="color:var(--green)"   onclick="elegirCentro('colocacion','COLOCACION')">       <span style="font-size:22px">▣</span> COLOCACION</button>
+      <button class="centro-btn" style="color:#94a3b8"        onclick="elegirCentro('herreria','HERRERIA')">           <span style="font-size:22px">○</span> HERRERIA</button>
+      <button class="centro-btn" style="color:var(--yellow)"  onclick="elegirCentro('electrica','ELECTRICA')">        <span style="font-size:22px">◇</span> ELECTRICA</button>
+      <button class="centro-btn" style="color:#f97316"        onclick="elegirCentro('macizo','MACIZO')">              <span style="font-size:22px">◆</span> MACIZO</button>
     </div>
   </div>
 </div>
@@ -288,20 +291,20 @@ const OPERARIOS = (()=>{
   return s.length?s:OPERARIOS_DEMO;
 })();
 
-const TODOS_CENTROS=['corte','enchapado','armado','revision','empaquetado'];
+const TODOS_CENTROS=['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'];
 const PROYECTOS_DEMO = [
   {
     id:'pr1', nombre:'MON BRAVA 301',
     items:[
-      { id:'it1', nombre:'Closet Dormitorio Principal', centros:['corte','enchapado','armado','revision','empaquetado'], nota:'Verificar medidas con plano v3. Tolerancia ±1mm en paneles laterales.' },
+      { id:'it1', nombre:'Closet Dormitorio Principal', centros:['corte','enchapado','armado','revision','colocacion'], nota:'Verificar medidas con plano v3. Tolerancia ±1mm en paneles laterales.' },
       { id:'it2', nombre:'Cocina Integral',             centros:['corte','armado','revision'],                          nota:'Módulos altos primero. Consultar con Diego el tema de las bisagras.' },
-      { id:'it3', nombre:'Puerta Principal',            centros:['corte','enchapado','revision','empaquetado'],         nota:'Enchapado en dirección horizontal. Revisar muestra de color aprobada.' },
+      { id:'it3', nombre:'Puerta Principal',            centros:['corte','enchapado','revision','colocacion'],         nota:'Enchapado en dirección horizontal. Revisar muestra de color aprobada.' },
     ]
   },
   {
     id:'pr2', nombre:'MELI COSMOS',
     items:[
-      { id:'it4', nombre:'Banco Corrido Lobby',  centros:['corte','armado','empaquetado'], nota:'Largo total 4.2m. Se corta en 3 tramos y se ensambla en obra.' },
+      { id:'it4', nombre:'Banco Corrido Lobby',  centros:['corte','armado','colocacion'], nota:'Largo total 4.2m. Se corta en 3 tramos y se ensambla en obra.' },
       { id:'it5', nombre:'Revestimiento Pared',  centros:['corte','enchapado','revision'],  nota:'Listones de 12cm de ancho. Junta de 3mm entre piezas.' },
     ]
   },
@@ -352,8 +355,8 @@ function goBack(screenId) { show(screenId); }
 // ═══════════════════════════════════════════════════════════════════════════
 // PANTALLA 0 → 1: elegir centro
 // ═══════════════════════════════════════════════════════════════════════════
-const CENTROS_ORDEN = ['corte','enchapado','armado','revision','empaquetado'];
-const CENTROS_LABEL = {corte:'Corte',enchapado:'Enchapado/Perforado',armado:'Armado',revision:'Revisión',empaquetado:'Colocación'};
+const CENTROS_ORDEN = ['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'];
+const CENTROS_LABEL = {corte:'Corte',enchapado:'Enchapado/Perforado',armado:'Armado',revision:'Revisión',colocacion:'COLOCACION',herreria:'HERRERIA',electrica:'ELECTRICA',macizo:'MACIZO'};
 
 let _pendingCentroId=null, _pendingCentroNombre=null;
 
@@ -398,7 +401,7 @@ function nombreDesc(nombre){
   return idx>=0?nombre.slice(idx+3):'';
 }
 
-const _OP_CENTROS_DEFAULT=['corte','enchapado','armado','empaquetado'];
+const _OP_CENTROS_DEFAULT=['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'];
 
 function renderOperarios() {
   const grid = document.getElementById('op-grid');

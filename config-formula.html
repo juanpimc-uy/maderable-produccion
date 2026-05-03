@@ -155,12 +155,12 @@
 </div>
 
 <script>
-const CENTROS      = ['corte','enchapado','armado','revision','empaquetado'];
-const CENTRO_LABEL = { corte:'Corte', enchapado:'Enchapado/Perf.', armado:'Armado', revision:'Revisión', empaquetado:'COLOCACION' };
-const CENTRO_ICON  = { corte:'⬡', enchapado:'◈', armado:'⬗', revision:'◎', empaquetado:'▣' };
-const CENTRO_COLOR = { corte:'var(--amber)', enchapado:'var(--blue)', armado:'var(--purple)', revision:'var(--teal)', empaquetado:'var(--green)' };
+const CENTROS      = ['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'];
+const CENTRO_LABEL = { corte:'CORTE', enchapado:'ENCHAPADO/PERF', armado:'ARMADO', revision:'REVISION', colocacion:'COLOCACION', herreria:'HERRERIA', electrica:'ELECTRICA', macizo:'MACIZO' };
+const CENTRO_ICON  = { corte:'⬡', enchapado:'◈', armado:'⬗', revision:'◎', colocacion:'▣', herreria:'○', electrica:'◇', macizo:'◆' };
+const CENTRO_COLOR = { corte:'var(--amber)', enchapado:'var(--blue)', armado:'var(--purple)', revision:'var(--teal)', colocacion:'var(--green)', herreria:'#94a3b8', electrica:'var(--yellow)', macizo:'#f97316' };
 
-const COEF_DEF = { corte:0.50, enchapado:0.30, armado:0.80, revision:0.20, empaquetado:0.20 };
+const COEF_DEF = { corte:0.50, enchapado:0.30, armado:0.80, revision:0.20, colocacion:0.20, herreria:0.20, electrica:0.20, macizo:0.20 };
 const DIF_DEF  = { 1:0.7, 2:1.0, 3:1.5, 4:2.2 };
 const DIF_NAMES = { 1:'Simple', 2:'Medio', 3:'Complejo', 4:'Muy complejo' };
 const DIF_DESC  = {
