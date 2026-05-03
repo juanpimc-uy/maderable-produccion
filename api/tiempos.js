@@ -259,6 +259,7 @@ async function _iniciarTareaImpl(sb, {
       item_nombre: persistirItem ? (item_nombre || null) : null,
       centro,
       inicio: ahora,
+      ultima_actividad: ahora,
       fin: null,
       estado: 'activo',
       es_retrabajo: false,
@@ -1091,6 +1092,33 @@ export default async function handler(req) {
         .order('nombre');
       if (error) throw error;
       return ok({ centros: data || [] });
+    }
+
+    // ── POST heartbeat (actualiza ultima_actividad del registro activo) ──────
+    if (action === 'heartbeat' && req.method === 'POST') {
+      const { empleado_id, registro_id } = body;
+      if (!empleado_id || !registro_id) {
+        throw new ApiError('empleado_id y registro_id requeridos', 400);
+      }
+      const { data: reg } = await supabase
+        .from('registros_trabajo')
+        .select('id, empleado_id, estado')
+        .eq('id', registro_id)
+        .maybeSingle();
+      if (!reg) throw new ApiError('Registro no encontrado', 404);
+      if (reg.empleado_id !== empleado_id) {
+        throw new ApiError('No autorizado', 403);
+      }
+      if (reg.estado !== 'activo') {
+        return ok({ ok: true, stale: true, reason: 'registro no activo' });
+      }
+      const ts = new Date().toISOString();
+      const { error } = await supabase
+        .from('registros_trabajo')
+        .update({ ultima_actividad: ts })
+        .eq('id', registro_id);
+      if (error) throw error;
+      return ok({ ok: true, ts });
     }
 
     // ── GET tiempo-activo (wrapper → _tiempoActivoImpl) ───────────────────
