@@ -559,6 +559,11 @@ export default async function handler(req) {
       const ahora = new Date();
       const hoy = ahora.toISOString().split('T')[0];
       const UMBRAL_INACTIVIDAD_MIN = 15;
+      const CENTRO_LABEL = {
+        corte: 'CORTE', enchapado: 'ENCHAPADO/PERF', armado: 'ARMADO',
+        revision: 'REVISION', colocacion: 'COLOCACION',
+        herreria: 'HERRERIA', electrica: 'ELECTRICA', macizo: 'MACIZO',
+      };
 
       // 1. Pull paralelo: empleados activos + jornadas hoy + registros activos
       const [empleadosRes, jornadasRes, activosRes] = await Promise.all([
@@ -681,11 +686,6 @@ export default async function handler(req) {
       };
 
       // 7. Agrupar por centro
-      const CENTRO_LABEL = {
-        corte: 'CORTE', enchapado: 'ENCHAPADO/PERF', armado: 'ARMADO',
-        revision: 'REVISION', colocacion: 'COLOCACION',
-        herreria: 'HERRERIA', electrica: 'ELECTRICA', macizo: 'MACIZO',
-      };
       const CENTROS_FIJOS      = ['corte', 'enchapado', 'armado', 'colocacion'];
       const CENTROS_OPCIONALES = ['revision', 'herreria', 'electrica', 'macizo'];
       const porCentro = {};
