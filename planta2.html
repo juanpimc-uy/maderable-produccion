@@ -293,46 +293,73 @@ textarea.campo {
   z-index: 2;
 }
 
-/* ── Snapshot: chips de estado mueble ──────────────────────────────────── */
-.chip {
-  display: inline-flex; align-items: center; padding: 3px 9px;
-  border-radius: 20px; font-family: 'Space Mono', monospace;
-  font-size: 9px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
-  white-space: nowrap;
-}
-.chip-gray  { background: rgba(136,136,136,.18); color: #888; }
-.chip-green { background: rgba(34,197,94,.15);   color: var(--green); }
-.chip-amber { background: rgba(255,214,0,.15);   color: var(--accent); }
-.chip-red   { background: rgba(239,68,68,.15);   color: var(--red); }
-
-/* ── Snapshot: tarjetas de mueble ──────────────────────────────────────── */
-.mueble-card {
-  width: 100%; background: var(--card2); border: 2px solid var(--border);
-  border-radius: 10px; padding: 12px 14px; text-align: left; cursor: pointer;
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  user-select: none; transition: border-color .15s, background .15s;
-}
-.mueble-card:active { transform: scale(0.98); }
-.mueble-card.sel    { border-color: var(--accent); background: var(--accent-dim); }
-.mueble-card.en-uso { opacity: .55; cursor: default; }
-
-/* ── Snapshot: tarjeta ODF colapsable ──────────────────────────────────── */
+/* ── Snapshot: ODF colapsable ──────────────────────────────────────────── */
 .odf-card {
   background: var(--card); border: 1px solid var(--border);
   border-radius: 10px; overflow: hidden; margin-bottom: 10px;
 }
 .odf-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  padding: 12px 14px; cursor: pointer; gap: 8px;
+  display: flex; align-items: center;
+  padding: 11px 14px; cursor: pointer; gap: 8px; user-select: none;
 }
-.odf-toggle { font-size: 13px; color: var(--muted); flex-shrink: 0; margin-top: 2px; }
-.odf-muebles { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 8px; }
+.odf-toggle { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+
+/* ── Snapshot: grid de muebles ─────────────────────────────────────────── */
+.odf-muebles {
+  padding: 0 10px 10px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+@media(max-width:900px){ .odf-muebles { grid-template-columns: repeat(2,1fr); } }
+@media(max-width:600px){ .odf-muebles { grid-template-columns: 1fr; } }
+
+/* ── Snapshot: card de mueble ──────────────────────────────────────────── */
+.mueble-card {
+  background: #050505; border: 1px solid #1e1e1e;
+  border-radius: 8px; overflow: hidden;
+  display: flex; flex-direction: column;
+  transition: border-color .15s;
+}
+.mueble-card.sel { border-color: var(--accent); }
+.mueble-card-banner {
+  background: #FFD600; color: #111;
+  font-family: 'Space Mono', monospace; font-size: 9px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  padding: 4px 11px; text-align: center;
+}
+.mueble-card-body { padding: 11px; flex: 1; display: flex; flex-direction: column; }
+.mueble-card-codigo {
+  font-family: 'Space Mono', monospace; font-size: 10px;
+  color: #FFD600; letter-spacing: 1.5px; font-weight: 700;
+}
+.mueble-card-nombre { color: #fff; font-size: 12px; margin-top: 4px; line-height: 1.4; }
+.mueble-card-material { color: #666; font-size: 9px; letter-spacing: 1px; margin-top: 3px; }
+.mueble-chip {
+  margin-top: 9px; padding: 3px 7px; display: inline-block;
+  font-family: 'Space Mono', monospace; font-size: 9px;
+  letter-spacing: 1.5px; text-transform: uppercase;
+}
+.mueble-chip-normal   { background: #1e1e1e; color: #999; }
+.mueble-chip-retrabajo { background: #2a1f0a; color: #FFD600; }
+.mueble-chip-en-uso   { background: #0d2010; color: #6fb872; }
+.mueble-chip-por      { color: #555; font-size: 9px; letter-spacing: 1px; margin-top: 3px;
+                         font-family: 'Space Mono', monospace; text-transform: uppercase; display: block; }
+.mueble-card-btn {
+  margin-top: 9px; width: 100%; padding: 7px; border: none; border-radius: 4px;
+  font-family: 'Space Mono', monospace; font-size: 10px;
+  letter-spacing: 1.5px; font-weight: 700; text-transform: uppercase; cursor: pointer;
+}
+.mueble-card-btn-iniciar { background: #FFD600; color: #111; }
+.mueble-card-btn-iniciar:active { opacity: .85; }
+.mueble-card-btn-en-uso {
+  background: transparent; color: #444; border: 1px solid #1e1e1e; cursor: not-allowed;
+}
 
 /* ── Snapshot: acceso rápido (últimos 3) ───────────────────────────────── */
 .snap-rapido-card {
   background: var(--card2); border: 1px solid rgba(255,214,0,.2); border-radius: 8px;
-  padding: 10px 14px; cursor: pointer; transition: border-color .15s;
-  user-select: none;
+  padding: 10px 14px; cursor: pointer; transition: border-color .15s; user-select: none;
 }
 .snap-rapido-card:active { transform: scale(0.98); border-color: rgba(255,214,0,.6); }
 
@@ -1618,7 +1645,7 @@ function _mostrarBannerPausada(reg) {
       </div>
       <div class="banner-pausada-btns">
         <button class="btn btn-warn btn-sm" onclick="_retomarPausada('${escAttr(reg.id)}')">↩ RETOMAR</button>
-        <button class="btn btn-success btn-sm" onclick="_finalizarPausada('${escAttr(reg.id)}')">✓ FINALIZAR</button>
+        <button class="btn btn-sm" style="background:transparent;border:1px solid #6fb872;color:#6fb872;" onclick="_finalizarPausada('${escAttr(reg.id)}')">✓ FINALIZAR</button>
         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('banner-pausada').style.display='none'">✕ IGNORAR</button>
       </div>
     </div>
@@ -1704,45 +1731,53 @@ function filtrarSnapshot() {
   }
 
   odfsEl.innerHTML = odfsFilt.map(odf => {
-    const odfId = esc(odf.id);
+    const odfId   = esc(odf.id);
     const muebles = (odf.muebles || []).filter(m => {
       if (!q) return true;
       return [odf.numero, odf.obra, odf.cliente, m.codigo, m.nombre].some(s => (s||'').toLowerCase().includes(q));
     });
 
+    // Expandir si hay búsqueda activa
+    const expanded  = q !== '';
+    const toggleSym = expanded ? '▾' : '▸';
+
     const mueblesHtml = muebles.length
       ? muebles.map(m => {
-          const mcId   = esc(odf.id + '_' + m.id);
-          const enUso  = m.estado_display === 'en_uso';
-          const esMio  = m.es_ultimo_del_operario
-            ? `<span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--accent);letter-spacing:.5px;">★ TU ÚLTIMA</span>`
+          const mcId  = esc(odf.id + '_' + m.id);
+          const enUso = m.estado_display === 'en_uso';
+          const banner = m.es_ultimo_del_operario
+            ? '<div class="mueble-card-banner">ÚLTIMO TRABAJADO</div>'
             : '';
+          const btnHtml = enUso
+            ? '<button class="mueble-card-btn mueble-card-btn-en-uso" disabled>En uso</button>'
+            : `<button class="mueble-card-btn mueble-card-btn-iniciar" onclick="selMueble('${escAttr(odf.id)}','${escAttr(String(m.id))}')">Iniciar →</button>`;
           return `
-            <button class="mueble-card${enUso ? ' en-uso' : ''}" id="mc-${mcId}"
-              onclick="${enUso ? '' : `selMueble('${escAttr(odf.id)}','${escAttr(String(m.id))}')`}"
-              ${enUso ? 'disabled' : ''}>
-              <div style="display:flex;flex-direction:column;gap:3px;min-width:0;flex:1;">
-                ${m.codigo ? `<span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);">${m.codigo}</span>` : ''}
-                <span style="font-size:14px;font-weight:700;line-height:1.3;">${m.nombre || '—'}</span>
-                ${esMio}
+            <div class="mueble-card" id="mc-${mcId}">
+              ${banner}
+              <div class="mueble-card-body">
+                ${m.codigo ? `<div class="mueble-card-codigo">${m.codigo}</div>` : ''}
+                <div class="mueble-card-nombre">${_nombreMueble(m)}</div>
+                ${m.material ? `<div class="mueble-card-material">${m.material}</div>` : ''}
+                <div>${_chipMueble(m)}</div>
+                ${btnHtml}
               </div>
-              <div style="flex-shrink:0;">${_chipMueble(m)}</div>
-            </button>
+            </div>
           `;
         }).join('')
-      : '<div style="color:var(--muted);font-size:12px;padding:4px 0;">Sin muebles</div>';
+      : '<div style="color:var(--muted);font-size:12px;padding:4px 0;grid-column:1/-1;">Sin muebles</div>';
 
+    const clienteStr = odf.cliente ? ` · ${odf.cliente}` : '';
+    const obraStr    = odf.obra    ? ` · ${odf.obra}`    : '';
     return `
       <div class="odf-card" id="odf-${odfId}">
         <div class="odf-header" onclick="toggleOdf('${odfId}')">
-          <div style="min-width:0;">
-            <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:1px;">${odf.numero}</div>
-            <div style="font-size:15px;font-weight:700;margin-top:2px;">${odf.obra || odf.numero}</div>
-            ${odf.cliente ? `<div style="font-size:12px;color:var(--muted);">${odf.cliente}</div>` : ''}
-          </div>
-          <span class="odf-toggle" id="tgl-${odfId}">▾</span>
+          <span class="odf-toggle" id="tgl-${odfId}">${toggleSym}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:1px;flex-shrink:0;">${odf.numero}</span>
+          <span style="font-size:12px;color:var(--muted);flex-shrink:0;">${clienteStr}</span>
+          <span style="font-size:12px;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${obraStr}</span>
+          <span style="font-family:'Space Mono',monospace;font-size:10px;color:#444;flex-shrink:0;">(${muebles.length})</span>
         </div>
-        <div id="mueblesOf-${odfId}" class="odf-muebles">${mueblesHtml}</div>
+        <div id="mueblesOf-${odfId}" class="odf-muebles" style="${expanded ? '' : 'display:none'}">${mueblesHtml}</div>
       </div>
     `;
   }).join('');
@@ -1753,25 +1788,45 @@ function toggleOdf(odfId) {
   const tgl = document.getElementById('tgl-' + odfId);
   if (!el) return;
   const isOpen = el.style.display !== 'none';
-  el.style.display = isOpen ? 'none' : '';
+  el.style.display = isOpen ? 'none' : 'grid';
   if (tgl) tgl.textContent = isOpen ? '▸' : '▾';
 }
 
 function expandirOdf(odfId) {
   const el  = document.getElementById('mueblesOf-' + odfId);
   const tgl = document.getElementById('tgl-' + odfId);
-  if (el) { el.style.display = ''; if (tgl) tgl.textContent = '▾'; }
+  if (el) { el.style.display = 'grid'; if (tgl) tgl.textContent = '▾'; }
   document.getElementById('odf-' + odfId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function _centroLabel(c) {
+  return c ? (PLANTA_CENTRO_LABEL[c] || c.toUpperCase()) : '';
+}
+
 function _chipMueble(m) {
+  const ult = m.ultimo_centro ? _centroLabel(m.ultimo_centro) : null;
   switch (m.estado_display) {
-    case 'sin_iniciar': return '<span class="chip chip-gray">SIN INICIAR</span>';
-    case 'retrabajo':   return '<span class="chip chip-red">RETRABAJO</span>';
-    case 'en_uso':      return `<span class="chip chip-amber">EN USO${m.operario_actual ? ' · ' + m.operario_actual : ''}</span>`;
+    case 'sin_iniciar':
+      return '<span class="mueble-chip mueble-chip-normal">SIN INICIAR</span>';
+    case 'retrabajo':
+      return `<span class="mueble-chip mueble-chip-retrabajo">↻ ÚLT: ${ult || '—'}</span>`;
+    case 'en_uso': {
+      const por = m.operario_actual ? `<span class="mueble-chip-por">POR ${m.operario_actual}</span>` : '';
+      return `<span class="mueble-chip mueble-chip-en-uso">▶ EN ${ult || '—'}</span>${por}`;
+    }
     case 'normal':
-    default:            return '<span class="chip chip-green">LIBRE</span>';
+    default:
+      return `<span class="mueble-chip mueble-chip-normal">ÚLT: ${ult || '—'}</span>`;
   }
+}
+
+function _nombreMueble(m) {
+  const nombre = (m.nombre || '').trim();
+  if (nombre) {
+    // truncar a 60 caracteres si es muy largo
+    return nombre.length > 60 ? nombre.slice(0, 60).trimEnd() + '…' : nombre;
+  }
+  return '—';
 }
 
 function escAttr(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
