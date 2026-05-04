@@ -1033,14 +1033,20 @@ async function apiPost(action, body) {
 function _iniciarHeartbeat(empleado_id, registro_id) {
   _detenerHeartbeat();
   if (!empleado_id || !registro_id) return;
-  _heartbeatInterval = setInterval(() => {
-    fetch('/api/tiempos?action=heartbeat', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ empleado_id, registro_id })
-    }).catch(err => {
+  console.log('[heartbeat] iniciado', empleado_id, registro_id);
+  _heartbeatInterval = setInterval(async () => {
+    console.log('[heartbeat] tick', new Date().toISOString());
+    try {
+      const resp = await fetch('/api/tiempos?action=heartbeat', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ empleado_id, registro_id })
+      });
+      const data = await resp.json().catch(() => ({}));
+      console.log('[heartbeat] response', resp.status, data);
+    } catch (err) {
       console.warn('[heartbeat] fallo:', err);
-    });
+    }
   }, 60000); // 60 s
 }
 
@@ -1048,6 +1054,7 @@ function _detenerHeartbeat() {
   if (_heartbeatInterval) {
     clearInterval(_heartbeatInterval);
     _heartbeatInterval = null;
+    console.log('[heartbeat] detenido');
   }
 }
 
@@ -1177,6 +1184,8 @@ async function autenticar() {
     const { registros } = await apiGet('registros-hoy', `empleado_id=${empId}`);
     registrosHoy = registros || [];
     registroActivo = registrosHoy.find(r => r.estado === 'activo') || null;
+    // Restaurar heartbeat si hay tarea activa (cubre recarga de página)
+    if (registroActivo) _iniciarHeartbeat(empId, registroActivo.id);
 
     // 3. Proyectos activos
     console.log('Cargando proyectos...');
