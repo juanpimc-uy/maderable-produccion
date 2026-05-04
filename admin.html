@@ -1528,6 +1528,7 @@ function renderDashboard() {
       const centro  = esSinTarea ? '—' : (op.centro_label || '—');
       const odf     = esSinTarea ? '—' : (op.proyecto?.odf || '—');
       const cliente = esSinTarea ? '—' : (op.proyecto?.cliente || '—');
+      const obra    = esSinTarea ? '—' : (op.proyecto?.obra || '—');
       const mueble  = esSinTarea ? '—' : (op.mueble?.nombre || '—');
       const estado  = op.estado.replace('_', ' ').toUpperCase();
       return `<div class="${cls}">
@@ -1535,6 +1536,7 @@ function renderDashboard() {
         <div class="ds-op-col">${centro}</div>
         <div class="ds-op-col">${odf}</div>
         <div class="ds-op-col">${cliente}</div>
+        <div class="ds-op-col">${obra}</div>
         <div class="ds-op-col">${mueble}</div>
         <div class="ds-op-col">${estado}</div>
       </div>`;
@@ -1543,7 +1545,7 @@ function renderDashboard() {
     const shown = visibles.slice(0, MAX);
     const rest  = visibles.slice(MAX);
     let html = `<div class="ds-header-row">
-      <div style="flex:1.4;">OPERARIO</div><div style="flex:1;">CENTRO</div><div style="flex:1;">ODF</div><div style="flex:1;">CLIENTE</div><div style="flex:1;">MUEBLE</div><div style="flex:1;">ESTADO</div>
+      <div style="flex:1.4;">OPERARIO</div><div style="flex:1;">CENTRO</div><div style="flex:1;">ODF</div><div style="flex:1;">CLIENTE</div><div style="flex:0.8;">OBRA</div><div style="flex:1;">MUEBLE</div><div style="flex:1;">ESTADO</div>
     </div>`;
     html += shown.map(renderOpRow).join('');
     if (rest.length) {
@@ -1569,7 +1571,13 @@ function renderDashboard() {
           const partes = [m.mueble_codigo, m.mueble_nombre].filter(Boolean).join(' ');
           const linea = partes ? `${m.odf || ''} · ${partes}` : (m.odf || '—');
           const inact = m.inactivo;
-          return `<div class="ds-mueble-row${inact ? ' ds-inact' : ''}">${linea}${inact ? ' ⚠' : ''}</div>`;
+          const opMatch = (operarios || []).find(op =>
+            op.centro === c.centro &&
+            op.proyecto?.odf === m.odf &&
+            (!m.mueble_codigo || op.mueble?.codigo === m.mueble_codigo)
+          );
+          const opNombre = opMatch ? ` <span style="color:#888;">— ${opMatch.nombre}</span>` : '';
+          return `<div class="ds-mueble-row${inact ? ' ds-inact' : ''}">${linea}${inact ? ' ⚠' : ''}${opNombre}</div>`;
         }).join('');
     return `<div class="ds-centro-card">
       <div class="ds-centro-header">
