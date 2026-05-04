@@ -512,6 +512,29 @@
     font-size: 12px;
   }
   .hidden { display: none !important; }
+
+  /* ── Dashboard Snapshot ─────────────────────────────────────────────────── */
+  .ds-header-row { display:flex; gap:12px; padding:8px 14px 6px; border-bottom:1px solid var(--border); font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; }
+  .ds-op-row { display:flex; align-items:center; gap:12px; padding:11px 14px; font-size:11px; font-family:'JetBrains Mono',monospace; letter-spacing:1px; text-transform:uppercase; border-bottom:1px solid rgba(37,40,54,.5); }
+  .ds-op-row:last-child { border-bottom:none; }
+  .ds-op-row.ds-inactivo { background:#2a1010; border-left:3px solid #ff4444; padding-left:11px; }
+  .ds-op-row.ds-sin_tarea { background:#131313; color:var(--muted); }
+  .ds-op-col { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ds-op-nombre { flex:1.4; font-weight:700; color:var(--text); }
+  .ds-op-row.ds-sin_tarea .ds-op-nombre { color:var(--muted); }
+  .ds-centro-card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px; }
+  .ds-centro-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .ds-centro-label { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--text); }
+  .ds-centro-label.dim { color:var(--muted); }
+  .ds-centro-num { font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; color:var(--amber); }
+  .ds-centro-num.dim { color:var(--muted); }
+  .ds-centro-num.alarm { color:#ff4444; }
+  .ds-centro-empty { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted); letter-spacing:1px; padding:4px 0; }
+  .ds-mueble-row { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted); padding:3px 0; border-bottom:1px solid rgba(37,40,54,.4); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ds-mueble-row:last-child { border-bottom:none; }
+  .ds-mueble-row.ds-inact { color:#ff8888; }
+  .ds-show-more { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted); padding:10px 14px; cursor:pointer; letter-spacing:1px; user-select:none; }
+  .ds-show-more:hover { color:var(--text); }
 </style>
 </head>
 <body>
@@ -599,28 +622,26 @@
 
     <!-- ══ DASHBOARD ═══════════════════════════════════════════════════════ -->
     <div class="view active" id="v-dashboard">
-      <div style="margin-bottom:18px;">
-        <div style="font-size:22px;font-weight:700;">Dashboard</div>
-        <div style="font-size:13px;color:var(--muted);margin-top:3px;">Vista en tiempo real de operarios activos y avance de proyectos</div>
+      <!-- Header row -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+        <div>
+          <div style="font-size:22px;font-weight:700;">En planta ahora</div>
+          <div id="dash-snap-ts" style="font-size:10px;color:var(--muted);margin-top:4px;font-family:'JetBrains Mono',monospace;letter-spacing:1px;">—</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span id="dash-snap-err" style="font-size:10px;color:#ff4444;display:none;font-family:'JetBrains Mono',monospace;">Error de conexión, reintentando...</span>
+          <button class="btn btn-ghost btn-sm" onclick="cargarDashboardSnapshot()">↻ ACTUALIZAR</button>
+        </div>
       </div>
-      <!-- KPIs -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
-        <div class="kpi"><div class="kpi-label">Proyectos Activos</div><div class="kpi-val" style="color:var(--amber)" id="kpi-proyectos">2</div></div>
-        <div class="kpi"><div class="kpi-label">Operarios en Tarea</div><div class="kpi-val" style="color:var(--green)" id="kpi-operarios">3/5</div></div>
-        <div class="kpi"><div class="kpi-label">En Inventario</div><div class="kpi-val" style="color:var(--blue)" id="kpi-inventario">2</div></div>
-        <div class="kpi"><div class="kpi-label">Despachados</div><div class="kpi-val" style="color:var(--purple)" id="kpi-despachados">1</div></div>
-        <div class="kpi"><div class="kpi-label">Muebles Bloqueados</div><div class="kpi-val" id="kpi-bloqueados">0</div></div>
-        <div class="kpi" title="Horas perdidas en correcciones"><div class="kpi-label">Horas Retrabajo</div><div class="kpi-val" id="kpi-retrabajo">0h</div></div>
+      <!-- BLOQUE A: operarios -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="sec-title" id="dash-snap-counters">— EN TAREA · — INACTIVAS · — SIN TAREA</div>
+        <div id="dash-snap-ops"></div>
       </div>
-      <!-- Operarios en vivo -->
-      <div class="card" style="margin-bottom:20px;">
-        <div class="sec-title">▶ Operarios ahora mismo</div>
-        <div class="grid-auto" id="dash-operarios"></div>
-      </div>
-      <!-- Proyectos resumen -->
-      <div class="card">
-        <div class="sec-title">◈ Proyectos en Producción <button class="btn btn-primary btn-sm" onclick="navTo('proyectos')">Ver todos</button></div>
-        <div id="dash-proyectos"></div>
+      <!-- BLOQUE B: centros -->
+      <div>
+        <div class="sec-title" style="margin-bottom:12px;">ACTIVIDAD POR CENTRO</div>
+        <div class="grid4" id="dash-snap-centros"></div>
       </div>
     </div>
 
@@ -1406,6 +1427,7 @@ function navTo(v) {
     if (active?.id?.startsWith('tarifa-input-')) active.blur();
     if (active?.id === 'tc-input-uyu') active.blur();
   }
+  if (currentView === 'dashboard' && v !== 'dashboard') _stopDashboardPolling();
   currentView = v;
   if (v !== 'ajustes') {
     const g = document.getElementById('tarifas-grid'); if (g) delete g.dataset.loaded;
@@ -1418,7 +1440,7 @@ function navTo(v) {
 
 function renderCurrentView() { renderView(currentView); }
 function renderView(v) {
-  if(v==='dashboard')  renderDashboard();
+  if(v==='dashboard')  _startDashboardPolling();
   if(v==='proyectos')  renderProyectos();
   if(v==='operarios')  renderOperarios();
   if(v==='tiempos')    renderTiempos();
@@ -1442,82 +1464,123 @@ function liveTimer(elId, startMs) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DASHBOARD
+// DASHBOARD SNAPSHOT
 // ═══════════════════════════════════════════════════════════════════════════
+let _dashboardSnapshotInterval = null;
+let _dashboardData = null;
+
+function _startDashboardPolling() {
+  if (_dashboardSnapshotInterval) { renderDashboard(); return; }
+  _dashboardSnapshotInterval = setInterval(cargarDashboardSnapshot, 60000);
+  cargarDashboardSnapshot();
+}
+
+function _stopDashboardPolling() {
+  if (_dashboardSnapshotInterval) { clearInterval(_dashboardSnapshotInterval); _dashboardSnapshotInterval = null; }
+}
+
+async function cargarDashboardSnapshot() {
+  try {
+    const r = await fetch('/api/tiempos?action=dashboard-snapshot').then(res => res.json());
+    if (r.error) throw new Error(r.error);
+    _dashboardData = r;
+    const errEl = document.getElementById('dash-snap-err');
+    if (errEl) errEl.style.display = 'none';
+    if (document.getElementById('dash-snap-ops')) renderDashboard();
+  } catch(e) {
+    console.warn('[dashboard-snapshot]', e);
+    const errEl = document.getElementById('dash-snap-err');
+    if (errEl) errEl.style.display = '';
+  }
+}
+
 function renderDashboard() {
-  clearTimers();
-  const ocupados = OPERARIOS.filter(op=>SESIONES.some(s=>s.operarioId===op.id));
-  const totalMod = PROYECTOS.reduce((a,p)=>a+p.modulos.length,0);
-  const desp     = PROYECTOS.reduce((a,p)=>a+p.modulos.filter(m=>m.estado==='despachado').length,0);
-  document.getElementById('kpi-proyectos').textContent  = PROYECTOS.filter(p=>p.estado==='en_produccion').length;
-  document.getElementById('kpi-operarios').textContent  = `${ocupados.length}/${OPERARIOS.length}`;
-  document.getElementById('kpi-inventario').textContent = totalMod-desp;
-  document.getElementById('kpi-despachados').textContent= desp;
-  const bloqueados = PROYECTOS.reduce((a,p)=>a+(p.muebles||[]).filter(m=>(m.mats||[]).some(mat=>mat.critico&&(mat.recibido||0)<mat.requerido)).length,0);
-  const kpiBloq = document.getElementById('kpi-bloqueados');
-  kpiBloq.textContent = bloqueados;
-  kpiBloq.style.color = bloqueados>0?'var(--red)':'var(--green)';
-  // horas retrabajo del mes en curso
-  const mesActual = new Date().getMonth(), anoActual = new Date().getFullYear();
-  const hRetMes = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))]
-    .filter(s=>s.tipo==='retrabajo' && new Date(s.inicio).getMonth()===mesActual && new Date(s.inicio).getFullYear()===anoActual)
-    .reduce((a,s)=>a+msH(s.fin-s.inicio),0);
-  const kpiRet = document.getElementById('kpi-retrabajo');
-  kpiRet.textContent = fmtH(Math.round(hRetMes*10)/10);
-  kpiRet.style.color = hRetMes>0?'var(--red)':'var(--muted)';
+  if (!_dashboardData) {
+    const ops = document.getElementById('dash-snap-ops');
+    if (ops) ops.innerHTML = '<div style="padding:20px;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:11px;letter-spacing:1px;">CARGANDO...</div>';
+    return;
+  }
+  const { counters, operarios, centros, timestamp } = _dashboardData;
 
-  // operarios
-  let opHtml = '';
-  OPERARIOS.forEach(op=>{
-    const ses = SESIONES.find(s=>s.operarioId===op.id);
-    const c   = ses?getCentro(ses.centroId):null;
-    const pr  = ses?PROYECTOS.find(p=>p.id===ses.proyectoId):null;
-    const it  = ses&&pr?pr.items.find(i=>i.id===ses.itemId):null;
-    const tid = `t-dash-${op.id}`;
-    const centroLabel = c?.label || ses?.centroId || '—';
-    const centroColor = c?.color || 'var(--amber)';
-    const centroIcon  = c?.icon  || '○';
-    opHtml += `
-      <div style="background:var(--panel);border:1px solid ${ses?'rgba(245,166,35,.35)':'var(--border)'};border-radius:7px;padding:14px;display:flex;gap:10px;align-items:flex-start;">
-        <div class="av ${ses?'active':'idle'}" style="width:36px;height:36px;font-size:12px;">${op.avatar}</div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;font-weight:600;margin-bottom:2px;">${op.nombre}</div>
-          ${ses?`
-            <div style="font-size:11px;color:${centroColor};margin-bottom:2px;">${centroIcon} ${centroLabel}</div>
-            <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;" title="${(pr?.nombre||'')} · ${(it?.nombre||'')}">
-              ${pr?.nombre||ses.proyectoId||'—'} · ${nombreCorto(it?.nombre || ses.itemId || '—')}
-            </div>
-            <span class="mono" style="font-size:12px;color:var(--amber);font-weight:700;" id="${tid}">–</span>
-          `:`<span style="font-size:11px;color:var(--muted);">Disponible</span>`}
-        </div>
-      </div>`;
-  });
-  document.getElementById('dash-operarios').innerHTML = opHtml;
-  SESIONES.forEach(s=>liveTimer(`t-dash-${s.operarioId}`,s.inicio));
+  // Timestamp
+  const tsEl = document.getElementById('dash-snap-ts');
+  if (tsEl && timestamp) {
+    const hm = new Date(timestamp).toLocaleTimeString('es-UY', { hour:'2-digit', minute:'2-digit' });
+    tsEl.textContent = 'Actualizado ' + hm;
+  }
 
-  // proyectos
-  let prHtml = '';
-  PROYECTOS.forEach(pr=>{
-    const hA=hAcumPr(pr.id), hE=hEstPr(pr);
-    const matP=pr.materiales.filter(m=>m.recibido<m.requerido).length;
-    prHtml += `
-      <div style="background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:14px 16px;cursor:pointer;margin-bottom:8px;transition:border-color .2s;"
-        onmouseenter="this.style.borderColor='var(--amber)'" onmouseleave="this.style.borderColor='var(--border)'"
-        onclick="abrirDetallePr('${pr.id}')">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-          <div style="flex:1;">
-            <div style="font-size:14px;font-weight:600;">${pr.nombre}</div>
-            <div style="font-size:11px;color:var(--muted);">${pr.clienteNombre}</div>
-          </div>
-          ${matP>0?pill(matP+' mat. pend.','var(--red)'):''}
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span class="mono" style="font-size:11px;color:${excessColor(hA,hE)};white-space:nowrap;">${fmtH(hA)}/${fmtH(hE)} <span style="font-size:9px;">${fmtExceso(hA,hE)}</span></span>
-          ${barHoras(hA,hE)}
-        </div>
+  // Counters
+  const cntEl = document.getElementById('dash-snap-counters');
+  if (cntEl) cntEl.textContent = `${counters.en_tarea || 0} EN TAREA · ${counters.inactivo || 0} INACTIVAS · ${counters.sin_tarea || 0} SIN TAREA`;
+
+  // ── BLOQUE A: operarios (sin ausentes) ───────────────────────────────────
+  const visibles = (operarios || []).filter(op => op.estado !== 'ausente');
+  const opsEl = document.getElementById('dash-snap-ops');
+  if (!opsEl) return;
+  if (!visibles.length) {
+    opsEl.innerHTML = '<div style="padding:20px;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:11px;letter-spacing:1px;">SIN ACTIVIDAD</div>';
+  } else {
+    const renderOpRow = (op) => {
+      const esSinTarea  = op.estado === 'sin_tarea';
+      const esInactivo  = op.estado === 'inactivo';
+      const cls = esInactivo ? 'ds-op-row ds-inactivo' : esSinTarea ? 'ds-op-row ds-sin_tarea' : 'ds-op-row';
+      const prefijo = esInactivo ? '⚠ ' : esSinTarea ? '◌ ' : '';
+      const centro  = esSinTarea ? '—' : (op.centro_label || '—');
+      const odf     = esSinTarea ? '—' : (op.proyecto?.odf || '—');
+      const cliente = esSinTarea ? '—' : (op.proyecto?.cliente || '—');
+      const mueble  = esSinTarea ? '—' : (op.mueble?.nombre || '—');
+      const estado  = op.estado.replace('_', ' ').toUpperCase();
+      return `<div class="${cls}">
+        <div class="ds-op-col ds-op-nombre">${prefijo}${op.nombre}</div>
+        <div class="ds-op-col">${centro}</div>
+        <div class="ds-op-col">${odf}</div>
+        <div class="ds-op-col">${cliente}</div>
+        <div class="ds-op-col">${mueble}</div>
+        <div class="ds-op-col">${estado}</div>
       </div>`;
-  });
-  document.getElementById('dash-proyectos').innerHTML = prHtml;
+    };
+    const MAX = 6;
+    const shown = visibles.slice(0, MAX);
+    const rest  = visibles.slice(MAX);
+    let html = `<div class="ds-header-row">
+      <div style="flex:1.4;">OPERARIO</div><div style="flex:1;">CENTRO</div><div style="flex:1;">ODF</div><div style="flex:1;">CLIENTE</div><div style="flex:1;">MUEBLE</div><div style="flex:1;">ESTADO</div>
+    </div>`;
+    html += shown.map(renderOpRow).join('');
+    if (rest.length) {
+      html += `<div id="dash-snap-ops-rest" style="display:none;">${rest.map(renderOpRow).join('')}</div>`;
+      html += `<div class="ds-show-more" onclick="(function(el){document.getElementById('dash-snap-ops-rest').style.display='';el.style.display='none';})(this)">+ ${rest.length} OPERARIOS MÁS  ▾</div>`;
+    }
+    opsEl.innerHTML = html;
+  }
+
+  // ── BLOQUE B: centros ────────────────────────────────────────────────────
+  const CENTROS_FIJOS = ['corte', 'enchapado', 'armado', 'colocacion'];
+  const centroMap = Object.fromEntries((centros || []).map(c => [c.centro, c]));
+  const centrosToShow = CENTROS_FIJOS.map(c => centroMap[c] || { centro: c, label: c.toUpperCase(), total: 0, inactivos: 0, muebles: [] });
+  (centros || []).forEach(c => { if (!CENTROS_FIJOS.includes(c.centro)) centrosToShow.push(c); });
+
+  const centrosHtml = centrosToShow.map(c => {
+    const sin = c.total === 0;
+    const alarm = !sin && c.inactivos > 0;
+    const numCls = sin ? 'ds-centro-num dim' : alarm ? 'ds-centro-num alarm' : 'ds-centro-num';
+    const mueblesList = sin
+      ? '<div class="ds-centro-empty">SIN ACTIVIDAD</div>'
+      : (c.muebles || []).map(m => {
+          const partes = [m.mueble_codigo, m.mueble_nombre].filter(Boolean).join(' ');
+          const linea = partes ? `${m.odf || ''} · ${partes}` : (m.odf || '—');
+          const inact = m.inactivo;
+          return `<div class="ds-mueble-row${inact ? ' ds-inact' : ''}">${linea}${inact ? ' ⚠' : ''}</div>`;
+        }).join('');
+    return `<div class="ds-centro-card">
+      <div class="ds-centro-header">
+        <span class="ds-centro-label${sin ? ' dim' : ''}">${c.label}</span>
+        <span class="${numCls}">${c.total}</span>
+      </div>
+      ${mueblesList}
+    </div>`;
+  }).join('');
+  const centrosEl = document.getElementById('dash-snap-centros');
+  if (centrosEl) centrosEl.innerHTML = centrosHtml;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
