@@ -2656,11 +2656,90 @@ let _opHistExpanded = {}; // opId → rango actual ('hoy','semana','mes','todo')
 
 function renderOperarios() {
   clearTimers();
-  // sub-tabs
   document.getElementById('op-subtabs').innerHTML =
-    ['estado','gestion'].map(t=>`<button class="btn ${_opSubTab===t?'btn-primary':'btn-ghost'}" onclick="_opSubTab='${t}';renderOperarios();">${t==='estado'?'⚡ Estado Real':'🔧 Gestión'}</button>`).join('');
-  if(_opSubTab==='estado') _renderOpEstado();
+    ['estado','gestion'].map(t=>`<button class="btn ${_opSubTab===t?'btn-primary':'btn-ghost'}" onclick="_opSubTab='${t}';renderOperarios();">${t==='estado'?'⚡ Estado':'🔧 Gestión'}</button>`).join('');
+  if(_opSubTab==='estado') _renderOpEstadoSnapshot();
   else _renderOpGestion();
+}
+
+function _renderOpEstadoSnapshot() {
+  if (!_dashboardData) {
+    document.getElementById('op-lista').innerHTML = '<div style="padding:20px;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:11px;letter-spacing:1px;">CARGANDO...</div>';
+    if (!_dashboardSnapshotInterval) cargarDashboardSnapshot().then(() => { if(currentView==='operarios') _renderOpEstadoSnapshot(); });
+    return;
+  }
+  const ops = _dashboardData.operarios || [];
+  const ORDER = { inactivo:0, en_tarea:1, sin_tarea:2, ausente:3 };
+  const sorted = [...ops].sort((a,b)=>(ORDER[a.estado]??4)-(ORDER[b.estado]??4));
+  const total = OPERARIOS.length || ops.length;
+
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+    <div style="font-size:20px;font-weight:700;">Operarios <span class="mono" style="font-size:14px;color:var(--muted);">(${total})</span></div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-ghost btn-sm">Filtro: Todos ▾</button>
+      ${window.AUTH.esAdmin()?'<button class="btn btn-primary btn-sm" onclick="abrirModalOperario(null)">+ Nuevo</button>':''}
+    </div>
+  </div>
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div class="ds-header-row" style="font-size:9px;">
+      <div style="flex:1.4;">Nombre</div>
+      <div style="flex:0.6;">Entrada</div>
+      <div style="flex:1;">Centro</div>
+      <div style="flex:1;">Proyecto</div>
+      <div style="flex:1;">Mueble</div>
+      <div style="flex:1.2;">Estado</div>
+      <div style="flex:0.3;text-align:center;">⚙</div>
+    </div>`;
+
+  sorted.forEach(op => {
+    const esInact = op.estado === 'inactivo';
+    const esSin   = op.estado === 'sin_tarea';
+    const esAus   = op.estado === 'ausente';
+    let rowStyle = esInact ? 'background:#2a1010;border-left:3px solid #ff4444;padding-left:11px;'
+                 : esSin   ? 'background:#131313;'
+                 : esAus   ? 'background:#0d0d0d;opacity:0.5;'
+                 : '';
+    const prefijo = esInact ? '⚠ ' : esSin ? '◌ ' : esAus ? '— ' : '';
+    const nombreColor = esInact ? '#ff8888' : (esSin||esAus) ? 'var(--muted)' : 'var(--text)';
+    const centro   = (esSin||esAus) ? '—' : (op.centro_label || '—');
+    const proyecto = (esSin||esAus) ? '—' : (op.proyecto?.odf || '—');
+    const mueble   = (esSin||esAus) ? '—' : (op.mueble?.nombre || '—');
+    const entradaStr = op.entrada ? new Date(op.entrada).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'}) : '—';
+
+    let estadoHtml = '';
+    if (esInact) {
+      const m = op.inactivo_minutos||0;
+      const s = m>=60?`${Math.floor(m/60)}H ${m%60} MIN`:`${m} MIN`;
+      estadoHtml = `<span style="color:#ff4444;font-family:'JetBrains Mono',monospace;font-size:10px;">INACTIVA ${s}</span>`;
+    } else if (op.estado==='en_tarea') {
+      const m = op.tiempo_minutos||0;
+      const s = m>=60?`${Math.floor(m/60)}H ${m%60} MIN`:`${m} MIN`;
+      estadoHtml = `<span class="pill" style="background:rgba(245,166,35,.1);color:var(--amber);border:1px solid rgba(245,166,35,.25);font-size:10px;">${s}</span>`;
+    } else if (esSin) {
+      estadoHtml = `<span style="color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10px;">SIN TAREA · ${entradaStr}</span>`;
+    } else {
+      estadoHtml = `<span style="color:#444;font-family:'JetBrains Mono',monospace;font-size:10px;">AUSENTE</span>`;
+    }
+
+    const opLocal = OPERARIOS.find(o=>o.id===op.id||o.nombre===op.nombre);
+    const opId = opLocal?.id || op.id || '';
+    const gearBtn = opId
+      ? `<button onclick="abrirModalOperario('${opId}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px;" title="Editar">⚙</button>`
+      : '—';
+
+    html += `<div class="ds-op-row" style="${rowStyle}">
+      <div class="ds-op-col" style="flex:1.4;font-weight:700;color:${nombreColor};">${prefijo}${op.nombre}</div>
+      <div class="ds-op-col mono" style="flex:0.6;font-size:10px;color:var(--muted);">${entradaStr}</div>
+      <div class="ds-op-col" style="flex:1;font-size:11px;">${centro}</div>
+      <div class="ds-op-col mono" style="flex:1;color:var(--amber);font-size:10px;">${proyecto}</div>
+      <div class="ds-op-col" style="flex:1;font-size:10px;">${mueble}</div>
+      <div class="ds-op-col" style="flex:1.2;">${estadoHtml}</div>
+      <div style="flex:0.3;text-align:center;">${gearBtn}</div>
+    </div>`;
+  });
+
+  html += '</div>';
+  document.getElementById('op-lista').innerHTML = html;
 }
 
 function _renderOpEstado() {
