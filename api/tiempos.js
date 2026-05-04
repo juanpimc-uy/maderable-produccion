@@ -128,6 +128,8 @@ async function _entradaImpl(sb, { empleado_id }) {
   const esperado = new Date();
   esperado.setHours(parseInt(h), parseInt(m), 0, 0);
   const tarde = new Date() > new Date(esperado.getTime() + 10 * 60000);
+  // Blindaje: cerrar cualquier tarea activa de días anteriores antes de abrir nueva jornada
+  await _cerrarTareasActivasDe(sb, empleado_id, ahora);
   const { data, error } = await sb.from('jornadas')
     .upsert({ empleado_id, fecha: hoy, entrada: ahora, tarde }, { onConflict: 'empleado_id,fecha' })
     .select().single();
@@ -138,16 +140,8 @@ async function _entradaImpl(sb, { empleado_id }) {
 async function _salidaImpl(sb, { empleado_id }) {
   const hoy = new Date().toISOString().split('T')[0];
   const ahora = new Date().toISOString();
-  // Cerrar registro activo como 'pausado'; si era descanso, acumular sus minutos
-  const { data: activoSalida } = await sb.from('registros_trabajo')
-    .select('id').eq('empleado_id', empleado_id).eq('estado', 'activo').maybeSingle();
-  if (activoSalida) {
-    await _finalizarTareaImpl(sb, {
-      empleado_id,
-      registro_id: activoSalida.id,
-      estado_final: 'pausado',
-    });
-  }
+  // Cerrar TODOS los registros activos como 'pausado'
+  await _cerrarTareasActivasDe(sb, empleado_id, ahora);
   const { data } = await sb.from('jornadas')
     .update({ salida: ahora })
     .eq('empleado_id', empleado_id).eq('fecha', hoy).is('salida', null)
@@ -342,6 +336,18 @@ async function _finalizarTareaImpl(sb, {
   }
 
   return { registro: data, duracion_minutos: durMin };
+}
+
+async function _cerrarTareasActivasDe(sb, empleado_id, fin_ts = null) {
+  const ts = fin_ts || new Date().toISOString();
+  const { data: activos } = await sb.from('registros_trabajo')
+    .select('id').eq('empleado_id', empleado_id).eq('estado', 'activo');
+  if (!activos || activos.length === 0) return { cerrados: 0 };
+  const { error } = await sb.from('registros_trabajo')
+    .update({ fin: ts, estado: 'pausado' })
+    .eq('empleado_id', empleado_id).eq('estado', 'activo');
+  if (error) throw error;
+  return { cerrados: activos.length };
 }
 
 // ── Handler principal ──────────────────────────────────────────────────────
@@ -845,6 +851,10 @@ export default async function handler(req) {
       const { data: jornadaUpd, error: uJErr } = await supabase
         .from('jornadas').update(camposJ).eq('id', jornada_id).select().single();
       if (uJErr) throw uJErr;
+      // Si se está cerrando una jornada que estaba abierta, cerrar tareas activas
+      if (salida !== undefined && salida !== null && !jornada.salida) {
+        await _cerrarTareasActivasDe(supabase, jornada.empleado_id, salida);
+      }
       return ok({ ok: true, jornada: jornadaUpd });
     }
 
@@ -1436,10 +1446,7 @@ export default async function handler(req) {
         salida = salidaDate.toISOString();
       }
       // Cerrar registros activos con la misma hora de salida (consistencia)
-      await supabase.from('registros_trabajo')
-        .update({ fin: salida, estado: 'pausado' })
-        .eq('jornada_id', jornada_id)
-        .eq('estado', 'activo');
+      await _cerrarTareasActivasDe(supabase, j.empleado_id, salida);
       const { data, error: uErr } = await supabase.from('jornadas')
         .update({ salida }).eq('id', jornada_id).select().single();
       if (uErr) throw uErr;
@@ -2466,6 +2473,16 @@ export default async function handler(req) {
         .from('costos_directos_proyecto').delete().eq('id', costo_id);
       if (error) throw error;
       return ok({ ok: true, eliminado: { id: costo_id } });
+    }
+
+    // ── POST login-publico ────────────────────────────────────────────────
+    if (action === 'login-publico' && req.method === 'POST') {
+      const { password } = body;
+      const expected = process.env.DASHBOARD_PUBLIC_PASSWORD || 'maderable2026';
+      if (!password || password !== expected)
+        return new Response(JSON.stringify({ ok: false, error: 'Contraseña incorrecta' }),
+          { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      return ok({ ok: true });
     }
 
     return err('Acción no reconocida: ' + action);

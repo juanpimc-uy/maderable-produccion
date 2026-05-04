@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MBLE · Planta</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Sora:wght@400;500;600;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#0E0F14; --panel:#14161D; --card:#1A1D27; --border:#252836;
+    --text:#E8EAF2; --muted:#5A5F78; --faint:#20243A;
+    --amber:#F5A623; --green:#3DD68C; --red:#F05C5C;
+  }
+  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100vh;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* ── Login ── */
+  #screen-login{display:flex;align-items:center;justify-content:center;min-height:100vh;}
+  .login-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:40px;width:100%;max-width:360px;}
+  .login-logo{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--amber);letter-spacing:3px;text-align:center;margin-bottom:6px;}
+  .login-sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-align:center;margin-bottom:28px;}
+  .login-input{width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:12px 14px;color:var(--text);font-size:15px;outline:none;margin-bottom:12px;transition:border-color .15s;font-family:'JetBrains Mono',monospace;letter-spacing:3px;}
+  .login-input:focus{border-color:var(--amber);}
+  .login-btn{width:100%;background:var(--amber);color:#0E0F14;border:none;border-radius:6px;padding:13px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:opacity .15s;}
+  .login-btn:hover{opacity:.85;}
+  .login-btn:disabled{opacity:.5;cursor:not-allowed;}
+  .login-error{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--red);text-align:center;min-height:18px;margin-top:10px;}
+
+  /* ── Dashboard ── */
+  #screen-dash{display:none;}
+  .tv-header{background:var(--panel);border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  .tv-logo{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--amber);letter-spacing:3px;}
+  .tv-live{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:10px;}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .tv-content{padding:28px 32px;}
+  #tv-err{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--red);display:none;margin-bottom:10px;}
+
+  /* ── Counters ── */
+  .tv-counters{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--muted);letter-spacing:1px;margin-bottom:18px;}
+
+  /* ── Op rows (bigger than admin) ── */
+  .tv-header-row{display:flex;gap:14px;padding:9px 18px 7px;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+  .tv-op-row{display:flex;gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid rgba(37,40,54,.5);font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:.5px;text-transform:uppercase;}
+  .tv-op-row:last-child{border-bottom:none;}
+  .tv-op-row.row-inact{background:#2a1010;border-left:3px solid #ff4444;}
+  .tv-op-row.row-sin{background:#131313;color:var(--muted);}
+  .tv-op-col{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tv-op-nombre{flex:1.4;font-weight:700;}
+
+  /* ── Centro cards (bigger) ── */
+  .tv-sec-title{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;}
+  .tv-centros-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .tv-centro-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;}
+  .tv-centro-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .tv-centro-label{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:1px;text-transform:uppercase;}
+  .tv-centro-label.dim{color:var(--muted);}
+  .tv-centro-num{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--amber);}
+  .tv-centro-num.dim{color:var(--muted);}
+  .tv-centro-num.alarm{color:#ff4444;}
+  .tv-mueble-row{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);padding:4px 0;border-bottom:1px solid rgba(37,40,54,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tv-mueble-row:last-child{border-bottom:none;}
+  .tv-mueble-row.m-inact{color:#ff8888;}
+  .tv-centro-empty{font-family:'JetBrains Mono',monospace;font-size:11px;color:#444;letter-spacing:1px;padding:4px 0;}
+
+  @media(max-width:900px){.tv-centros-grid{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN ════════════════════════════════════════════════════════════════ -->
+<div id="screen-login">
+  <div class="login-card">
+    <div class="login-logo">⬡ MBLE</div>
+    <div class="login-sub">VISTA PLANTA · ACCESO INTERNO</div>
+    <input id="pw-input" class="login-input" type="password" placeholder="contraseña"
+      onkeydown="if(event.key==='Enter')_loginPublico()">
+    <button class="login-btn" id="pw-btn" onclick="_loginPublico()">ENTRAR</button>
+    <div class="login-error" id="pw-err"></div>
+  </div>
+</div>
+
+<!-- ═══ DASHBOARD ════════════════════════════════════════════════════════════ -->
+<div id="screen-dash">
+  <div class="tv-header">
+    <div class="tv-logo">⬡ MBLE · PLANTA</div>
+    <div class="tv-live">
+      <span class="live-dot"></span>
+      <span id="tv-ts">EN VIVO</span>
+    </div>
+  </div>
+  <div class="tv-content">
+    <div id="tv-err">⚠ Reconectando...</div>
+    <div class="tv-counters" id="tv-counters">—</div>
+    <div class="card" style="margin-bottom:22px;padding:0;overflow:hidden;" id="tv-ops-card">
+      <div id="tv-ops"></div>
+    </div>
+    <div class="tv-sec-title">ACTIVIDAD POR CENTRO</div>
+    <div class="tv-centros-grid" id="tv-centros"></div>
+  </div>
+</div>
+
+<script>
+const FLAG_KEY = 'planta_publica_auth';
+const CENTROS_FIJOS = ['corte', 'enchapado', 'armado', 'colocacion'];
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+if (localStorage.getItem(FLAG_KEY) === '1') {
+  mostrarDash();
+} // else: login screen is visible by default
+
+// ── Login ────────────────────────────────────────────────────────────────────
+async function _loginPublico() {
+  const pw = document.getElementById('pw-input').value.trim();
+  if (!pw) return;
+  const btn = document.getElementById('pw-btn');
+  btn.disabled = true; btn.textContent = '...';
+  document.getElementById('pw-err').textContent = '';
+  try {
+    const r = await fetch('/api/tiempos?action=login-publico', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ password: pw })
+    }).then(res => res.json());
+    if (r.ok) {
+      localStorage.setItem(FLAG_KEY, '1');
+      mostrarDash();
+    } else {
+      document.getElementById('pw-err').textContent = 'Contraseña incorrecta';
+    }
+  } catch(e) {
+    document.getElementById('pw-err').textContent = 'Error de conexión';
+  } finally {
+    btn.disabled = false; btn.textContent = 'ENTRAR';
+  }
+}
+
+// ── Mostrar dashboard ─────────────────────────────────────────────────────────
+function mostrarDash() {
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('screen-dash').style.display = 'block';
+  cargarSnapshot();
+  setInterval(cargarSnapshot, 60000);
+  setInterval(() => {
+    const now = new Date();
+    const hm = now.toLocaleTimeString('es-UY', { hour:'2-digit', minute:'2-digit' });
+    document.getElementById('tv-ts').textContent = 'ACTUALIZADO ' + hm;
+  }, 1000);
+}
+
+// ── Fetch ─────────────────────────────────────────────────────────────────────
+async function cargarSnapshot() {
+  try {
+    const r = await fetch('/api/tiempos?action=dashboard-snapshot').then(res => res.json());
+    if (r.error) throw new Error(r.error);
+    document.getElementById('tv-err').style.display = 'none';
+    renderSnapshot(r);
+  } catch(e) {
+    document.getElementById('tv-err').style.display = '';
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderSnapshot(data) {
+  const { counters, operarios, centros, timestamp } = data;
+
+  // Timestamp
+  if (timestamp) {
+    const hm = new Date(timestamp).toLocaleTimeString('es-UY', { hour:'2-digit', minute:'2-digit' });
+    document.getElementById('tv-ts').textContent = 'ACTUALIZADO ' + hm;
+  }
+
+  // Counters
+  document.getElementById('tv-counters').innerHTML =
+    `<span style="color:#ff4444;">${counters.inactivos||0} INACTIVAS</span>`+
+    `<span style="color:#444;margin:0 12px;">·</span>`+
+    `<span style="color:var(--text);">${counters.en_tarea||0} EN TAREA</span>`+
+    `<span style="color:#444;margin:0 12px;">·</span>`+
+    `<span>${counters.sin_tarea||0} SIN TAREA</span>`;
+
+  // Operarios (sin ausentes)
+  const visibles = (operarios||[]).filter(op => op.estado !== 'ausente');
+  const ORDER = { inactivo:0, en_tarea:1, sin_tarea:2 };
+  const sorted = [...visibles].sort((a,b) => (ORDER[a.estado]??3)-(ORDER[b.estado]??3));
+
+  let opsHtml = `<div class="tv-header-row">
+    <div style="flex:1.4;">OPERARIO</div>
+    <div style="flex:1;">CENTRO</div>
+    <div style="flex:1;">ODF</div>
+    <div style="flex:1;">CLIENTE</div>
+    <div style="flex:1;">MUEBLE</div>
+    <div style="flex:1.2;text-align:right;">ESTADO</div>
+  </div>`;
+
+  sorted.forEach(op => {
+    const esInact = op.estado === 'inactivo';
+    const esSin   = op.estado === 'sin_tarea';
+    const cls = esInact ? 'tv-op-row row-inact' : esSin ? 'tv-op-row row-sin' : 'tv-op-row';
+    const prefijo = esInact ? '⚠ ' : esSin ? '◌ ' : '';
+    const nombreColor = esInact ? '#ff8888' : esSin ? 'var(--muted)' : 'var(--text)';
+    const centro  = esSin ? '—' : (op.centro_label || '—');
+    const odf     = esSin ? '—' : (op.proyecto?.odf || '—');
+    const cliente = esSin ? '—' : (op.proyecto?.cliente || '—');
+    const mueble  = esSin ? '—' : (op.mueble?.nombre || '—');
+    let estadoTxt = '';
+    if (esInact) {
+      const m = op.inactivo_minutos||0;
+      estadoTxt = `<span style="color:#ff4444;">INACTIVA ${m>=60?Math.floor(m/60)+'H '+m%60:m} MIN</span>`;
+    } else if (op.estado === 'en_tarea') {
+      const m = op.tiempo_minutos||0;
+      estadoTxt = `<span style="color:var(--amber);">${m>=60?Math.floor(m/60)+'H '+m%60+' MIN':m+' MIN'}</span>`;
+    } else {
+      const entrada = op.entrada ? new Date(op.entrada).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'}) : '—';
+      estadoTxt = `<span style="color:var(--muted);">SIN TAREA · ${entrada}</span>`;
+    }
+    opsHtml += `<div class="${cls}">
+      <div class="tv-op-col tv-op-nombre" style="color:${nombreColor};">${prefijo}${op.nombre}</div>
+      <div class="tv-op-col">${centro}</div>
+      <div class="tv-op-col" style="color:var(--amber);">${odf}</div>
+      <div class="tv-op-col">${cliente}</div>
+      <div class="tv-op-col">${mueble}</div>
+      <div class="tv-op-col" style="text-align:right;">${estadoTxt}</div>
+    </div>`;
+  });
+
+  if (!sorted.length) opsHtml += '<div style="padding:20px;font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;">SIN ACTIVIDAD</div>';
+  document.getElementById('tv-ops').innerHTML = opsHtml;
+
+  // Centros
+  const centroMap = Object.fromEntries((centros||[]).map(c=>[c.centro,c]));
+  const centrosToShow = CENTROS_FIJOS.map(c => centroMap[c] || {centro:c,label:c.toUpperCase(),total:0,inactivos:0,muebles:[]});
+  (centros||[]).forEach(c => { if (!CENTROS_FIJOS.includes(c.centro)) centrosToShow.push(c); });
+
+  document.getElementById('tv-centros').innerHTML = centrosToShow.map(c => {
+    const sin = c.total === 0;
+    const alarm = !sin && c.inactivos > 0;
+    const numCls = sin ? 'tv-centro-num dim' : alarm ? 'tv-centro-num alarm' : 'tv-centro-num';
+    const mueblesList = sin
+      ? '<div class="tv-centro-empty">SIN ACTIVIDAD</div>'
+      : (c.muebles||[]).map(m => {
+          const partes = [m.mueble_codigo, m.mueble_nombre].filter(Boolean).join(' ');
+          const linea = partes ? `${m.odf||''} · ${partes}` : (m.odf||'—');
+          return `<div class="tv-mueble-row${m.inactivo?' m-inact':''}">${linea}${m.inactivo?' ⚠':''}</div>`;
+        }).join('');
+    return `<div class="tv-centro-card">
+      <div class="tv-centro-header">
+        <span class="tv-centro-label${sin?' dim':''}">${c.label}</span>
+        <span class="${numCls}">${c.total}</span>
+      </div>
+      ${mueblesList}
+    </div>`;
+  }).join('');
+}
+</script>
+</body>
+</html>
