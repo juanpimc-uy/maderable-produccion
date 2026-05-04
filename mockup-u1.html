@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MBLE · Mockup U1.B</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#111111; --panel:#1e1e1e; --card:#242424; --border:#2a2a2a; --border2:#333;
+    --text:#e8e8e8; --muted:#888; --faint:#1a1a1a;
+    --yellow:#FFD600; --red:#ff4444; --red-soft:#ff8888; --red-bg:#2a1010;
+    --amber-bg:#2a1f0a; --green:#6fb872; --green-bg:#0d2010;
+  }
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
+  .mono{font-family:'Space Mono',monospace;}
+
+  /* ── Screen selector ── */
+  #screen-bar{display:flex;gap:6px;padding:14px 20px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .stab{font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;padding:6px 14px;border:1px solid var(--border2);border-radius:4px;cursor:pointer;background:transparent;color:var(--muted);transition:all .15s;text-transform:uppercase;}
+  .stab.active{background:var(--yellow);color:#111;border-color:var(--yellow);}
+  .stab:hover:not(.active){border-color:#555;color:var(--text);}
+
+  /* ── Shared layout ── */
+  .screen{display:none;} .screen.active{display:block;}
+  .admin-shell{display:flex;flex-direction:column;height:calc(100vh - 48px);overflow:hidden;}
+  .admin-nav{background:var(--panel);border-bottom:1px solid var(--border);padding:0 24px;height:48px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  .admin-nav-logo{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--yellow);letter-spacing:2px;}
+  .admin-nav-tabs{display:flex;gap:0;}
+  .nav-tab{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;padding:0 14px;height:48px;display:flex;align-items:center;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;text-transform:uppercase;}
+  .nav-tab.active{color:var(--yellow);border-bottom-color:var(--yellow);}
+  .admin-nav-user{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+  .content{flex:1;overflow-y:auto;padding:24px;}
+
+  /* ── Shared components ── */
+  .sec-title{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;}
+  .btn{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.5px;padding:6px 14px;border:none;border-radius:4px;cursor:pointer;text-transform:uppercase;}
+  .btn-yellow{background:var(--yellow);color:#111;}
+  .btn-ghost{background:transparent;border:1px solid var(--border2);color:var(--muted);}
+  .pill{display:inline-block;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.5px;padding:2px 7px;border-radius:3px;text-transform:uppercase;white-space:nowrap;}
+  .pill-red{background:var(--red-bg);color:var(--red-soft);}
+  .pill-yellow{background:var(--amber-bg);color:var(--yellow);}
+  .pill-green{background:var(--green-bg);color:var(--green);}
+  .pill-gray{background:#222;color:#666;}
+
+  /* ── Dashboard: counters ── */
+  .counters{font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;margin-bottom:16px;}
+  .cnt-red{color:var(--red);}
+  .cnt-white{color:var(--text);}
+
+  /* ── Op rows ── */
+  .op-table{width:100%;}
+  .op-thead{display:flex;gap:10px;padding:7px 14px;border-bottom:1px solid var(--border2);font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+  .op-row{display:flex;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid rgba(42,42,42,.6);font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.5px;text-transform:uppercase;}
+  .op-row:last-child{border-bottom:none;}
+  .op-row.row-inact{background:var(--red-bg);border-left:3px solid var(--red);}
+  .op-row.row-sin{background:var(--faint);color:var(--muted);}
+  .c-nombre{flex:1.6;font-weight:700;}
+  .c-nombre.inact-name{color:var(--red-soft);}
+  .c-centro,.c-odf,.c-cliente,.c-mueble{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .c-estado{flex:1.2;text-align:right;}
+  .estado-inact{color:var(--red);}
+  .estado-sintarea{color:#555;}
+  .show-more{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);padding:10px 14px;cursor:pointer;letter-spacing:1px;}
+  .show-more:hover{color:var(--text);}
+
+  /* ── Centro cards ── */
+  .centros-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  .centro-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;}
+  .centro-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .centro-label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;}
+  .centro-label.dim{color:var(--muted);}
+  .centro-num{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--yellow);}
+  .centro-num.alarm{color:var(--red);}
+  .centro-num.dim{color:var(--muted);}
+  .mueble-line{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);padding:3px 0;border-bottom:1px solid rgba(42,42,42,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .mueble-line:last-child{border-bottom:none;}
+  .mueble-line.m-inact{color:var(--red-soft);}
+  .centro-empty{font-family:'Space Mono',monospace;font-size:10px;color:#444;letter-spacing:1px;padding:4px 0;}
+  .centro-footer{font-family:'Space Mono',monospace;font-size:9px;color:#444;letter-spacing:1px;margin-top:12px;text-align:center;}
+
+  /* ── Operarios table view ── */
+  .op2-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+  .op2-title{font-size:20px;font-weight:700;}
+  .op2-title span{font-family:'Space Mono',monospace;color:var(--muted);font-size:14px;}
+  .op2-actions{display:flex;gap:8px;}
+  table.op-tbl{width:100%;border-collapse:collapse;}
+  table.op-tbl th{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;padding:8px 12px;border-bottom:1px solid var(--border);text-align:left;}
+  table.op-tbl td{padding:10px 12px;border-bottom:1px solid rgba(42,42,42,.5);font-size:13px;vertical-align:middle;}
+  table.op-tbl tr:last-child td{border-bottom:none;}
+  table.op-tbl tr.tr-inact td{background:var(--red-bg);}
+  table.op-tbl tr.tr-sin td{color:var(--muted);}
+  table.op-tbl tr.tr-ausente td{opacity:.35;}
+  .td-mono{font-family:'Space Mono',monospace;font-size:11px;}
+  .td-gear{color:var(--muted);cursor:pointer;font-size:14px;}
+  .td-gear:hover{color:var(--text);}
+  .op2-more{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);padding:12px;text-align:center;letter-spacing:1px;cursor:pointer;}
+  .op2-more:hover{color:var(--text);}
+
+  /* ── TV screen ── */
+  .tv-wrap{background:#0d0d0d;min-height:100vh;}
+  .tv-banner{background:#2a1f0a;border-bottom:1px solid #3a2e0a;padding:10px 24px;font-family:'Space Mono',monospace;font-size:11px;color:var(--yellow);letter-spacing:1px;display:flex;align-items:center;gap:10px;}
+  .tv-header{background:#141414;padding:0 32px;height:60px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #1a1a1a;}
+  .tv-logo{font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--yellow);letter-spacing:3px;}
+  .tv-live{font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;display:flex;align-items:center;gap:8px;}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:#3dd68c;animation:pulse 2s infinite;display:inline-block;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .tv-content{padding:28px 32px;}
+  .tv-counters{font-family:'Space Mono',monospace;font-size:15px;color:var(--muted);letter-spacing:1px;margin-bottom:20px;}
+  .tv-op-row{display:flex;gap:12px;align-items:center;padding:14px 18px;border-bottom:1px solid rgba(42,42,42,.6);font-family:'Space Mono',monospace;font-size:13px;letter-spacing:.5px;text-transform:uppercase;}
+  .tv-op-row.row-inact{background:var(--red-bg);border-left:3px solid var(--red);}
+  .tv-op-row.row-sin{background:var(--faint);color:var(--muted);}
+  .tv-centros{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:24px;}
+  .tv-centro-card{background:#181818;border:1px solid #222;border-radius:10px;padding:14px;}
+  .tv-centro-num{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--yellow);}
+  .tv-centro-num.alarm{color:var(--red);}
+  .tv-centro-num.dim{color:var(--muted);}
+  .tv-mueble-line{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);padding:4px 0;border-bottom:1px solid rgba(42,42,42,.4);}
+  .tv-mueble-line:last-child{border-bottom:none;}
+  .tv-mueble-line.m-inact{color:var(--red-soft);}
+  .tv-sec{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;}
+
+  /* ── Tablet ── */
+  .tablet-wrap{background:#111;min-height:100vh;}
+  .tablet-header{background:#1a1a1a;border-bottom:1px solid #2a2a2a;padding:0 20px;height:52px;display:flex;align-items:center;justify-content:space-between;}
+  .tablet-logo{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--yellow);}
+  .tablet-info{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);display:flex;gap:16px;align-items:center;}
+  .tablet-centro{color:var(--yellow);font-weight:700;}
+  .tablet-content{padding:20px;}
+  .tablet-search{width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:12px 16px;color:var(--text);font-family:'Space Mono',monospace;font-size:12px;outline:none;margin-bottom:20px;letter-spacing:.5px;}
+  .tablet-search:focus{border-color:var(--yellow);}
+  .recents{display:flex;gap:10px;margin-bottom:20px;}
+  .recent-card{flex:1;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;padding:12px;}
+  .rc-odf{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--yellow);margin-bottom:2px;}
+  .rc-cliente{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:6px;}
+  .rc-ult{font-size:12px;color:var(--text);margin-bottom:4px;}
+  .rc-when{font-family:'Space Mono',monospace;font-size:10px;color:#555;}
+  .odf-list{display:flex;flex-direction:column;gap:6px;}
+  .odf-row{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;overflow:hidden;}
+  .odf-row-header{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.5px;}
+  .odf-row-header:hover{background:#202020;}
+  .odf-arrow{color:var(--yellow);font-size:12px;width:14px;flex-shrink:0;}
+  .odf-code{color:var(--yellow);font-weight:700;}
+  .odf-sep{color:#444;}
+  .odf-cliente{color:var(--muted);}
+  .odf-project{color:var(--text);}
+  .odf-count{margin-left:auto;font-size:10px;color:#555;}
+  .mueble-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px 16px;border-top:1px solid #242424;background:#161616;}
+  .mueble-card{background:#1e1e1e;border:1px solid #2a2a2a;border-radius:8px;padding:12px;}
+  .mc-badge{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.5px;padding:2px 7px;border-radius:3px;text-transform:uppercase;display:inline-block;margin-bottom:8px;}
+  .mc-badge-ult{background:rgba(255,214,0,.12);color:var(--yellow);border:1px solid rgba(255,214,0,.3);}
+  .mc-badge-sin{background:#1a1a1a;color:#444;border:1px solid #2a2a2a;}
+  .mc-badge-ult2{background:var(--amber-bg);color:var(--yellow);}
+  .mc-badge-en{background:var(--green-bg);color:var(--green);}
+  .mc-code{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px;}
+  .mc-nombre{font-size:12px;color:#bbb;margin-bottom:3px;}
+  .mc-mat{font-family:'Space Mono',monospace;font-size:10px;color:#555;margin-bottom:8px;}
+  .mc-estado{font-family:'Space Mono',monospace;font-size:10px;margin-bottom:6px;}
+  .mc-by{font-size:11px;color:var(--muted);margin-bottom:10px;}
+  .mc-btn{width:100%;padding:8px;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;border:none;border-radius:5px;cursor:pointer;letter-spacing:.5px;text-transform:uppercase;}
+  .mc-btn-primary{background:var(--yellow);color:#111;}
+  .mc-btn-disabled{background:#1a1a1a;color:#444;border:1px solid #2a2a2a;cursor:not-allowed;}
+  .tab-sec-title{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;}
+
+  @media(max-width:900px){
+    .centros-grid,.tv-centros{grid-template-columns:repeat(2,1fr);}
+    .recents{flex-direction:column;}
+    .mueble-grid{grid-template-columns:1fr 1fr;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ SCREEN SELECTOR ══════════════════════════════════════════════════════ -->
+<div id="screen-bar">
+  <button class="stab active" onclick="showScreen('s1')">◈ Dashboard Admin</button>
+  <button class="stab" onclick="showScreen('s2')">◎ Operarios</button>
+  <button class="stab" onclick="showScreen('s3')">▣ Vista Pública TV</button>
+  <button class="stab" onclick="showScreen('s4')">⬡ Tablet Planta</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PANTALLA 1 — DASHBOARD ADMIN
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="s1" class="screen active">
+  <div class="admin-shell">
+    <nav class="admin-nav">
+      <div class="admin-nav-logo">⬡ MBLE</div>
+      <div class="admin-nav-tabs">
+        <div class="nav-tab active">Dashboard</div>
+        <div class="nav-tab">Operarios</div>
+        <div class="nav-tab">Tiempos</div>
+        <div class="nav-tab">Proyectos</div>
+        <div class="nav-tab">Ajustes</div>
+      </div>
+      <div class="admin-nav-user mono">JM ▼</div>
+    </nav>
+    <div class="content">
+
+      <!-- Header row -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+        <div>
+          <div style="font-size:22px;font-weight:700;">En planta ahora</div>
+          <div class="mono" style="font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:1px;">Actualizado 14:32</div>
+        </div>
+        <button class="btn btn-ghost">↻ ACTUALIZAR</button>
+      </div>
+
+      <!-- BLOQUE A: operarios -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="counters">
+          <span class="cnt-red">2 INACTIVAS</span>
+          <span style="color:#444;margin:0 8px;">·</span>
+          <span class="cnt-white">17 EN TAREA</span>
+          <span style="color:#444;margin:0 8px;">·</span>
+          <span>4 SIN TAREA</span>
+        </div>
+        <div class="op-table">
+          <div class="op-thead">
+            <div style="flex:1.6;">Operario</div>
+            <div style="flex:1;">Centro</div>
+            <div style="flex:1;">ODF</div>
+            <div style="flex:1;">Cliente</div>
+            <div style="flex:1;">Mueble</div>
+            <div style="flex:1.2;text-align:right;">Estado</div>
+          </div>
+          <div class="op-row row-inact">
+            <div class="c-nombre inact-name">⚠ SILVIA M.</div>
+            <div class="c-centro">REVISION</div>
+            <div class="c-odf">ODF-2406</div>
+            <div class="c-cliente">BURGER H.</div>
+            <div class="c-mueble">M-01 Mostrador</div>
+            <div class="c-estado estado-inact">INACTIVA 47 MIN</div>
+          </div>
+          <div class="op-row row-inact">
+            <div class="c-nombre inact-name">⚠ NICO V.</div>
+            <div class="c-centro">CORTE</div>
+            <div class="c-odf">ODF-2410</div>
+            <div class="c-cliente">BAUTEN</div>
+            <div class="c-mueble">M-02 Módulo B-03</div>
+            <div class="c-estado estado-inact">INACTIVA 32 MIN</div>
+          </div>
+          <div class="op-row" style="color:var(--muted);">
+            <div class="c-nombre" style="color:var(--text);">MARTÍN G.</div>
+            <div class="c-centro">ARMADO</div>
+            <div class="c-odf">ODF-2409</div>
+            <div class="c-cliente">DENISSE</div>
+            <div class="c-mueble">M-04 Estante alto</div>
+            <div class="c-estado" style="color:#666;">EN TAREA 1H 12</div>
+          </div>
+          <div class="op-row">
+            <div class="c-nombre">JUAN P.</div>
+            <div class="c-centro">ENCH/PERF</div>
+            <div class="c-odf">ODF-2410</div>
+            <div class="c-cliente">BAUTEN</div>
+            <div class="c-mueble">M-01 Módulo C-07</div>
+            <div class="c-estado" style="color:var(--text);">EN TAREA 23 MIN</div>
+          </div>
+          <div class="op-row">
+            <div class="c-nombre">PEDRO L.</div>
+            <div class="c-centro">CORTE</div>
+            <div class="c-odf">ODF-2407</div>
+            <div class="c-cliente">FROM ARQ.</div>
+            <div class="c-mueble">M-03 Mesa central</div>
+            <div class="c-estado" style="color:var(--text);">EN TAREA 2H 08</div>
+          </div>
+          <div class="op-row row-sin">
+            <div class="c-nombre">◌ DIEGO R.</div>
+            <div class="c-centro">—</div>
+            <div class="c-odf">—</div>
+            <div class="c-cliente">—</div>
+            <div class="c-mueble">—</div>
+            <div class="c-estado estado-sintarea">SIN TAREA · 07:50</div>
+          </div>
+        </div>
+        <div class="show-more">+ 17 OPERARIOS MÁS  ▾</div>
+      </div>
+
+      <!-- BLOQUE B: centros -->
+      <div class="sec-title">ACTIVIDAD POR CENTRO</div>
+      <div class="centros-grid">
+
+        <div class="centro-card">
+          <div class="centro-header">
+            <span class="centro-label">CORTE</span>
+            <span class="centro-num alarm">3</span>
+          </div>
+          <div class="mueble-line">2407 · M-03 Mesa c.</div>
+          <div class="mueble-line m-inact">2410 · M-02 Mód B-03 ⚠</div>
+          <div class="mueble-line">2405 · M-01 Cocina</div>
+        </div>
+
+        <div class="centro-card">
+          <div class="centro-header">
+            <span class="centro-label">ENCH/PERF</span>
+            <span class="centro-num">2</span>
+          </div>
+          <div class="mueble-line">2410 · M-01 Mód C-07</div>
+          <div class="mueble-line">2398 · M-02 Bench b.</div>
+        </div>
+
+        <div class="centro-card">
+          <div class="centro-header">
+            <span class="centro-label">ARMADO</span>
+            <span class="centro-num">5</span>
+          </div>
+          <div class="mueble-line">2409 · M-04 Estante a.</div>
+          <div class="mueble-line">2407 · M-05 Repisa b.</div>
+          <div class="mueble-line">2410 · M-03 Bench b.</div>
+          <div class="mueble-line">2398 · M-04 Mesa p.</div>
+          <div class="mueble-line">2406 · M-02 Sillón</div>
+        </div>
+
+        <div class="centro-card">
+          <div class="centro-header">
+            <span class="centro-label dim">COLOCACION</span>
+            <span class="centro-num dim">0</span>
+          </div>
+          <div class="centro-empty">SIN ACTIVIDAD</div>
+        </div>
+
+        <div class="centro-card">
+          <div class="centro-header">
+            <span class="centro-label">REVISION</span>
+            <span class="centro-num alarm">1</span>
+          </div>
+          <div class="mueble-line m-inact">2406 · M-01 Mostr. ⚠</div>
+        </div>
+
+        <div class="centro-card">
+          <div class="centro-header">
+            <span class="centro-label">HERRERIA</span>
+            <span class="centro-num">2</span>
+          </div>
+          <div class="mueble-line">2405 · M-01 Cocina</div>
+          <div class="mueble-line">2410 · M-04 Mod D-01</div>
+        </div>
+
+        <div class="centro-card">
+          <div class="centro-header">
+            <span class="centro-label">ELECTRICA</span>
+            <span class="centro-num">1</span>
+          </div>
+          <div class="mueble-line">2407 · M-01 Recep.</div>
+        </div>
+
+      </div>
+      <div class="centro-footer">MACIZO oculto · sin actividad</div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PANTALLA 2 — OPERARIOS
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="s2" class="screen">
+  <div class="admin-shell">
+    <nav class="admin-nav">
+      <div class="admin-nav-logo">⬡ MBLE</div>
+      <div class="admin-nav-tabs">
+        <div class="nav-tab">Dashboard</div>
+        <div class="nav-tab active">Operarios</div>
+        <div class="nav-tab">Tiempos</div>
+        <div class="nav-tab">Proyectos</div>
+        <div class="nav-tab">Ajustes</div>
+      </div>
+      <div class="admin-nav-user mono">JM ▼</div>
+    </nav>
+    <div class="content">
+
+      <div class="op2-header">
+        <div class="op2-title">Operarios <span>(23)</span></div>
+        <div class="op2-actions">
+          <button class="btn btn-ghost">Filtro: Todos ▾</button>
+          <button class="btn btn-yellow">+ NUEVO</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <table class="op-tbl">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Entrada</th>
+              <th>Centro</th>
+              <th>Proyecto</th>
+              <th>Mueble</th>
+              <th>Estado</th>
+              <th>⚙</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="tr-inact">
+              <td class="td-mono" style="color:var(--red-soft);">⚠ Silvia M.</td>
+              <td class="td-mono" style="color:var(--muted);">08:12</td>
+              <td class="td-mono">REVISION</td>
+              <td class="td-mono" style="color:var(--yellow);">ODF-2406</td>
+              <td>M-01 Mostrador</td>
+              <td><span class="pill pill-red">INACTIVA 47 MIN</span></td>
+              <td class="td-gear">⚙</td>
+            </tr>
+            <tr class="tr-inact">
+              <td class="td-mono" style="color:var(--red-soft);">⚠ Nico V.</td>
+              <td class="td-mono" style="color:var(--muted);">07:46</td>
+              <td class="td-mono">CORTE</td>
+              <td class="td-mono" style="color:var(--yellow);">ODF-2410</td>
+              <td>M-02 Módulo B-03</td>
+              <td><span class="pill pill-red">INACTIVA 32 MIN</span></td>
+              <td class="td-gear">⚙</td>
+            </tr>
+            <tr>
+              <td class="td-mono">Martín G.</td>
+              <td class="td-mono" style="color:var(--muted);">07:48</td>
+              <td class="td-mono">ARMADO</td>
+              <td class="td-mono" style="color:var(--yellow);">ODF-2409</td>
+              <td>M-04 Estante alto</td>
+              <td><span class="pill pill-gray">EN TAREA 1H 12</span></td>
+              <td class="td-gear">⚙</td>
+            </tr>
+            <tr>
+              <td class="td-mono">Juan P.</td>
+              <td class="td-mono" style="color:var(--muted);">08:01</td>
+              <td class="td-mono">ENCH/PERF</td>
+              <td class="td-mono" style="color:var(--yellow);">ODF-2410</td>
+              <td>M-01 Módulo C-07</td>
+              <td><span class="pill pill-yellow">EN TAREA 23 MIN</span></td>
+              <td class="td-gear">⚙</td>
+            </tr>
+            <tr>
+              <td class="td-mono">Pedro L.</td>
+              <td class="td-mono" style="color:var(--muted);">07:55</td>
+              <td class="td-mono">CORTE</td>
+              <td class="td-mono" style="color:var(--yellow);">ODF-2407</td>
+              <td>M-03 Mesa central</td>
+              <td><span class="pill pill-yellow">EN TAREA 2H 08</span></td>
+              <td class="td-gear">⚙</td>
+            </tr>
+            <tr>
+              <td class="td-mono">Lucas A.</td>
+              <td class="td-mono" style="color:var(--muted);">07:51</td>
+              <td class="td-mono">ARMADO</td>
+              <td class="td-mono" style="color:var(--yellow);">ODF-2407</td>
+              <td>M-05 Repisa baja</td>
+              <td><span class="pill pill-yellow">EN TAREA 45 MIN</span></td>
+              <td class="td-gear">⚙</td>
+            </tr>
+            <tr class="tr-sin">
+              <td class="td-mono">◌ Diego R.</td>
+              <td class="td-mono">07:50</td>
+              <td class="td-mono">—</td>
+              <td class="td-mono">—</td>
+              <td>—</td>
+              <td><span class="pill pill-gray">SIN TAREA</span></td>
+              <td class="td-gear">⚙</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="op2-more">+ 14 OPERARIOS MÁS</div>
+        <div style="border-top:1px solid var(--border2);margin-top:4px;"></div>
+        <table class="op-tbl">
+          <tbody>
+            <tr class="tr-ausente">
+              <td class="td-mono">— Antonella</td>
+              <td class="td-mono">—</td>
+              <td class="td-mono">—</td>
+              <td class="td-mono">—</td>
+              <td>—</td>
+              <td><span class="pill pill-gray">AUSENTE</span></td>
+              <td class="td-gear">⚙</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PANTALLA 3 — VISTA PÚBLICA TV
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="s3" class="screen">
+  <div class="tv-wrap">
+    <div class="tv-banner">
+      📺 URL: maderable.uy/planta · login interno · sin indexar
+    </div>
+    <div class="tv-header">
+      <div class="tv-logo">⬡ MBLE · PLANTA</div>
+      <div class="tv-live">
+        <span class="live-dot"></span>
+        <span class="mono" style="font-size:13px;">EN VIVO · ACTUALIZADO 14:32</span>
+      </div>
+    </div>
+    <div class="tv-content">
+
+      <div class="tv-counters">
+        <span style="color:var(--red);">2 INACTIVAS</span>
+        <span style="color:#333;margin:0 10px;">·</span>
+        <span style="color:var(--text);">17 EN TAREA</span>
+        <span style="color:#333;margin:0 10px;">·</span>
+        <span>4 SIN TAREA</span>
+      </div>
+
+      <div style="background:var(--card);border:1px solid #1a1a1a;border-radius:10px;margin-bottom:24px;overflow:hidden;">
+        <div class="tv-op-row row-inact">
+          <div style="flex:1.6;font-weight:700;color:var(--red-soft);">⚠ SILVIA M.</div>
+          <div style="flex:1;">REVISION</div>
+          <div style="flex:1;color:var(--yellow);">ODF-2406</div>
+          <div style="flex:1;">BURGER H.</div>
+          <div style="flex:1.4;">M-01 Mostrador</div>
+          <div style="flex:1.2;text-align:right;color:var(--red);">INACTIVA 47 MIN</div>
+        </div>
+        <div class="tv-op-row row-inact">
+          <div style="flex:1.6;font-weight:700;color:var(--red-soft);">⚠ NICO V.</div>
+          <div style="flex:1;">CORTE</div>
+          <div style="flex:1;color:var(--yellow);">ODF-2410</div>
+          <div style="flex:1;">BAUTEN</div>
+          <div style="flex:1.4;">M-02 Módulo B-03</div>
+          <div style="flex:1.2;text-align:right;color:var(--red);">INACTIVA 32 MIN</div>
+        </div>
+        <div class="tv-op-row">
+          <div style="flex:1.6;font-weight:700;">MARTÍN G.</div>
+          <div style="flex:1;">ARMADO</div>
+          <div style="flex:1;color:var(--yellow);">ODF-2409</div>
+          <div style="flex:1;">DENISSE</div>
+          <div style="flex:1.4;">M-04 Estante alto</div>
+          <div style="flex:1.2;text-align:right;color:#666;">EN TAREA 1H 12</div>
+        </div>
+        <div class="tv-op-row">
+          <div style="flex:1.6;font-weight:700;">JUAN P.</div>
+          <div style="flex:1;">ENCH/PERF</div>
+          <div style="flex:1;color:var(--yellow);">ODF-2410</div>
+          <div style="flex:1;">BAUTEN</div>
+          <div style="flex:1.4;">M-01 Módulo C-07</div>
+          <div style="flex:1.2;text-align:right;">EN TAREA 23 MIN</div>
+        </div>
+        <div class="tv-op-row">
+          <div style="flex:1.6;font-weight:700;">PEDRO L.</div>
+          <div style="flex:1;">CORTE</div>
+          <div style="flex:1;color:var(--yellow);">ODF-2407</div>
+          <div style="flex:1;">FROM ARQ.</div>
+          <div style="flex:1.4;">M-03 Mesa central</div>
+          <div style="flex:1.2;text-align:right;">EN TAREA 2H 08</div>
+        </div>
+        <div class="tv-op-row row-sin">
+          <div style="flex:1.6;font-weight:700;">◌ DIEGO R.</div>
+          <div style="flex:1;">—</div>
+          <div style="flex:1;">—</div>
+          <div style="flex:1;">—</div>
+          <div style="flex:1.4;">—</div>
+          <div style="flex:1.2;text-align:right;">SIN TAREA · 07:50</div>
+        </div>
+      </div>
+
+      <div class="tv-sec">ACTIVIDAD POR CENTRO</div>
+      <div class="tv-centros">
+        <div class="tv-centro-card">
+          <div class="centro-header">
+            <span class="centro-label">CORTE</span>
+            <span class="tv-centro-num alarm">3</span>
+          </div>
+          <div class="tv-mueble-line">2407 · M-03 Mesa c.</div>
+          <div class="tv-mueble-line m-inact">2410 · M-02 Mód B-03 ⚠</div>
+          <div class="tv-mueble-line">2405 · M-01 Cocina</div>
+        </div>
+        <div class="tv-centro-card">
+          <div class="centro-header">
+            <span class="centro-label">ENCH/PERF</span>
+            <span class="tv-centro-num">2</span>
+          </div>
+          <div class="tv-mueble-line">2410 · M-01 Mód C-07</div>
+          <div class="tv-mueble-line">2398 · M-02 Bench b.</div>
+        </div>
+        <div class="tv-centro-card">
+          <div class="centro-header">
+            <span class="centro-label">ARMADO</span>
+            <span class="tv-centro-num">5</span>
+          </div>
+          <div class="tv-mueble-line">2409 · M-04 Estante a.</div>
+          <div class="tv-mueble-line">2407 · M-05 Repisa b.</div>
+          <div class="tv-mueble-line">2410 · M-03 Bench b.</div>
+          <div class="tv-mueble-line">2398 · M-04 Mesa p.</div>
+          <div class="tv-mueble-line">2406 · M-02 Sillón</div>
+        </div>
+        <div class="tv-centro-card">
+          <div class="centro-header">
+            <span class="centro-label dim">COLOCACION</span>
+            <span class="tv-centro-num dim">0</span>
+          </div>
+          <div class="centro-empty">SIN ACTIVIDAD</div>
+        </div>
+        <div class="tv-centro-card">
+          <div class="centro-header">
+            <span class="centro-label">REVISION</span>
+            <span class="tv-centro-num alarm">1</span>
+          </div>
+          <div class="tv-mueble-line m-inact">2406 · M-01 Mostr. ⚠</div>
+        </div>
+        <div class="tv-centro-card">
+          <div class="centro-header">
+            <span class="centro-label">HERRERIA</span>
+            <span class="tv-centro-num">2</span>
+          </div>
+          <div class="tv-mueble-line">2405 · M-01 Cocina</div>
+          <div class="tv-mueble-line">2410 · M-04 Mod D-01</div>
+        </div>
+        <div class="tv-centro-card">
+          <div class="centro-header">
+            <span class="centro-label">ELECTRICA</span>
+            <span class="tv-centro-num">1</span>
+          </div>
+          <div class="tv-mueble-line">2407 · M-01 Recep.</div>
+        </div>
+        <div class="tv-centro-card" style="opacity:.3;">
+          <div class="centro-header">
+            <span class="centro-label dim">MACIZO</span>
+            <span class="tv-centro-num dim">0</span>
+          </div>
+          <div class="centro-empty">SIN ACTIVIDAD</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     PANTALLA 4 — TABLET PLANTA
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="s4" class="screen">
+  <div class="tablet-wrap">
+    <div class="tablet-header">
+      <div class="tablet-logo">⬡ MBLE</div>
+      <div class="tablet-info">
+        <span>Centro: <span class="tablet-centro">ARMADO</span></span>
+        <span style="color:#444;">|</span>
+        <span>JUAN PÉREZ</span>
+        <button class="btn btn-ghost" style="font-size:10px;padding:5px 10px;">Cerrar</button>
+      </div>
+    </div>
+    <div class="tablet-content">
+
+      <input class="tablet-search" placeholder="BUSCAR ODF / MUEBLE / CLIENTE...">
+
+      <!-- Últimos trabajados -->
+      <div class="tab-sec-title">ÚLTIMOS 3 TRABAJADOS</div>
+      <div class="recents" style="margin-bottom:24px;">
+        <div class="recent-card">
+          <div class="rc-odf">ODF-2409</div>
+          <div class="rc-cliente">DENISSE · IEEM</div>
+          <div class="rc-ult">ÚLT: M-02 · ENCHAPADO/PERF</div>
+          <div class="rc-when">HACE 2H</div>
+        </div>
+        <div class="recent-card">
+          <div class="rc-odf">ODF-2398</div>
+          <div class="rc-cliente">LGD ARQ. · MELI Cosmos</div>
+          <div class="rc-ult">ÚLT: M-07 · CORTE</div>
+          <div class="rc-when">AYER 17:40</div>
+        </div>
+        <div class="recent-card">
+          <div class="rc-odf">ODF-2395</div>
+          <div class="rc-cliente">MURARA · Local Centro</div>
+          <div class="rc-ult">ÚLT: M-03 · COLOCACION</div>
+          <div class="rc-when">VIE 10:12</div>
+        </div>
+      </div>
+
+      <!-- ODFs activas -->
+      <div class="tab-sec-title">ODFs ACTIVAS (12)</div>
+      <div class="odf-list">
+
+        <div class="odf-row">
+          <div class="odf-row-header" onclick="this.parentElement.querySelector('.mueble-grid') && null">
+            <span class="odf-arrow">▸</span>
+            <span class="odf-code">ODF-2410</span>
+            <span class="odf-sep">·</span>
+            <span class="odf-cliente">BAUTEN</span>
+            <span class="odf-sep">·</span>
+            <span class="odf-project">MELI Cosmos</span>
+            <span class="odf-count">3 muebles</span>
+          </div>
+        </div>
+
+        <!-- ODF-2409 expandida -->
+        <div class="odf-row">
+          <div class="odf-row-header">
+            <span class="odf-arrow" style="color:var(--yellow);">▾</span>
+            <span class="odf-code">ODF-2409</span>
+            <span class="odf-sep">·</span>
+            <span class="odf-cliente">DENISSE</span>
+            <span class="odf-sep">·</span>
+            <span class="odf-project">IEEM</span>
+            <span class="odf-count">5 muebles</span>
+          </div>
+          <div class="mueble-grid">
+
+            <div class="mueble-card">
+              <span class="mc-badge mc-badge-ult">★ ÚLTIMO TRABAJADO</span>
+              <div class="mc-code">M-02 Sillón L</div>
+              <div class="mc-mat">ROBLE 25 MM</div>
+              <div class="mc-estado" style="color:var(--muted);">ÚLT: ENCHAPADO/PERF</div>
+              <button class="mc-btn mc-btn-primary">Iniciar →</button>
+            </div>
+
+            <div class="mueble-card">
+              <span class="mc-badge mc-badge-sin">SIN INICIAR</span>
+              <div class="mc-code">M-01 Mesa principal</div>
+              <div class="mc-mat">MDF 18 MM</div>
+              <div class="mc-estado" style="color:#444;">SIN INICIAR</div>
+              <button class="mc-btn mc-btn-primary">Iniciar →</button>
+            </div>
+
+            <div class="mueble-card">
+              <span class="mc-badge mc-badge-ult2">↻ EN PROGRESO</span>
+              <div class="mc-code">M-03 Bench bajo</div>
+              <div class="mc-mat">MDF 18 MM</div>
+              <div class="mc-estado" style="color:var(--yellow);">↻ ÚLT: ARMADO</div>
+              <button class="mc-btn mc-btn-primary">Iniciar →</button>
+            </div>
+
+            <div class="mueble-card">
+              <span class="mc-badge" style="background:var(--green-bg);color:var(--green);border:1px solid rgba(111,184,114,.3);">▶ EN USO</span>
+              <div class="mc-code">M-04 Estante alto</div>
+              <div class="mc-mat">MDF 18 MM</div>
+              <div class="mc-estado" style="color:var(--green);">▶ EN ARMADO</div>
+              <div class="mc-by">por Martín G.</div>
+              <button class="mc-btn mc-btn-disabled" disabled>En uso</button>
+            </div>
+
+            <div class="mueble-card">
+              <span class="mc-badge mc-badge-sin">SIN INICIAR</span>
+              <div class="mc-code">M-05 Mostrador</div>
+              <div class="mc-mat">MDF 25 + LAM</div>
+              <div class="mc-estado" style="color:var(--muted);">ÚLT: REVISION</div>
+              <button class="mc-btn mc-btn-primary">Iniciar →</button>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="odf-row">
+          <div class="odf-row-header">
+            <span class="odf-arrow">▸</span>
+            <span class="odf-code">ODF-2408</span>
+            <span class="odf-sep">·</span>
+            <span class="odf-cliente">LGD ARQ.</span>
+            <span class="odf-sep">·</span>
+            <span class="odf-project">Rinque</span>
+            <span class="odf-count">2 muebles</span>
+          </div>
+        </div>
+
+        <div class="odf-row">
+          <div class="odf-row-header">
+            <span class="odf-arrow">▸</span>
+            <span class="odf-code">ODF-2407</span>
+            <span class="odf-sep">·</span>
+            <span class="odf-cliente">FROM ARQ.</span>
+            <span class="odf-sep">·</span>
+            <span class="odf-project">Refugio Caracol</span>
+            <span class="odf-count">8 muebles</span>
+          </div>
+        </div>
+
+        <div class="odf-row">
+          <div class="odf-row-header">
+            <span class="odf-arrow">▸</span>
+            <span class="odf-code">ODF-2406</span>
+            <span class="odf-sep">·</span>
+            <span class="odf-cliente">BURGER H.</span>
+            <span class="odf-sep">·</span>
+            <span class="odf-project">Local Pocitos</span>
+            <span class="odf-count">1 mueble</span>
+          </div>
+        </div>
+
+        <div class="odf-row">
+          <div class="odf-row-header">
+            <span class="odf-arrow">▸</span>
+            <span class="odf-code">ODF-2405</span>
+            <span class="odf-sep">·</span>
+            <span class="odf-cliente">PARTICULAR</span>
+            <span class="odf-sep">·</span>
+            <span class="odf-project">Cocina Solanas</span>
+            <span class="odf-count">4 muebles</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.stab').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+</script>
+</body>
+</html>
