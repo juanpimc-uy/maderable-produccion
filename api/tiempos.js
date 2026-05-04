@@ -242,7 +242,8 @@ async function _iniciarTareaImpl(sb, {
   }
 
   // 6. Insertar nuevo registro
-  const persistirItem = !es_descanso && CENTROS_CON_ITEM.includes(centro);
+  // item_id se persiste siempre que venga informado y no sea descanso (CENTROS_CON_ITEM es legacy)
+  const persistirItem = !es_descanso && (item_id != null);
   const { data, error } = await sb.from('registros_trabajo')
     .insert({
       empleado_id,
@@ -721,6 +722,177 @@ export default async function handler(req) {
         counters,
         operarios: operariosOut,
         centros:   centrosOut,
+      });
+    }
+
+    // ── GET planta-snapshot (Sprint 3 — vista tablet por centro) ─────────
+    if (action === 'planta-snapshot' && req.method === 'GET') {
+      const empleado_id = url.searchParams.get('empleado_id');
+      const centro      = url.searchParams.get('centro');
+      if (!empleado_id || !centro) return err('empleado_id y centro requeridos', 400);
+
+      const ahora = new Date();
+      const hoy   = ahora.toISOString().split('T')[0];
+
+      // 1. Pull paralelo: jornada hoy + registro activo del empleado + proyectos activos
+      //    + registros activos globales + nombres de empleados
+      const [jornadaRes, activosGlobalRes, proyectosRes, empleadosRes] = await Promise.all([
+        supabase.from('jornadas')
+          .select('id, entrada, salida')
+          .eq('empleado_id', empleado_id).eq('fecha', hoy).maybeSingle(),
+        supabase.from('registros_trabajo')
+          .select('id, empleado_id, proyecto_id, item_id, centro, inicio, ultima_actividad, es_retrabajo')
+          .eq('estado', 'activo'),
+        supabase.from('proyectos_cache')
+          .select('id, numero, nombre, obra, cliente, cliente_nombre, muebles')
+          .eq('activo', true).order('nombre'),
+        supabase.from('empleados')
+          .select('id, nombre').eq('activo', true),
+      ]);
+
+      const jornada        = jornadaRes.data       || null;
+      const activosGlobal  = activosGlobalRes.data || [];
+      const proyectos      = proyectosRes.data     || [];
+      const empleadosList  = empleadosRes.data     || [];
+
+      // Registro activo del empleado actual
+      const registroActivo = activosGlobal.find(r => r.empleado_id === empleado_id) || null;
+
+      // 2. Últimos 3 proyectos distintos en que trabajó el empleado
+      const { data: ultRegs } = await supabase.from('registros_trabajo')
+        .select('proyecto_id, inicio')
+        .eq('empleado_id', empleado_id)
+        .not('proyecto_id', 'is', null)
+        .order('inicio', { ascending: false })
+        .limit(60);
+
+      const seenProyectos  = new Set();
+      const ultimos3ProyIds = [];
+      for (const r of (ultRegs || [])) {
+        if (r.proyecto_id && !seenProyectos.has(r.proyecto_id)) {
+          seenProyectos.add(r.proyecto_id);
+          ultimos3ProyIds.push(r.proyecto_id);
+          if (ultimos3ProyIds.length >= 3) break;
+        }
+      }
+
+      // 3. Historial: último registro NO-activo por item_id (para saber si fue iniciado / retrabajo)
+      const allItemIds = [];
+      for (const p of proyectos) {
+        for (const m of (p.muebles || [])) {
+          if (m.id != null) allItemIds.push(String(m.id));
+        }
+      }
+      const historialPorItem = {}; // item_id → registro más reciente no-activo
+      if (allItemIds.length > 0) {
+        const { data: histRegs } = await supabase.from('registros_trabajo')
+          .select('id, empleado_id, item_id, centro, inicio, estado, es_retrabajo')
+          .in('item_id', allItemIds)
+          .not('estado', 'eq', 'activo')
+          .order('inicio', { ascending: false })
+          .limit(1000);
+        for (const r of (histRegs || [])) {
+          if (!historialPorItem[r.item_id]) historialPorItem[r.item_id] = r;
+        }
+      }
+
+      // 4. Índices auxiliares
+      const empleadoNombreById = Object.fromEntries(empleadosList.map(e => [e.id, e.nombre]));
+      const proyectoById       = Object.fromEntries(proyectos.map(p => [p.id, p]));
+
+      // Registros activos de OTROS operarios, indexados por item_id
+      const activoPorItemOtro = {};
+      for (const r of activosGlobal) {
+        if (r.item_id && r.empleado_id !== empleado_id) {
+          activoPorItemOtro[r.item_id] = r;
+        }
+      }
+
+      // 5. Construir ultimos_3_proyectos
+      const ultimos3Proyectos = ultimos3ProyIds.map(pid => {
+        const p = proyectoById[pid];
+        if (!p) return { id: pid, numero: pid, obra: '', cliente: '' };
+        return {
+          id:      p.id,
+          numero:  p.numero || p.nombre || '',
+          obra:    p.obra   || p.nombre || '',
+          cliente: p.cliente_nombre || p.cliente || '',
+        };
+      });
+
+      // 6. Construir odfs_activas con estado_display por mueble
+      const odfsActivas = proyectos.map(p => {
+        const muebles = (p.muebles || []).map(m => {
+          const itemId = String(m.id ?? '');
+
+          const activoOtro = activoPorItemOtro[itemId] || null;
+          // "último" de toda la historia: si hay un activo de OTRO, ese es el más reciente;
+          // si hay un activo propio, ese es el más reciente; si no, el historial.
+          const propioActivo   = (registroActivo?.item_id === itemId) ? registroActivo : null;
+          const ultimaHistoria = historialPorItem[itemId] || null;
+
+          let estado_display;
+          let operario_actual = null;
+
+          if (activoOtro) {
+            estado_display  = 'en_uso';
+            operario_actual = empleadoNombreById[activoOtro.empleado_id] || activoOtro.empleado_id;
+          } else if (propioActivo) {
+            // Este operario lo tiene activo ahora mismo — 'en_uso' con nombre propio
+            estado_display  = 'en_uso';
+            operario_actual = empleadoNombreById[empleado_id] || empleado_id;
+          } else if (ultimaHistoria?.es_retrabajo || ultimaHistoria?.estado === 'retrabajo') {
+            estado_display = 'retrabajo';
+          } else if (!ultimaHistoria) {
+            estado_display = 'sin_iniciar';
+          } else {
+            estado_display = 'normal';
+          }
+
+          // es_ultimo_del_operario: el último reg histórico (no-activo) de este item fue de este empleado
+          const es_ultimo_del_operario = ultimaHistoria?.empleado_id === empleado_id;
+
+          return {
+            id:                   itemId,
+            codigo:               m.codigo || '',
+            nombre:               m.nombre || '',
+            ultimo_centro:        ultimaHistoria?.centro || null,
+            estado_display,
+            operario_actual,
+            es_ultimo_del_operario,
+          };
+        });
+
+        return {
+          id:      p.id,
+          numero:  p.numero || p.nombre || '',
+          obra:    p.obra   || p.nombre || '',
+          cliente: p.cliente_nombre || p.cliente || '',
+          muebles,
+        };
+      });
+
+      // 7. Info del operario
+      const operarioOut = {
+        id:              empleado_id,
+        nombre:          empleadoNombreById[empleado_id] || empleado_id,
+        jornada_activa:  !!jornada && !jornada.salida,
+        entrada:         jornada?.entrada || null,
+        registro_activo: registroActivo ? {
+          id:          registroActivo.id,
+          proyecto_id: registroActivo.proyecto_id,
+          item_id:     registroActivo.item_id,
+          centro:      registroActivo.centro,
+          inicio:      registroActivo.inicio,
+        } : null,
+      };
+
+      return ok({
+        timestamp:            ahora.toISOString(),
+        operario:             operarioOut,
+        centro,
+        ultimos_3_proyectos:  ultimos3Proyectos,
+        odfs_activas:         odfsActivas,
       });
     }
 
@@ -1474,6 +1646,44 @@ export default async function handler(req) {
         estado_final,
       });
       return ok({ ok: true, ...result });
+    }
+
+    // ── POST reanudar-tarea (retoma o finaliza un registro pausado) ──────────
+    if (action === 'reanudar-tarea' && req.method === 'POST') {
+      const { empleado_id, registro_id, modo = 'retomar' } = body;
+      if (!empleado_id || !registro_id) return err('empleado_id y registro_id requeridos', 400);
+      if (!['retomar', 'finalizar'].includes(modo)) return err('modo debe ser retomar o finalizar', 400);
+
+      const { data: reg, error: rErr } = await supabase
+        .from('registros_trabajo')
+        .select('id, empleado_id, estado')
+        .eq('id', registro_id).maybeSingle();
+      if (rErr) throw rErr;
+      if (!reg) return err('Registro no encontrado', 404);
+      if (reg.empleado_id !== empleado_id) return err('No autorizado', 403);
+      if (reg.estado !== 'pausado') return err('El registro no está pausado', 400);
+
+      const ahora = new Date().toISOString();
+      if (modo === 'retomar') {
+        // Cerrar cualquier activo existente
+        await _cerrarTareasActivasDe(supabase, empleado_id, ahora);
+        const { data: updated, error: upErr } = await supabase
+          .from('registros_trabajo')
+          .update({ estado: 'activo', inicio: ahora, ultima_actividad: ahora })
+          .eq('id', registro_id)
+          .select().single();
+        if (upErr) throw upErr;
+        return ok({ ok: true, registro: updated });
+      } else {
+        // modo=finalizar: marcar como finalizado
+        const { data: updated, error: upErr } = await supabase
+          .from('registros_trabajo')
+          .update({ estado: 'finalizado', fin: ahora })
+          .eq('id', registro_id)
+          .select().single();
+        if (upErr) throw upErr;
+        return ok({ ok: true, registro: updated });
+      }
     }
 
     // ── GET tiempo-activo-v2 ──────────────────────────────────────────────

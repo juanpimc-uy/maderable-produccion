@@ -292,6 +292,62 @@ textarea.campo {
   pointer-events: none;
   z-index: 2;
 }
+
+/* ── Snapshot: chips de estado mueble ──────────────────────────────────── */
+.chip {
+  display: inline-flex; align-items: center; padding: 3px 9px;
+  border-radius: 20px; font-family: 'Space Mono', monospace;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+  white-space: nowrap;
+}
+.chip-gray  { background: rgba(136,136,136,.18); color: #888; }
+.chip-green { background: rgba(34,197,94,.15);   color: var(--green); }
+.chip-amber { background: rgba(255,214,0,.15);   color: var(--accent); }
+.chip-red   { background: rgba(239,68,68,.15);   color: var(--red); }
+
+/* ── Snapshot: tarjetas de mueble ──────────────────────────────────────── */
+.mueble-card {
+  width: 100%; background: var(--card2); border: 2px solid var(--border);
+  border-radius: 10px; padding: 12px 14px; text-align: left; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  user-select: none; transition: border-color .15s, background .15s;
+}
+.mueble-card:active { transform: scale(0.98); }
+.mueble-card.sel    { border-color: var(--accent); background: var(--accent-dim); }
+.mueble-card.en-uso { opacity: .55; cursor: default; }
+
+/* ── Snapshot: tarjeta ODF colapsable ──────────────────────────────────── */
+.odf-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; margin-bottom: 10px;
+}
+.odf-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: 12px 14px; cursor: pointer; gap: 8px;
+}
+.odf-toggle { font-size: 13px; color: var(--muted); flex-shrink: 0; margin-top: 2px; }
+.odf-muebles { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 8px; }
+
+/* ── Snapshot: acceso rápido (últimos 3) ───────────────────────────────── */
+.snap-rapido-card {
+  background: var(--card2); border: 1px solid rgba(255,214,0,.2); border-radius: 8px;
+  padding: 10px 14px; cursor: pointer; transition: border-color .15s;
+  user-select: none;
+}
+.snap-rapido-card:active { transform: scale(0.98); border-color: rgba(255,214,0,.6); }
+
+/* ── Banner tarea pausada ──────────────────────────────────────────────── */
+.banner-pausada {
+  background: rgba(234,179,8,.08); border: 1px solid rgba(234,179,8,.4);
+  border-radius: 10px; padding: 14px;
+}
+.banner-pausada-titulo {
+  font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 1px;
+  color: var(--yellow); text-transform: uppercase; margin-bottom: 6px;
+}
+.banner-pausada-info { font-size: 14px; font-weight: 700; line-height: 1.4; margin-bottom: 10px; }
+.banner-pausada-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.banner-pausada-btns .btn { min-height: 44px; font-size: 11px; flex: 1; min-width: 80px; }
 </style>
 </head>
 <body>
@@ -419,29 +475,29 @@ textarea.campo {
   </div>
   <div class="contenido">
 
-    <!-- Paso 1: Proyecto -->
-    <div>
-      <span class="lbl">PASO 1 — PROYECTO</span>
-      <div id="lista-proyectos" style="display:flex;flex-direction:column;gap:8px;">
-        <div style="color:var(--muted);font-size:13px;padding:10px;">Cargando proyectos…</div>
-      </div>
-    </div>
-
-    <!-- Paso 2: Ítem -->
-    <div id="paso-item" style="display:none;">
-      <div class="hr" style="margin-bottom:14px;"></div>
-      <span class="lbl">PASO 2 — ÍTEM</span>
-      <div id="lista-items" style="display:flex;flex-direction:column;gap:8px;"></div>
-    </div>
-
-    <!-- Paso 3: Centro -->
-    <div id="paso-centro" style="display:none;">
-      <div class="hr" style="margin-bottom:14px;"></div>
-      <span class="lbl">PASO 3 — CENTRO DE TRABAJO</span>
+    <!-- Paso 1: Centro -->
+    <div id="paso-centro">
+      <span class="lbl">PASO 1 — CENTRO DE TRABAJO</span>
       <div id="lista-centros" style="display:flex;flex-direction:column;gap:8px;"></div>
       <div id="aviso-centro" class="warn-box" style="display:none;margin-top:10px;">
         ⚠&nbsp; Este centro no es habitual para vos — igual podés seleccionarlo.
       </div>
+    </div>
+
+    <!-- Banner: tarea pausada del mismo centro en últimas 12h -->
+    <div id="banner-pausada" style="display:none;"></div>
+
+    <!-- Paso 2: Proyecto + Mueble via planta-snapshot -->
+    <div id="paso-snapshot" style="display:none;">
+      <div class="hr" style="margin-bottom:14px;"></div>
+      <span class="lbl">PASO 2 — PROYECTO Y MUEBLE</span>
+      <input id="snap-search" type="text" placeholder="Buscar ODF, obra, cliente o mueble…"
+        oninput="filtrarSnapshot()"
+        style="width:100%;background:var(--card2);border:1px solid var(--border);border-radius:8px;
+               padding:12px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;
+               outline:none;margin-bottom:14px;">
+      <div id="snap-ultimos"></div>
+      <div id="snap-odfs"></div>
     </div>
 
     <!-- Confirmar -->
@@ -1358,23 +1414,28 @@ function iniciarIntervalos() {
 // ═══════════════════════════════════════════════════════════════════════════
 function initTarea() {
   proyectoSel = null; itemSel = null; centroSel = null;
-  document.getElementById('paso-item').style.display    = 'none';
-  document.getElementById('paso-centro').style.display  = 'none';
+  _snapshotData = null; _snapQuery = '';
+  document.getElementById('paso-snapshot').style.display  = 'none';
   document.getElementById('paso-confirmar').style.display = 'none';
-  document.getElementById('aviso-centro').style.display = 'none';
+  document.getElementById('aviso-centro').style.display   = 'none';
+  document.getElementById('banner-pausada').style.display = 'none';
+  const snapSearch = document.getElementById('snap-search');
+  if (snapSearch) snapSearch.value = '';
 
-  const el = document.getElementById('lista-proyectos');
-  if (!proyectos.length) {
-    el.innerHTML = '<div class="warn-box">Sin proyectos activos — contactá al admin para sincronizar.</div>';
-    return;
+  const centros = [...new Set(
+    (empleadoActual?.centros_autorizados || []).map(c => c === 'empaquetado' ? 'colocacion' : c)
+  )];
+  const el = document.getElementById('lista-centros');
+  if (!centros.length) {
+    el.innerHTML = '<div class="warn-box">⚠ Sin centros autorizados — contactá al admin.</div>';
+  } else {
+    el.innerHTML = centros.map(c => {
+      const label = PLANTA_CENTRO_LABEL[c] || c.toUpperCase();
+      return `<button class="centro-btn" id="ct-${esc(c)}" onclick="selCentro('${esc(c)}','${c}')">
+        <span class="centro-dot"></span>${label}
+      </button>`;
+    }).join('');
   }
-  el.innerHTML = proyectos.map(p => `
-    <button class="item-btn" id="pr-${p.id}" onclick="selProyecto('${p.id}')">
-      <span style="font-size:18px;font-weight:700;line-height:1.3;">${p.nombre}</span>
-      ${p.obra && p.obra !== p.nombre ? `<span style="font-size:18px;font-weight:700;line-height:1.3;">${p.obra}</span>` : ''}
-      ${p.cliente ? `<span style="font-size:18px;font-weight:700;line-height:1.3;">${p.cliente}</span>` : ''}
-    </button>
-  `).join('');
 }
 
 function selProyecto(id) {
@@ -1498,10 +1559,246 @@ function selCentro(id, nombre) {
   const esHabitual = recientes.includes(nombre) || recientes.length < 3;
   document.getElementById('aviso-centro').style.display = esHabitual ? 'none' : 'block';
 
+  // Reset proyecto/mueble selection and load snapshot
+  proyectoSel = null; itemSel = null;
+  document.getElementById('paso-confirmar').style.display = 'none';
+  document.querySelectorAll('.mueble-card').forEach(c => c.classList.remove('sel'));
+  cargarPlantaSnapshot();
+}
+
+/// ── Planta snapshot: carga y render ──────────────────────────────────────────
+let _snapshotData = null;
+let _snapQuery    = '';
+
+async function cargarPlantaSnapshot() {
+  document.getElementById('banner-pausada').style.display = 'none';
+  const snapDiv = document.getElementById('paso-snapshot');
+  snapDiv.style.display = 'block';
+  snapDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('snap-ultimos').innerHTML = '';
+  document.getElementById('snap-odfs').innerHTML =
+    '<div style="color:var(--muted);font-size:13px;padding:10px;">Cargando…</div>';
+  try {
+    // Paralelo: snapshot + buscar tarea pausada del mismo centro en últimas 12h
+    const [data, pausadaData] = await Promise.all([
+      apiGet('planta-snapshot',
+        `empleado_id=${encodeURIComponent(empleadoActual.id)}&centro=${encodeURIComponent(centroSel)}`),
+      apiGet('registros-hoy', `empleado_id=${encodeURIComponent(empleadoActual.id)}`),
+    ]);
+    _snapshotData = data;
+
+    // Banner: tarea pausada del mismo centro en últimas 12h
+    const hace12h = Date.now() - 12 * 60 * 60 * 1000;
+    const pausada = (pausadaData.registros || []).find(r =>
+      r.estado === 'pausado' &&
+      r.centro === centroSel &&
+      new Date(r.inicio).getTime() > hace12h
+    );
+    if (pausada) _mostrarBannerPausada(pausada);
+
+    renderSnapshot(data);
+  } catch (e) {
+    document.getElementById('snap-odfs').innerHTML =
+      `<div class="warn-box">Error cargando datos: ${e.message}</div>`;
+  }
+}
+
+function _mostrarBannerPausada(reg) {
+  const banner = document.getElementById('banner-pausada');
+  const proyNombre = reg.proyecto_nombre || '';
+  const itemNombre = reg.item_nombre     || '';
+  const hace       = tiempoRelativo(reg.inicio);
+  banner.innerHTML = `
+    <div class="banner-pausada">
+      <div class="banner-pausada-titulo">↩ TAREA PAUSADA EN ESTE CENTRO</div>
+      <div class="banner-pausada-info">
+        ${proyNombre ? `<span style="color:var(--accent);">${proyNombre}</span><br>` : ''}
+        ${itemNombre ? `<span>${itemNombre}</span><br>` : ''}
+        <span style="font-size:12px;font-weight:400;color:var(--muted);">Pausada ${hace}</span>
+      </div>
+      <div class="banner-pausada-btns">
+        <button class="btn btn-warn btn-sm" onclick="_retomarPausada('${escAttr(reg.id)}')">↩ RETOMAR</button>
+        <button class="btn btn-success btn-sm" onclick="_finalizarPausada('${escAttr(reg.id)}')">✓ FINALIZAR</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('banner-pausada').style.display='none'">✕ IGNORAR</button>
+      </div>
+    </div>
+  `;
+  banner.style.display = 'block';
+}
+
+async function _retomarPausada(registroId) {
+  const btn = event.target; btn.disabled = true; btn.textContent = '…';
+  try {
+    const { registro } = await apiPost('reanudar-tarea', {
+      empleado_id: empleadoActual.id,
+      registro_id: registroId,
+    });
+    if (registro) {
+      registroActivo = registro;
+      registrosHoy = [...registrosHoy.filter(r => r.id !== registro.id), registro];
+      _iniciarHeartbeat(empleadoActual.id, registro.id);
+      toast('Tarea reanudada ✓', 'var(--green)');
+      renderMenuTarea(); ir('pantalla-menu');
+    }
+  } catch (e) { toast('Error: ' + e.message, 'var(--red)'); btn.disabled = false; btn.textContent = '↩ RETOMAR'; }
+}
+
+async function _finalizarPausada(registroId) {
+  const btn = event.target; btn.disabled = true; btn.textContent = '…';
+  try {
+    await apiPost('reanudar-tarea', {
+      empleado_id: empleadoActual.id,
+      registro_id: registroId,
+      modo:        'finalizar',
+    });
+    document.getElementById('banner-pausada').style.display = 'none';
+    toast('Tarea finalizada ✓', 'var(--green)');
+    cargarPlantaSnapshot();
+  } catch (e) { toast('Error: ' + e.message, 'var(--red)'); btn.disabled = false; btn.textContent = '✓ FINALIZAR'; }
+}
+
+function renderSnapshot(data) {
+  // Acceso rápido — últimos 3 proyectos
+  const ult = data.ultimos_3_proyectos || [];
+  const ultEl = document.getElementById('snap-ultimos');
+  if (ult.length > 0) {
+    ultEl.innerHTML = `
+      <span class="lbl" style="margin-bottom:8px;">ACCESO RÁPIDO</span>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;">
+        ${ult.map(p => `
+          <div class="snap-rapido-card" onclick="expandirOdf('${esc(p.id)}')">
+            <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:1px;">${p.numero}</div>
+            <div style="font-size:14px;font-weight:700;margin-top:2px;">${p.obra || p.numero}</div>
+            ${p.cliente ? `<div style="font-size:12px;color:var(--muted);">${p.cliente}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+      <div class="hr" style="margin-bottom:14px;"></div>
+    `;
+  } else {
+    ultEl.innerHTML = '';
+  }
+  filtrarSnapshot();
+}
+
+function filtrarSnapshot() {
+  const q = ((document.getElementById('snap-search')?.value) || '').toLowerCase().trim();
+  _snapQuery = q;
+  const data = _snapshotData;
+  if (!data) return;
+
+  const odfsEl = document.getElementById('snap-odfs');
+  const odfs   = data.odfs_activas || [];
+
+  const odfsFilt = odfs.filter(odf => {
+    if (!q) return true;
+    if ([odf.numero, odf.obra, odf.cliente].some(s => (s||'').toLowerCase().includes(q))) return true;
+    return (odf.muebles || []).some(m =>
+      [(m.codigo||''), (m.nombre||'')].some(s => s.toLowerCase().includes(q))
+    );
+  });
+
+  if (!odfsFilt.length) {
+    odfsEl.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px;">Sin resultados</div>';
+    return;
+  }
+
+  odfsEl.innerHTML = odfsFilt.map(odf => {
+    const odfId = esc(odf.id);
+    const muebles = (odf.muebles || []).filter(m => {
+      if (!q) return true;
+      return [odf.numero, odf.obra, odf.cliente, m.codigo, m.nombre].some(s => (s||'').toLowerCase().includes(q));
+    });
+
+    const mueblesHtml = muebles.length
+      ? muebles.map(m => {
+          const mcId   = esc(odf.id + '_' + m.id);
+          const enUso  = m.estado_display === 'en_uso';
+          const esMio  = m.es_ultimo_del_operario
+            ? `<span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--accent);letter-spacing:.5px;">★ TU ÚLTIMA</span>`
+            : '';
+          return `
+            <button class="mueble-card${enUso ? ' en-uso' : ''}" id="mc-${mcId}"
+              onclick="${enUso ? '' : `selMueble('${escAttr(odf.id)}','${escAttr(String(m.id))}')`}"
+              ${enUso ? 'disabled' : ''}>
+              <div style="display:flex;flex-direction:column;gap:3px;min-width:0;flex:1;">
+                ${m.codigo ? `<span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);">${m.codigo}</span>` : ''}
+                <span style="font-size:14px;font-weight:700;line-height:1.3;">${m.nombre || '—'}</span>
+                ${esMio}
+              </div>
+              <div style="flex-shrink:0;">${_chipMueble(m)}</div>
+            </button>
+          `;
+        }).join('')
+      : '<div style="color:var(--muted);font-size:12px;padding:4px 0;">Sin muebles</div>';
+
+    return `
+      <div class="odf-card" id="odf-${odfId}">
+        <div class="odf-header" onclick="toggleOdf('${odfId}')">
+          <div style="min-width:0;">
+            <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:1px;">${odf.numero}</div>
+            <div style="font-size:15px;font-weight:700;margin-top:2px;">${odf.obra || odf.numero}</div>
+            ${odf.cliente ? `<div style="font-size:12px;color:var(--muted);">${odf.cliente}</div>` : ''}
+          </div>
+          <span class="odf-toggle" id="tgl-${odfId}">▾</span>
+        </div>
+        <div id="mueblesOf-${odfId}" class="odf-muebles">${mueblesHtml}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleOdf(odfId) {
+  const el  = document.getElementById('mueblesOf-' + odfId);
+  const tgl = document.getElementById('tgl-' + odfId);
+  if (!el) return;
+  const isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : '';
+  if (tgl) tgl.textContent = isOpen ? '▸' : '▾';
+}
+
+function expandirOdf(odfId) {
+  const el  = document.getElementById('mueblesOf-' + odfId);
+  const tgl = document.getElementById('tgl-' + odfId);
+  if (el) { el.style.display = ''; if (tgl) tgl.textContent = '▾'; }
+  document.getElementById('odf-' + odfId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function _chipMueble(m) {
+  switch (m.estado_display) {
+    case 'sin_iniciar': return '<span class="chip chip-gray">SIN INICIAR</span>';
+    case 'retrabajo':   return '<span class="chip chip-red">RETRABAJO</span>';
+    case 'en_uso':      return `<span class="chip chip-amber">EN USO${m.operario_actual ? ' · ' + m.operario_actual : ''}</span>`;
+    case 'normal':
+    default:            return '<span class="chip chip-green">LIBRE</span>';
+  }
+}
+
+function escAttr(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+function selMueble(proyectoId, muebleId) {
+  const odf = (_snapshotData?.odfs_activas || []).find(p => p.id === proyectoId);
+  if (!odf) return;
+  const mueble = (odf.muebles || []).find(m => String(m.id) === String(muebleId));
+  if (!mueble) return;
+
+  proyectoSel = {
+    id:      odf.id,
+    nombre:  odf.numero,
+    obra:    odf.obra,
+    cliente: odf.cliente,
+    items:   (odf.muebles || []).map(m => ({ id: m.id, codigo: m.codigo, nombre: m.nombre })),
+    muebles: (odf.muebles || []).map(m => ({ id: m.id, codigo: m.codigo, nombre: m.nombre })),
+  };
+  itemSel = { id: muebleId, codigo: mueble.codigo, nombre: mueble.nombre };
+
+  document.querySelectorAll('.mueble-card').forEach(c => c.classList.remove('sel'));
+  document.getElementById('mc-' + esc(proyectoId + '_' + muebleId))?.classList.add('sel');
+
   document.getElementById('paso-confirmar').style.display = 'block';
   document.getElementById('paso-confirmar').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  const btnConf = document.getElementById('btn-confirmar-tarea');
-  if (btnConf) { btnConf.disabled = false; btnConf.style.opacity = ''; }
+  const btn = document.getElementById('btn-confirmar-tarea');
+  if (btn) { btn.disabled = false; btn.style.opacity = ''; }
 }
 
 async function confirmarTarea() {
