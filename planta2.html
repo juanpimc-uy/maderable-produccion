@@ -1736,13 +1736,10 @@ function filtrarSnapshot() {
     const mueblesHtml = muebles.length
       ? muebles.map(m => {
           const mcId  = esc(odf.id + '_' + m.id);
-          const enUso = m.estado_display === 'en_uso';
           const banner = m.es_ultimo_del_operario
             ? '<div class="mueble-card-banner">ÚLTIMO TRABAJADO</div>'
             : '';
-          const btnHtml = enUso
-            ? '<button class="mueble-card-btn mueble-card-btn-en-uso" disabled>En uso</button>'
-            : `<button class="mueble-card-btn mueble-card-btn-iniciar" onclick="selMueble('${escAttr(odf.id)}','${escAttr(String(m.id))}')">Iniciar →</button>`;
+          const btnHtml = `<button class="mueble-card-btn mueble-card-btn-iniciar" onclick="selMueble('${escAttr(odf.id)}','${escAttr(String(m.id))}')">Iniciar →</button>`;
           return `
             <div class="mueble-card" id="mc-${mcId}">
               ${banner}
