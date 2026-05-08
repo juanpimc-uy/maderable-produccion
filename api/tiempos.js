@@ -728,8 +728,7 @@ export default async function handler(req) {
     // ── GET planta-snapshot (Sprint 3 — vista tablet por centro) ─────────
     if (action === 'planta-snapshot' && req.method === 'GET') {
       const empleado_id = url.searchParams.get('empleado_id');
-      const centro      = url.searchParams.get('centro');
-      if (!empleado_id || !centro) return err('empleado_id y centro requeridos', 400);
+      if (!empleado_id) return err('empleado_id requerido', 400);
 
       const ahora = new Date();
       const hoy   = ahora.toISOString().split('T')[0];
@@ -841,8 +840,6 @@ export default async function handler(req) {
             // Este operario lo tiene activo ahora mismo — 'en_uso' con nombre propio
             estado_display  = 'en_uso';
             operario_actual = empleadoNombreById[empleado_id] || empleado_id;
-          } else if (ultimaHistoria?.es_retrabajo || ultimaHistoria?.estado === 'retrabajo') {
-            estado_display = 'retrabajo';
           } else if (!ultimaHistoria) {
             estado_display = 'sin_iniciar';
           } else {
@@ -890,7 +887,6 @@ export default async function handler(req) {
       return ok({
         timestamp:            ahora.toISOString(),
         operario:             operarioOut,
-        centro,
         ultimos_3_proyectos:  ultimos3Proyectos,
         odfs_activas:         odfsActivas,
       });
