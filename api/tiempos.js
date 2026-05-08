@@ -799,11 +799,11 @@ export default async function handler(req) {
       const empleadoNombreById = Object.fromEntries(empleadosList.map(e => [e.id, e.nombre]));
       const proyectoById       = Object.fromEntries(proyectos.map(p => [p.id, p]));
 
-      // Registros activos de OTROS operarios, indexados por item_id
+      // Registros activos de OTROS operarios, indexados por proyecto_id::item_id
       const activoPorItemOtro = {};
       for (const r of activosGlobal) {
         if (r.item_id && r.empleado_id !== empleado_id) {
-          activoPorItemOtro[r.item_id] = r;
+          activoPorItemOtro[`${r.proyecto_id}::${r.item_id}`] = r;
         }
       }
 
@@ -824,7 +824,7 @@ export default async function handler(req) {
         const muebles = (p.muebles || []).map(m => {
           const itemId = String(m.id ?? '');
 
-          const activoOtro = activoPorItemOtro[itemId] || null;
+          const activoOtro = activoPorItemOtro[`${p.id}::${itemId}`] || null;
           // "último" de toda la historia: si hay un activo de OTRO, ese es el más reciente;
           // si hay un activo propio, ese es el más reciente; si no, el historial.
           const propioActivo   = (registroActivo?.item_id === itemId) ? registroActivo : null;
