@@ -131,7 +131,7 @@ async function _entradaImpl(sb, { empleado_id }) {
   // Blindaje: cerrar cualquier tarea activa de días anteriores antes de abrir nueva jornada
   await _cerrarTareasActivasDe(sb, empleado_id, ahora);
   const { data, error } = await sb.from('jornadas')
-    .upsert({ empleado_id, fecha: hoy, entrada: ahora, tarde }, { onConflict: 'empleado_id,fecha' })
+    .upsert({ empleado_id, fecha: hoy, entrada: ahora, tarde, salida: null }, { onConflict: 'empleado_id,fecha' })
     .select().single();
   if (error) throw error;
   return { jornada: data };
