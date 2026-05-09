@@ -197,8 +197,8 @@ textarea.campo {
   position: fixed; bottom: 24px; left: 50%;
   transform: translateX(-50%) translateY(120px);
   background: var(--card2); border: 1px solid var(--border);
-  border-radius: 8px; padding: 12px 20px; font-family: 'Space Mono', monospace;
-  font-size: 12px; font-weight: 700; color: var(--text); z-index: 999;
+  border-radius: 8px; padding: 18px 28px; font-family: 'Space Mono', monospace;
+  font-size: 18px; font-weight: 700; color: var(--text); z-index: 999;
   transition: transform 0.3s ease; white-space: nowrap; pointer-events: none;
 }
 #toast.show { transform: translateX(-50%) translateY(0); }
@@ -1154,7 +1154,7 @@ function toast(msg, color = '') {
   el.style.color = color || 'var(--text)';
   el.classList.add('show');
   clearTimeout(_toastTmr);
-  _toastTmr = setTimeout(() => el.classList.remove('show'), 2800);
+  _toastTmr = setTimeout(() => el.classList.remove('show'), 5000);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
