@@ -4649,8 +4649,7 @@ let _timerStopConfirm = false;
 let _timerStopTimer   = null;
 const _UMBRAL_BLOQUEO = 15;     // minutos sin tarea → bloqueo
 
-const _CENTROS_CON_ITEM = ['shop_drawing', 'modelado', 'cam'];
-let _cvCentros   = [];   // [{id, codigo, nombre, es_descanso}]
+let _cvCentros   = [];   // [{id, codigo, nombre, es_descanso, requiere_proyecto, requiere_mueble}]
 let _cvProyectos = [];
 let _timerSelProy   = null;
 let _timerSelCentro = null;
@@ -4724,7 +4723,7 @@ function _timerSetEstado(nuevoEstado) {
   clearInterval(_timerInterval); _timerInterval = null;
 
   const ids = ['timer-btn-descanso','timer-btn-finalizar','timer-btn-volver','timer-btn-salida','timer-bar-stop'];
-  ids.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  ids.forEach(id => { const el = document.getElementById(id); if (el) { el.style.display = 'none'; el.disabled = false; } });
 
   const icon    = document.getElementById('timer-bar-icon');
   const text    = document.getElementById('timer-bar-text');
@@ -5169,7 +5168,8 @@ function _timerSelProyecto(id) {
       ? _cvProyectos.filter(p => [p.numero, p.nombre, p.cliente_nombre].join(' ').toLowerCase().includes(document.getElementById('timer-proy-search').value.toLowerCase()))
       : _cvProyectos
   );
-  if (_timerSelProy && _timerSelCentro && _CENTROS_CON_ITEM.includes(_timerSelCentro)) {
+  const _tspCentro = _cvCentros.find(c => c.codigo === _timerSelCentro) || null;
+  if (_timerSelProy && _tspCentro?.requiere_mueble) {
     _timerPoblarItems();
   } else if (!_timerSelProy) {
     _timerLimpiarItem();
@@ -5190,7 +5190,8 @@ function _timerRenderCentros() {
 function _timerSelCentroFn(codigo) {
   _timerSelCentro = codigo;
   _timerRenderCentros();
-  if (_timerSelProy && _CENTROS_CON_ITEM.includes(_timerSelCentro)) {
+  const _tscCentro = _cvCentros.find(c => c.codigo === _timerSelCentro) || null;
+  if (_timerSelProy && _tscCentro?.requiere_mueble) {
     _timerPoblarItems();
   } else {
     _timerLimpiarItem();
@@ -5199,9 +5200,10 @@ function _timerSelCentroFn(codigo) {
 }
 
 function _timerCheckIniciarBtn() {
-  const baseOk = !!(_timerSelProy && _timerSelCentro);
-  const itemOk = _CENTROS_CON_ITEM.includes(_timerSelCentro) ? !!_timerSelItem : true;
-  document.getElementById('timer-iniciar-btn').disabled = !(baseOk && itemOk);
+  const centro = _cvCentros.find(c => c.codigo === _timerSelCentro) || null;
+  const proyOk = centro ? (centro.requiere_proyecto ? !!_timerSelProy : true) : !!_timerSelProy;
+  const itemOk = centro ? (centro.requiere_mueble  ? !!_timerSelItem : true) : true;
+  document.getElementById('timer-iniciar-btn').disabled = !(_timerSelCentro && proyOk && itemOk);
 }
 
 function _timerPoblarItems() {
@@ -5248,10 +5250,12 @@ async function _timerIniciar() {
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         empleado_id: u.id,
-        proyecto_id: _timerSelProy.id,
-        proyecto_nombre: [_timerSelProy.numero, _timerSelProy.nombre].filter(Boolean).join(' · '),
         centro: _timerSelCentro,
-        ...((_CENTROS_CON_ITEM.includes(_timerSelCentro) && _timerSelItem) ? {
+        ...(_timerSelProy ? {
+          proyecto_id: _timerSelProy.id,
+          proyecto_nombre: [_timerSelProy.numero, _timerSelProy.nombre].filter(Boolean).join(' · '),
+        } : {}),
+        ...(_timerSelItem ? {
           item_id: _timerSelItem.id,
           item_nombre: _timerSelItem.nombre,
         } : {}),
