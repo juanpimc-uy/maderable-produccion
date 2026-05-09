@@ -1446,7 +1446,7 @@ export default async function handler(req) {
     if (action === 'centros-virtuales' && req.method === 'GET') {
       const { data, error } = await supabase
         .from('centros_virtuales')
-        .select('id, nombre, es_descanso')
+        .select('id, codigo, nombre, es_descanso')
         .eq('activo', true)
         .order('nombre');
       if (error) throw error;

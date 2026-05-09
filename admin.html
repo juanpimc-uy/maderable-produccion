@@ -4649,8 +4649,8 @@ let _timerStopConfirm = false;
 let _timerStopTimer   = null;
 const _UMBRAL_BLOQUEO = 15;     // minutos sin tarea → bloqueo
 
-const _CENTROS_CON_ITEM = ['Shop Drawing', 'Modelado', 'Cam'];
-let _cvCentros   = [];   // [{id, nombre, es_descanso}]
+const _CENTROS_CON_ITEM = ['shop_drawing', 'modelado', 'cam'];
+let _cvCentros   = [];   // [{id, codigo, nombre, es_descanso}]
 let _cvProyectos = [];
 let _timerSelProy   = null;
 let _timerSelCentro = null;
@@ -4670,7 +4670,7 @@ function _fmtDurMin(min) {
 }
 
 function _timerIsDescanso(centro) {
-  const cv = _cvCentros.find(c => c.nombre === centro);
+  const cv = _cvCentros.find(c => c.codigo === centro);
   return cv?.es_descanso || false;
 }
 
@@ -5182,13 +5182,13 @@ function _timerRenderCentros() {
   // Filtrar centros de descanso — no aparecen en el modal de tarea
   const centros = _cvCentros.filter(c => !c.es_descanso);
   grid.innerHTML = centros.map(c => {
-    const sel = _timerSelCentro === c.nombre ? ' sel' : '';
-    return `<button class="timer-centro-btn${sel}" onclick="_timerSelCentroFn('${c.nombre}')">${c.nombre}</button>`;
+    const sel = _timerSelCentro === c.codigo ? ' sel' : '';
+    return `<button class="timer-centro-btn${sel}" onclick="_timerSelCentroFn('${c.codigo}')">${c.nombre}</button>`;
   }).join('');
 }
 
-function _timerSelCentroFn(nombre) {
-  _timerSelCentro = nombre;
+function _timerSelCentroFn(codigo) {
+  _timerSelCentro = codigo;
   _timerRenderCentros();
   if (_timerSelProy && _CENTROS_CON_ITEM.includes(_timerSelCentro)) {
     _timerPoblarItems();
@@ -5281,7 +5281,7 @@ async function _timerDescanso() {
     const res = await fetch('/api/tiempos?action=iniciar-tarea-v2', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ empleado_id: u.id, centro: descansoCenter.nombre }),
+      body: JSON.stringify({ empleado_id: u.id, centro: descansoCenter.codigo }),
     });
     const json = await res.json();
     if (!res.ok || !json.ok) throw new Error(json.error || 'Error al iniciar descanso');
