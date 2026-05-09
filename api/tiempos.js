@@ -1952,12 +1952,12 @@ export default async function handler(req) {
       const tarea_activa = regs.find(r => r.estado === 'activo') || null;
 
       // 3. Determinar qué centros son descanso + modalidad del empleado
-      const centroNames = [...new Set(regs.map(r => r.centro).filter(Boolean))];
+      const centroCodes = [...new Set(regs.map(r => r.centro).filter(Boolean))];
       const descanso_centros = new Set();
-      if (centroNames.length > 0) {
+      if (centroCodes.length > 0) {
         const { data: cvs } = await supabase
-          .from('centros_virtuales').select('nombre, es_descanso').in('nombre', centroNames);
-        (cvs || []).forEach(cv => { if (cv.es_descanso) descanso_centros.add(cv.nombre); });
+          .from('centros_virtuales').select('codigo, es_descanso').in('codigo', centroCodes);
+        (cvs || []).forEach(cv => { if (cv.es_descanso) descanso_centros.add(cv.codigo); });
       }
 
       const { data: empDescanso } = await supabase
