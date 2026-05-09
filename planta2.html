@@ -2296,19 +2296,25 @@ async function initSalida() {
   document.getElementById('sal-tareas').textContent  = '…';
   document.getElementById('sal-tiempo').textContent  = '…';
 
+  // Tareas completadas — sigue desde registros-hoy (correcto: solo finalizados)
   try {
     const { registros } = await apiGet('registros-hoy', `empleado_id=${empleadoActual.id}`);
     const finalizados = (registros || []).filter(r => r.estado === 'finalizado' || r.estado === 'retrabajo');
     document.getElementById('sal-tareas').textContent = finalizados.length;
-
-    let totalSecs = 0;
-    finalizados.forEach(r => {
-      if (r.inicio && r.fin) totalSecs += (new Date(r.fin) - new Date(r.inicio)) / 1000;
-    });
-    const neto = Math.max(0, totalSecs - 30 * 60);
-    document.getElementById('sal-tiempo').textContent = fmtHM(neto);
   } catch (e) {
+    console.error('[initSalida] registros-hoy:', e);
     document.getElementById('sal-tareas').textContent = '—';
+  }
+
+  // Tiempo trabajado — desde metricas-dia (incluye sesión activa, descuenta descansos reales)
+  try {
+    const r = await fetch(`/api/tiempos?action=metricas-dia&empleado_id=${encodeURIComponent(empleadoActual.id)}`);
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'metricas-dia error');
+    const mins = data.totales?.tiempo_clasificado_minutos || 0;
+    document.getElementById('sal-tiempo').textContent = fmtHM(mins * 60);
+  } catch (e) {
+    console.error('[initSalida] metricas-dia:', e);
     document.getElementById('sal-tiempo').textContent = '—';
   }
 }
