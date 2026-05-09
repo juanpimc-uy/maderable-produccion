@@ -115,7 +115,6 @@ class ApiError extends Error {
 }
 
 // ── Constantes compartidas ─────────────────────────────────────────────────
-const CENTROS_CON_ITEM = ['Shop Drawing', 'Modelado', 'Cam'];
 
 // ── Helpers unificados ─────────────────────────────────────────────────────
 
@@ -158,7 +157,7 @@ async function _tiempoActivoImpl(sb, { empleado_id }) {
   let es_descanso = false;
   if (data.centro) {
     const { data: cv } = await sb.from('centros_virtuales')
-      .select('es_descanso').eq('nombre', data.centro).maybeSingle();
+      .select('es_descanso').eq('codigo', data.centro).maybeSingle();
     es_descanso = cv?.es_descanso || false;
   }
   return { activo: { ...data, es_descanso } };
@@ -197,27 +196,26 @@ async function _iniciarTareaImpl(sb, {
     }
   }
 
-  // 3. Validar centro y determinar es_descanso
-  let es_descanso = false;
+  // 3. Validar centro en centros_virtuales (lookup por codigo canónico)
+  const { data: cv } = await sb.from('centros_virtuales')
+    .select('id, es_descanso, activo, requiere_mueble, requiere_proyecto')
+    .eq('codigo', centro).maybeSingle();
+  if (!cv || !cv.activo) throw new ApiError('Centro no válido o inactivo', 400);
+  const es_descanso = cv.es_descanso || false;
+
+  // 4. Validar autorización del operario (si centros_autorizados está configurado)
   if (emp.rol_app === 'operario') {
-    // Operario: validar contra centros_autorizados (solo si hay lista configurada)
     const autorizados = emp.centros_autorizados || [];
-    if (autorizados.length > 0 && centro && !autorizados.includes(centro)) {
+    if (autorizados.length > 0 && !autorizados.includes(centro)) {
       throw new ApiError('Centro no autorizado para este empleado', 400);
     }
-  } else {
-    // Oficina / admin: validar contra centros_virtuales
-    const { data: cv } = await sb.from('centros_virtuales')
-      .select('id, es_descanso').eq('nombre', centro).eq('activo', true).maybeSingle();
-    if (!cv) throw new ApiError('Centro virtual no válido', 400);
-    es_descanso = cv.es_descanso || false;
   }
 
-  // 4. Validar proyecto / item (omitir si es descanso)
+  // 5. Validar proyecto / item según configuración del centro
   if (!es_descanso) {
-    if (!proyecto_id) throw new ApiError('proyecto_id requerido', 400);
-    if (CENTROS_CON_ITEM.includes(centro)) {
-      if (!item_id) throw new ApiError(`El centro ${centro} requiere especificar un item`, 400);
+    if (cv.requiere_proyecto && !proyecto_id) throw new ApiError('proyecto_id requerido para este centro', 400);
+    if (cv.requiere_mueble && !item_id) throw new ApiError('item_id requerido para este centro', 400);
+    if (item_id && proyecto_id) {
       const { data: proyecto, error: pErr } = await sb.from('proyectos_cache')
         .select('muebles').eq('id', proyecto_id).maybeSingle();
       if (pErr) throw pErr;
@@ -242,7 +240,7 @@ async function _iniciarTareaImpl(sb, {
   }
 
   // 6. Insertar nuevo registro
-  // item_id se persiste siempre que venga informado y no sea descanso (CENTROS_CON_ITEM es legacy)
+  // item_id se persiste siempre que venga informado y no sea descanso
   const persistirItem = !es_descanso && (item_id != null);
   const { data, error } = await sb.from('registros_trabajo')
     .insert({
@@ -566,14 +564,9 @@ export default async function handler(req) {
       const ahora = new Date();
       const hoy = ahora.toISOString().split('T')[0];
       const UMBRAL_INACTIVIDAD_MIN = 15;
-      const CENTRO_LABEL = {
-        corte: 'CORTE', enchapado: 'ENCHAPADO/PERF', armado: 'ARMADO',
-        revision: 'REVISION', colocacion: 'COLOCACION',
-        herreria: 'HERRERIA', electrica: 'ELECTRICA', macizo: 'MACIZO',
-      };
 
-      // 1. Pull paralelo: empleados activos + jornadas hoy + registros activos
-      const [empleadosRes, jornadasRes, activosRes] = await Promise.all([
+      // 1. Pull paralelo: empleados activos + jornadas hoy + registros activos + catálogo centros
+      const [empleadosRes, jornadasRes, activosRes, centrosRes] = await Promise.all([
         supabase.from('empleados')
           .select('id, nombre, activo, rol_app, horario_entrada')
           .eq('activo', true),
@@ -583,15 +576,24 @@ export default async function handler(req) {
         supabase.from('registros_trabajo')
           .select('id, empleado_id, jornada_id, proyecto_id, proyecto_nombre, item_id, item_nombre, centro, inicio, ultima_actividad')
           .eq('estado', 'activo'),
+        supabase.from('centros_virtuales')
+          .select('codigo, nombre, tipo, orden, mostrar_dashboard_siempre')
+          .eq('activo', true)
+          .order('orden', { ascending: true }),
       ]);
 
       if (empleadosRes.error) throw empleadosRes.error;
       if (jornadasRes.error) throw jornadasRes.error;
       if (activosRes.error) throw activosRes.error;
+      if (centrosRes.error) throw centrosRes.error;
 
-      const empleados = empleadosRes.data || [];
-      const jornadas  = jornadasRes.data  || [];
-      const activos   = activosRes.data   || [];
+      const empleados    = empleadosRes.data || [];
+      const jornadas     = jornadasRes.data  || [];
+      const activos      = activosRes.data   || [];
+      const centrosCat   = centrosRes.data   || [];
+
+      // Mapa codigo → nombre para resolución de labels
+      const centroLabelMap = Object.fromEntries(centrosCat.map(c => [c.codigo, c.nombre]));
 
       // 2. Pull proyectos para resolver cliente/obra y nombre real del mueble
       const proyectoIds = [...new Set(activos.map(r => r.proyecto_id).filter(Boolean))];
@@ -665,7 +667,7 @@ export default async function handler(req) {
           entrada:          jornada?.entrada || null,
           estado,
           centro:           activo?.centro  || null,
-          centro_label:     activo?.centro ? (CENTRO_LABEL[activo.centro] || activo.centro.toUpperCase()) : null,
+          centro_label:     activo?.centro ? (centroLabelMap[activo.centro] || activo.centro.toUpperCase()) : null,
           proyecto:         proyectoOut,
           mueble:           muebleOut,
           tiempo_minutos,
@@ -692,30 +694,25 @@ export default async function handler(req) {
         ausentes:  operariosOut.filter(o => o.estado === 'ausente').length,
       };
 
-      // 7. Agrupar por centro
-      const CENTROS_FIJOS      = ['corte', 'enchapado', 'armado', 'colocacion'];
-      const CENTROS_OPCIONALES = ['revision', 'herreria', 'electrica', 'macizo'];
+      // 7. Agrupar por centro — todos los centros tipo 'planta' del catálogo, ordenados por orden
       const porCentro = {};
       for (const op of operariosOut) {
         if (op.estado !== 'en_tarea' && op.estado !== 'inactivo') continue;
         if (!op.centro) continue;
-        if (!porCentro[op.centro]) porCentro[op.centro] = { centro: op.centro, label: CENTRO_LABEL[op.centro] || op.centro.toUpperCase(), total: 0, inactivos: 0, muebles: [] };
+        if (!porCentro[op.centro]) porCentro[op.centro] = { centro: op.centro, label: centroLabelMap[op.centro] || op.centro.toUpperCase(), total: 0, inactivos: 0, muebles: [] };
         porCentro[op.centro].total++;
         if (op.estado === 'inactivo') porCentro[op.centro].inactivos++;
         porCentro[op.centro].muebles.push({
-          odf:          op.proyecto?.odf  || '',
+          odf:           op.proyecto?.odf  || '',
           mueble_codigo: op.mueble?.codigo || '',
           mueble_nombre: op.mueble?.nombre || '',
-          inactivo:     op.estado === 'inactivo',
+          inactivo:      op.estado === 'inactivo',
         });
       }
-      const centrosOut = [];
-      for (const c of CENTROS_FIJOS) {
-        centrosOut.push(porCentro[c] || { centro: c, label: CENTRO_LABEL[c], total: 0, inactivos: 0, muebles: [] });
-      }
-      for (const c of CENTROS_OPCIONALES) {
-        if (porCentro[c]) centrosOut.push(porCentro[c]);
-      }
+      const centrosOut = centrosCat
+        .filter(c => c.tipo === 'planta')
+        .filter(c => c.mostrar_dashboard_siempre === true || porCentro[c.codigo])
+        .map(c => porCentro[c.codigo] || { centro: c.codigo, label: c.nombre, total: 0, inactivos: 0, muebles: [] });
 
       return ok({
         timestamp: ahora.toISOString(),
@@ -2689,6 +2686,124 @@ export default async function handler(req) {
         return new Response(JSON.stringify({ ok: false, error: 'Contraseña incorrecta' }),
           { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
       return ok({ ok: true });
+    }
+
+    // ── GET centros (catálogo activos para operarios/tablets) ────────────────
+    if (action === 'centros' && req.method === 'GET') {
+      const { data, error } = await supabase
+        .from('centros_virtuales')
+        .select('id, codigo, nombre, tipo, requiere_mueble, requiere_proyecto, es_descanso, orden, activo')
+        .eq('activo', true)
+        .order('orden', { ascending: true });
+      if (error) throw error;
+      return ok({ ok: true, centros: data || [] });
+    }
+
+    // ── GET centros-todos (admin — incluye inactivos, para Ajustes) ──────────
+    if (action === 'centros-todos' && req.method === 'GET') {
+      const admin_id = url.searchParams.get('admin_id');
+      if (!admin_id) return err('admin_id requerido', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede acceder a este endpoint' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      const { data, error } = await supabase
+        .from('centros_virtuales')
+        .select('id, codigo, nombre, tipo, requiere_mueble, requiere_proyecto, es_descanso, orden, activo')
+        .order('orden', { ascending: true });
+      if (error) throw error;
+      return ok({ ok: true, centros: data || [] });
+    }
+
+    // ── POST crear-centro (admin only) ───────────────────────────────────────
+    if (action === 'crear-centro' && req.method === 'POST') {
+      const { admin_id, codigo, nombre, tipo, requiere_mueble, requiere_proyecto, es_descanso, orden } = body;
+      if (!admin_id) return err('admin_id requerido', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede crear centros' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (!codigo || !nombre) return err('codigo y nombre requeridos', 400);
+      if (!tipo || !['planta', 'oficina'].includes(tipo)) return err("tipo debe ser 'planta' u 'oficina'", 400);
+      const { data: existing } = await supabase.from('centros_virtuales').select('id').eq('codigo', codigo).maybeSingle();
+      if (existing) return err(`El codigo '${codigo}' ya existe`, 409);
+      const { data, error } = await supabase.from('centros_virtuales')
+        .insert({
+          codigo,
+          nombre,
+          tipo,
+          requiere_mueble:   requiere_mueble   ?? false,
+          requiere_proyecto: requiere_proyecto ?? false,
+          es_descanso:       es_descanso       ?? false,
+          orden:             orden             ?? 99,
+          activo:            true,
+        })
+        .select().single();
+      if (error) throw error;
+      return ok({ ok: true, centro: data });
+    }
+
+    // ── POST editar-centro (admin only) ─────────────────────────────────────
+    if (action === 'editar-centro' && req.method === 'POST') {
+      const { admin_id, id, nombre, tipo, requiere_mueble, requiere_proyecto, es_descanso, orden } = body;
+      if (!admin_id) return err('admin_id requerido', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede editar centros' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (!id) return err('id requerido', 400);
+      if (tipo !== undefined && !['planta', 'oficina'].includes(tipo)) return err("tipo debe ser 'planta' u 'oficina'", 400);
+      const campos = {
+        ...(nombre             !== undefined ? { nombre }             : {}),
+        ...(tipo               !== undefined ? { tipo }               : {}),
+        ...(requiere_mueble    !== undefined ? { requiere_mueble }    : {}),
+        ...(requiere_proyecto  !== undefined ? { requiere_proyecto }  : {}),
+        ...(es_descanso        !== undefined ? { es_descanso }        : {}),
+        ...(orden              !== undefined ? { orden }              : {}),
+      };
+      if (Object.keys(campos).length === 0) return err('Nada que actualizar', 400);
+      const { data, error } = await supabase.from('centros_virtuales')
+        .update(campos).eq('id', id).select().single();
+      if (error) throw error;
+      return ok({ ok: true, centro: data });
+    }
+
+    // ── POST toggle-centro (admin only) ─────────────────────────────────────
+    if (action === 'toggle-centro' && req.method === 'POST') {
+      const { admin_id, id, activo } = body;
+      if (!admin_id) return err('admin_id requerido', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede activar/desactivar centros' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (!id || activo === undefined) return err('id y activo requeridos', 400);
+      const { data, error } = await supabase.from('centros_virtuales')
+        .update({ activo: !!activo }).eq('id', id).select().single();
+      if (error) throw error;
+      return ok({ ok: true, centro: data });
+    }
+
+    // ── POST asignar-centros (admin only) ────────────────────────────────────
+    if (action === 'asignar-centros' && req.method === 'POST') {
+      const { admin_id, empleado_id, codigos } = body;
+      if (!admin_id) return err('admin_id requerido', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede asignar centros' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (!empleado_id) return err('empleado_id requerido', 400);
+      if (!Array.isArray(codigos)) return err('codigos debe ser un array', 400);
+      if (codigos.length > 0) {
+        const { data: validos } = await supabase.from('centros_virtuales')
+          .select('codigo').in('codigo', codigos).eq('activo', true);
+        const codigosValidos = (validos || []).map(c => c.codigo);
+        const invalidos = codigos.filter(c => !codigosValidos.includes(c));
+        if (invalidos.length > 0) return err(`Códigos inválidos: ${invalidos.join(', ')}`, 400);
+      }
+      const { data, error } = await supabase.from('empleados')
+        .update({ centros_autorizados: codigos }).eq('id', empleado_id).select('id, nombre, centros_autorizados').single();
+      if (error) throw error;
+      return ok({ ok: true, empleado: data });
     }
 
     return err('Acción no reconocida: ' + action);
