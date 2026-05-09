@@ -727,6 +727,22 @@
         </div>
       </div>
 
+      <!-- Centros — solo admin -->
+      <div id="ajustes-centros-section" style="display:none;margin-top:16px;">
+        <div class="card">
+          <div class="sec-title">
+            CENTROS
+            <button class="btn btn-primary btn-sm" onclick="abrirModalNuevoCentro()">+ NUEVO CENTRO</button>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
+            Catálogo maestro de centros de trabajo. El <strong style="color:var(--text);">código</strong> es inmutable una vez creado — es la clave que usan los registros de planta.
+          </div>
+          <div id="centros-ajustes-wrap">
+            <div style="font-size:12px;color:var(--muted);">Cargando…</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Tipo de cambio — solo admin -->
       <div id="ajustes-tc-section" style="display:none;margin-top:16px;">
         <div class="card">
@@ -1445,7 +1461,7 @@ function renderView(v) {
   if(v==='operarios')  renderOperarios();
   if(v==='tiempos')    renderTiempos();
   if(v==='materiales') renderMateriales();
-  if(v==='ajustes')    { fInit(); tarifasInit(); tcInit(); }
+  if(v==='ajustes')    { fInit(); tarifasInit(); tcInit(); centrosAjustesInit(); }
   if(v==='mi-cuenta')  renderMiCuenta();
 }
 
@@ -2806,6 +2822,7 @@ function _renderOpGestion() {
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;">
           ${(window.AUTH.esAdmin()||window.AUTH.esOficina()) && op.id !== _meId ? `<button onclick="resetearPinOperario('${op.id}','${op.nombre.replace(/'/g,"\\'")}') " title="Resetear PIN a 1234" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace;">↻ PIN</button>` : ''}
+          ${window.AUTH.esAdmin() ? `<button onclick="abrirModalCentrosOperario('${op.id}')" title="Centros autorizados" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;">${(op.centros&&op.centros.length)?`CENTROS · ${op.centros.length}`:'CENTROS · TODOS'}</button>` : ''}
           <button onclick="abrirModalOperario('${op.id}')" title="Editar operario" style="padding:5px 11px;border:1px solid var(--border);border-radius:5px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:12px;display:inline-flex;align-items:center;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
           ${window.AUTH.esAdmin() ? `<button onclick="eliminarOperario('${op.id}')" title="Eliminar operario" style="padding:5px 11px;border:1px solid rgba(240,92,92,.3);border-radius:5px;background:transparent;color:var(--red);cursor:pointer;font-size:12px;">🗑</button>` : ''}
         </div>
@@ -4221,6 +4238,304 @@ async function tcGuardar(input) {
   } finally {
     input.disabled = false;
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CENTROS — Ajustes (solo admin) + Asignación a operarios
+// ═══════════════════════════════════════════════════════════════════════════
+let _centrosCache = null;         // para tabla de Ajustes (incluye inactivos)
+let _centrosActivosCache = null;  // para modal de asignación (solo activos)
+
+async function centrosAjustesInit(force = false) {
+  const u = window.AUTH.usuarioActual();
+  const sec = document.getElementById('ajustes-centros-section');
+  if (!sec) return;
+  if (!u || u.rol_app !== 'admin') { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  const wrap = document.getElementById('centros-ajustes-wrap');
+  if (!wrap) return;
+  if (!force && _centrosCache) { _renderCentrosAjustesTable(_centrosCache); return; }
+  wrap.innerHTML = '<div style="font-size:12px;color:var(--muted);">Cargando…</div>';
+  try {
+    const r = await fetch(`/api/tiempos?action=centros-todos&admin_id=${encodeURIComponent(u.id)}`);
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    _centrosCache = data.centros || [];
+    _renderCentrosAjustesTable(_centrosCache);
+  } catch(e) {
+    wrap.innerHTML = `<div style="font-size:12px;color:var(--red);">Error al cargar centros: ${e.message}</div>`;
+  }
+}
+
+function _renderCentrosAjustesTable(centros) {
+  const wrap = document.getElementById('centros-ajustes-wrap');
+  if (!wrap) return;
+  if (!centros.length) {
+    wrap.innerHTML = '<div style="font-size:12px;color:var(--muted);">No hay centros configurados.</div>';
+    return;
+  }
+  const _flag = (color, label) =>
+    `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:1px 5px;border-radius:3px;background:${color}18;color:${color};border:1px solid ${color}44;">${label}</span>`;
+
+  const rows = centros.map(c => {
+    const inactivo = !c.activo;
+    const flags = [
+      c.requiere_mueble            ? _flag('var(--blue)',   'M')  : '',
+      c.requiere_proyecto          ? _flag('var(--purple)', 'P')  : '',
+      c.es_descanso                ? _flag('var(--green)',  'D')  : '',
+      c.mostrar_dashboard_siempre  ? _flag('var(--amber)',  'DS') : '',
+    ].filter(Boolean).join(' ');
+    const tipoChip = c.tipo === 'planta'
+      ? _flag('var(--orange)', 'PLANTA')
+      : _flag('var(--blue)',   'OFICINA');
+    const badgeInactivo = inactivo
+      ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;background:rgba(240,92,92,.1);color:var(--red);border:1px solid rgba(240,92,92,.3);border-radius:3px;padding:1px 5px;margin-right:6px;">INACTIVO</span>`
+      : '';
+    return `<tr style="cursor:pointer;${inactivo ? 'opacity:0.5;' : ''}" onclick="_centroRowClick(event,'${c.id}')">
+      <td class="mono" style="font-size:11px;color:var(--muted);">${c.codigo}</td>
+      <td>${badgeInactivo}${c.nombre}</td>
+      <td>${tipoChip}</td>
+      <td class="mono" style="font-size:11px;color:var(--muted);text-align:center;">${c.orden}</td>
+      <td style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;min-height:38px;">${flags||'<span style="color:var(--muted);font-size:11px;">—</span>'}</td>
+      <td onclick="event.stopPropagation()" style="text-align:center;">
+        <input type="checkbox" ${c.activo ? 'checked' : ''} onchange="toggleCentroActivo('${c.id}',this.checked)"
+          style="width:18px;height:18px;accent-color:var(--amber);cursor:pointer;">
+      </td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `<table>
+    <thead><tr>
+      <th>Código</th><th>Nombre</th><th>Tipo</th>
+      <th style="text-align:center;">Orden</th><th>Flags</th>
+      <th style="text-align:center;">Activo</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function _centroRowClick(event, id) {
+  if (event.target.type === 'checkbox' || event.target.closest('label')) return;
+  const centro = (_centrosCache || []).find(c => String(c.id) === String(id));
+  if (centro) abrirModalEditarCentro(centro);
+}
+
+function _buildCentroModalBody(centro) {
+  const isEdit = !!centro;
+  const _L = `font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;`;
+  const _I = `background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;`;
+  const _chk = (id, label, checked) =>
+    `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+      <input type="checkbox" id="${id}" ${checked ? 'checked' : ''} style="width:15px;height:15px;accent-color:var(--amber);cursor:pointer;">
+      ${label}
+    </label>`;
+  return `<div style="display:flex;flex-direction:column;gap:14px;">
+    ${isEdit
+      ? `<div><label style="${_L}">Código (inmutable)</label>
+         <div style="background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted);">${centro.codigo}</div></div>`
+      : `<div><label style="${_L}">Código <span style="font-size:9px;text-transform:none;">(letras minúsculas, números, guión bajo)</span></label>
+         <input id="c-codigo" value="" placeholder="ej: corte_cnc" style="${_I}"
+           oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')"></div>`
+    }
+    <div><label style="${_L}">Nombre</label>
+      <input id="c-nombre" value="${isEdit ? centro.nombre.replace(/"/g,'&quot;') : ''}" placeholder="ej: CORTE CNC" style="${_I}"></div>
+    <div><label style="${_L}">Tipo</label>
+      <div style="display:flex;gap:16px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+          <input type="radio" name="c-tipo" value="planta" ${!isEdit || centro.tipo==='planta' ? 'checked' : ''}> Planta
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+          <input type="radio" name="c-tipo" value="oficina" ${isEdit && centro.tipo==='oficina' ? 'checked' : ''}> Oficina
+        </label>
+      </div>
+    </div>
+    <div><label style="${_L}">Orden</label>
+      <input id="c-orden" type="number" value="${isEdit ? centro.orden : 99}" min="1" max="999" style="${_I};width:100px;"></div>
+    <div><label style="${_L}">Flags</label>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        ${_chk('c-req-mueble',   'Requiere mueble (item_id obligatorio)', isEdit && centro.requiere_mueble)}
+        ${_chk('c-req-proyecto', 'Requiere proyecto',                     isEdit && centro.requiere_proyecto)}
+        ${_chk('c-descanso',     'Es descanso',                           isEdit && centro.es_descanso)}
+        ${_chk('c-dash-siempre', 'Mostrar siempre en dashboard',          isEdit && centro.mostrar_dashboard_siempre)}
+      </div>
+    </div>
+    <div id="c-error" style="font-size:12px;color:var(--red);display:none;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+      <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="${isEdit ? `guardarEditarCentro('${centro.id}')` : 'guardarNuevoCentro()'}">
+        ${isEdit ? 'Guardar' : 'Crear'}
+      </button>
+    </div>
+  </div>`;
+}
+
+function abrirModalNuevoCentro() {
+  abrirModal('NUEVO CENTRO', _buildCentroModalBody(null));
+}
+
+function abrirModalEditarCentro(centro) {
+  abrirModal(`EDITAR: ${centro.codigo}`, _buildCentroModalBody(centro));
+}
+
+async function guardarNuevoCentro() {
+  const u = window.AUTH.usuarioActual();
+  const errEl = document.getElementById('c-error');
+  const showErr = msg => { if(errEl){errEl.textContent=msg;errEl.style.display='block';} };
+  const codigo  = (document.getElementById('c-codigo')?.value||'').trim();
+  const nombre  = (document.getElementById('c-nombre')?.value||'').trim();
+  const tipo    = document.querySelector('input[name="c-tipo"]:checked')?.value;
+  const orden   = parseInt(document.getElementById('c-orden')?.value||'99')||99;
+  const requiere_mueble           = document.getElementById('c-req-mueble')?.checked   || false;
+  const requiere_proyecto         = document.getElementById('c-req-proyecto')?.checked  || false;
+  const es_descanso               = document.getElementById('c-descanso')?.checked      || false;
+  const mostrar_dashboard_siempre = document.getElementById('c-dash-siempre')?.checked  || false;
+  if (!codigo) { showErr('El código es obligatorio'); return; }
+  if (!/^[a-z][a-z0-9_]*$/.test(codigo)) { showErr('Código inválido: debe empezar con letra, solo minúsculas, números y guión bajo'); return; }
+  if (!nombre) { showErr('El nombre es obligatorio'); return; }
+  if (!tipo)   { showErr('Seleccioná el tipo'); return; }
+  if (errEl) errEl.style.display = 'none';
+  try {
+    const r = await fetch('/api/tiempos?action=crear-centro', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: u.id, codigo, nombre, tipo, orden, requiere_mueble, requiere_proyecto, es_descanso, mostrar_dashboard_siempre }),
+    });
+    const data = await r.json();
+    if (!data.ok) { showErr(data.error || 'Error al crear'); return; }
+    _centrosCache = null; _centrosActivosCache = null;
+    cerrarModal();
+    centrosAjustesInit(true);
+  } catch(e) { showErr(e.message); }
+}
+
+async function guardarEditarCentro(id) {
+  const u = window.AUTH.usuarioActual();
+  const errEl = document.getElementById('c-error');
+  const showErr = msg => { if(errEl){errEl.textContent=msg;errEl.style.display='block';} };
+  const nombre  = (document.getElementById('c-nombre')?.value||'').trim();
+  const tipo    = document.querySelector('input[name="c-tipo"]:checked')?.value;
+  const orden   = parseInt(document.getElementById('c-orden')?.value||'99')||99;
+  const requiere_mueble           = document.getElementById('c-req-mueble')?.checked   || false;
+  const requiere_proyecto         = document.getElementById('c-req-proyecto')?.checked  || false;
+  const es_descanso               = document.getElementById('c-descanso')?.checked      || false;
+  const mostrar_dashboard_siempre = document.getElementById('c-dash-siempre')?.checked  || false;
+  if (!nombre) { showErr('El nombre es obligatorio'); return; }
+  if (!tipo)   { showErr('Seleccioná el tipo'); return; }
+  if (errEl) errEl.style.display = 'none';
+  try {
+    const r = await fetch('/api/tiempos?action=editar-centro', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: u.id, id, nombre, tipo, orden, requiere_mueble, requiere_proyecto, es_descanso, mostrar_dashboard_siempre }),
+    });
+    const data = await r.json();
+    if (!data.ok) { showErr(data.error || 'Error al guardar'); return; }
+    _centrosCache = null; _centrosActivosCache = null;
+    cerrarModal();
+    centrosAjustesInit(true);
+  } catch(e) { showErr(e.message); }
+}
+
+async function toggleCentroActivo(id, activo) {
+  const u = window.AUTH.usuarioActual();
+  try {
+    const r = await fetch('/api/tiempos?action=toggle-centro', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: u.id, id, activo }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    _centrosCache = null; _centrosActivosCache = null;
+    centrosAjustesInit(true);
+  } catch(e) { console.error('[toggle-centro]', e.message); centrosAjustesInit(true); }
+}
+
+// ── Asignación de centros a operario ────────────────────────────────────────
+async function abrirModalCentrosOperario(opId) {
+  const u = window.AUTH.usuarioActual();
+  const op = OPERARIOS.find(o => o.id === opId);
+  if (!op) return;
+  const seleccionados = op.centros || [];
+  if (!_centrosActivosCache) {
+    try {
+      const r = await fetch('/api/tiempos?action=centros');
+      const data = await r.json();
+      _centrosActivosCache = data.ok ? (data.centros || []) : [];
+    } catch(e) { _centrosActivosCache = []; }
+  }
+  const todos = _centrosActivosCache;
+  const planta  = todos.filter(c => c.tipo === 'planta');
+  const oficina = todos.filter(c => c.tipo === 'oficina');
+  const buildGrupo = (titulo, lista) => {
+    if (!lista.length) return '';
+    const gid = `cv-g-${titulo}`;
+    const items = lista.map(c => {
+      const chk = seleccionados.includes(c.codigo);
+      return `<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:7px 10px;border:1px solid ${chk?'rgba(245,166,35,.4)':'var(--border)'};border-radius:6px;transition:all .15s;" onclick="setTimeout(_cvActualizarBorde,0,this)">
+        <input type="checkbox" class="cv-chk" data-codigo="${c.codigo}" ${chk?'checked':''} style="width:15px;height:15px;accent-color:var(--amber);cursor:pointer;" onchange="_cvUpdateCounter()">
+        <span style="flex:1;font-size:13px;">${c.nombre}</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);background:var(--faint);padding:1px 6px;border-radius:3px;">${c.codigo}</span>
+      </label>`;
+    }).join('');
+    return `<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);">${titulo}</span>
+      <div style="display:flex;gap:6px;">
+        <button onclick="_cvToggleGrupo('${gid}',true)"  class="btn btn-ghost btn-sm">Marcar todos</button>
+        <button onclick="_cvToggleGrupo('${gid}',false)" class="btn btn-ghost btn-sm">Desmarcar todos</button>
+      </div>
+    </div><div id="${gid}" style="display:flex;flex-direction:column;gap:6px;">${items}</div></div>`;
+  };
+  abrirModal(`CENTROS — ${op.nombre.toUpperCase()}`, `
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div style="font-size:12px;color:var(--muted);line-height:1.5;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:10px 12px;">
+        Si no marcás ninguno, el empleado puede iniciar tarea en <strong style="color:var(--text);">CUALQUIER centro activo</strong>.
+      </div>
+      ${buildGrupo('PLANTA', planta)}
+      ${buildGrupo('OFICINA', oficina)}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:4px;border-top:1px solid var(--border);">
+        <span id="cv-counter" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);">${seleccionados.length} / ${todos.length} seleccionados</span>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
+          <button class="btn btn-primary" onclick="guardarCentrosOperario('${opId}')">Guardar</button>
+        </div>
+      </div>
+    </div>`);
+}
+
+function _cvToggleGrupo(grupoId, checked) {
+  const el = document.getElementById(grupoId);
+  if (!el) return;
+  el.querySelectorAll('.cv-chk').forEach(c => { c.checked = checked; });
+  _cvUpdateCounter();
+}
+
+function _cvActualizarBorde(label) {
+  const chk = label?.querySelector('.cv-chk');
+  if (!chk) return;
+  label.style.borderColor = chk.checked ? 'rgba(245,166,35,.4)' : 'var(--border)';
+}
+
+function _cvUpdateCounter() {
+  const checked = document.querySelectorAll('.cv-chk:checked').length;
+  const total = (_centrosActivosCache || []).length;
+  const el = document.getElementById('cv-counter');
+  if (el) el.textContent = `${checked} / ${total} seleccionados`;
+}
+
+async function guardarCentrosOperario(opId) {
+  const u = window.AUTH.usuarioActual();
+  const op = OPERARIOS.find(o => o.id === opId);
+  if (!op) return;
+  const codigos = Array.from(document.querySelectorAll('.cv-chk:checked')).map(c => c.dataset.codigo);
+  try {
+    const r = await fetch('/api/tiempos?action=asignar-centros', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: u.id, empleado_id: opId, codigos }),
+    });
+    const data = await r.json();
+    if (!data.ok) { alert(data.error || 'Error al guardar'); return; }
+    op.centros = codigos;
+    guardarOperariosLS();
+    cerrarModal();
+    _renderOpGestion();
+  } catch(e) { alert(e.message); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

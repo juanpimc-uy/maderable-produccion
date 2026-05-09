@@ -2692,7 +2692,7 @@ export default async function handler(req) {
     if (action === 'centros' && req.method === 'GET') {
       const { data, error } = await supabase
         .from('centros_virtuales')
-        .select('id, codigo, nombre, tipo, requiere_mueble, requiere_proyecto, es_descanso, orden, activo')
+        .select('id, codigo, nombre, tipo, requiere_mueble, requiere_proyecto, es_descanso, mostrar_dashboard_siempre, orden, activo')
         .eq('activo', true)
         .order('orden', { ascending: true });
       if (error) throw error;
@@ -2709,7 +2709,7 @@ export default async function handler(req) {
         return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede acceder a este endpoint' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       const { data, error } = await supabase
         .from('centros_virtuales')
-        .select('id, codigo, nombre, tipo, requiere_mueble, requiere_proyecto, es_descanso, orden, activo')
+        .select('id, codigo, nombre, tipo, requiere_mueble, requiere_proyecto, es_descanso, mostrar_dashboard_siempre, orden, activo')
         .order('orden', { ascending: true });
       if (error) throw error;
       return ok({ ok: true, centros: data || [] });
@@ -2717,7 +2717,7 @@ export default async function handler(req) {
 
     // ── POST crear-centro (admin only) ───────────────────────────────────────
     if (action === 'crear-centro' && req.method === 'POST') {
-      const { admin_id, codigo, nombre, tipo, requiere_mueble, requiere_proyecto, es_descanso, orden } = body;
+      const { admin_id, codigo, nombre, tipo, requiere_mueble, requiere_proyecto, es_descanso, mostrar_dashboard_siempre, orden } = body;
       if (!admin_id) return err('admin_id requerido', 400);
       const { data: caller } = await supabase
         .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
@@ -2732,11 +2732,12 @@ export default async function handler(req) {
           codigo,
           nombre,
           tipo,
-          requiere_mueble:   requiere_mueble   ?? false,
-          requiere_proyecto: requiere_proyecto ?? false,
-          es_descanso:       es_descanso       ?? false,
-          orden:             orden             ?? 99,
-          activo:            true,
+          requiere_mueble:           requiere_mueble           ?? false,
+          requiere_proyecto:         requiere_proyecto         ?? false,
+          es_descanso:               es_descanso               ?? false,
+          mostrar_dashboard_siempre: mostrar_dashboard_siempre ?? false,
+          orden:                     orden                     ?? 99,
+          activo:                    true,
         })
         .select().single();
       if (error) throw error;
@@ -2745,7 +2746,7 @@ export default async function handler(req) {
 
     // ── POST editar-centro (admin only) ─────────────────────────────────────
     if (action === 'editar-centro' && req.method === 'POST') {
-      const { admin_id, id, nombre, tipo, requiere_mueble, requiere_proyecto, es_descanso, orden } = body;
+      const { admin_id, id, nombre, tipo, requiere_mueble, requiere_proyecto, es_descanso, mostrar_dashboard_siempre, orden } = body;
       if (!admin_id) return err('admin_id requerido', 400);
       const { data: caller } = await supabase
         .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
@@ -2754,12 +2755,13 @@ export default async function handler(req) {
       if (!id) return err('id requerido', 400);
       if (tipo !== undefined && !['planta', 'oficina'].includes(tipo)) return err("tipo debe ser 'planta' u 'oficina'", 400);
       const campos = {
-        ...(nombre             !== undefined ? { nombre }             : {}),
-        ...(tipo               !== undefined ? { tipo }               : {}),
-        ...(requiere_mueble    !== undefined ? { requiere_mueble }    : {}),
-        ...(requiere_proyecto  !== undefined ? { requiere_proyecto }  : {}),
-        ...(es_descanso        !== undefined ? { es_descanso }        : {}),
-        ...(orden              !== undefined ? { orden }              : {}),
+        ...(nombre                     !== undefined ? { nombre }                     : {}),
+        ...(tipo                       !== undefined ? { tipo }                       : {}),
+        ...(requiere_mueble            !== undefined ? { requiere_mueble }            : {}),
+        ...(requiere_proyecto          !== undefined ? { requiere_proyecto }          : {}),
+        ...(es_descanso                !== undefined ? { es_descanso }                : {}),
+        ...(mostrar_dashboard_siempre  !== undefined ? { mostrar_dashboard_siempre }  : {}),
+        ...(orden                      !== undefined ? { orden }                      : {}),
       };
       if (Object.keys(campos).length === 0) return err('Nada que actualizar', 400);
       const { data, error } = await supabase.from('centros_virtuales')
