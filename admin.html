@@ -5237,7 +5237,9 @@ function _timerSelItemFn() {
 
 async function _timerIniciar() {
   const u = window.AUTH.usuarioActual();
-  if (!_timerSelProy || !_timerSelCentro || !u) return;
+  const _tiCentro = _cvCentros.find(c => c.codigo === _timerSelCentro) || null;
+  const _tiProyOk = _tiCentro ? (_tiCentro.requiere_proyecto ? !!_timerSelProy : true) : !!_timerSelProy;
+  if (!_timerSelCentro || !_tiProyOk || !u) return;
   const btn = document.getElementById('timer-iniciar-btn');
   const labelOrig = btn.textContent;
   btn.disabled = true;
