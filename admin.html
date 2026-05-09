@@ -1511,7 +1511,7 @@ function renderDashboard() {
 
   // Counters
   const cntEl = document.getElementById('dash-snap-counters');
-  if (cntEl) cntEl.textContent = `${counters.en_tarea || 0} EN TAREA · ${counters.inactivos || 0} INACTIVAS · ${counters.sin_tarea || 0} SIN TAREA`;
+  if (cntEl) cntEl.textContent = `${counters.en_tarea || 0} EN TAREA · ${counters.inactivos || 0} INACTIVAS · ${counters.sin_tarea || 0} SIN TAREA · ${counters.ausentes || 0} AUSENTES`;
 
   // ── BLOQUE A: operarios (sin ausentes) ───────────────────────────────────
   const visibles = (operarios || []).filter(op => op.estado !== 'ausente');
