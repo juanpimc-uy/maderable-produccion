@@ -1117,16 +1117,17 @@ export default async function handler(req) {
 
     // ── POST editar-sesion ────────────────────────────────────────────────
     if (action === 'editar-sesion' && req.method === 'POST') {
-      const { registro_id, inicio, fin, centro, proyecto_id, proyecto_nombre,
-              item_id, item_nombre, caller_id } = body;
+      const { sesion_id, registro_id, inicio, fin, centro, proyecto_id, proyecto_nombre,
+              item_id, item_nombre, estado, caller_id } = body;
+      const reg_id = sesion_id || registro_id;
 
-      if (!registro_id) return err('registro_id requerido', 400);
-      if (!caller_id)   return err('caller_id requerido', 400);
+      if (!reg_id)    return err('sesion_id requerido', 400);
+      if (!caller_id) return err('caller_id requerido', 400);
 
       const { data: regS, error: regSErr } = await supabase
         .from('registros_trabajo')
-        .select('id, empleado_id, jornada_id, inicio, fin, eliminada')
-        .eq('id', registro_id).maybeSingle();
+        .select('id, empleado_id, jornada_id, inicio, fin, proyecto_id, eliminada')
+        .eq('id', reg_id).maybeSingle();
       if (regSErr) throw regSErr;
       if (!regS || regS.eliminada) return err('Registro no encontrado o ya eliminado', 404);
 
@@ -1153,6 +1154,22 @@ export default async function handler(req) {
       if (inicioEfectivo && finEfectivo && new Date(inicioEfectivo) >= new Date(finEfectivo))
         return err('inicio debe ser anterior a fin', 400);
 
+      // estado='finalizado' requiere fin
+      if (estado === 'finalizado' && !finEfectivo)
+        return err('Para marcar como finalizado se requiere un fin', 400);
+
+      // Validación de centro si viene en el body
+      if (centro !== undefined) {
+        const { data: cvES, error: cvESErr } = await supabase
+          .from('centros_virtuales').select('activo, requiere_proyecto').eq('codigo', centro).maybeSingle();
+        if (cvESErr) throw cvESErr;
+        if (!cvES || !cvES.activo) return err('Centro no válido o inactivo', 400);
+        if (cvES.requiere_proyecto) {
+          const proyEfectivo = proyecto_id !== undefined ? proyecto_id : regS.proyecto_id;
+          if (!proyEfectivo) return err('El centro seleccionado requiere un proyecto', 400);
+        }
+      }
+
       // Solapamiento (fin null en DB = sesión activa, equivale a infinito)
       const inicioISO   = inicioEfectivo ? new Date(inicioEfectivo).toISOString() : null;
       const finChequeoS = finEfectivo
@@ -1164,7 +1181,7 @@ export default async function handler(req) {
           .select('id, inicio, fin')
           .eq('empleado_id', regS.empleado_id)
           .eq('eliminada', false)
-          .neq('id', registro_id)
+          .neq('id', reg_id)
           .lt('inicio', finChequeoS)
           .or(`fin.is.null,fin.gt.${inicioISO}`);
         if (solapadosS && solapadosS.length > 0) {
@@ -1183,11 +1200,12 @@ export default async function handler(req) {
       if (proyecto_nombre !== undefined) camposS.proyecto_nombre = proyecto_nombre;
       if (item_id         !== undefined) camposS.item_id         = item_id;
       if (item_nombre     !== undefined) camposS.item_nombre     = item_nombre;
+      if (estado          !== undefined) camposS.estado          = estado;
 
       const { data: regSUpd, error: uSErr } = await supabase
-        .from('registros_trabajo').update(camposS).eq('id', registro_id).select().single();
+        .from('registros_trabajo').update(camposS).eq('id', reg_id).select().single();
       if (uSErr) throw uSErr;
-      return ok({ ok: true, registro: regSUpd });
+      return ok({ ok: true, sesion: regSUpd });
     }
 
     // ── POST agregar-sesion ───────────────────────────────────────────────
@@ -2826,6 +2844,257 @@ export default async function handler(req) {
         .update({ centros_autorizados: codigos }).eq('id', empleado_id).select('id, nombre, centros_autorizados').single();
       if (error) throw error;
       return ok({ ok: true, empleado: data });
+    }
+
+    // ── GET sesiones-dia ──────────────────────────────────────────────────
+    if (action === 'sesiones-dia' && req.method === 'GET') {
+      const fecha     = url.searchParams.get('fecha');
+      const caller_id = url.searchParams.get('caller_id');
+
+      if (!fecha)     return err('fecha requerida (YYYY-MM-DD)', 400);
+      if (!caller_id) return err('caller_id requerido', 400);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return err('fecha debe tener formato YYYY-MM-DD', 400);
+
+      const { data: callerSD, error: cSDErr } = await supabase
+        .from('empleados').select('rol_app').eq('id', caller_id).maybeSingle();
+      if (cSDErr) throw cSDErr;
+      if (!callerSD)
+        return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (callerSD.rol_app !== 'admin' && callerSD.rol_app !== 'oficina')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden consultar sesiones' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      let jornadasQSD = supabase
+        .from('jornadas')
+        .select('id, empleado_id, fecha, entrada, salida, descanso_minutos')
+        .eq('fecha', fecha);
+      if (callerSD.rol_app === 'oficina') jornadasQSD = jornadasQSD.eq('empleado_id', caller_id);
+      const { data: jornadasSD, error: jSDErr } = await jornadasQSD;
+      if (jSDErr) throw jSDErr;
+
+      if (!jornadasSD || jornadasSD.length === 0)
+        return ok({ ok: true, fecha, empleados: [] });
+
+      const jornadaIdsSD  = jornadasSD.map(j => j.id);
+      const empleadoIdsSD = [...new Set(jornadasSD.map(j => j.empleado_id))];
+
+      const [{ data: registrosSD, error: rSDErr }, { data: empleadosSD, error: eSDErr }] = await Promise.all([
+        supabase.from('registros_trabajo')
+          .select('id, jornada_id, inicio, fin, centro, proyecto_id, proyecto_nombre, item_id, item_nombre, estado')
+          .in('jornada_id', jornadaIdsSD)
+          .eq('eliminada', false)
+          .order('inicio', { ascending: true }),
+        supabase.from('empleados')
+          .select('id, nombre')
+          .in('id', empleadoIdsSD),
+      ]);
+      if (rSDErr) throw rSDErr;
+      if (eSDErr) throw eSDErr;
+
+      const ahoraSD   = new Date();
+      const regsMapSD = {};
+      (registrosSD || []).forEach(r => {
+        if (!regsMapSD[r.jornada_id]) regsMapSD[r.jornada_id] = [];
+        regsMapSD[r.jornada_id].push(r);
+      });
+      const empMapSD = {};
+      (empleadosSD || []).forEach(e => { empMapSD[e.id] = e; });
+
+      return ok({
+        ok: true, fecha,
+        empleados: jornadasSD.map(j => {
+          const sesiones = regsMapSD[j.id] || [];
+          const totalMs  = sesiones.reduce((acc, r) => {
+            const ini = new Date(r.inicio);
+            const fin = r.fin ? new Date(r.fin) : (r.estado === 'activo' ? ahoraSD : ini);
+            return acc + Math.max(0, fin - ini);
+          }, 0);
+          return {
+            empleado_id:   j.empleado_id,
+            nombre:        empMapSD[j.empleado_id]?.nombre || '',
+            jornada:       { id: j.id, entrada: j.entrada, salida: j.salida, descanso_minutos: j.descanso_minutos },
+            sesiones,
+            total_minutos: Math.round(totalMs / 60000),
+          };
+        }),
+      });
+    }
+
+    // ── GET sesiones-empleado ─────────────────────────────────────────────
+    if (action === 'sesiones-empleado' && req.method === 'GET') {
+      const empleado_id = url.searchParams.get('empleado_id');
+      const desde       = url.searchParams.get('desde');
+      const hasta       = url.searchParams.get('hasta');
+      const caller_id   = url.searchParams.get('caller_id');
+
+      if (!empleado_id) return err('empleado_id requerido', 400);
+      if (!caller_id)   return err('caller_id requerido', 400);
+
+      const { data: callerSE, error: cSEErr } = await supabase
+        .from('empleados').select('id, nombre, rol_app').eq('id', caller_id).maybeSingle();
+      if (cSEErr) throw cSEErr;
+      if (!callerSE)
+        return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (callerSE.rol_app !== 'admin' && callerSE.rol_app !== 'oficina')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden consultar sesiones' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (callerSE.rol_app === 'oficina' && empleado_id !== caller_id)
+        return new Response(JSON.stringify({ ok: false, error: 'Sin permiso' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      let empNombreSE = callerSE.nombre;
+      if (callerSE.rol_app === 'admin' && empleado_id !== caller_id) {
+        const { data: empTargetSE } = await supabase.from('empleados')
+          .select('nombre').eq('id', empleado_id).maybeSingle();
+        empNombreSE = empTargetSE?.nombre || '';
+      }
+
+      let jornadasQSE = supabase
+        .from('jornadas')
+        .select('id, empleado_id, fecha, entrada, salida, descanso_minutos')
+        .eq('empleado_id', empleado_id)
+        .order('fecha', { ascending: true });
+      if (desde) jornadasQSE = jornadasQSE.gte('fecha', desde);
+      if (hasta) jornadasQSE = jornadasQSE.lte('fecha', hasta);
+      const { data: jornadasSE, error: jSEErr } = await jornadasQSE;
+      if (jSEErr) throw jSEErr;
+
+      if (!jornadasSE || jornadasSE.length === 0)
+        return ok({ ok: true, empleado_id, nombre: empNombreSE, dias: [] });
+
+      const jornadaIdsSE = jornadasSE.map(j => j.id);
+      const { data: registrosSE, error: rSEErr } = await supabase
+        .from('registros_trabajo')
+        .select('id, jornada_id, inicio, fin, centro, proyecto_id, proyecto_nombre, item_id, item_nombre, estado')
+        .in('jornada_id', jornadaIdsSE)
+        .eq('eliminada', false)
+        .order('inicio', { ascending: true });
+      if (rSEErr) throw rSEErr;
+
+      const ahoraSE   = new Date();
+      const regsMapSE = {};
+      (registrosSE || []).forEach(r => {
+        if (!regsMapSE[r.jornada_id]) regsMapSE[r.jornada_id] = [];
+        regsMapSE[r.jornada_id].push(r);
+      });
+
+      return ok({
+        ok: true, empleado_id, nombre: empNombreSE,
+        dias: jornadasSE.map(j => {
+          const sesiones = regsMapSE[j.id] || [];
+          const totalMs  = sesiones.reduce((acc, r) => {
+            const ini = new Date(r.inicio);
+            const fin = r.fin ? new Date(r.fin) : (r.estado === 'activo' ? ahoraSE : ini);
+            return acc + Math.max(0, fin - ini);
+          }, 0);
+          return {
+            fecha:         j.fecha,
+            jornada:       { id: j.id, entrada: j.entrada, salida: j.salida, descanso_minutos: j.descanso_minutos },
+            sesiones,
+            total_minutos: Math.round(totalMs / 60000),
+          };
+        }),
+      });
+    }
+
+    // ── GET reporte-horas ─────────────────────────────────────────────────
+    if (action === 'reporte-horas' && req.method === 'GET') {
+      const desde     = url.searchParams.get('desde');
+      const hasta     = url.searchParams.get('hasta');
+      const emp_param = url.searchParams.get('empleado_id');
+      const caller_id = url.searchParams.get('caller_id');
+
+      if (!desde || !hasta) return err('desde y hasta requeridos (YYYY-MM-DD)', 400);
+      if (!caller_id)       return err('caller_id requerido', 400);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta))
+        return err('desde y hasta deben tener formato YYYY-MM-DD', 400);
+      if (desde > hasta) return err('desde debe ser anterior o igual a hasta', 400);
+
+      const { data: callerRH, error: cRHErr } = await supabase
+        .from('empleados').select('id, nombre, rol_app').eq('id', caller_id).maybeSingle();
+      if (cRHErr) throw cRHErr;
+      if (!callerRH)
+        return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (callerRH.rol_app !== 'admin' && callerRH.rol_app !== 'oficina')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden consultar reportes' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (callerRH.rol_app === 'oficina' && emp_param && emp_param !== caller_id)
+        return new Response(JSON.stringify({ ok: false, error: 'Sin permiso' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      let empleadosRH = [];
+      if (callerRH.rol_app === 'admin' && !emp_param) {
+        const { data: todosRH, error: tRHErr } = await supabase
+          .from('empleados').select('id, nombre').eq('activo', true);
+        if (tRHErr) throw tRHErr;
+        empleadosRH = todosRH || [];
+      } else {
+        const targetIdRH = emp_param || caller_id;
+        const { data: oneRH, error: oRHErr } = await supabase
+          .from('empleados').select('id, nombre').eq('id', targetIdRH).maybeSingle();
+        if (oRHErr) throw oRHErr;
+        if (oneRH) empleadosRH = [oneRH];
+      }
+
+      if (empleadosRH.length === 0)
+        return ok({ ok: true, desde, hasta, empleados: [] });
+
+      const empleadoIdsRH = empleadosRH.map(e => e.id);
+      const { data: registrosRH, error: rRHErr } = await supabase
+        .from('registros_trabajo')
+        .select('id, empleado_id, inicio, fin')
+        .in('empleado_id', empleadoIdsRH)
+        .eq('estado', 'finalizado')
+        .eq('eliminada', false)
+        .gte('inicio', desde + 'T00:00:00.000Z')
+        .lte('inicio', hasta + 'T23:59:59.999Z')
+        .order('inicio', { ascending: true });
+      if (rRHErr) throw rRHErr;
+
+      function _rhIsoMonday(ts) {
+        const d = new Date(ts);
+        const day = d.getUTCDay(); // 0=Dom, 1=Lun, ..., 6=Sáb
+        const offset = day === 0 ? 6 : day - 1;
+        d.setUTCDate(d.getUTCDate() - offset);
+        return d.toISOString().split('T')[0];
+      }
+      function _rhIsoSunday(mondayStr) {
+        const d = new Date(mondayStr + 'T00:00:00Z');
+        d.setUTCDate(d.getUTCDate() + 6);
+        return d.toISOString().split('T')[0];
+      }
+
+      const regsPorEmpRH = {};
+      (registrosRH || []).forEach(r => {
+        if (!regsPorEmpRH[r.empleado_id]) regsPorEmpRH[r.empleado_id] = [];
+        regsPorEmpRH[r.empleado_id].push(r);
+      });
+
+      return ok({
+        ok: true, desde, hasta,
+        empleados: empleadosRH.map(emp => {
+          const regs = regsPorEmpRH[emp.id] || [];
+          const semanasMap = {};
+          regs.forEach(r => {
+            if (!r.fin) return;
+            const monday = _rhIsoMonday(r.inicio);
+            if (!semanasMap[monday]) semanasMap[monday] = 0;
+            semanasMap[monday] += Math.max(0, Math.round((new Date(r.fin) - new Date(r.inicio)) / 60000));
+          });
+          const semanas = Object.keys(semanasMap).sort().map(monday => ({
+            semana_inicio:  monday,
+            semana_fin:     _rhIsoSunday(monday),
+            total_minutos:  semanasMap[monday],
+            extras_minutos: Math.max(0, semanasMap[monday] - 2700),
+          }));
+          const total_minutos        = semanas.reduce((acc, s) => acc + s.total_minutos, 0);
+          const total_extras_minutos = semanas.reduce((acc, s) => acc + s.extras_minutos, 0);
+          return { empleado_id: emp.id, nombre: emp.nombre, semanas, total_minutos, total_extras_minutos };
+        }),
+      });
     }
 
     return err('Acción no reconocida: ' + action);
