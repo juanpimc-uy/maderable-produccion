@@ -1023,6 +1023,7 @@ async function syncEmpleadoSupabase(op) {
         horario_entrada: op.horario_entrada || '08:00',
         horario_salida:  op.horario_salida  || '17:00',
         descanso_modalidad: op.descanso_modalidad || null,
+        pit_stop_minutos: op.pit_stop_minutos ?? 0,
       })
     });
     const d = await r.json();
@@ -1092,6 +1093,7 @@ async function cargarTodoDesdeSupabase() {
           avatar: getIniciales(e.nombre),
           status: 'disponible',
           centros: e.centros_autorizados || [],
+          pit_stop_minutos: e.pit_stop_minutos ?? 0,
           categoria: e.categoria || 'directo',
           horario_entrada: e.horario_entrada || '08:00',
           horario_salida:  e.horario_salida  || '17:00',
@@ -2850,15 +2852,8 @@ function abrirModalOperario(opId) {
   // disabled attr + muted style for read-only fields (oficina)
   const dis = esOficina ? 'disabled' : '';
   const disS = esOficina ? 'opacity:0.55;cursor:not-allowed;' : '';
-  const centrosOp=op?.centros&&op.centros.length?op.centros:_CENTROS_DEFAULT;
-  const centrosChk=CENTROS.filter(c=>c.familia==='planta').map(c=>{
-    const chk=centrosOp.includes(c.id);
-    return`<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 10px;border:1px solid ${chk?c.color+'66':'var(--border)'};border-radius:6px;background:${chk?c.color+'12':'transparent'};transition:all .15s;">
-      <input type="checkbox" id="mod-op-c-${c.id}" ${chk?'checked':''} style="width:15px;height:15px;accent-color:${c.color};cursor:pointer;">
-      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:${chk?c.color:'var(--muted)'};">${c.icon} ${c.label}</span>
-    </label>`;
-  }).join('');
   const _inputStyle=`background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;${disS}`;
+  const _iStyle=`background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;`;
   const _labelStyle='font-family:\'JetBrains Mono\',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:5px;';
   abrirModal(op?'EDITAR OPERARIO':'NUEVO OPERARIO',`
     <div style="display:flex;flex-direction:column;gap:14px;">
@@ -2910,9 +2905,21 @@ function abrirModalOperario(opId) {
           </select>
         </div>
       </div>` : ''}
-      <div>
-        <label style="${_labelStyle}">Centros habilitados</label>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">${centrosChk}</div>
+      <div style="display:flex;gap:12px;">
+        <div style="flex:1;">
+          <label style="${_labelStyle}">Modalidad de descanso</label>
+          <select id="mod-op-descanso-modalidad" style="${_iStyle}">
+            <option value="paga_30">30 min · pagos</option>
+            <option value="no_paga_60">60 min · no pagos</option>
+            <option value="sin_limite">Sin límite · no pagos</option>
+          </select>
+        </div>
+        <div style="flex:1;">
+          <label style="${_labelStyle}">Pit Stop (min)</label>
+          <input id="mod-op-pit-stop" type="number" min="0" max="60" step="1"
+            value="${op?.pit_stop_minutos ?? 0}" style="${_iStyle}">
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;">Pausas breves pagas diarias (0 = ninguna).</div>
+        </div>
       </div>
       <div id="mod-op-error" style="font-size:12px;color:var(--red);display:none;"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
@@ -2930,19 +2937,12 @@ function abrirModalOperario(opId) {
 function guardarOperario(opId) {
   const _u = window.AUTH.usuarioActual();
   if (!_u || _u.rol_app === 'operario') { window.location.href='/planta2.html'; return; }
-  const centros=CENTROS.filter(c=>c.familia==='planta').map(c=>c.id).filter(id=>document.getElementById('mod-op-c-'+id)?.checked);
   const errEl=document.getElementById('mod-op-error');
   const showErr=msg=>{if(errEl){errEl.textContent=msg;errEl.style.display='block';}else alert(msg);};
 
   if (window.AUTH.esOficina()) {
-    // Oficina: solo actualizar centros habilitados
-    if(!centros.length){showErr('Habilitá al menos un centro de trabajo');return;}
     if(errEl)errEl.style.display='none';
-    const op=OPERARIOS.find(o=>o.id===opId);
-    if(op){op.centros=centros;syncEmpleadoSupabase(op);}
-    guardarOperariosLS();
     cerrarModal();
-    _renderOpGestion();
     return;
   }
 
@@ -2957,16 +2957,16 @@ function guardarOperario(opId) {
   const categoria=catEl ? catEl.value : (OPERARIOS.find(o=>o.id===opId)?.categoria||'directo');
   const modEl=document.getElementById('mod-op-descanso-modalidad');
   const descanso_modalidad=modEl ? (modEl.value||null) : (OPERARIOS.find(o=>o.id===opId)?.descanso_modalidad||null);
+  const pit_stop_minutos=parseInt(document.getElementById('mod-op-pit-stop')?.value||'0',10)||0;
   if(!nombre){showErr('El nombre es obligatorio');return;}
-  if(!centros.length){showErr('Habilitá al menos un centro de trabajo');return;}
   if((rol_app==='oficina'||rol_app==='admin')&&!email){showErr('Email obligatorio para rol oficina/admin');document.getElementById('mod-op-email')?.focus();return;}
   if(errEl)errEl.style.display='none';
   if(opId){
     const op=OPERARIOS.find(o=>o.id===opId);
-    if(op){op.nombre=nombre;op.cedula=cedula;op.avatar=avatar;op.email=email;op.rol_app=rol_app;op.centros=centros;op.categoria=categoria;op.descanso_modalidad=descanso_modalidad;}
+    if(op){op.nombre=nombre;op.cedula=cedula;op.avatar=avatar;op.email=email;op.rol_app=rol_app;op.categoria=categoria;op.descanso_modalidad=descanso_modalidad;op.pit_stop_minutos=pit_stop_minutos;}
     syncEmpleadoSupabase(op);
   }else{
-    const nuevoOp={id:'op'+Date.now(),nombre,cedula,email,rol_app,avatar,status:'disponible',centros,categoria,descanso_modalidad};
+    const nuevoOp={id:'op'+Date.now(),nombre,cedula,email,rol_app,avatar,status:'disponible',centros:[],categoria,descanso_modalidad,pit_stop_minutos};
     OPERARIOS.push(nuevoOp);
     syncEmpleadoSupabase(nuevoOp);
   }

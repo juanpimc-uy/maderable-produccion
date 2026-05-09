@@ -424,6 +424,11 @@ export default async function handler(req) {
             return err('descanso_modalidad debe ser paga_30, no_paga_60 o sin_limite', 400);
           }
         }
+        // Validar pit_stop_minutos si viene
+        if (body.pit_stop_minutos !== undefined) {
+          const psm = parseInt(body.pit_stop_minutos, 10);
+          if (isNaN(psm) || psm < 0) return err('pit_stop_minutos debe ser entero >= 0', 400);
+        }
         const camposOpcionales = {
           ...(body.cedula !== undefined    ? { cedula: body.cedula || null }                              : {}),
           ...(body.email !== undefined     ? { email: body.email || null }                                : {}),
@@ -435,6 +440,7 @@ export default async function handler(req) {
           ...(body.descanso_modalidad !== undefined ? {
             descanso_modalidad: body.descanso_modalidad || null,
           } : {}),
+          ...(body.pit_stop_minutos !== undefined ? { pit_stop_minutos: parseInt(body.pit_stop_minutos, 10) } : {}),
         };
 
         if (isInsert) {
@@ -449,6 +455,7 @@ export default async function handler(req) {
             pin: '1234',
             horario_entrada: '08:00',
             horario_salida: '17:00',
+            pit_stop_minutos: 0,
             activo: true,
             ...camposOpcionales,
           };
@@ -1288,15 +1295,28 @@ export default async function handler(req) {
 
     // ── PATCH actualizar empleado existente ───────────────────────────────
     if (action === 'actualizar-empleado' && req.method === 'PATCH') {
-      const { nombre, categoria, centros_autorizados, cedula } = body;
+      const { nombre, categoria, centros_autorizados, cedula, descanso_modalidad, pit_stop_minutos } = body;
       if (!nombre) return err('nombre requerido');
+      if (descanso_modalidad !== undefined && descanso_modalidad !== null) {
+        if (!['paga_30', 'no_paga_60', 'sin_limite'].includes(descanso_modalidad))
+          return err('descanso_modalidad debe ser paga_30, no_paga_60 o sin_limite', 400);
+      }
+      if (pit_stop_minutos !== undefined) {
+        const psm = parseInt(pit_stop_minutos, 10);
+        if (isNaN(psm) || psm < 0) return err('pit_stop_minutos debe ser entero >= 0', 400);
+      }
+      const campos = {
+        ...(cedula               !== undefined ? { cedula: cedula || null }                                      : {}),
+        ...(categoria            !== undefined ? { categoria }                                                   : {}),
+        ...(centros_autorizados  !== undefined ? { centros_autorizados }                                         : {}),
+        ...(descanso_modalidad   !== undefined ? { descanso_modalidad: descanso_modalidad || null }              : {}),
+        ...(pit_stop_minutos     !== undefined ? { pit_stop_minutos: parseInt(pit_stop_minutos, 10) }            : {}),
+      };
+      if (Object.keys(campos).length === 0) return err('Nada que actualizar', 400);
       const { data, error } = await supabase
-        .from('empleados')
-        .update({ categoria, centros_autorizados, cedula: cedula || null })
-        .eq('nombre', nombre)
-        .select().single();
+        .from('empleados').update(campos).eq('nombre', nombre).select().single();
       if (error) throw error;
-      return ok({ empleado: data });
+      return ok({ ok: true, empleado: data });
     }
 
     // ── GET horas reales por proyecto (desde registros_trabajo) ──────────
