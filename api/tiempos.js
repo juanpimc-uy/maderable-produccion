@@ -571,7 +571,7 @@ export default async function handler(req) {
     if (action === 'dashboard-snapshot' && req.method === 'GET') {
       const ahora = new Date();
       const hoy = ahora.toISOString().split('T')[0];
-      const UMBRAL_INACTIVIDAD_MIN = 15;
+      const UMBRAL_SIN_SENAL_MIN = 15;
 
       // 1. Pull paralelo: empleados activos + jornadas hoy + registros activos + catálogo centros
       const [empleadosRes, jornadasRes, activosRes, centrosRes] = await Promise.all([
@@ -628,24 +628,19 @@ export default async function handler(req) {
         const jornada = jornadaPorEmp[emp.id] || null;
         const activo  = activoPorEmp[emp.id]  || null;
         let estado;
-        let inactivo_minutos = 0;
-        let tiempo_minutos   = 0;
-
+        let tiempo_minutos    = 0;
+        let sin_senal_minutos = 0;
         if (!jornada) {
           estado = 'ausente';
         } else if (!activo) {
           estado = 'sin_tarea';
         } else {
-          const ultMs   = new Date(activo.ultima_actividad).getTime();
-          const diffMin = Math.floor((ahora.getTime() - ultMs) / 60000);
           const inicioMs = new Date(activo.inicio).getTime();
           tiempo_minutos = Math.floor((ahora.getTime() - inicioMs) / 60000);
-          if (diffMin > UMBRAL_INACTIVIDAD_MIN) {
-            estado = 'inactivo';
-            inactivo_minutos = diffMin;
-          } else {
-            estado = 'en_tarea';
-          }
+          const ultMs   = new Date(activo.ultima_actividad).getTime();
+          const diffMin = Math.floor((ahora.getTime() - ultMs) / 60000);
+          estado = 'en_tarea';
+          if (diffMin > UMBRAL_SIN_SENAL_MIN) sin_senal_minutos = diffMin;
         }
 
         let proyectoOut = null;
@@ -670,22 +665,22 @@ export default async function handler(req) {
         }
 
         return {
-          id:               emp.id,
-          nombre:           emp.nombre,
-          entrada:          jornada?.entrada || null,
+          id:                emp.id,
+          nombre:            emp.nombre,
+          entrada:           jornada?.entrada || null,
           estado,
-          centro:           activo?.centro  || null,
-          centro_label:     activo?.centro ? (centroLabelMap[activo.centro] || activo.centro.toUpperCase()) : null,
-          proyecto:         proyectoOut,
-          mueble:           muebleOut,
+          centro:            activo?.centro  || null,
+          centro_label:      activo?.centro ? (centroLabelMap[activo.centro] || activo.centro.toUpperCase()) : null,
+          proyecto:          proyectoOut,
+          mueble:            muebleOut,
           tiempo_minutos,
-          inactivo_minutos,
-          registro_id:      activo?.id      || null,
+          sin_senal_minutos,
+          registro_id:       activo?.id      || null,
         };
       });
 
-      // 5. Ordenar: inactivo → en_tarea → sin_tarea → ausente; alfabético dentro
-      const ordenEstado = { inactivo: 0, en_tarea: 1, sin_tarea: 2, ausente: 3 };
+      // 5. Ordenar: en_tarea → sin_tarea → ausente; alfabético dentro
+      const ordenEstado = { en_tarea: 0, sin_tarea: 1, ausente: 2 };
       operariosOut.sort((a, b) => {
         const oa = ordenEstado[a.estado] ?? 9;
         const ob = ordenEstado[b.estado] ?? 9;
@@ -695,32 +690,32 @@ export default async function handler(req) {
 
       // 6. Counters
       const counters = {
-        total:     operariosOut.length,
-        en_tarea:  operariosOut.filter(o => o.estado === 'en_tarea').length,
-        inactivos: operariosOut.filter(o => o.estado === 'inactivo').length,
-        sin_tarea: operariosOut.filter(o => o.estado === 'sin_tarea').length,
-        ausentes:  operariosOut.filter(o => o.estado === 'ausente').length,
+        total:          operariosOut.length,
+        en_tarea:       operariosOut.filter(o => o.estado === 'en_tarea').length,
+        sin_senal:      operariosOut.filter(o => o.sin_senal_minutos > 0).length,
+        sin_tarea:      operariosOut.filter(o => o.estado === 'sin_tarea').length,
+        ausentes:       operariosOut.filter(o => o.estado === 'ausente').length,
       };
 
       // 7. Agrupar por centro — todos los centros tipo 'planta' del catálogo, ordenados por orden
       const porCentro = {};
       for (const op of operariosOut) {
-        if (op.estado !== 'en_tarea' && op.estado !== 'inactivo') continue;
+        if (op.estado !== 'en_tarea') continue;
         if (!op.centro) continue;
-        if (!porCentro[op.centro]) porCentro[op.centro] = { centro: op.centro, label: centroLabelMap[op.centro] || op.centro.toUpperCase(), total: 0, inactivos: 0, muebles: [] };
+        if (!porCentro[op.centro]) porCentro[op.centro] = { centro: op.centro, label: centroLabelMap[op.centro] || op.centro.toUpperCase(), total: 0, sin_senal: 0, muebles: [] };
         porCentro[op.centro].total++;
-        if (op.estado === 'inactivo') porCentro[op.centro].inactivos++;
+        if (op.sin_senal_minutos > 0) porCentro[op.centro].sin_senal++;
         porCentro[op.centro].muebles.push({
           odf:           op.proyecto?.odf  || '',
           mueble_codigo: op.mueble?.codigo || '',
           mueble_nombre: op.mueble?.nombre || '',
-          inactivo:      op.estado === 'inactivo',
+          sin_senal:     op.sin_senal_minutos > 0,
         });
       }
       const centrosOut = centrosCat
         .filter(c => c.tipo === 'planta')
         .filter(c => c.mostrar_dashboard_siempre === true || porCentro[c.codigo])
-        .map(c => porCentro[c.codigo] || { centro: c.codigo, label: c.nombre, total: 0, inactivos: 0, muebles: [] });
+        .map(c => porCentro[c.codigo] || { centro: c.codigo, label: c.nombre, total: 0, sin_senal: 0, muebles: [] });
 
       return ok({
         timestamp: ahora.toISOString(),

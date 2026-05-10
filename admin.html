@@ -1531,7 +1531,11 @@ function renderDashboard() {
 
   // Counters
   const cntEl = document.getElementById('dash-snap-counters');
-  if (cntEl) cntEl.textContent = `${counters.en_tarea || 0} EN TAREA · ${counters.inactivos || 0} INACTIVAS · ${counters.sin_tarea || 0} SIN TAREA · ${counters.ausentes || 0} AUSENTES`;
+  if (cntEl) {
+    const sinS = counters.sin_senal || 0;
+    const sinSStr = sinS > 0 ? ` · ${sinS} SIN SEÑAL` : '';
+    cntEl.textContent = `${counters.en_tarea || 0} EN TAREA${sinSStr} · ${counters.sin_tarea || 0} SIN TAREA · ${counters.ausentes || 0} AUSENTES`;
+  }
 
   // ── BLOQUE A: operarios (sin ausentes) ───────────────────────────────────
   const visibles = (operarios || []).filter(op => op.estado !== 'ausente');
@@ -1542,15 +1546,17 @@ function renderDashboard() {
   } else {
     const renderOpRow = (op) => {
       const esSinTarea  = op.estado === 'sin_tarea';
-      const esInactivo  = op.estado === 'inactivo';
-      const cls = esInactivo ? 'ds-op-row ds-inactivo' : esSinTarea ? 'ds-op-row ds-sin_tarea' : 'ds-op-row';
-      const prefijo = esInactivo ? '⚠ ' : esSinTarea ? '◌ ' : '';
+      const cls = esSinTarea ? 'ds-op-row ds-sin_tarea' : 'ds-op-row';
+      const prefijo = esSinTarea ? '◌ ' : '';
       const centro  = esSinTarea ? '—' : (op.centro_label || '—');
       const odf     = esSinTarea ? '—' : (op.proyecto?.odf || '—');
       const cliente = esSinTarea ? '—' : (op.proyecto?.cliente || '—');
       const obra    = esSinTarea ? '—' : (op.proyecto?.obra || '—');
       const mueble  = esSinTarea ? '—' : (op.mueble?.nombre || '—');
-      const estado  = op.estado.replace('_', ' ').toUpperCase();
+      const estadoTxt = op.estado.replace('_', ' ').toUpperCase();
+      const sinSenalBadge = op.sin_senal_minutos > 0
+        ? ` <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#FFD600;">⚠ SIN SEÑAL</span>`
+        : '';
       return `<div class="${cls}">
         <div class="ds-op-col ds-op-nombre">${prefijo}${op.nombre}</div>
         <div class="ds-op-col">${centro}</div>
@@ -1558,7 +1564,7 @@ function renderDashboard() {
         <div class="ds-op-col">${cliente}</div>
         <div class="ds-op-col">${obra}</div>
         <div class="ds-op-col">${mueble}</div>
-        <div class="ds-op-col">${estado}</div>
+        <div class="ds-op-col">${estadoTxt}${sinSenalBadge}</div>
       </div>`;
     };
     const MAX = 6;
@@ -1578,26 +1584,26 @@ function renderDashboard() {
   // ── BLOQUE B: centros ────────────────────────────────────────────────────
   const CENTROS_FIJOS = ['corte', 'enchapado', 'armado', 'colocacion'];
   const centroMap = Object.fromEntries((centros || []).map(c => [c.centro, c]));
-  const centrosToShow = CENTROS_FIJOS.map(c => centroMap[c] || { centro: c, label: c.toUpperCase(), total: 0, inactivos: 0, muebles: [] });
+  const centrosToShow = CENTROS_FIJOS.map(c => centroMap[c] || { centro: c, label: c.toUpperCase(), total: 0, sin_senal: 0, muebles: [] });
   (centros || []).forEach(c => { if (!CENTROS_FIJOS.includes(c.centro)) centrosToShow.push(c); });
 
   const centrosHtml = centrosToShow.map(c => {
     const sin = c.total === 0;
-    const alarm = !sin && c.inactivos > 0;
+    const alarm = !sin && c.sin_senal > 0;
     const numCls = sin ? 'ds-centro-num dim' : alarm ? 'ds-centro-num alarm' : 'ds-centro-num';
     const mueblesList = sin
       ? '<div class="ds-centro-empty">SIN ACTIVIDAD</div>'
       : (c.muebles || []).map(m => {
           const partes = [m.mueble_codigo, m.mueble_nombre].filter(Boolean).join(' ');
           const linea = partes ? `${m.odf || ''} · ${partes}` : (m.odf || '—');
-          const inact = m.inactivo;
+          const sinSenal = m.sin_senal;
           const opMatch = (operarios || []).find(op =>
             op.centro === c.centro &&
             op.proyecto?.odf === m.odf &&
             (!m.mueble_codigo || op.mueble?.codigo === m.mueble_codigo)
           );
           const opNombre = opMatch ? ` <span style="color:#888;">— ${opMatch.nombre}</span>` : '';
-          return `<div class="ds-mueble-row${inact ? ' ds-inact' : ''}">${linea}${inact ? ' ⚠' : ''}${opNombre}</div>`;
+          return `<div class="ds-mueble-row${sinSenal ? ' ds-inact' : ''}">${linea}${sinSenal ? ' ⚠' : ''}${opNombre}</div>`;
         }).join('');
     return `<div class="ds-centro-card">
       <div class="ds-centro-header">
@@ -2689,7 +2695,7 @@ function _renderOpEstadoSnapshot() {
     return;
   }
   const ops = _dashboardData.operarios || [];
-  const ORDER = { inactivo:0, en_tarea:1, sin_tarea:2, ausente:3 };
+  const ORDER = { en_tarea:0, sin_tarea:1, ausente:2 };
   const sorted = [...ops].sort((a,b)=>(ORDER[a.estado]??4)-(ORDER[b.estado]??4));
   const total = OPERARIOS.length || ops.length;
 
@@ -2712,29 +2718,28 @@ function _renderOpEstadoSnapshot() {
     </div>`;
 
   sorted.forEach(op => {
-    const esInact = op.estado === 'inactivo';
     const esSin   = op.estado === 'sin_tarea';
     const esAus   = op.estado === 'ausente';
-    let rowStyle = esInact ? 'background:#2a1010;border-left:3px solid #ff4444;padding-left:11px;'
-                 : esSin   ? 'background:#131313;'
-                 : esAus   ? 'background:#0d0d0d;opacity:0.5;'
+    let rowStyle = esSin ? 'background:#131313;'
+                 : esAus ? 'background:#0d0d0d;opacity:0.5;'
                  : '';
-    const prefijo = esInact ? '⚠ ' : esSin ? '◌ ' : esAus ? '— ' : '';
-    const nombreColor = esInact ? '#ff8888' : (esSin||esAus) ? 'var(--muted)' : 'var(--text)';
+    const prefijo     = esSin ? '◌ ' : esAus ? '— ' : '';
+    const nombreColor = (esSin||esAus) ? 'var(--muted)' : 'var(--text)';
     const centro   = (esSin||esAus) ? '—' : (op.centro_label || '—');
     const proyecto = (esSin||esAus) ? '—' : (op.proyecto?.odf || '—');
     const mueble   = (esSin||esAus) ? '—' : (op.mueble?.nombre || '—');
     const entradaStr = op.entrada ? new Date(op.entrada).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'}) : '—';
 
     let estadoHtml = '';
-    if (esInact) {
-      const m = op.inactivo_minutos||0;
-      const s = m>=60?`${Math.floor(m/60)}H ${m%60} MIN`:`${m} MIN`;
-      estadoHtml = `<span style="color:#ff4444;font-family:'JetBrains Mono',monospace;font-size:10px;">INACTIVA ${s}</span>`;
-    } else if (op.estado==='en_tarea') {
-      const m = op.tiempo_minutos||0;
-      const s = m>=60?`${Math.floor(m/60)}H ${m%60} MIN`:`${m} MIN`;
+    if (op.estado === 'en_tarea') {
+      const m = op.tiempo_minutos || 0;
+      const s = m >= 60 ? `${Math.floor(m/60)}H ${m%60} MIN` : `${m} MIN`;
       estadoHtml = `<span class="pill" style="background:rgba(245,166,35,.1);color:var(--amber);border:1px solid rgba(245,166,35,.25);font-size:10px;">${s}</span>`;
+      if (op.sin_senal_minutos > 0) {
+        const ss = op.sin_senal_minutos;
+        const sl = ss >= 60 ? `${Math.floor(ss/60)}H ${ss%60} MIN` : `${ss} MIN`;
+        estadoHtml += `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#FFD600;margin-left:6px;">⚠ SIN SEÑAL ${sl}</span>`;
+      }
     } else if (esSin) {
       estadoHtml = `<span style="color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10px;">SIN TAREA · ${entradaStr}</span>`;
     } else {
