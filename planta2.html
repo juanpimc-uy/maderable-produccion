@@ -935,6 +935,7 @@ let _pin = '';
 let _intervaloReloj  = null;
 let _intervaloTimers = null;
 let _heartbeatInterval = null;
+let _hbFailCount = 0;
 
 // Timeout automático de 30s (pantalla compartida)
 let _timeout30s    = null;
@@ -1116,24 +1117,52 @@ async function apiPost(action, body) {
   return r.json();
 }
 
+function _hbIndicador(visible) {
+  let el = document.getElementById('_hb-sin-conexion');
+  if (visible) {
+    if (!el) {
+      el = document.createElement('div');
+      el.id = '_hb-sin-conexion';
+      el.style.cssText = 'position:fixed;bottom:8px;right:8px;font-size:10px;color:#FFD600;font-family:\'Space Mono\',monospace;letter-spacing:1px;z-index:9999;pointer-events:none;';
+      el.textContent = 'SIN CONEXIÓN';
+      document.body.appendChild(el);
+    }
+  } else if (el) {
+    el.remove();
+  }
+}
+
+async function _enviarHeartbeat(empleado_id, registro_id) {
+  try {
+    const resp = await fetch('/api/tiempos?action=heartbeat', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ empleado_id, registro_id })
+    });
+    await resp.json().catch(() => ({}));
+    _hbFailCount = 0;
+    _hbIndicador(false);
+  } catch (err) {
+    console.warn('[heartbeat] fallo:', err);
+    _hbFailCount++;
+    if (_hbFailCount >= 3) _hbIndicador(true);
+  }
+}
+
 function _iniciarHeartbeat(empleado_id, registro_id) {
   _detenerHeartbeat();
   if (!empleado_id || !registro_id) return;
   console.log('[heartbeat] iniciado', empleado_id, registro_id);
-  _heartbeatInterval = setInterval(async () => {
-    console.log('[heartbeat] tick', new Date().toISOString());
-    try {
-      const resp = await fetch('/api/tiempos?action=heartbeat', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ empleado_id, registro_id })
-      });
-      const data = await resp.json().catch(() => ({}));
-      console.log('[heartbeat] response', resp.status, data);
-    } catch (err) {
-      console.warn('[heartbeat] fallo:', err);
-    }
-  }, 60000); // 60 s
+  _heartbeatInterval = setInterval(() => _enviarHeartbeat(empleado_id, registro_id), 60000);
+}
+
+function _reiniciarHeartbeat() {
+  const empId = empleadoActual?.id;
+  const regId = registroActivo?.id;
+  if (!empId || !regId) return;
+  _detenerHeartbeat();
+  _enviarHeartbeat(empId, regId);
+  _iniciarHeartbeat(empId, regId);
 }
 
 function _detenerHeartbeat() {
@@ -1143,6 +1172,18 @@ function _detenerHeartbeat() {
     console.log('[heartbeat] detenido');
   }
 }
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && registroActivo) {
+    _reiniciarHeartbeat();
+  }
+});
+window.addEventListener('online', () => {
+  if (registroActivo) {
+    _hbFailCount = 0;
+    _reiniciarHeartbeat();
+  }
+});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TOAST
@@ -1853,7 +1894,12 @@ function initCentroSelector() {
   const autorizados = [...new Set(
     (empleadoActual?.centros_autorizados || []).map(c => c === 'empaquetado' ? 'colocacion' : c)
   )];
-  const listaCentros = autorizados.length ? autorizados : TODOS;
+  if (!autorizados.length) {
+    document.getElementById('lista-centros-selector').innerHTML =
+      '<div class="warn-box">⚠ Sin centros asignados. Contactá al supervisor.</div>';
+    return;
+  }
+  const listaCentros = autorizados;
   const ultimoCentro = itemSel?.ultimo_centro || null;
 
   // Info del mueble en el header
