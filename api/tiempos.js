@@ -441,6 +441,7 @@ export default async function handler(req) {
             descanso_modalidad: body.descanso_modalidad || null,
           } : {}),
           ...(body.pit_stop_minutos !== undefined ? { pit_stop_minutos: parseInt(body.pit_stop_minutos, 10) } : {}),
+          ...(body.acceso_tiempos   !== undefined ? { acceso_tiempos: body.acceso_tiempos }                   : {}),
         };
 
         if (isInsert) {
@@ -1132,13 +1133,13 @@ export default async function handler(req) {
       if (!regS || regS.eliminada) return err('Registro no encontrado o ya eliminado', 404);
 
       const { data: callerS, error: cSErr } = await supabase
-        .from('empleados').select('rol_app').eq('id', caller_id).maybeSingle();
+        .from('empleados').select('rol_app, acceso_tiempos').eq('id', caller_id).maybeSingle();
       if (cSErr) throw cSErr;
       if (!callerS)
         return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      if (callerS.rol_app !== 'admin' && callerS.rol_app !== 'oficina')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden editar sesiones' }),
+      if (callerS.rol_app !== 'admin' && !callerS.acceso_tiempos)
+        return new Response(JSON.stringify({ ok: false, error: 'Sin acceso a tiempos' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       if (callerS.rol_app === 'oficina' && regS.empleado_id !== caller_id)
         return new Response(JSON.stringify({ ok: false, error: 'Solo puede editar sus propias sesiones' }),
@@ -1313,7 +1314,7 @@ export default async function handler(req) {
 
     // ── PATCH actualizar empleado existente ───────────────────────────────
     if (action === 'actualizar-empleado' && req.method === 'PATCH') {
-      const { nombre, categoria, centros_autorizados, cedula, descanso_modalidad, pit_stop_minutos } = body;
+      const { nombre, categoria, centros_autorizados, cedula, descanso_modalidad, pit_stop_minutos, acceso_tiempos } = body;
       if (!nombre) return err('nombre requerido');
       if (descanso_modalidad !== undefined && descanso_modalidad !== null) {
         if (!['paga_30', 'no_paga_60', 'sin_limite'].includes(descanso_modalidad))
@@ -1329,6 +1330,7 @@ export default async function handler(req) {
         ...(centros_autorizados  !== undefined ? { centros_autorizados }                                         : {}),
         ...(descanso_modalidad   !== undefined ? { descanso_modalidad: descanso_modalidad || null }              : {}),
         ...(pit_stop_minutos     !== undefined ? { pit_stop_minutos: parseInt(pit_stop_minutos, 10) }            : {}),
+        ...(acceso_tiempos       !== undefined ? { acceso_tiempos }                                              : {}),
       };
       if (Object.keys(campos).length === 0) return err('Nada que actualizar', 400);
       const { data, error } = await supabase
@@ -2856,13 +2858,13 @@ export default async function handler(req) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return err('fecha debe tener formato YYYY-MM-DD', 400);
 
       const { data: callerSD, error: cSDErr } = await supabase
-        .from('empleados').select('rol_app').eq('id', caller_id).maybeSingle();
+        .from('empleados').select('rol_app, acceso_tiempos').eq('id', caller_id).maybeSingle();
       if (cSDErr) throw cSDErr;
       if (!callerSD)
         return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      if (callerSD.rol_app !== 'admin' && callerSD.rol_app !== 'oficina')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden consultar sesiones' }),
+      if (callerSD.rol_app !== 'admin' && !callerSD.acceso_tiempos)
+        return new Response(JSON.stringify({ ok: false, error: 'Sin acceso a tiempos' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
       let jornadasQSD = supabase
@@ -2932,13 +2934,13 @@ export default async function handler(req) {
       if (!caller_id)   return err('caller_id requerido', 400);
 
       const { data: callerSE, error: cSEErr } = await supabase
-        .from('empleados').select('id, nombre, rol_app').eq('id', caller_id).maybeSingle();
+        .from('empleados').select('id, nombre, rol_app, acceso_tiempos').eq('id', caller_id).maybeSingle();
       if (cSEErr) throw cSEErr;
       if (!callerSE)
         return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      if (callerSE.rol_app !== 'admin' && callerSE.rol_app !== 'oficina')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden consultar sesiones' }),
+      if (callerSE.rol_app !== 'admin' && !callerSE.acceso_tiempos)
+        return new Response(JSON.stringify({ ok: false, error: 'Sin acceso a tiempos' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       if (callerSE.rol_app === 'oficina' && empleado_id !== caller_id)
         return new Response(JSON.stringify({ ok: false, error: 'Sin permiso' }),
@@ -3013,13 +3015,13 @@ export default async function handler(req) {
       if (desde > hasta) return err('desde debe ser anterior o igual a hasta', 400);
 
       const { data: callerRH, error: cRHErr } = await supabase
-        .from('empleados').select('id, nombre, rol_app').eq('id', caller_id).maybeSingle();
+        .from('empleados').select('id, nombre, rol_app, acceso_tiempos').eq('id', caller_id).maybeSingle();
       if (cRHErr) throw cRHErr;
       if (!callerRH)
         return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      if (callerRH.rol_app !== 'admin' && callerRH.rol_app !== 'oficina')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden consultar reportes' }),
+      if (callerRH.rol_app !== 'admin' && !callerRH.acceso_tiempos)
+        return new Response(JSON.stringify({ ok: false, error: 'Sin acceso a tiempos' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       if (callerRH.rol_app === 'oficina' && emp_param && emp_param !== caller_id)
         return new Response(JSON.stringify({ ok: false, error: 'Sin permiso' }),
