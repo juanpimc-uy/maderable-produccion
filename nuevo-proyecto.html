@@ -466,20 +466,12 @@ function extraerCodigoZoho(item) {
 // Extrae el título en MAYÚSCULAS del inicio del nombre de item de Zoho.
 // Corta en la primera palabra que no esté toda en mayúsculas.
 // Fallback: primeras 3 palabras si no hay ninguna en mayúsculas.
-function extraerNombreMueble(texto) {
-  if (!texto) return '';
-  const tokens = texto.replace(/\r?\n/g, ' ').split(' ');
-  const palabras = [];
-  for (const tok of tokens) {
-    const t = tok.trim();
-    if (!t) continue;
-    const tieneLetra = /[A-ZÁÉÍÓÚÑÜ]/i.test(t);
-    const todasMayus = /^[^a-záéíóúñü]*$/.test(t) && tieneLetra;
-    if (!todasMayus) break;
-    palabras.push(t);
-  }
-  if (palabras.length > 0) return palabras.join(' ');
-  return tokens.filter(t => t.trim()).slice(0, 3).join(' ');
+function extraerNombreMueble(str) {
+  if (!str) return '';
+  const matches = str.match(/\b[A-Z][A-Z0-9\/\-]*\b/g) || [];
+  if (matches.length > 0) return matches.join(' ');
+  // fallback: primeras 3 palabras
+  return str.split(/\s+/).slice(0, 3).join(' ');
 }
 
 async function seleccionarODF(invoiceId,numFallback,btn){
@@ -664,7 +656,7 @@ function renderMuebles(){
     renderHorasTotales(); return;
   }
   const rows=muebles.map((m,idx)=>{
-    const DIF_LABEL={1:'F',2:'M',3:'D',4:'UH'};
+    const DIF_LABEL={1:'S',2:'M',3:'L',4:'XL'};
     const difBtns=[1,2,3,4].map(d=>`<button onclick="tblDif(${idx},${d})" style="padding:3px 5px;border:1px solid ${m.dif===d?'var(--amber)':'var(--border)'};border-radius:3px;background:${m.dif===d?'rgba(245,166,35,.12)':'var(--faint)'};color:${m.dif===d?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;">${DIF_LABEL[d]}</button>`).join('');
     const chips=FC.map(f=>{
       const on=m.flujos.includes(f.id);
@@ -683,7 +675,7 @@ function renderMuebles(){
   }).join('');
   list.innerHTML=`
     <div class="tbl-row tbl-hdr" style="padding-bottom:8px;">
-      <span>CÓDIGO</span><span>NOMBRE</span><span>CANT</span><span>PLACAS</span><span>DIF</span><span>FLUJOS EXTRA (HER/ELE/MAC incluyen horas)</span><span></span>
+      <span>CÓDIGO</span><span>NOMBRE</span><span>CANT</span><span>PLACAS</span><span>TAMAÑO</span><span>FLUJOS EXTRA (HER/ELE/MAC incluyen horas)</span><span></span>
     </div>
     ${rows}
     <button class="btn btn-ghost btn-sm" onclick="addMueble()" style="margin-top:10px;width:100%;">+ Agregar mueble</button>`;
