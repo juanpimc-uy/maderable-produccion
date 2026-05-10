@@ -104,7 +104,7 @@
 
 <script>
 const FLAG_KEY = 'planta_publica_auth';
-const CENTROS_FIJOS = ['corte', 'enchapado', 'armado', 'colocacion'];
+// TODO U2.4: CENTROS_FIJOS eliminado — centros ya vienen ordenados por `orden` desde dashboard-snapshot
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 if (localStorage.getItem(FLAG_KEY) === '1') {
@@ -229,20 +229,19 @@ function renderSnapshot(data) {
   document.getElementById('tv-ops').innerHTML = opsHtml;
 
   // Centros
-  const centroMap = Object.fromEntries((centros||[]).map(c=>[c.centro,c]));
-  const centrosToShow = CENTROS_FIJOS.map(c => centroMap[c] || {centro:c,label:c.toUpperCase(),total:0,inactivos:0,muebles:[]});
-  (centros||[]).forEach(c => { if (!CENTROS_FIJOS.includes(c.centro)) centrosToShow.push(c); });
+  // Centros ya ordenados por `orden` y filtrados por mostrar_dashboard_siempre en el backend
+  const centrosToShow = centros || [];
 
   document.getElementById('tv-centros').innerHTML = centrosToShow.map(c => {
     const sin = c.total === 0;
-    const alarm = !sin && c.inactivos > 0;
+    const alarm = !sin && c.sin_senal > 0;
     const numCls = sin ? 'tv-centro-num dim' : alarm ? 'tv-centro-num alarm' : 'tv-centro-num';
     const mueblesList = sin
       ? '<div class="tv-centro-empty">SIN ACTIVIDAD</div>'
       : (c.muebles||[]).map(m => {
           const partes = [m.mueble_codigo, m.mueble_nombre].filter(Boolean).join(' ');
           const linea = partes ? `${m.odf||''} · ${partes}` : (m.odf||'—');
-          return `<div class="tv-mueble-row${m.inactivo?' m-inact':''}">${linea}${m.inactivo?' ⚠':''}</div>`;
+          return `<div class="tv-mueble-row${m.sin_senal?' m-inact':''}">${linea}${m.sin_senal?' ⚠':''}</div>`;
         }).join('');
     return `<div class="tv-centro-card">
       <div class="tv-centro-header">

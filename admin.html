@@ -1582,10 +1582,8 @@ function renderDashboard() {
   }
 
   // ── BLOQUE B: centros ────────────────────────────────────────────────────
-  const CENTROS_FIJOS = ['corte', 'enchapado', 'armado', 'colocacion'];
-  const centroMap = Object.fromEntries((centros || []).map(c => [c.centro, c]));
-  const centrosToShow = CENTROS_FIJOS.map(c => centroMap[c] || { centro: c, label: c.toUpperCase(), total: 0, sin_senal: 0, muebles: [] });
-  (centros || []).forEach(c => { if (!CENTROS_FIJOS.includes(c.centro)) centrosToShow.push(c); });
+  // Centros ya ordenados por `orden` y filtrados por mostrar_dashboard_siempre en el backend
+  const centrosToShow = centros || [];
 
   const centrosHtml = centrosToShow.map(c => {
     const sin = c.total === 0;
@@ -3958,8 +3956,9 @@ function confirmarModulo(prId){
 // ═══════════════════════════════════════════════════════════════════════════
 // AJUSTES — FÓRMULA DE TIEMPOS
 // ═══════════════════════════════════════════════════════════════════════════
+// TODO U2.4: F_CENTROS hardcoded — icono y color no tienen equivalente en centros_virtuales; migrar cuando se agreguen esas columnas al schema
 const F_CENTROS      = ['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'];
-const F_CENTRO_LABEL = {corte:'CORTE',enchapado:'ENCHAPADO/PERF',armado:'ARMADO',revision:'REVISION',colocacion:'COLOCACION',herreria:'HERRERIA',electrica:'ELECTRICA',macizo:'MACIZO'};
+// F_CENTRO_LABEL reemplazado por _cvCentros en fInit(); constante eliminada
 const F_CENTRO_ICON  = {corte:'⬡',enchapado:'◈',armado:'⬗',revision:'◎',colocacion:'▣',herreria:'○',electrica:'◇',macizo:'◆'};
 const F_CENTRO_COLOR = {corte:'var(--amber)',enchapado:'var(--blue)',armado:'var(--purple)',revision:'var(--teal)',colocacion:'var(--green)',herreria:'#94a3b8',electrica:'var(--yellow)',macizo:'#f97316'};
 const F_COEF_DEF = {corte:0.50,enchapado:0.30,armado:0.80,revision:0.20,colocacion:0.20,herreria:0.20,electrica:0.20,macizo:0.20};
@@ -4024,7 +4023,7 @@ function fInit(){
   if(cg)cg.innerHTML=F_CENTROS.map(c=>`
     <div class="coef-box-f">
       <div class="coef-icon-f" style="color:${F_CENTRO_COLOR[c]}">${F_CENTRO_ICON[c]}</div>
-      <span class="coef-label-f" style="color:${F_CENTRO_COLOR[c]}">${F_CENTRO_LABEL[c].toUpperCase()}</span>
+      <span class="coef-label-f" style="color:${F_CENTRO_COLOR[c]}">${(_cvCentros.find(x=>x.codigo===c)?.nombre||c).toUpperCase()}</span>
       <input class="coef-input-f" type="number" step="0.05" min="0.05" max="5" value="${COEF[c]}" id="f-coef-${c}" oninput="fOnInput()"/>
       <div class="coef-unit-f">h / placa</div>
     </div>`).join('');

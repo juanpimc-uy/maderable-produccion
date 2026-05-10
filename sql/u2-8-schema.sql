@@ -1,0 +1,2 @@
+ALTER TABLE jornadas
+  ADD COLUMN tomo_descanso BOOLEAN NOT NULL DEFAULT true;

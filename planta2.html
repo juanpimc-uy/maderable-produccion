@@ -958,11 +958,8 @@ function volverAElegirOperario() {
   cambiarEmpleado();
 }
 
-const PLANTA_CENTRO_LABEL = {
-  corte:'CORTE', enchapado:'ENCHAPADO/PERF', armado:'ARMADO',
-  revision:'REVISION', colocacion:'COLOCACION',
-  herreria:'HERRERIA', electrica:'ELECTRICA', macizo:'MACIZO',
-};
+// Catálogo de centros cargado desde centros-virtuales al inicio (reemplaza PLANTA_CENTRO_LABEL hardcoded)
+let _cvP = [];
 
 // ── Placa picker ──────────────────────────────────────────────────────────────
 let placaSeleccionadaInicio = 0;
@@ -1549,7 +1546,7 @@ function selItem(id) {
     el.innerHTML = '<div class="warn-box">⚠ Este operario no tiene centros autorizados configurados. Contactá al administrador.</div>';
   } else {
     el.innerHTML = centros.map(c => {
-      const label = PLANTA_CENTRO_LABEL[c] || c.toUpperCase();
+      const label = (_cvP.find(x=>x.codigo===c)?.nombre||c.toUpperCase());
       return `
       <button class="centro-btn" id="ct-${esc(c)}" onclick="selCentro('${esc(c)}','${c}')">
         <span class="centro-dot"></span>
@@ -1659,7 +1656,7 @@ function _mostrarBannerPausada(reg) {
   const banner      = document.getElementById('banner-pausada');
   const proyNombre  = reg.proyecto_nombre || '';
   const itemNombre  = reg.item_nombre     || '';
-  const centroLabel = reg.centro ? (PLANTA_CENTRO_LABEL[reg.centro] || reg.centro.toUpperCase()) : '';
+  const centroLabel = reg.centro ? (_cvP.find(x=>x.codigo===reg.centro)?.nombre||reg.centro.toUpperCase()) : '';
   const hace        = tiempoRelativo(reg.inicio);
   const inicioStr   = fmtHora(reg.inicio);
   // Buscar cliente en proyectos cargados en memoria
@@ -1830,7 +1827,7 @@ function expandirOdf(odfId) {
 }
 
 function _centroLabel(c) {
-  return c ? (PLANTA_CENTRO_LABEL[c] || c.toUpperCase()) : '';
+  return c ? ((_cvP.find(x=>x.codigo===c)?.nombre||c.toUpperCase())) : '';
 }
 
 function _chipMueble(m) {
@@ -1909,7 +1906,7 @@ function initCentroSelector() {
 
   const el = document.getElementById('lista-centros-selector');
   el.innerHTML = listaCentros.map(c => {
-    const label       = PLANTA_CENTRO_LABEL[c] || c.toUpperCase();
+    const label       = (_cvP.find(x=>x.codigo===c)?.nombre||c.toUpperCase());
     const esRetrabajo = ultimoCentro === c;
     const subLabel    = esRetrabajo
       ? `<span style="display:block;font-family:'Space Mono',monospace;font-size:10px;color:#FFD600;letter-spacing:1px;margin-top:2px;">↻ RETRABAJO</span>`
@@ -2389,6 +2386,11 @@ async function confirmarSalida() {
 // ═══════════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
+// Cargar catálogo de centros para labels (reemplaza PLANTA_CENTRO_LABEL hardcoded)
+fetch('/api/tiempos?action=centros-virtuales')
+  .then(r => r.json()).then(d => { _cvP = d.centros || []; })
+  .catch(() => {});
+
 cargarEmpleados();
 window.addEventListener('beforeunload', () => { _detenerHeartbeat(); });
 </script>

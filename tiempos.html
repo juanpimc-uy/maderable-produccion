@@ -769,6 +769,20 @@ function _tRenderDia(data) {
       ? '<span class="badge-activo">ACTIVO 🟢</span>'
       : '<span class="badge-completo">COMPLETO ⚪</span>';
     const jornada = emp.jornada;
+    const _dmD = emp.descanso_modalidad;
+    const _dmLabelD = _dmD === 'paga_30' ? '30 min pagos' : _dmD === 'no_paga_60' ? '60 min desc.' : null;
+    const _tomoDescD = _dmLabelD ? `
+      <div class="jornada-field">
+        <span class="jornada-label">TOMÓ DESCANSO</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox"
+            data-jid="${jornada.id}"
+            id="tomo-desc-${jornada.id}"
+            ${(jornada.tomo_descanso ?? true) ? 'checked' : ''}
+            onchange="_tJorField('${jornada.id}','tomo_descanso',this.checked)">
+          <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">${_dmLabelD}</span>
+        </label>
+      </div>` : '';
     return `
 <div class="emp-card">
   <div class="emp-card-header" onclick="_tToggleCard(this)">
@@ -802,6 +816,7 @@ function _tRenderDia(data) {
           value="${jornada.descanso_minutos||0}"
           onchange="_tJorField('${jornada.id}','descanso_minutos',this.value)">
       </div>
+      ${_tomoDescD}
     </div>
     ${_tSesionTable(emp.sesiones, jornada.id)}
   </div>
@@ -856,6 +871,20 @@ function _tRenderOperario(data) {
 ${data.dias.map(dia => {
   const hayActivo = dia.sesiones.some(s => s.estado === 'activo');
   const jornada   = dia.jornada;
+  const _dmO = data.descanso_modalidad;
+  const _dmLabelO = _dmO === 'paga_30' ? '30 min pagos' : _dmO === 'no_paga_60' ? '60 min desc.' : null;
+  const _tomoDescO = _dmLabelO ? `
+      <div class="jornada-field">
+        <span class="jornada-label">TOMÓ DESCANSO</span>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox"
+            data-jid="${jornada.id}"
+            id="tomo-desc-${jornada.id}"
+            ${(jornada.tomo_descanso ?? true) ? 'checked' : ''}
+            onchange="_tJorField('${jornada.id}','tomo_descanso',this.checked)">
+          <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">${_dmLabelO}</span>
+        </label>
+      </div>` : '';
   return `
 <div class="day-card">
   <div class="day-card-header" onclick="_tToggleDayCard(this)">
@@ -890,6 +919,7 @@ ${data.dias.map(dia => {
           value="${jornada.descanso_minutos||0}"
           onchange="_tJorField('${jornada.id}','descanso_minutos',this.value)">
       </div>
+      ${_tomoDescO}
     </div>
     ${_tSesionTable(dia.sesiones, jornada.id)}
   </div>

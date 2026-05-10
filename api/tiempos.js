@@ -944,7 +944,7 @@ export default async function handler(req) {
 
     // ── PATCH/POST editar jornada ─────────────────────────────────────────
     if (action === 'editar-jornada' && (req.method === 'PATCH' || req.method === 'POST')) {
-      const { jornada_id, entrada, salida, descanso_minutos, editor_id } = body;
+      const { jornada_id, entrada, salida, descanso_minutos, tomo_descanso, editor_id } = body;
 
       if (!editor_id)  return err('editor_id requerido', 400);
       if (!jornada_id) return err('jornada_id requerido', 400);
@@ -1013,6 +1013,7 @@ export default async function handler(req) {
       if (entrada          !== undefined) camposJ.entrada          = entrada;
       if (salida           !== undefined) camposJ.salida           = salida;
       if (descanso_minutos !== undefined) camposJ.descanso_minutos = descanso_minutos;
+      if (tomo_descanso    !== undefined) camposJ.tomo_descanso    = tomo_descanso;
       camposJ.descanso_editado = true;
       camposJ.editado_por      = editor_id;
 
@@ -2060,10 +2061,18 @@ export default async function handler(req) {
         }
       }
 
-      // tiempo_pago: trabajo + descanso pago según modalidad
-      const tiempo_pago_minutos = descanso_modalidad === 'paga_30'
-        ? tiempo_clasificado_minutos + descanso_acumulado_minutos
-        : tiempo_clasificado_minutos;
+      // tiempo_pago: trabajo + descanso pago según modalidad y tomo_descanso
+      const tomo_descanso = jornada.tomo_descanso ?? true;
+      let tiempo_pago_minutos;
+      if (descanso_modalidad === 'paga_30') {
+        tiempo_pago_minutos = tiempo_clasificado_minutos +
+          (tomo_descanso ? descanso_acumulado_minutos : 0);
+      } else if (descanso_modalidad === 'no_paga_60') {
+        tiempo_pago_minutos = Math.max(0,
+          tiempo_clasificado_minutos - (tomo_descanso ? 60 : 0));
+      } else {
+        tiempo_pago_minutos = tiempo_clasificado_minutos;
+      }
 
       return ok({ ok: true, jornada, tarea_activa, registros_dia: regs, totales: {
         duracion_jornada_minutos,
@@ -2077,6 +2086,7 @@ export default async function handler(req) {
         tiempo_no_clasificado_minutos,
         hueco_actual_minutos,
         descanso_modalidad,
+        tomo_descanso,
       }});
     }
 
@@ -2891,7 +2901,7 @@ export default async function handler(req) {
           .eq('eliminada', false)
           .order('inicio', { ascending: true }),
         supabase.from('empleados')
-          .select('id, nombre')
+          .select('id, nombre, descanso_modalidad')
           .in('id', empleadoIdsSD),
       ]);
       if (rSDErr) throw rSDErr;
@@ -2916,9 +2926,10 @@ export default async function handler(req) {
             return acc + Math.max(0, fin - ini);
           }, 0);
           return {
-            empleado_id:   j.empleado_id,
-            nombre:        empMapSD[j.empleado_id]?.nombre || '',
-            jornada:       { id: j.id, entrada: j.entrada, salida: j.salida, descanso_minutos: j.descanso_minutos },
+            empleado_id:        j.empleado_id,
+            nombre:             empMapSD[j.empleado_id]?.nombre || '',
+            descanso_modalidad: empMapSD[j.empleado_id]?.descanso_modalidad || null,
+            jornada:            { id: j.id, entrada: j.entrada, salida: j.salida, descanso_minutos: j.descanso_minutos },
             sesiones,
             total_minutos: Math.round(totalMs / 60000),
           };
@@ -2937,7 +2948,7 @@ export default async function handler(req) {
       if (!caller_id)   return err('caller_id requerido', 400);
 
       const { data: callerSE, error: cSEErr } = await supabase
-        .from('empleados').select('id, nombre, rol_app, acceso_tiempos').eq('id', caller_id).maybeSingle();
+        .from('empleados').select('id, nombre, rol_app, acceso_tiempos, descanso_modalidad').eq('id', caller_id).maybeSingle();
       if (cSEErr) throw cSEErr;
       if (!callerSE)
         return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
@@ -2950,10 +2961,12 @@ export default async function handler(req) {
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
       let empNombreSE = callerSE.nombre;
+      let empDescansoModalidadSE = callerSE.descanso_modalidad || null;
       if (callerSE.rol_app === 'admin' && empleado_id !== caller_id) {
         const { data: empTargetSE } = await supabase.from('empleados')
-          .select('nombre').eq('id', empleado_id).maybeSingle();
+          .select('nombre, descanso_modalidad').eq('id', empleado_id).maybeSingle();
         empNombreSE = empTargetSE?.nombre || '';
+        empDescansoModalidadSE = empTargetSE?.descanso_modalidad || null;
       }
 
       let jornadasQSE = supabase
@@ -2986,7 +2999,7 @@ export default async function handler(req) {
       });
 
       return ok({
-        ok: true, empleado_id, nombre: empNombreSE,
+        ok: true, empleado_id, nombre: empNombreSE, descanso_modalidad: empDescansoModalidadSE,
         dias: jornadasSE.map(j => {
           const sesiones = regsMapSE[j.id] || [];
           const totalMs  = sesiones.reduce((acc, r) => {
