@@ -1548,7 +1548,7 @@ function renderDashboard() {
       const esSinTarea  = op.estado === 'sin_tarea';
       const cls = esSinTarea ? 'ds-op-row ds-sin_tarea' : 'ds-op-row';
       const prefijo = esSinTarea ? '◌ ' : '';
-      const centro  = esSinTarea ? '—' : (op.centro_label || '—');
+      const centro  = esSinTarea ? '—' : (op.centro_label || op.centro || '—');
       const odf     = esSinTarea ? '—' : (op.proyecto?.odf || '—');
       const cliente = esSinTarea ? '—' : (op.proyecto?.cliente || '—');
       const obra    = esSinTarea ? '—' : (op.proyecto?.obra || '—');
@@ -2723,7 +2723,7 @@ function _renderOpEstadoSnapshot() {
                  : '';
     const prefijo     = esSin ? '◌ ' : esAus ? '— ' : '';
     const nombreColor = (esSin||esAus) ? 'var(--muted)' : 'var(--text)';
-    const centro   = (esSin||esAus) ? '—' : (op.centro_label || '—');
+    const centro   = (esSin||esAus) ? '—' : (op.centro_label || op.centro || '—');
     const proyecto = (esSin||esAus) ? '—' : (op.proyecto?.odf || '—');
     const mueble   = (esSin||esAus) ? '—' : (op.mueble?.nombre || '—');
     const entradaStr = op.entrada ? new Date(op.entrada).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'}) : '—';
@@ -2823,7 +2823,8 @@ function _renderOpGestion() {
           <div style="flex:1;">
             <div style="font-size:15px;font-weight:700;">${op.nombre}</div>
             <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">${op.rol_app||'operario'}${window.AUTH.esAdmin()?` · <span style="color:var(--amber);font-size:10px;">${op.categoria||'directo'}</span>`:''} · ${hist.length} sesiones · ${fmtH(totalH)} totales</div>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;">${(op.centros&&op.centros.length?op.centros:_CENTROS_DEFAULT).map(cid=>{const c=getCentro(cid);return c?`<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:1px 6px;border-radius:3px;color:${c.color};background:${c.color}12;border:1px solid ${c.color}44;">${c.icon} ${c.label}</span>`:''}).join('')}</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">${(op.centros&&op.centros.length)?op.centros.map(cid=>{const c=getCentro(cid);return c?`<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:1px 6px;border-radius:3px;color:${c.color};background:${c.color}12;border:1px solid ${c.color}44;">${c.icon} ${c.label}</span>`:''}).join(''):''}</div>
+          ${!(op.centros&&op.centros.length)?`<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:1px 6px;border-radius:3px;color:var(--muted);background:var(--faint);border:1px solid var(--border);">SIN CENTROS</span>`:''}
           </div>
           <span style="font-size:13px;color:var(--muted);margin-right:8px;">${exp?'▴':'▾'}</span>
         </div>
