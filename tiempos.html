@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:,">
+<script src="/js/supabase-config.js"></script>
+<script src="/js/auth.js"></script>
+<title>Maderable · Tiempos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+:root {
+  --bg:#0f0f0f; --panel:#1e1e1e; --card:#252525; --border:#2a2a2a; --borderL:#333;
+  --text:#e8e8e8; --muted:#888; --faint:#1a1a1a;
+  --accent:#FFD600; --green:#3DD68C; --red:#F05C5C; --blue:#5B8DEF;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.mono{font-family:'Space Mono',monospace;}
+
+/* ── Top nav ─────────────────────────────────────────────────────────── */
+#topnav{
+  background:var(--panel);border-bottom:1px solid var(--border);
+  height:52px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;flex-shrink:0;position:sticky;top:0;z-index:50;
+}
+.tnav-logo{
+  font-family:'Space Mono',monospace;font-size:13px;font-weight:700;
+  color:var(--accent);letter-spacing:2px;text-decoration:none;
+}
+.tnav-links{display:flex;gap:4px;}
+.tnav-link{
+  font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);
+  text-decoration:none;padding:5px 12px;border-radius:5px;
+  transition:color .15s,background .15s;
+}
+.tnav-link:hover{background:var(--faint);color:var(--text);}
+.tnav-user{display:flex;align-items:center;gap:12px;}
+.tnav-user-name{font-family:'Space Mono',monospace;font-size:11px;color:var(--text);text-transform:uppercase;}
+.tnav-user-rol{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);}
+.tnav-logout{
+  font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);
+  background:transparent;border:1px solid var(--border);border-radius:4px;
+  padding:4px 10px;cursor:pointer;transition:color .15s,border-color .15s;
+}
+.tnav-logout:hover{color:var(--accent);border-color:var(--accent);}
+
+/* ── Layout ─────────────────────────────────────────────────────────── */
+#content{max-width:1400px;margin:0 auto;padding:24px;}
+
+/* ── Tabs ────────────────────────────────────────────────────────────── */
+.tabs-bar{display:flex;gap:4px;margin-bottom:24px;border-bottom:1px solid var(--border);padding-bottom:0;}
+.tab-btn{
+  font-family:'Space Mono',monospace;font-size:11px;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;padding:8px 20px;
+  background:transparent;border:none;border-bottom:2px solid transparent;
+  color:var(--muted);cursor:pointer;transition:color .15s,border-color .15s;
+  position:relative;top:1px;
+}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-panel{display:none;}.tab-panel.active{display:block;}
+
+/* ── Controls bar ────────────────────────────────────────────────────── */
+.ctrl-bar{display:flex;align-items:flex-end;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+.ctrl-field{display:flex;flex-direction:column;gap:4px;}
+.ctrl-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;}
+.ctrl-input{
+  background:var(--panel);border:1px solid var(--border);border-radius:5px;
+  padding:7px 10px;color:var(--text);font-family:'Space Mono',monospace;
+  font-size:12px;outline:none;transition:border-color .15s;
+}
+.ctrl-input:focus{border-color:var(--accent);}
+.ctrl-select{
+  background:var(--panel);border:1px solid var(--border);border-radius:5px;
+  padding:7px 10px;color:var(--text);font-family:'Space Mono',monospace;
+  font-size:12px;outline:none;cursor:pointer;
+}
+.ctrl-select option{background:var(--panel);}
+.btn-load{
+  font-family:'Space Mono',monospace;font-size:11px;font-weight:700;
+  letter-spacing:.5px;padding:8px 20px;background:var(--accent);
+  color:#000;border:none;border-radius:5px;cursor:pointer;
+  transition:opacity .15s;white-space:nowrap;
+}
+.btn-load:hover{opacity:.85;}
+.btn-load:disabled{opacity:.45;cursor:not-allowed;}
+
+/* ── Employee cards ──────────────────────────────────────────────────── */
+.emp-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;margin-bottom:12px;}
+.emp-card-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;cursor:pointer;user-select:none;
+  transition:background .15s;border-radius:8px;
+}
+.emp-card-header:hover{background:rgba(255,255,255,.03);}
+.emp-card-title{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--text);}
+.emp-card-meta{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-top:2px;}
+.emp-card-right{display:flex;align-items:center;gap:10px;}
+.badge-activo{background:rgba(61,214,140,.15);color:var(--green);font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;padding:3px 8px;border-radius:3px;text-transform:uppercase;}
+.badge-completo{background:var(--faint);color:var(--muted);font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;padding:3px 8px;border-radius:3px;text-transform:uppercase;}
+.chevron{font-size:12px;color:var(--muted);transition:transform .2s;}
+.emp-card-body{border-top:1px solid var(--border);padding:16px 18px;display:none;}
+.emp-card-body.open{display:block;}
+
+/* ── Jornada row ─────────────────────────────────────────────────────── */
+.jornada-row{display:flex;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap;}
+.jornada-field{display:flex;align-items:center;gap:6px;}
+.jornada-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+.jornada-input{
+  background:var(--card);border:1px solid var(--border);border-radius:4px;
+  padding:5px 8px;color:var(--text);font-family:'Space Mono',monospace;
+  font-size:11px;outline:none;transition:border-color .15s;
+}
+.jornada-input:focus{border-color:var(--accent);}
+.jornada-input.changed{border-color:var(--accent);}
+
+/* ── Session table ───────────────────────────────────────────────────── */
+.ses-wrap{overflow-x:auto;}
+table.ses-table{width:100%;border-collapse:collapse;font-size:12px;}
+table.ses-table th{
+  font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;
+  color:var(--muted);text-transform:uppercase;text-align:left;
+  padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap;
+}
+table.ses-table td{
+  padding:5px 6px;border-bottom:1px solid rgba(42,42,42,.7);
+  vertical-align:middle;
+}
+table.ses-table tr:last-child td{border-bottom:none;}
+table.ses-table tr.row-modified{border-left:3px solid var(--accent);}
+table.ses-table tr:not(.row-modified){border-left:3px solid transparent;}
+.ses-input{
+  background:var(--card);border:1px solid var(--border);border-radius:4px;
+  padding:4px 6px;color:var(--text);font-family:'Space Mono',monospace;
+  font-size:11px;outline:none;width:100%;transition:border-color .15s;
+}
+.ses-input:focus{border-color:var(--accent);}
+.ses-select{
+  background:var(--card);border:1px solid var(--border);border-radius:4px;
+  padding:4px 6px;color:var(--text);font-family:'Space Mono',monospace;
+  font-size:11px;outline:none;cursor:pointer;width:100%;
+}
+.ses-select option{background:var(--card);}
+.ses-error{font-family:'Space Mono',monospace;font-size:9px;color:var(--red);margin-top:2px;}
+.en-curso{color:var(--green);font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.5px;}
+.btn-add-ses{
+  font-family:'Space Mono',monospace;font-size:10px;font-weight:700;
+  letter-spacing:.5px;padding:5px 14px;background:transparent;
+  border:1px solid var(--border);border-radius:4px;color:var(--muted);
+  cursor:pointer;margin-top:10px;transition:color .15s,border-color .15s;
+}
+.btn-add-ses:hover{color:var(--accent);border-color:var(--accent);}
+.btn-eliminar{
+  font-family:'Space Mono',monospace;font-size:10px;padding:3px 8px;
+  background:transparent;border:1px solid var(--border);border-radius:3px;
+  color:var(--muted);cursor:pointer;white-space:nowrap;transition:color .15s,border-color .15s;
+}
+.btn-eliminar:hover{color:var(--red);border-color:var(--red);}
+
+/* ── Day cards (tab 2) ───────────────────────────────────────────────── */
+.day-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;}
+.day-card-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 18px;cursor:pointer;user-select:none;border-radius:8px;
+  transition:background .15s;
+}
+.day-card-header:hover{background:rgba(255,255,255,.03);}
+.day-card-title{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--text);}
+.day-card-body{border-top:1px solid var(--border);padding:14px 18px;display:none;}
+.day-card-body.open{display:block;}
+
+/* ── Reporte table ───────────────────────────────────────────────────── */
+.rep-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:16px;}
+.rep-table th{
+  font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;
+  color:var(--muted);text-transform:uppercase;text-align:left;
+  padding:8px 12px;border-bottom:1px solid var(--border);
+}
+.rep-table td{padding:8px 12px;border-bottom:1px solid var(--border);}
+.rep-table tr.rep-total td{background:var(--card);font-family:'Space Mono',monospace;font-weight:700;}
+.rep-table tr.rep-sep td{background:transparent;padding:4px 0;border-bottom:none;}
+.extras-pos{color:var(--red);font-weight:700;}
+
+/* ── Export buttons ──────────────────────────────────────────────────── */
+.export-bar{display:flex;gap:10px;margin-top:20px;}
+.btn-export{
+  font-family:'Space Mono',monospace;font-size:11px;font-weight:700;
+  letter-spacing:.5px;padding:8px 18px;border:1px solid var(--border);
+  background:transparent;color:var(--muted);border-radius:5px;cursor:pointer;
+  transition:color .15s,border-color .15s;
+}
+.btn-export:hover:not(:disabled){color:var(--accent);border-color:var(--accent);}
+.btn-export:disabled{opacity:.4;cursor:not-allowed;}
+
+/* ── Floating save button ────────────────────────────────────────────── */
+#btn-guardar-fijo{
+  position:fixed;bottom:24px;right:24px;z-index:100;
+  font-family:'Space Mono',monospace;font-size:12px;font-weight:700;
+  letter-spacing:.5px;padding:12px 22px;background:var(--accent);
+  color:#000;border:none;border-radius:8px;cursor:pointer;
+  display:none;box-shadow:0 4px 20px rgba(255,214,0,.25);
+  transition:opacity .15s;
+}
+#btn-guardar-fijo:hover{opacity:.85;}
+#btn-guardar-fijo:disabled{opacity:.6;cursor:not-allowed;}
+
+/* ── Misc ────────────────────────────────────────────────────────────── */
+.empty-msg{font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);padding:20px 0;}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.add-row-tr td{background:rgba(255,214,0,.04);}
+</style>
+</head>
+<body>
+
+<!-- ═══ TOP NAV ══════════════════════════════════════════════════════════ -->
+<div id="topnav">
+  <div style="display:flex;align-items:center;gap:20px;">
+    <a href="/admin.html" class="tnav-logo">⬡ MADERABLE</a>
+    <div class="tnav-links">
+      <a href="/admin.html" class="tnav-link">← Admin</a>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;">
+    <span class="tnav-user-name" id="tnav-nombre"></span>
+    <span class="tnav-user-rol" id="tnav-rol"></span>
+    <button class="tnav-logout" onclick="window.AUTH.cerrarSesion()">↪ Salir</button>
+  </div>
+</div>
+
+<!-- ═══ CONTENT ══════════════════════════════════════════════════════════ -->
+<div id="content">
+
+  <!-- ── TABS ── -->
+  <div class="tabs-bar">
+    <button class="tab-btn active" onclick="_tTab('dia')">POR DÍA</button>
+    <button class="tab-btn" onclick="_tTab('operario')">POR OPERARIO</button>
+    <button class="tab-btn" onclick="_tTab('reporte')">REPORTE</button>
+  </div>
+
+  <!-- ═══ TAB 1: POR DÍA ══════════════════════════════════════════════ -->
+  <div id="panel-dia" class="tab-panel active">
+    <div class="ctrl-bar">
+      <div class="ctrl-field">
+        <span class="ctrl-label">FECHA</span>
+        <input type="date" id="dia-fecha" class="ctrl-input">
+      </div>
+      <button class="btn-load" onclick="_tCargarDia()">CARGAR</button>
+    </div>
+    <div id="dia-result"></div>
+  </div>
+
+  <!-- ═══ TAB 2: POR OPERARIO ═════════════════════════════════════════ -->
+  <div id="panel-operario" class="tab-panel">
+    <div class="ctrl-bar">
+      <div class="ctrl-field" id="op-emp-field" style="display:none;">
+        <span class="ctrl-label">EMPLEADO</span>
+        <select id="op-emp-select" class="ctrl-select"></select>
+      </div>
+      <div class="ctrl-field">
+        <span class="ctrl-label">DESDE</span>
+        <input type="date" id="op-desde" class="ctrl-input">
+      </div>
+      <div class="ctrl-field">
+        <span class="ctrl-label">HASTA</span>
+        <input type="date" id="op-hasta" class="ctrl-input">
+      </div>
+      <button class="btn-load" onclick="_tCargarOperario()">CARGAR</button>
+    </div>
+    <div id="operario-result"></div>
+  </div>
+
+  <!-- ═══ TAB 3: REPORTE ══════════════════════════════════════════════ -->
+  <div id="panel-reporte" class="tab-panel">
+    <div class="ctrl-bar">
+      <div class="ctrl-field" id="rep-emp-field" style="display:none;">
+        <span class="ctrl-label">EMPLEADO</span>
+        <select id="rep-emp-select" class="ctrl-select">
+          <option value="">TODOS</option>
+        </select>
+      </div>
+      <div class="ctrl-field">
+        <span class="ctrl-label">MES</span>
+        <select id="rep-mes" class="ctrl-select">
+          <option value="1">Enero</option><option value="2">Febrero</option>
+          <option value="3">Marzo</option><option value="4">Abril</option>
+          <option value="5">Mayo</option><option value="6">Junio</option>
+          <option value="7">Julio</option><option value="8">Agosto</option>
+          <option value="9">Septiembre</option><option value="10">Octubre</option>
+          <option value="11">Noviembre</option><option value="12">Diciembre</option>
+        </select>
+      </div>
+      <div class="ctrl-field">
+        <span class="ctrl-label">AÑO</span>
+        <select id="rep-anio" class="ctrl-select"></select>
+      </div>
+      <button class="btn-load" onclick="_tGenerarReporte()">GENERAR</button>
+    </div>
+    <div id="reporte-result"></div>
+    <div class="export-bar">
+      <button class="btn-export" id="btn-export-excel" disabled onclick="_tExportExcel()">↓ EXPORTAR EXCEL</button>
+      <button class="btn-export" id="btn-export-pdf"   disabled onclick="_tExportPDF()">↓ EXPORTAR PDF</button>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<!-- ═══ FLOATING SAVE ═════════════════════════════════════════════════ -->
+<button id="btn-guardar-fijo" onclick="_tGuardarTodo()">GUARDAR CAMBIOS (0)</button>
+
+<!-- ═══ SHARED DATALIST FOR PROJECTS ════════════════════════════════ -->
+<datalist id="proyectos-dl"></datalist>
+
+<script>
+'use strict';
+
+// ── State ─────────────────────────────────────────────────────────────────
+let _tUser      = null;
+let _tIsAdmin   = false;
+let CALLER_ID   = null;
+let _cvT        = [];   // [{id, codigo, nombre, es_descanso, requiere_proyecto, requiere_mueble}]
+let _proyectosT = [];   // [{id, nombre, numero, ...}]
+let _empListT   = [];   // [{id, nombre}] for selects (admin)
+let _tReportData = null;
+
+// change tracking
+const _tSesChanges = new Map();   // sid → {field: value}
+const _tJorChanges = new Map();   // jid → {field: value}
+
+// ── Auth ──────────────────────────────────────────────────────────────────
+(function _auth() {
+  const u = window.AUTH?.usuarioActual();
+  if (!u) { window.location.href = '/index.html'; return; }
+  if (u.rol_app === 'operario') { window.location.href = '/planta2.html'; return; }
+  if (u.rol_app !== 'admin' && u.rol_app !== 'oficina') { window.location.href = '/index.html'; return; }
+  _tUser    = u;
+  _tIsAdmin = u.rol_app === 'admin';
+  CALLER_ID = u.id;
+
+  // Nav user info
+  document.getElementById('tnav-nombre').textContent = u.nombre.toUpperCase();
+  document.getElementById('tnav-rol').textContent    = '· ' + u.rol_app;
+})();
+
+// ── Fetch wrapper (handles 403 redirect) ──────────────────────────────────
+async function _tFetch(url, opts) {
+  const res = await fetch(url, opts);
+  if (res.status === 403) {
+    window.location.href = '/admin.html?error=sin_acceso';
+    throw new Error('Sin acceso');
+  }
+  return res;
+}
+
+// ── Utils ─────────────────────────────────────────────────────────────────
+function fmtHM(mins) {
+  if (!mins || mins <= 0) return '0h 0m';
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+function fmtDate(dateStr) {
+  if (!dateStr) return '—';
+  const [y, m, d] = dateStr.split('-');
+  return `${d}/${m}/${y}`;
+}
+function toLocalDT(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function fromLocalDT(val) {
+  if (!val) return null;
+  return new Date(val).toISOString();
+}
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+function monthBounds(year, month) {
+  const desde = `${year}-${String(month).padStart(2,'0')}-01`;
+  const last  = new Date(year, month, 0).getDate();
+  const hasta = `${year}-${String(month).padStart(2,'0')}-${last}`;
+  return { desde, hasta };
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+async function _tInit() {
+  if (!_tUser) return;
+
+  // Default date controls
+  document.getElementById('dia-fecha').value = todayStr();
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth() + 1;
+  const firstDay = `${y}-${String(m).padStart(2,'0')}-01`;
+  const lastDay  = monthBounds(y, m).hasta;
+  document.getElementById('op-desde').value = firstDay;
+  document.getElementById('op-hasta').value = lastDay;
+  document.getElementById('rep-mes').value  = m;
+
+  // Year selector (reporte)
+  const repAnio = document.getElementById('rep-anio');
+  for (let yr = y; yr >= y - 2; yr--) {
+    repAnio.innerHTML += `<option value="${yr}">${yr}</option>`;
+  }
+
+  // Admin-only controls
+  if (_tIsAdmin) {
+    document.getElementById('op-emp-field').style.display  = 'flex';
+    document.getElementById('rep-emp-field').style.display = 'flex';
+  }
+
+  // Load centros-virtuales
+  try {
+    const r = await _tFetch('/api/tiempos?action=centros-virtuales');
+    const d = await r.json();
+    _cvT = d.centros || [];
+  } catch(e) { console.warn('[tiempos] centros:', e.message); }
+
+  // Load projects for datalist (TODO: endpoint buscar-proyectos no existe;
+  // se usa proyectos-admin para autocomplete por nombre. Sin proyecto_id si no matchea.)
+  try {
+    const r = await _tFetch('/api/tiempos?action=proyectos-admin');
+    const d = await r.json();
+    _proyectosT = d.proyectos || [];
+    const dl = document.getElementById('proyectos-dl');
+    dl.innerHTML = _proyectosT.map(p => {
+      const label = [p.numero, p.nombre].filter(Boolean).join(' · ');
+      return `<option value="${label}" data-id="${p.id}" data-nombre="${p.nombre||label}">`;
+    }).join('');
+  } catch(e) { console.warn('[tiempos] proyectos:', e.message); }
+
+  // Load employees for selects (admin only)
+  if (_tIsAdmin) {
+    try {
+      const r = await _tFetch('/api/tiempos?action=empleados');
+      const d = await r.json();
+      _empListT = d.empleados || [];
+      const opSel  = document.getElementById('op-emp-select');
+      const repSel = document.getElementById('rep-emp-select');
+      _empListT.forEach(e => {
+        opSel.innerHTML  += `<option value="${e.id}">${e.nombre}</option>`;
+        repSel.innerHTML += `<option value="${e.id}">${e.nombre}</option>`;
+      });
+    } catch(e) { console.warn('[tiempos] empleados:', e.message); }
+  }
+}
+
+// ── Tab routing ───────────────────────────────────────────────────────────
+function _tTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    b.classList.toggle('active', ['dia','operario','reporte'][i] === name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+// ── Change tracking ───────────────────────────────────────────────────────
+function _tMarkSes(sid, field, val) {
+  if (!_tSesChanges.has(sid)) _tSesChanges.set(sid, {});
+  _tSesChanges.get(sid)[field] = val;
+  _tMarkRowChanged(sid);
+  _tUpdateSaveBtn();
+}
+function _tMarkJor(jid, field, val) {
+  if (!_tJorChanges.has(jid)) _tJorChanges.set(jid, {});
+  _tJorChanges.get(jid)[field] = val;
+  document.querySelectorAll(`.jornada-input[data-jid="${jid}"]`).forEach(el => el.classList.add('changed'));
+  _tUpdateSaveBtn();
+}
+function _tMarkRowChanged(sid) {
+  const row = document.querySelector(`tr[data-sid="${sid}"]`);
+  if (row) row.classList.add('row-modified');
+}
+function _tUpdateSaveBtn() {
+  const n = _tSesChanges.size + _tJorChanges.size;
+  const btn = document.getElementById('btn-guardar-fijo');
+  btn.style.display = n > 0 ? 'block' : 'none';
+  btn.textContent = `GUARDAR CAMBIOS (${n})`;
+}
+function _tClearChanges() {
+  _tSesChanges.clear();
+  _tJorChanges.clear();
+  _tUpdateSaveBtn();
+}
+
+// ── Session field handlers ────────────────────────────────────────────────
+function _tSesField(sid, field, rawVal) {
+  let val = rawVal;
+  if (field === 'inicio' || field === 'fin') val = rawVal ? fromLocalDT(rawVal) : null;
+  _tMarkSes(sid, field, val);
+}
+function _tSesCentro(sid, codigo) {
+  _tMarkSes(sid, 'centro', codigo);
+  const cv = _cvT.find(c => c.codigo === codigo);
+  const mCell = document.querySelector(`tr[data-sid="${sid}"] .mueble-wrap`);
+  if (mCell) mCell.style.display = cv?.requiere_mueble ? '' : 'none';
+}
+function _tSesProyecto(sid, rawVal) {
+  // Try to match against project list (label = "numero · nombre" or "nombre")
+  const opt = _proyectosT.find(p => {
+    const label = [p.numero, p.nombre].filter(Boolean).join(' · ');
+    return label === rawVal || p.nombre === rawVal;
+  });
+  if (opt) {
+    _tMarkSes(sid, 'proyecto_id',    opt.id);
+    _tMarkSes(sid, 'proyecto_nombre', opt.nombre);
+  } else {
+    _tMarkSes(sid, 'proyecto_id',    null);
+    _tMarkSes(sid, 'proyecto_nombre', rawVal || null);
+  }
+}
+function _tJorField(jid, field, rawVal) {
+  let val = rawVal;
+  if (field === 'entrada' || field === 'salida') val = rawVal ? fromLocalDT(rawVal) : null;
+  if (field === 'descanso_minutos') val = parseInt(rawVal, 10) || 0;
+  _tMarkJor(jid, field, val);
+}
+
+// ── Batch save ────────────────────────────────────────────────────────────
+async function _tGuardarTodo() {
+  const btn = document.getElementById('btn-guardar-fijo');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>GUARDANDO…';
+
+  // Save sesiones
+  for (const [sid, fields] of [..._tSesChanges]) {
+    const errEl = document.querySelector(`tr[data-sid="${sid}"] .ses-error`);
+    if (errEl) errEl.textContent = '';
+    try {
+      const res  = await _tFetch('/api/tiempos?action=editar-sesion', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ sesion_id: sid, caller_id: CALLER_ID, ...fields }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'Error al guardar');
+      _tSesChanges.delete(sid);
+      document.querySelector(`tr[data-sid="${sid}"]`)?.classList.remove('row-modified');
+    } catch(e) {
+      if (errEl) errEl.textContent = e.message;
+    }
+  }
+
+  // Save jornadas
+  for (const [jid, fields] of [..._tJorChanges]) {
+    try {
+      const res  = await _tFetch('/api/tiempos?action=editar-jornada', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ jornada_id: jid, editor_id: CALLER_ID, ...fields }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'Error al guardar jornada');
+      _tJorChanges.delete(jid);
+      document.querySelectorAll(`.jornada-input[data-jid="${jid}"]`).forEach(el => el.classList.remove('changed'));
+    } catch(e) {
+      console.error('[guardar jornada]', jid, e.message);
+    }
+  }
+
+  btn.disabled = false;
+  _tUpdateSaveBtn();
+}
+
+// ── Shared session table renderer ─────────────────────────────────────────
+function _tSesionTable(sesiones, jornadaId) {
+  const centroOpts = _cvT.map(c =>
+    `<option value="${c.codigo}">${c.nombre}</option>`
+  ).join('');
+
+  const rows = sesiones.map(s => {
+    const activo    = s.estado === 'activo';
+    const sinFin    = !s.fin;
+    const cv        = _cvT.find(c => c.codigo === s.centro);
+    const proyLabel = [s.proyecto_nombre].filter(Boolean).join('') || '';
+    const muebleVis = cv?.requiere_mueble ? '' : 'none';
+
+    return `
+<tr data-sid="${s.id}">
+  <td style="min-width:160px;">
+    <input class="ses-input" type="datetime-local"
+      value="${toLocalDT(s.inicio)}"
+      onchange="_tSesField('${s.id}','inicio',this.value)">
+  </td>
+  <td style="min-width:160px;">
+    ${sinFin && activo ? `<span class="en-curso">EN CURSO</span><br>` : ''}
+    <input class="ses-input" type="datetime-local"
+      value="${toLocalDT(s.fin)}"
+      placeholder="${sinFin && activo ? 'EN CURSO' : ''}"
+      onchange="_tSesField('${s.id}','fin',this.value)">
+  </td>
+  <td style="min-width:130px;">
+    <select class="ses-select" onchange="_tSesCentro('${s.id}',this.value)">
+      <option value="">—</option>
+      ${_cvT.map(c => `<option value="${c.codigo}"${c.codigo===s.centro?' selected':''}>${c.nombre}</option>`).join('')}
+    </select>
+  </td>
+  <td style="min-width:160px;">
+    <input class="ses-input" type="text"
+      value="${proyLabel}"
+      list="proyectos-dl"
+      placeholder="proyecto…"
+      onchange="_tSesProyecto('${s.id}',this.value)">
+  </td>
+  <td style="min-width:120px;">
+    <div class="mueble-wrap" style="display:${muebleVis}">
+      <input class="ses-input" type="text"
+        value="${s.item_nombre||''}"
+        placeholder="mueble…"
+        onchange="_tSesField('${s.id}','item_nombre',this.value)">
+    </div>
+  </td>
+  <td style="min-width:110px;">
+    <select class="ses-select" onchange="_tSesField('${s.id}','estado',this.value)">
+      <option value="activo"${s.estado==='activo'?' selected':''}>activo</option>
+      <option value="finalizado"${s.estado==='finalizado'?' selected':''}>finalizado</option>
+      <option value="retrabajo"${s.estado==='retrabajo'?' selected':''}>retrabajo</option>
+    </select>
+  </td>
+  <td>
+    <button class="btn-eliminar" onclick="_tEliminarSesion('${s.id}',this)">✕</button>
+    <div class="ses-error"></div>
+  </td>
+</tr>`;
+  }).join('');
+
+  const addBtn = _tIsAdmin
+    ? `<button class="btn-add-ses" onclick="_tAgregarSesion('${jornadaId}',this)">+ AGREGAR SESIÓN</button>`
+    : '';
+
+  return `
+<div class="ses-wrap">
+<table class="ses-table">
+  <thead><tr>
+    <th>INICIO</th><th>FIN</th><th>CENTRO</th><th>PROYECTO</th><th>MUEBLE</th><th>ESTADO</th><th></th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+</div>
+${addBtn}`;
+}
+
+// ── Eliminar sesión ───────────────────────────────────────────────────────
+async function _tEliminarSesion(sid, btn) {
+  if (!confirm('¿Eliminar esta sesión? No se puede deshacer.')) return;
+  btn.disabled = true;
+  try {
+    const res  = await _tFetch('/api/tiempos?action=eliminar-sesion', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ registro_id: sid, caller_id: CALLER_ID }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Error');
+    const row = document.querySelector(`tr[data-sid="${sid}"]`);
+    if (row) row.remove();
+    _tSesChanges.delete(sid);
+    _tUpdateSaveBtn();
+  } catch(e) {
+    const errEl = document.querySelector(`tr[data-sid="${sid}"] .ses-error`);
+    if (errEl) errEl.textContent = e.message;
+    btn.disabled = false;
+  }
+}
+
+// ── Agregar sesión (admin) ────────────────────────────────────────────────
+function _tAgregarSesion(jornadaId, btn) {
+  const tbody = btn.closest('.emp-card-body, .day-card-body').querySelector('tbody');
+  if (!tbody) return;
+  // Avoid duplicate add row
+  if (tbody.querySelector('.add-row-tr')) return;
+  const centroOpts = _cvT.map(c => `<option value="${c.codigo}">${c.nombre}</option>`).join('');
+  const tr = document.createElement('tr');
+  tr.className = 'add-row-tr';
+  tr.innerHTML = `
+    <td><input class="ses-input" type="datetime-local" id="add-inicio-${jornadaId}"></td>
+    <td><input class="ses-input" type="datetime-local" id="add-fin-${jornadaId}"></td>
+    <td><select class="ses-select" id="add-centro-${jornadaId}"><option value="">—</option>${centroOpts}</select></td>
+    <td><input class="ses-input" type="text" id="add-proy-${jornadaId}" list="proyectos-dl" placeholder="proyecto…"></td>
+    <td><input class="ses-input" type="text" id="add-mueble-${jornadaId}" placeholder="mueble…"></td>
+    <td><select class="ses-select" id="add-estado-${jornadaId}">
+      <option value="finalizado">finalizado</option>
+      <option value="activo">activo</option>
+    </select></td>
+    <td>
+      <button class="btn-load" style="font-size:10px;padding:4px 10px;" onclick="_tConfirmarAgregar('${jornadaId}',this)">✓</button>
+      <button class="btn-eliminar" onclick="this.closest('tr').remove()" style="margin-left:4px;">✕</button>
+    </td>`;
+  tbody.appendChild(tr);
+}
+
+async function _tConfirmarAgregar(jid, btn) {
+  btn.disabled = true;
+  const inicio  = document.getElementById(`add-inicio-${jid}`)?.value;
+  const fin     = document.getElementById(`add-fin-${jid}`)?.value;
+  const centro  = document.getElementById(`add-centro-${jid}`)?.value;
+  const proyVal = document.getElementById(`add-proy-${jid}`)?.value || '';
+  const mueble  = document.getElementById(`add-mueble-${jid}`)?.value || '';
+  const estado  = document.getElementById(`add-estado-${jid}`)?.value;
+
+  if (!inicio || !centro) { alert('Inicio y centro son obligatorios'); btn.disabled = false; return; }
+
+  const opt = _proyectosT.find(p => {
+    const label = [p.numero, p.nombre].filter(Boolean).join(' · ');
+    return label === proyVal || p.nombre === proyVal;
+  });
+
+  try {
+    const res  = await _tFetch('/api/tiempos?action=agregar-sesion', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        jornada_id: jid, caller_id: CALLER_ID,
+        inicio: fromLocalDT(inicio),
+        fin:    fin ? fromLocalDT(fin) : null,
+        centro,
+        estado: estado || 'finalizado',
+        proyecto_id:    opt ? opt.id   : null,
+        proyecto_nombre: opt ? opt.nombre : (proyVal || null),
+        item_nombre:    mueble || null,
+      }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Error');
+    // Remove add row and reload the card
+    btn.closest('tr').remove();
+    // Simple page reload trigger — re-run the active load
+    alert('Sesión agregada. Recargá los datos para verla.');
+  } catch(e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 1 — POR DÍA
+// ═══════════════════════════════════════════════════════════════════════════
+async function _tCargarDia() {
+  const fecha = document.getElementById('dia-fecha').value;
+  if (!fecha) { alert('Seleccioná una fecha'); return; }
+  const result = document.getElementById('dia-result');
+  result.innerHTML = '<span class="spinner"></span><span class="mono" style="color:var(--muted);font-size:12px;">Cargando…</span>';
+  _tClearChanges();
+
+  try {
+    const res  = await _tFetch(`/api/tiempos?action=sesiones-dia&fecha=${fecha}&caller_id=${CALLER_ID}`);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Error');
+    _tRenderDia(json);
+  } catch(e) {
+    result.innerHTML = `<p class="empty-msg">Error: ${e.message}</p>`;
+  }
+}
+
+function _tRenderDia(data) {
+  const result = document.getElementById('dia-result');
+  if (!data.empleados || data.empleados.length === 0) {
+    result.innerHTML = '<p class="empty-msg">Sin jornadas ese día.</p>';
+    return;
+  }
+  result.innerHTML = data.empleados.map(emp => {
+    const hayActivo = emp.sesiones.some(s => s.estado === 'activo');
+    const badge = hayActivo
+      ? '<span class="badge-activo">ACTIVO 🟢</span>'
+      : '<span class="badge-completo">COMPLETO ⚪</span>';
+    const jornada = emp.jornada;
+    return `
+<div class="emp-card">
+  <div class="emp-card-header" onclick="_tToggleCard(this)">
+    <div>
+      <div class="emp-card-title">${emp.nombre}</div>
+      <div class="emp-card-meta">${fmtHM(emp.total_minutos)}</div>
+    </div>
+    <div class="emp-card-right">${badge}<span class="chevron">▼</span></div>
+  </div>
+  <div class="emp-card-body">
+    <div class="jornada-row">
+      <div class="jornada-field">
+        <span class="jornada-label">ENTRADA</span>
+        <input class="jornada-input" type="datetime-local"
+          data-jid="${jornada.id}"
+          value="${toLocalDT(jornada.entrada)}"
+          onchange="_tJorField('${jornada.id}','entrada',this.value)">
+      </div>
+      <div class="jornada-field">
+        <span class="jornada-label">SALIDA</span>
+        <input class="jornada-input" type="datetime-local"
+          data-jid="${jornada.id}"
+          value="${toLocalDT(jornada.salida)}"
+          onchange="_tJorField('${jornada.id}','salida',this.value)">
+      </div>
+      <div class="jornada-field">
+        <span class="jornada-label">DESCANSO (min)</span>
+        <input class="jornada-input" type="number" min="0" step="1"
+          style="width:70px;"
+          data-jid="${jornada.id}"
+          value="${jornada.descanso_minutos||0}"
+          onchange="_tJorField('${jornada.id}','descanso_minutos',this.value)">
+      </div>
+    </div>
+    ${_tSesionTable(emp.sesiones, jornada.id)}
+  </div>
+</div>`;
+  }).join('');
+}
+
+function _tToggleCard(header) {
+  const body    = header.nextElementSibling;
+  const chevron = header.querySelector('.chevron');
+  const isOpen  = body.classList.toggle('open');
+  if (chevron) chevron.textContent = isOpen ? '▲' : '▼';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 2 — POR OPERARIO
+// ═══════════════════════════════════════════════════════════════════════════
+async function _tCargarOperario() {
+  const empleado_id = _tIsAdmin
+    ? document.getElementById('op-emp-select').value
+    : CALLER_ID;
+  if (!empleado_id) { alert('Seleccioná un empleado'); return; }
+  const desde = document.getElementById('op-desde').value;
+  const hasta = document.getElementById('op-hasta').value;
+  if (!desde || !hasta) { alert('Seleccioná rango de fechas'); return; }
+
+  const result = document.getElementById('operario-result');
+  result.innerHTML = '<span class="spinner"></span><span class="mono" style="color:var(--muted);font-size:12px;">Cargando…</span>';
+  _tClearChanges();
+
+  try {
+    const url = `/api/tiempos?action=sesiones-empleado&empleado_id=${empleado_id}&desde=${desde}&hasta=${hasta}&caller_id=${CALLER_ID}`;
+    const res  = await _tFetch(url);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Error');
+    _tRenderOperario(json);
+  } catch(e) {
+    result.innerHTML = `<p class="empty-msg">Error: ${e.message}</p>`;
+  }
+}
+
+function _tRenderOperario(data) {
+  const result = document.getElementById('operario-result');
+  if (!data.dias || data.dias.length === 0) {
+    result.innerHTML = `<p class="empty-msg">Sin jornadas para ${data.nombre} en ese período.</p>`;
+    return;
+  }
+  result.innerHTML = `
+<div class="mono" style="font-size:12px;color:var(--muted);margin-bottom:14px;">
+  ${data.nombre.toUpperCase()}
+</div>
+${data.dias.map(dia => {
+  const hayActivo = dia.sesiones.some(s => s.estado === 'activo');
+  const jornada   = dia.jornada;
+  return `
+<div class="day-card">
+  <div class="day-card-header" onclick="_tToggleDayCard(this)">
+    <div>
+      <span class="day-card-title">${fmtDate(dia.fecha)}</span>
+      <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-left:12px;">${fmtHM(dia.total_minutos)}</span>
+      ${hayActivo ? '<span class="badge-activo" style="margin-left:8px;">ACTIVO</span>' : ''}
+    </div>
+    <span class="chevron">▼</span>
+  </div>
+  <div class="day-card-body">
+    <div class="jornada-row">
+      <div class="jornada-field">
+        <span class="jornada-label">ENTRADA</span>
+        <input class="jornada-input" type="datetime-local"
+          data-jid="${jornada.id}"
+          value="${toLocalDT(jornada.entrada)}"
+          onchange="_tJorField('${jornada.id}','entrada',this.value)">
+      </div>
+      <div class="jornada-field">
+        <span class="jornada-label">SALIDA</span>
+        <input class="jornada-input" type="datetime-local"
+          data-jid="${jornada.id}"
+          value="${toLocalDT(jornada.salida)}"
+          onchange="_tJorField('${jornada.id}','salida',this.value)">
+      </div>
+      <div class="jornada-field">
+        <span class="jornada-label">DESCANSO (min)</span>
+        <input class="jornada-input" type="number" min="0" step="1"
+          style="width:70px;"
+          data-jid="${jornada.id}"
+          value="${jornada.descanso_minutos||0}"
+          onchange="_tJorField('${jornada.id}','descanso_minutos',this.value)">
+      </div>
+    </div>
+    ${_tSesionTable(dia.sesiones, jornada.id)}
+  </div>
+</div>`;
+}).join('')}`;
+}
+
+function _tToggleDayCard(header) {
+  const body    = header.nextElementSibling;
+  const chevron = header.querySelector('.chevron');
+  const isOpen  = body.classList.toggle('open');
+  if (chevron) chevron.textContent = isOpen ? '▲' : '▼';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 3 — REPORTE
+// ═══════════════════════════════════════════════════════════════════════════
+async function _tGenerarReporte() {
+  const mes      = parseInt(document.getElementById('rep-mes').value, 10);
+  const anio     = parseInt(document.getElementById('rep-anio').value, 10);
+  const empParam = _tIsAdmin ? document.getElementById('rep-emp-select').value : CALLER_ID;
+  const { desde, hasta } = monthBounds(anio, mes);
+
+  const result = document.getElementById('reporte-result');
+  result.innerHTML = '<span class="spinner"></span><span class="mono" style="color:var(--muted);font-size:12px;">Generando…</span>';
+  _tReportData = null;
+  document.getElementById('btn-export-excel').disabled = true;
+  document.getElementById('btn-export-pdf').disabled   = true;
+
+  try {
+    let url = `/api/tiempos?action=reporte-horas&desde=${desde}&hasta=${hasta}&caller_id=${CALLER_ID}`;
+    if (empParam) url += `&empleado_id=${empParam}`;
+    const res  = await _tFetch(url);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Error');
+    _tReportData = json;
+    _tRenderReporte(json, anio, mes);
+    document.getElementById('btn-export-excel').disabled = false;
+    document.getElementById('btn-export-pdf').disabled   = false;
+  } catch(e) {
+    result.innerHTML = `<p class="empty-msg">Error: ${e.message}</p>`;
+  }
+}
+
+function _tRenderReporte(data, anio, mes) {
+  const result = document.getElementById('reporte-result');
+  if (!data.empleados || data.empleados.length === 0) {
+    result.innerHTML = '<p class="empty-msg">Sin datos para ese período.</p>';
+    return;
+  }
+
+  let html = `
+<div class="mono" style="font-size:10px;color:var(--muted);margin-bottom:16px;letter-spacing:1px;">
+  PERÍODO ${String(mes).padStart(2,'0')}/${anio} &nbsp;·&nbsp; ${data.desde} → ${data.hasta}
+</div>
+<table class="rep-table">
+<thead><tr>
+  <th>EMPLEADO</th><th>SEMANA</th><th>HORAS</th><th>EXTRAS</th>
+</tr></thead>
+<tbody>`;
+
+  data.empleados.forEach((emp, idx) => {
+    if (idx > 0) {
+      html += `<tr class="rep-sep"><td colspan="4"></td></tr>`;
+    }
+    emp.semanas.forEach(s => {
+      const extrasHTML = s.extras_minutos > 0
+        ? `<span class="extras-pos">${fmtHM(s.extras_minutos)}</span>`
+        : '—';
+      html += `<tr>
+        <td class="mono" style="font-size:12px;">${emp.nombre}</td>
+        <td class="mono" style="font-size:11px;color:var(--muted);">${fmtDate(s.semana_inicio)}–${fmtDate(s.semana_fin)}</td>
+        <td class="mono">${fmtHM(s.total_minutos)}</td>
+        <td>${extrasHTML}</td>
+      </tr>`;
+    });
+    // Total row
+    const totExtrasHTML = emp.total_extras_minutos > 0
+      ? `<span class="extras-pos">${fmtHM(emp.total_extras_minutos)}</span>`
+      : '—';
+    html += `<tr class="rep-total">
+      <td class="mono" style="font-size:12px;">${emp.nombre}</td>
+      <td class="mono" style="color:var(--muted);">TOTAL</td>
+      <td class="mono">${fmtHM(emp.total_minutos)}</td>
+      <td>${totExtrasHTML}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  result.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════════════════════
+function _tExportExcel() {
+  if (!_tReportData || typeof XLSX === 'undefined') return;
+  const mes  = String(document.getElementById('rep-mes').value).padStart(2,'0');
+  const anio = document.getElementById('rep-anio').value;
+  const rows = [['Empleado','Semana desde','Semana hasta','Horas totales','Horas extras']];
+  _tReportData.empleados.forEach(emp => {
+    emp.semanas.forEach(s => {
+      rows.push([
+        emp.nombre,
+        s.semana_inicio,
+        s.semana_fin,
+        +(s.total_minutos / 60).toFixed(2),
+        +(s.extras_minutos / 60).toFixed(2),
+      ]);
+    });
+    rows.push([emp.nombre,'TOTAL','',+(emp.total_minutos/60).toFixed(2),+(emp.total_extras_minutos/60).toFixed(2)]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Tiempos');
+  XLSX.writeFile(wb, `reporte-tiempos-${anio}-${mes}.xlsx`);
+}
+
+function _tExportPDF() {
+  if (!_tReportData || !window.jspdf) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const mes  = String(document.getElementById('rep-mes').value).padStart(2,'0');
+  const anio = document.getElementById('rep-anio').value;
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(14);
+  doc.text('MADERABLE \u2014 REPORTE DE TIEMPOS', 14, 20);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.text(`Per\u00edodo: ${anio}-${mes}`, 14, 28);
+
+  const head = [['EMPLEADO','SEMANA','HORAS','EXTRAS']];
+  const body = [];
+  _tReportData.empleados.forEach((emp, idx) => {
+    emp.semanas.forEach(s => {
+      body.push([
+        emp.nombre,
+        `${fmtDate(s.semana_inicio)}\u2013${fmtDate(s.semana_fin)}`,
+        fmtHM(s.total_minutos),
+        s.extras_minutos > 0 ? fmtHM(s.extras_minutos) : '\u2014',
+      ]);
+    });
+    body.push([emp.nombre,'TOTAL',fmtHM(emp.total_minutos),emp.total_extras_minutos > 0 ? fmtHM(emp.total_extras_minutos) : '\u2014']);
+  });
+
+  doc.autoTable({
+    head, body,
+    startY: 34,
+    styles: { fontSize: 9, cellPadding: 4 },
+    headStyles: { fillColor: [255, 214, 0], textColor: [0,0,0], fontStyle: 'bold' },
+    rowPageBreak: 'avoid',
+  });
+
+  doc.save(`reporte-tiempos-${anio}-${mes}.pdf`);
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+_tInit();
+</script>
+</body>
+</html>

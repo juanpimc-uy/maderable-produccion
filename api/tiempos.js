@@ -1211,23 +1211,18 @@ export default async function handler(req) {
 
     // ── POST agregar-sesion ───────────────────────────────────────────────
     if (action === 'agregar-sesion' && req.method === 'POST') {
-      const { jornada_id, inicio, fin, centro, proyecto_id, proyecto_nombre,
-              item_id, item_nombre, caller_id } = body;
+      const { jornada_id, inicio, fin, centro, estado,
+              proyecto_id, proyecto_nombre, item_id, item_nombre, caller_id } = body;
 
       if (!jornada_id) return err('jornada_id requerido', 400);
       if (!inicio)     return err('inicio requerido', 400);
-      if (!fin)        return err('fin requerido', 400);
       if (!centro)     return err('centro requerido', 400);
       if (!caller_id)  return err('caller_id requerido', 400);
       if (new Date(inicio).toString() === 'Invalid Date') return err('inicio no es una fecha válida', 400);
-      if (new Date(fin).toString()    === 'Invalid Date') return err('fin no es una fecha válida', 400);
-      if (new Date(inicio) >= new Date(fin)) return err('inicio debe ser anterior a fin', 400);
-
-      const { data: jornAg, error: jAgErr } = await supabase
-        .from('jornadas').select('id, empleado_id, fecha, entrada, salida')
-        .eq('id', jornada_id).maybeSingle();
-      if (jAgErr) throw jAgErr;
-      if (!jornAg) return err('Jornada no encontrada', 404);
+      if (fin != null) {
+        if (new Date(fin).toString() === 'Invalid Date') return err('fin no es una fecha válida', 400);
+        if (new Date(inicio) >= new Date(fin)) return err('inicio debe ser anterior a fin', 400);
+      }
 
       const { data: callerAg, error: cAgErr } = await supabase
         .from('empleados').select('rol_app').eq('id', caller_id).maybeSingle();
@@ -1235,21 +1230,30 @@ export default async function handler(req) {
       if (!callerAg)
         return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      if (callerAg.rol_app !== 'admin' && callerAg.rol_app !== 'oficina')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden agregar sesiones' }),
-          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      if (callerAg.rol_app === 'oficina' && jornAg.empleado_id !== caller_id)
-        return new Response(JSON.stringify({ ok: false, error: 'Solo puede agregar sesiones a sus propias jornadas' }),
+      if (callerAg.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede agregar sesiones' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
-      const inicioISO = new Date(inicio).toISOString();
-      const finISO    = new Date(fin).toISOString();
+      const { data: jornAg, error: jAgErr } = await supabase
+        .from('jornadas').select('id, empleado_id').eq('id', jornada_id).maybeSingle();
+      if (jAgErr) throw jAgErr;
+      if (!jornAg) return err('Jornada no encontrada', 404);
+
+      const { data: cvAg, error: cvAgErr } = await supabase
+        .from('centros_virtuales').select('activo, requiere_proyecto').eq('codigo', centro).maybeSingle();
+      if (cvAgErr) throw cvAgErr;
+      if (!cvAg || !cvAg.activo) return err('Centro no válido o inactivo', 400);
+      if (cvAg.requiere_proyecto && !proyecto_id)
+        return err('El centro seleccionado requiere un proyecto', 400);
+
+      const inicioISO  = new Date(inicio).toISOString();
+      const finChequeo = fin ? new Date(fin).toISOString() : '9999-12-31T23:59:59Z';
       const { data: solapadosAg } = await supabase
         .from('registros_trabajo')
         .select('id, inicio, fin')
         .eq('empleado_id', jornAg.empleado_id)
         .eq('eliminada', false)
-        .lt('inicio', finISO)
+        .lt('inicio', finChequeo)
         .or(`fin.is.null,fin.gt.${inicioISO}`);
       if (solapadosAg && solapadosAg.length > 0) {
         const s = solapadosAg[0];
@@ -1263,17 +1267,19 @@ export default async function handler(req) {
         .insert({
           jornada_id,
           empleado_id:     jornAg.empleado_id,
-          inicio, fin, centro,
+          inicio,
+          fin:             fin || null,
+          centro,
+          estado:          estado || 'finalizado',
           proyecto_id:     proyecto_id     || null,
           proyecto_nombre: proyecto_nombre || null,
           item_id:         item_id         || null,
           item_nombre:     item_nombre     || null,
-          estado: 'finalizado',
           eliminada: false,
         })
         .select().single();
       if (insAgErr) throw insAgErr;
-      return ok({ ok: true, registro: regNew });
+      return ok({ ok: true, sesion: regNew });
     }
 
     // ── POST eliminar-sesion (soft delete) ────────────────────────────────
@@ -1285,31 +1291,33 @@ export default async function handler(req) {
 
       const { data: regDel, error: regDelErr } = await supabase
         .from('registros_trabajo')
-        .select('id, empleado_id, eliminada')
+        .select('id, empleado_id, estado, eliminada')
         .eq('id', registro_id).maybeSingle();
       if (regDelErr) throw regDelErr;
       if (!regDel || regDel.eliminada) return err('Registro no encontrado o ya eliminado', 404);
 
+      if (regDel.estado === 'activo')
+        return err('No se puede eliminar una sesión activa. Finalizala primero.', 400);
+
       const { data: callerDel, error: cDelErr } = await supabase
-        .from('empleados').select('rol_app').eq('id', caller_id).maybeSingle();
+        .from('empleados').select('rol_app, acceso_tiempos').eq('id', caller_id).maybeSingle();
       if (cDelErr) throw cDelErr;
       if (!callerDel)
         return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      if (callerDel.rol_app !== 'admin' && callerDel.rol_app !== 'oficina')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden eliminar sesiones' }),
+      if (callerDel.rol_app !== 'admin' && !callerDel.acceso_tiempos)
+        return new Response(JSON.stringify({ ok: false, error: 'Sin acceso a tiempos' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       if (callerDel.rol_app === 'oficina' && regDel.empleado_id !== caller_id)
         return new Response(JSON.stringify({ ok: false, error: 'Solo puede eliminar sus propias sesiones' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
-      const eliminada_en = new Date().toISOString();
       const { error: uDelErr } = await supabase
         .from('registros_trabajo')
-        .update({ eliminada: true, eliminada_en, eliminada_por: caller_id })
+        .update({ eliminada: true })
         .eq('id', registro_id);
       if (uDelErr) throw uDelErr;
-      return ok({ ok: true, eliminada: { id: registro_id, eliminada_en, eliminada_por: caller_id } });
+      return ok({ ok: true });
     }
 
     // ── PATCH actualizar empleado existente ───────────────────────────────
