@@ -4584,6 +4584,16 @@ function renderMiCuenta() {
         <div style="display:flex;justify-content:space-between;"><span style="font-size:12px;color:var(--muted);">Rol</span><span class="mono" style="font-size:12px;color:var(--amber);">${rolLabel}</span></div>
         <div style="display:flex;justify-content:space-between;"><span style="font-size:12px;color:var(--muted);">Categoría</span><span style="font-size:12px;">${u.categoria||'—'}</span></div>
       </div>
+      ${u.rol_app === 'admin' ? `
+      <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:14px;">CAMBIAR CONTRASEÑA</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <input id="cp-actual" type="password" placeholder="Contraseña actual (o PIN si aún no configuraste contraseña)" style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+        <input id="cp-nuevo" type="password" placeholder="Contraseña nueva (mín. 8 caracteres)" style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+        <input id="cp-confirmar" type="password" placeholder="Confirmar contraseña nueva" style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
+        <button class="btn btn-primary" onclick="cambiarPasswordPropio()">Cambiar Contraseña</button>
+        <div id="cp-msg" style="font-size:12px;min-height:16px;"></div>
+      </div>
+      ` : `
       <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:14px;">CAMBIAR PIN</div>
       <div style="display:flex;flex-direction:column;gap:10px;">
         <input id="cp-actual" type="password" maxlength="4" inputmode="numeric" placeholder="PIN actual" style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;outline:none;width:100%;">
@@ -4592,6 +4602,7 @@ function renderMiCuenta() {
         <button class="btn btn-primary" onclick="cambiarPinPropio()">Cambiar PIN</button>
         <div id="cp-msg" style="font-size:12px;min-height:16px;"></div>
       </div>
+      `}
     </div>`;
 }
 
@@ -4618,6 +4629,35 @@ async function cambiarPinPropio() {
       document.getElementById('cp-confirmar').value = '';
     } else {
       msg.style.color = 'var(--red)'; msg.textContent = data.error || 'Error al cambiar PIN';
+    }
+  } catch(e) {
+    msg.style.color = 'var(--red)'; msg.textContent = 'Error de conexión';
+  }
+}
+
+async function cambiarPasswordPropio() {
+  const u = window.AUTH.usuarioActual();
+  const actual = document.getElementById('cp-actual')?.value;
+  const nuevo = document.getElementById('cp-nuevo')?.value;
+  const confirmar = document.getElementById('cp-confirmar')?.value;
+  const msg = document.getElementById('cp-msg');
+  if (!actual || !nuevo || !confirmar) { msg.style.color='var(--red)'; msg.textContent='Completá todos los campos'; return; }
+  if (nuevo !== confirmar) { msg.style.color='var(--red)'; msg.textContent='Las contraseñas no coinciden'; return; }
+  if (nuevo.length < 8) { msg.style.color='var(--red)'; msg.textContent='La contraseña debe tener mínimo 8 caracteres'; return; }
+  try {
+    const res = await fetch('/api/tiempos?action=cambiar-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ empleado_id: u.id, credencial_actual: actual, password_nuevo: nuevo }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      msg.style.color = 'var(--green)'; msg.textContent = '✓ Contraseña cambiada correctamente';
+      document.getElementById('cp-actual').value = '';
+      document.getElementById('cp-nuevo').value = '';
+      document.getElementById('cp-confirmar').value = '';
+    } else {
+      msg.style.color = 'var(--red)'; msg.textContent = data.error || 'Error al cambiar contraseña';
     }
   } catch(e) {
     msg.style.color = 'var(--red)'; msg.textContent = 'Error de conexión';
@@ -5716,13 +5756,14 @@ function _cdCerrar() {
 
 // Ocultar nav-items restringidos según rol
 (function _applyRoleNav() {
-  const u = window.AUTH.usuarioActual();
+  const u = window.AUTH?.usuarioActual?.();
   if (!u || u.rol_app !== 'admin') {
+    const esOficina = u?.rol_app === 'oficina';
     document.querySelectorAll('.nav-item').forEach(el => {
       const txt = el.textContent.trim();
-      if (txt.startsWith('Ajustes')) el.style.display = 'none';
-      if (u.rol_app === 'oficina' && txt.startsWith('Operarios')) el.style.display = 'none';
-      if (u.rol_app === 'oficina' && txt.startsWith('Stock')) el.style.display = 'none';
+      if (txt.includes('Ajustes')) el.style.display = 'none';
+      if (esOficina && txt.includes('Operarios')) el.style.display = 'none';
+      if (esOficina && txt.includes('Stock')) el.style.display = 'none';
     });
   }
 })();
