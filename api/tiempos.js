@@ -60,18 +60,21 @@
 // );
 
 import { createClient } from '@supabase/supabase-js';
-import crypto from 'node:crypto';
+function _toHex(buf) { return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
+function _fromHex(hex) { const a=new Uint8Array(hex.length/2); for(let i=0;i<a.length;i++) a[i]=parseInt(hex.substr(i*2,2),16); return a; }
 
-function _hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
-  return salt + ':' + hash;
+async function _hashPassword(password) {
+  const salt = _toHex(crypto.getRandomValues(new Uint8Array(16)));
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name:'PBKDF2', salt: _fromHex(salt), iterations:100000, hash:'SHA-256' }, key, 512);
+  return salt + ':' + _toHex(bits);
 }
 
-function _verifyPassword(password, stored) {
+async function _verifyPassword(password, stored) {
   const [salt, hash] = stored.split(':');
-  const verify = crypto.scryptSync(password, salt, 64).toString('hex');
-  return verify === hash;
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name:'PBKDF2', salt: _fromHex(salt), iterations:100000, hash:'SHA-256' }, key, 512);
+  return _toHex(bits) === hash;
 }
 
 export const config = { runtime: 'edge' };
@@ -1766,7 +1769,7 @@ export default async function handler(req) {
       if (data.rol_app === 'operario') return new Response(JSON.stringify({ ok: false, error: 'Tu rol no permite acceso a admin', redirect: 'planta2' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       let valid = false;
       if (data.rol_app === 'admin' && data.password_hash) {
-        valid = _verifyPassword(credential, data.password_hash);
+        valid = await _verifyPassword(credential, data.password_hash);
       } else {
         valid = (data.pin === credential);
       }
@@ -1801,12 +1804,12 @@ export default async function handler(req) {
       if (emp.rol_app !== 'admin') return new Response(JSON.stringify({ ok: false, error: 'Solo usuarios admin pueden configurar contraseña' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       let valid = false;
       if (emp.password_hash) {
-        valid = _verifyPassword(credencial_actual, emp.password_hash);
+        valid = await _verifyPassword(credencial_actual, emp.password_hash);
       } else {
         valid = (emp.pin === credencial_actual);
       }
       if (!valid) return new Response(JSON.stringify({ ok: false, error: 'Credencial actual incorrecta' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      const hash = _hashPassword(password_nuevo);
+      const hash = await _hashPassword(password_nuevo);
       const { error: uErr } = await supabase.from('empleados').update({ password_hash: hash }).eq('id', empleado_id);
       if (uErr) throw uErr;
       return ok({ ok: true });
