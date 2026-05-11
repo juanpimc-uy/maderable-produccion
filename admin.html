@@ -1214,6 +1214,7 @@ async function syncTodosOperarios() {
 async function syncProyectoSupabase(proyecto) {
   const body = {
     id: proyecto.id,
+    nombre: proyecto.nombre,
     numero: proyecto.numero || proyecto.nombre,
     obra: proyecto.obra || proyecto.nombre,
     clienteNombre: proyecto.clienteNombre || proyecto.cliente || '',
@@ -1850,7 +1851,7 @@ function renderDetallePr(pr, sub) {
           <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;">
             <div class="mono" style="font-size:11px;font-weight:700;color:var(--amber);min-width:38px;padding-top:2px;">${m.codigo||'—'}</div>
             <div style="flex:1;">
-              <div style="font-size:15px;font-weight:600;margin-bottom:8px;">${m.nombre||'—'} <span style="font-size:12px;color:var(--muted);">×${m.cant||1}</span></div>
+              <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:8px;"><input value="${(m.nombre||'').replace(/"/g,'&amp;quot;')}" onfocus="this.style.borderBottomColor='var(--accent)'" onblur="this.style.borderBottomColor='var(--border)';setNombreInline('${pr.id}','${m.id}',this.value)" style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:15px;font-weight:600;width:100%;outline:none;padding:0;font-family:'DM Sans',sans-serif;"> <span style="font-size:12px;color:var(--muted);">×${m.cant||1}</span></div>
               <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">${flujoChips}</div>
               <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                 <div style="display:flex;align-items:center;gap:6px;">
@@ -2518,6 +2519,15 @@ function setPlacasInline(prId,mId,val){
   // update items so hEstPr works correctly
   pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
   renderDetallePr(pr,'ítems');
+}
+
+function setNombreInline(prId,mId,valor){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  if(!pr)return;
+  const m=(pr.muebles||[]).find(m=>m.id===mId);
+  if(!m)return;
+  m.nombre=valor.trim();
+  syncProyectoSupabase(pr);
 }
 
 function setDifInline(prId,mId,dif){

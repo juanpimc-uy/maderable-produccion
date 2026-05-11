@@ -1822,12 +1822,12 @@ export default async function handler(req) {
 
     // ── POST guardar proyecto completo ────────────────────────────────────
     if (action === 'guardar-proyecto' && req.method === 'POST') {
-      const { id, numero, obra, clienteNombre, fechaInicio, fechaEntrega,
+      const { id, nombre, numero, obra, clienteNombre, fechaInicio, fechaEntrega,
               notas, estado, muebles, materiales, sosCargadas, modulos, creadoEn,
               activo: activoBody } = body;
       const { data, error } = await supabase.from('proyectos_cache')
         .upsert({
-          id, nombre: numero || obra, numero, obra,
+          id, nombre: nombre || numero || obra, numero, obra,
           cliente: clienteNombre, cliente_nombre: clienteNombre,
           fecha_inicio: fechaInicio, fecha_entrega: fechaEntrega,
           notas, estado: estado || 'en_produccion',
