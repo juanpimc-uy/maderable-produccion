@@ -1303,7 +1303,7 @@ function mapProyectoFromDB(p) {
   const muebles = p.muebles || p.items || [];
   return {
     ...p,
-    nombre: p.obra || p.nombre || '',
+    nombre: p.nombre || p.obra || '',
     clienteNombre: p.clienteNombre || p.cliente_nombre || p.cliente || '',
     muebles,
     items: muebles.map(m => ({
