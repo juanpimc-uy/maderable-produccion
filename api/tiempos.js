@@ -60,7 +60,8 @@
 // );
 
 import { createClient } from '@supabase/supabase-js';
-import bcrypt from 'bcryptjs';
+import bcryptModule from 'bcryptjs';
+const bcrypt = bcryptModule.default || bcryptModule;
 
 export const config = { runtime: 'edge' };
 
