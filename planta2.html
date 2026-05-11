@@ -446,39 +446,20 @@ textarea.campo {
       ← CAMBIAR OPERARIO
     </button>
 
-    <!-- Tarea activa -->
-    <div id="card-tarea-activa" class="card card-accent" style="display:none;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-        <span class="lbl" style="margin:0;color:var(--accent);">▶ EN CURSO</span>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div class="sema" id="menu-sema"></div>
-          <span class="task-timer" id="menu-timer">0h 00m</span>
-        </div>
+    <!-- Panel de estado (oculto cuando no hay tarea) -->
+    <div id="card-estado" style="display:none;background:#1e1e1e;border:1px solid rgba(255,214,0,0.2);border-radius:12px;padding:14px 20px;position:relative;overflow:hidden;">
+      <div style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--accent);text-transform:uppercase;margin-bottom:4px;" id="estado-centro">—</div>
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;" id="estado-proyecto">—</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;">EN CURSO</span>
+        <span style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:var(--accent);" id="estado-timer">0h 00m</span>
       </div>
-
-      <!-- Proyecto: ODF / OBRA / CLIENTE -->
-      <div id="menu-task-proyecto" style="font-size:16px;font-weight:700;color:var(--text);line-height:1.4;"></div>
-      <div id="menu-task-obra"     style="font-size:16px;font-weight:700;color:var(--text);line-height:1.4;"></div>
-      <div id="menu-task-cliente"  style="font-size:16px;color:var(--muted);line-height:1.4;"></div>
-
-      <div style="border-top:1px solid var(--border);margin:10px 0;"></div>
-
-      <!-- Mueble: código + nombre -->
-      <div id="menu-task-item" style="font-size:18px;font-weight:700;color:var(--text);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;text-overflow:ellipsis;"></div>
-
-      <div style="border-top:1px solid var(--border);margin:10px 0;"></div>
-
-      <!-- Centro — muy prominente -->
-      <div id="menu-task-centro" style="font-size:28px;font-weight:700;color:var(--accent);letter-spacing:1px;text-transform:uppercase;"></div>
-    </div>
-
-    <div id="card-sin-tarea" class="card" style="text-align:center;padding:28px;color:var(--red);font-size:20px;font-weight:700;border-color:var(--red);">
-      ⚠ SIN TAREA ACTIVA
+      <div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:var(--accent);opacity:0.5;"></div>
     </div>
 
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
-      <button class="btn btn-primary" onclick="ir('pantalla-tarea');initTarea()">
-        ▶&nbsp;&nbsp;INICIAR / CAMBIAR TAREA
+      <button class="btn btn-primary" id="btn-iniciar" onclick="ir('pantalla-tarea');initTarea()">
+        ▶&nbsp;&nbsp;INICIAR TAREA
       </button>
       <button class="btn btn-outline" id="btn-finalizar" onclick="ir('pantalla-finalizar');initFinalizar()">
         ⏹&nbsp;&nbsp;FINALIZAR TAREA ACTUAL
@@ -1414,20 +1395,17 @@ function irAlMenu() {
 }
 
 function renderMenuTarea() {
-  const card = document.getElementById('card-tarea-activa');
-  const sin  = document.getElementById('card-sin-tarea');
+  const cardEstado = document.getElementById('card-estado');
   const btnF = document.getElementById('btn-finalizar');
+  const btnI = document.getElementById('btn-iniciar');
 
   if (registroActivo) {
-    card.style.display = 'block';
-    sin.style.display  = 'none';
+    cardEstado.style.display = 'block';
     btnF.disabled = false;
+    if (btnI) btnI.textContent = '▶\u00a0\u00a0CAMBIAR TAREA';
 
     // Lookup proyecto completo para obra y cliente
     const proyInfo  = proyectos.find(p => p.id === registroActivo.proyecto_id) || {};
-    const obraStr   = proyInfo.obra   || '';
-    const clienteStr = proyInfo.cliente || proyInfo.cliente_nombre || '';
-    // Lookup codigo del mueble
     const itemsArr  = proyInfo.muebles || proyInfo.items || [];
     const itemInfo  = itemsArr.find(m => String(m.id) === String(registroActivo.item_id)) || {};
     const codigoStr = itemInfo.codigo || '';
@@ -1435,35 +1413,21 @@ function renderMenuTarea() {
       ? `${codigoStr} — ${registroActivo.item_nombre || ''}`
       : (registroActivo.item_nombre || '');
 
-    document.getElementById('menu-task-proyecto').textContent = registroActivo.proyecto_nombre || '';
-    document.getElementById('menu-task-obra').textContent     = obraStr;
-    document.getElementById('menu-task-cliente').textContent  = clienteStr;
-    document.getElementById('menu-task-item').textContent     = itemLabel;
-    document.getElementById('menu-task-item').title           = registroActivo.item_nombre || '';
-    document.getElementById('menu-task-centro').textContent   = registroActivo.centro || '';
+    document.getElementById('estado-centro').textContent  = registroActivo.centro || '—';
+    document.getElementById('estado-proyecto').textContent = itemLabel || registroActivo.proyecto_nombre || '—';
     tickMenuTimer();
   } else {
-    card.style.display = 'none';
-    sin.style.display  = 'block';
+    cardEstado.style.display = 'none';
     btnF.disabled = true;
+    if (btnI) btnI.textContent = '▶\u00a0\u00a0INICIAR TAREA';
   }
 }
 
 function tickMenuTimer() {
   if (!registroActivo) return;
   const secs = elapsed(registroActivo.inicio);
-  document.getElementById('menu-timer').textContent = fmtHM(secs);
-
-  // Semáforo — buscar hEst del ítem en proyectos
-  let hEst = 0;
-  const pr = proyectos.find(p => p.id === registroActivo.proyecto_id);
-  if (pr) {
-    const it = (pr.items || []).find(i => i.id === registroActivo.item_id);
-    if (it) hEst = it.hEst || 0;
-  }
-  const s = semaforo(registroActivo.inicio, hEst);
-  const el = document.getElementById('menu-sema');
-  el.className = `sema sema-${s}`;
+  const el = document.getElementById('estado-timer');
+  if (el) el.textContent = fmtHM(secs);
 }
 
 function iniciarIntervalos() {
