@@ -60,8 +60,19 @@
 // );
 
 import { createClient } from '@supabase/supabase-js';
-import bcryptModule from 'bcryptjs';
-const bcrypt = bcryptModule.default || bcryptModule;
+import crypto from 'node:crypto';
+
+function _hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return salt + ':' + hash;
+}
+
+function _verifyPassword(password, stored) {
+  const [salt, hash] = stored.split(':');
+  const verify = crypto.scryptSync(password, salt, 64).toString('hex');
+  return verify === hash;
+}
 
 export const config = { runtime: 'edge' };
 
@@ -1755,7 +1766,7 @@ export default async function handler(req) {
       if (data.rol_app === 'operario') return new Response(JSON.stringify({ ok: false, error: 'Tu rol no permite acceso a admin', redirect: 'planta2' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       let valid = false;
       if (data.rol_app === 'admin' && data.password_hash) {
-        valid = await bcrypt.compare(credential, data.password_hash);
+        valid = _verifyPassword(credential, data.password_hash);
       } else {
         valid = (data.pin === credential);
       }
@@ -1790,12 +1801,12 @@ export default async function handler(req) {
       if (emp.rol_app !== 'admin') return new Response(JSON.stringify({ ok: false, error: 'Solo usuarios admin pueden configurar contraseña' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       let valid = false;
       if (emp.password_hash) {
-        valid = await bcrypt.compare(credencial_actual, emp.password_hash);
+        valid = _verifyPassword(credencial_actual, emp.password_hash);
       } else {
         valid = (emp.pin === credencial_actual);
       }
       if (!valid) return new Response(JSON.stringify({ ok: false, error: 'Credencial actual incorrecta' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      const hash = await bcrypt.hash(password_nuevo, 12);
+      const hash = _hashPassword(password_nuevo);
       const { error: uErr } = await supabase.from('empleados').update({ password_hash: hash }).eq('id', empleado_id);
       if (uErr) throw uErr;
       return ok({ ok: true });
