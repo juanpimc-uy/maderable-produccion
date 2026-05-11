@@ -60,23 +60,6 @@
 // );
 
 import { createClient } from '@supabase/supabase-js';
-function _toHex(buf) { return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
-function _fromHex(hex) { const a=new Uint8Array(hex.length/2); for(let i=0;i<a.length;i++) a[i]=parseInt(hex.substr(i*2,2),16); return a; }
-
-async function _hashPassword(password) {
-  const salt = _toHex(crypto.getRandomValues(new Uint8Array(16)));
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name:'PBKDF2', salt: _fromHex(salt), iterations:100000, hash:'SHA-256' }, key, 512);
-  return salt + ':' + _toHex(bits);
-}
-
-async function _verifyPassword(password, stored) {
-  const [salt, hash] = stored.split(':');
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name:'PBKDF2', salt: _fromHex(salt), iterations:100000, hash:'SHA-256' }, key, 512);
-  return _toHex(bits) === hash;
-}
-
 export const config = { runtime: 'edge' };
 
 const supabase = createClient(
@@ -1759,21 +1742,14 @@ export default async function handler(req) {
       if (!email || !credential) return err('email y credencial requeridos', 400);
       const { data, error } = await supabase
         .from('empleados')
-        .select('id, nombre, email, categoria, rol_app, pin, password_hash')
+        .select('id, nombre, email, categoria, rol_app')
         .eq('email', email)
+        .eq('pin', credential)
         .in('rol_app', ['admin', 'oficina'])
         .limit(1)
         .maybeSingle();
       if (error) throw error;
       if (!data) return new Response(JSON.stringify({ ok: false, error: 'Credenciales incorrectas' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      if (data.rol_app === 'operario') return new Response(JSON.stringify({ ok: false, error: 'Tu rol no permite acceso a admin', redirect: 'planta2' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      let valid = false;
-      if (data.rol_app === 'admin' && data.password_hash) {
-        valid = await _verifyPassword(credential, data.password_hash);
-      } else {
-        valid = (data.pin === credential);
-      }
-      if (!valid) return new Response(JSON.stringify({ ok: false, error: 'Credenciales incorrectas' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
       return ok({ ok: true, usuario: { id: data.id, nombre: data.nombre, email: data.email, rol_app: data.rol_app, categoria: data.categoria } });
     }
 
@@ -1788,29 +1764,6 @@ export default async function handler(req) {
       if (!emp) return err('Empleado no encontrado', 404);
       if (emp.pin !== pin_actual) return new Response(JSON.stringify({ ok: false, error: 'PIN actual incorrecto' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
       const { error: uErr } = await supabase.from('empleados').update({ pin: pin_nuevo }).eq('id', empleado_id);
-      if (uErr) throw uErr;
-      return ok({ ok: true });
-    }
-
-    // ── POST cambiar contraseña (admin con bcrypt) ──────────────────────────
-    if (action === 'cambiar-password' && req.method === 'POST') {
-      const { empleado_id, credencial_actual, password_nuevo } = body;
-      if (!empleado_id || !credencial_actual || !password_nuevo) return err('empleado_id, credencial_actual y password_nuevo requeridos', 400);
-      if (password_nuevo.length < 8) return new Response(JSON.stringify({ ok: false, error: 'La contraseña debe tener mínimo 8 caracteres' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      const { data: emp, error: eErr } = await supabase
-        .from('empleados').select('pin, password_hash, rol_app').eq('id', empleado_id).maybeSingle();
-      if (eErr) throw eErr;
-      if (!emp) return err('Empleado no encontrado', 404);
-      if (emp.rol_app !== 'admin') return new Response(JSON.stringify({ ok: false, error: 'Solo usuarios admin pueden configurar contraseña' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      let valid = false;
-      if (emp.password_hash) {
-        valid = await _verifyPassword(credencial_actual, emp.password_hash);
-      } else {
-        valid = (emp.pin === credencial_actual);
-      }
-      if (!valid) return new Response(JSON.stringify({ ok: false, error: 'Credencial actual incorrecta' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      const hash = await _hashPassword(password_nuevo);
-      const { error: uErr } = await supabase.from('empleados').update({ password_hash: hash }).eq('id', empleado_id);
       if (uErr) throw uErr;
       return ok({ ok: true });
     }
