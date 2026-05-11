@@ -3,22 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <link rel="icon" href="data:,">
+<script src="/js/supabase-config.js"></script>
+<script src="/js/auth.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maderable · Fórmula de Tiempos</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Sora:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
   :root {
-    --bg:#0E0F14;--panel:#14161D;--card:#1A1D27;--border:#252836;
-    --text:#E8EAF2;--muted:#5A5F78;--faint:#20243A;
-    --amber:#F5A623;--green:#3DD68C;--red:#F05C5C;
-    --blue:#5B8DEF;--purple:#9B6DFF;--teal:#2EC4B6;
+    --bg:#0f0f0f; --panel:#1e1e1e; --card:#252525; --border:#2a2a2a; --borderL:#333;
+    --text:#e8e8e8; --muted:#888; --faint:#1a1a1a;
+    --accent:#FFD600; --amber:#FFD600; --green:#3DD68C; --red:#F05C5C;
+    --blue:#5B8DEF; --purple:#9B6DFF; --teal:#2EC4B6; --orange:#f97316;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;height:100vh;overflow:hidden;}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;height:100vh;overflow:hidden;}
   /* shell / sidebar */
   .shell{display:flex;height:100vh;overflow:hidden;}
   .sidebar{width:200px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
-  .sidebar-logo{padding:18px 16px;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
+  .sidebar-logo{padding:18px 16px;border-bottom:1px solid var(--border);font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
   .nav-item{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;font-size:13px;color:var(--muted);border-left:3px solid transparent;transition:all .15s;text-decoration:none;}
   .nav-item:hover{background:var(--faint);color:var(--text);}
   .nav-item.active{background:rgba(245,166,35,.08);color:var(--amber);border-left-color:var(--amber);font-weight:600;}
@@ -26,13 +28,13 @@
   /* main */
   .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
 
-  .mono{font-family:'JetBrains Mono',monospace;}
+  .mono{font-family:'Space Mono',monospace;}
   .topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;gap:14px;flex-shrink:0;}
-  .logo{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
+  .logo{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
   .page{padding:24px 28px 80px;overflow-y:auto;flex:1;}
   .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;margin-bottom:20px;}
-  .card-title{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:18px;}
-  .btn{padding:8px 18px;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.5px;transition:opacity .15s;}
+  .card-title{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:18px;}
+  .btn{padding:8px 18px;border:none;border-radius:6px;cursor:pointer;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.5px;transition:opacity .15s;}
   .btn:hover{opacity:.82;}
   .btn-primary{background:var(--amber);color:#0E0F14;}
   .btn-ghost{background:var(--faint);color:var(--muted);border:1px solid var(--border);}
@@ -45,32 +47,32 @@
   .coef-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:12px;}
   .coef-box{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:16px 10px;text-align:center;}
   .coef-icon{font-size:20px;margin-bottom:6px;}
-  .coef-label{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;margin-bottom:10px;display:block;}
-  .coef-input{width:100%;background:var(--card);border:1px solid var(--border);border-radius:5px;padding:8px 4px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;text-align:center;outline:none;transition:border-color .2s;}
+  .coef-label{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;margin-bottom:10px;display:block;}
+  .coef-input{width:100%;background:var(--card);border:1px solid var(--border);border-radius:5px;padding:8px 4px;color:var(--amber);font-family:'Space Mono',monospace;font-size:18px;font-weight:700;text-align:center;outline:none;transition:border-color .2s;}
   .coef-input:focus{border-color:var(--amber);}
-  .coef-unit{font-size:10px;color:var(--muted);margin-top:5px;font-family:'JetBrains Mono',monospace;}
+  .coef-unit{font-size:10px;color:var(--muted);margin-top:5px;font-family:'Space Mono',monospace;}
 
   /* dificultad */
   .dif-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;}
   .dif-box{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:16px 14px;}
-  .dif-num-label{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--amber);margin-bottom:4px;}
+  .dif-num-label{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--amber);margin-bottom:4px;}
   .dif-name{font-size:13px;font-weight:600;margin-bottom:6px;}
   .dif-desc{font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5;}
-  .dif-input{width:100%;background:var(--card);border:1px solid var(--border);border-radius:5px;padding:8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;text-align:center;outline:none;transition:border-color .2s;}
+  .dif-input{width:100%;background:var(--card);border:1px solid var(--border);border-radius:5px;padding:8px;color:var(--amber);font-family:'Space Mono',monospace;font-size:16px;font-weight:700;text-align:center;outline:none;transition:border-color .2s;}
   .dif-input:focus{border-color:var(--amber);}
 
   /* tabla preview */
   .preview-table{width:100%;border-collapse:collapse;font-size:12px;}
-  .preview-table th{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.8px;color:var(--muted);padding:7px 8px;text-align:center;border-bottom:1px solid var(--border);background:var(--faint);}
+  .preview-table th{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.8px;color:var(--muted);padding:7px 8px;text-align:center;border-bottom:1px solid var(--border);background:var(--faint);}
   .preview-table th.row-h{text-align:left;}
   .preview-table th.dif-h{color:var(--amber);}
-  .preview-table td{padding:6px 8px;text-align:center;border-bottom:1px solid rgba(37,40,54,.5);font-family:'JetBrains Mono',monospace;font-size:11px;}
+  .preview-table td{padding:6px 8px;text-align:center;border-bottom:1px solid rgba(37,40,54,.5);font-family:'Space Mono',monospace;font-size:11px;}
   .preview-table td.pl{font-weight:700;color:var(--text);text-align:left;border-right:1px solid var(--border);}
   .preview-table td.sep{border-left:1px solid var(--border);}
   .preview-table tr:hover td{background:var(--faint);}
 
   /* formula display */
-  .formula-display{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:16px 20px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text);text-align:center;margin-bottom:12px;line-height:2;}
+  .formula-display{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:16px 20px;font-family:'Space Mono',monospace;font-size:13px;color:var(--text);text-align:center;margin-bottom:12px;line-height:2;}
   .formula-highlight{color:var(--amber);font-weight:700;}
 
   @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -93,7 +95,7 @@
     <a href="admin.html" class="nav-item active"><span class="nav-icon">⚙</span> Ajustes</a>
   </div>
   <div style="padding:12px 16px;border-top:1px solid var(--border);">
-    <a href="planta2.html" target="_blank" style="color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-decoration:none;">Abrir tablet →</a>
+    <a href="planta2.html" target="_blank" style="color:var(--amber);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;text-decoration:none;">Abrir tablet →</a>
   </div>
 </aside>
 
@@ -155,13 +157,10 @@
 </div>
 
 <script>
-// TODO U2.4: archivo standalone sin catálogo centros-virtuales cargado.
-// CENTROS/CENTRO_LABEL/CENTRO_ICON/CENTRO_COLOR requieren migración coordinada
-// (icono y color no tienen equivalente en centros_virtuales aún).
-const CENTROS      = ['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'];
-const CENTRO_LABEL = { corte:'CORTE', enchapado:'ENCHAPADO/PERF', armado:'ARMADO', revision:'REVISION', colocacion:'COLOCACION', herreria:'HERRERIA', electrica:'ELECTRICA', macizo:'MACIZO' };
+let CENTROS = [];
+let CENTRO_LABEL = {};
 const CENTRO_ICON  = { corte:'⬡', enchapado:'◈', armado:'⬗', revision:'◎', colocacion:'▣', herreria:'○', electrica:'◇', macizo:'◆' };
-const CENTRO_COLOR = { corte:'var(--amber)', enchapado:'var(--blue)', armado:'var(--purple)', revision:'var(--teal)', colocacion:'var(--green)', herreria:'#94a3b8', electrica:'var(--yellow)', macizo:'#f97316' };
+const CENTRO_COLOR = { corte:'var(--amber)', enchapado:'var(--blue)', armado:'var(--purple)', revision:'var(--teal)', colocacion:'var(--green)', herreria:'#94a3b8', electrica:'var(--amber)', macizo:'var(--orange)' };
 
 const COEF_DEF = { corte:0.50, enchapado:0.30, armado:0.80, revision:0.20, colocacion:0.20, herreria:0.20, electrica:0.20, macizo:0.20 };
 const DIF_DEF  = { 1:0.7, 2:1.0, 3:1.5, 4:2.2 };
@@ -176,7 +175,17 @@ const DIF_DESC  = {
 let COEF = JSON.parse(localStorage.getItem('coef') || JSON.stringify(COEF_DEF));
 let DIF  = JSON.parse(localStorage.getItem('dif')  || JSON.stringify(DIF_DEF));
 
-function init() {
+async function init() {
+  const { data: cvData } = await supabase
+    .from('centros_virtuales')
+    .select('codigo, nombre')
+    .eq('activo', true)
+    .eq('es_descanso', false)
+    .order('orden', { ascending: true });
+
+  CENTROS = (cvData || []).map(c => c.codigo);
+  CENTRO_LABEL = Object.fromEntries((cvData || []).map(c => [c.codigo, c.nombre]));
+
   // coeficientes
   document.getElementById('coef-grid').innerHTML = CENTROS.map(c => `
     <div class="coef-box">
@@ -193,7 +202,7 @@ function init() {
       <div class="dif-name">${DIF_NAMES[d]}</div>
       <div class="dif-desc">${DIF_DESC[d]}</div>
       <input class="dif-input" type="number" step="0.1" min="0.1" max="10" value="${DIF[d]}" id="dif-${d}" oninput="onInput()"/>
-      <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:'JetBrains Mono',monospace;">multiplicador</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;font-family:'Space Mono',monospace;">multiplicador</div>
     </div>`).join('');
 
   renderTable();
