@@ -5755,7 +5755,7 @@ function _cdCerrar() {
 }
 
 // Ocultar nav-items restringidos según rol
-(function _applyRoleNav() {
+function _applyRoleNav() {
   const u = window.AUTH?.usuarioActual?.();
   if (!u || u.rol_app !== 'admin') {
     const esOficina = u?.rol_app === 'oficina';
@@ -5766,8 +5766,9 @@ function _cdCerrar() {
       if (esOficina && txt.includes('Stock')) el.style.display = 'none';
     });
   }
-})();
+}
 
+_applyRoleNav();
 renderDashboard();
 cargarTodoDesdeSupabase();
 iniciarAutoRefresh();
