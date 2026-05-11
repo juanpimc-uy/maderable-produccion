@@ -60,6 +60,7 @@
 // );
 
 import { createClient } from '@supabase/supabase-js';
+import bcrypt from 'bcryptjs';
 
 export const config = { runtime: 'edge' };
 
@@ -1738,18 +1739,26 @@ export default async function handler(req) {
 
     // ── POST login admin (email + PIN) ───────────────────────────────────
     if (action === 'login-admin' && req.method === 'POST') {
-      const { email, pin } = body;
-      if (!email || !pin) return err('email y pin requeridos', 400);
+      const { email, pin, password } = body;
+      const credential = password || pin;
+      if (!email || !credential) return err('email y credencial requeridos', 400);
       const { data, error } = await supabase
         .from('empleados')
-        .select('id, nombre, email, categoria, rol_app')
+        .select('id, nombre, email, categoria, rol_app, pin, password_hash')
         .eq('email', email)
-        .eq('pin', pin)
+        .in('rol_app', ['admin', 'oficina'])
         .limit(1)
         .maybeSingle();
       if (error) throw error;
       if (!data) return new Response(JSON.stringify({ ok: false, error: 'Credenciales incorrectas' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
       if (data.rol_app === 'operario') return new Response(JSON.stringify({ ok: false, error: 'Tu rol no permite acceso a admin', redirect: 'planta2' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      let valid = false;
+      if (data.rol_app === 'admin' && data.password_hash) {
+        valid = await bcrypt.compare(credential, data.password_hash);
+      } else {
+        valid = (data.pin === credential);
+      }
+      if (!valid) return new Response(JSON.stringify({ ok: false, error: 'Credenciales incorrectas' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
       return ok({ ok: true, usuario: { id: data.id, nombre: data.nombre, email: data.email, rol_app: data.rol_app, categoria: data.categoria } });
     }
 
@@ -1764,6 +1773,29 @@ export default async function handler(req) {
       if (!emp) return err('Empleado no encontrado', 404);
       if (emp.pin !== pin_actual) return new Response(JSON.stringify({ ok: false, error: 'PIN actual incorrecto' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
       const { error: uErr } = await supabase.from('empleados').update({ pin: pin_nuevo }).eq('id', empleado_id);
+      if (uErr) throw uErr;
+      return ok({ ok: true });
+    }
+
+    // ── POST cambiar contraseña (admin con bcrypt) ──────────────────────────
+    if (action === 'cambiar-password' && req.method === 'POST') {
+      const { empleado_id, credencial_actual, password_nuevo } = body;
+      if (!empleado_id || !credencial_actual || !password_nuevo) return err('empleado_id, credencial_actual y password_nuevo requeridos', 400);
+      if (password_nuevo.length < 8) return new Response(JSON.stringify({ ok: false, error: 'La contraseña debe tener mínimo 8 caracteres' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      const { data: emp, error: eErr } = await supabase
+        .from('empleados').select('pin, password_hash, rol_app').eq('id', empleado_id).maybeSingle();
+      if (eErr) throw eErr;
+      if (!emp) return err('Empleado no encontrado', 404);
+      if (emp.rol_app !== 'admin') return new Response(JSON.stringify({ ok: false, error: 'Solo usuarios admin pueden configurar contraseña' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      let valid = false;
+      if (emp.password_hash) {
+        valid = await bcrypt.compare(credencial_actual, emp.password_hash);
+      } else {
+        valid = (emp.pin === credencial_actual);
+      }
+      if (!valid) return new Response(JSON.stringify({ ok: false, error: 'Credencial actual incorrecta' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      const hash = await bcrypt.hash(password_nuevo, 12);
+      const { error: uErr } = await supabase.from('empleados').update({ password_hash: hash }).eq('id', empleado_id);
       if (uErr) throw uErr;
       return ok({ ok: true });
     }
