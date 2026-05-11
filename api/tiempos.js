@@ -1318,8 +1318,8 @@ export default async function handler(req) {
 
     // ── PATCH actualizar empleado existente ───────────────────────────────
     if (action === 'actualizar-empleado' && req.method === 'PATCH') {
-      const { nombre, categoria, centros_autorizados, cedula, descanso_modalidad, pit_stop_minutos, acceso_tiempos } = body;
-      if (!nombre) return err('nombre requerido');
+      const { id, nombre, categoria, centros_autorizados, cedula, descanso_modalidad, pit_stop_minutos, acceso_tiempos } = body;
+      if (!id) return err('id requerido');
       if (descanso_modalidad !== undefined && descanso_modalidad !== null) {
         if (!['paga_30', 'no_paga_60', 'sin_limite'].includes(descanso_modalidad))
           return err('descanso_modalidad debe ser paga_30, no_paga_60 o sin_limite', 400);
@@ -1329,6 +1329,7 @@ export default async function handler(req) {
         if (isNaN(psm) || psm < 0) return err('pit_stop_minutos debe ser entero >= 0', 400);
       }
       const campos = {
+        ...(nombre               !== undefined ? { nombre }                                                      : {}),
         ...(cedula               !== undefined ? { cedula: cedula || null }                                      : {}),
         ...(categoria            !== undefined ? { categoria }                                                   : {}),
         ...(centros_autorizados  !== undefined ? { centros_autorizados }                                         : {}),
@@ -1338,7 +1339,7 @@ export default async function handler(req) {
       };
       if (Object.keys(campos).length === 0) return err('Nada que actualizar', 400);
       const { data, error } = await supabase
-        .from('empleados').update(campos).eq('nombre', nombre).select().single();
+        .from('empleados').update(campos).eq('id', id).select().single();
       if (error) throw error;
       return ok({ ok: true, empleado: data });
     }
@@ -1965,14 +1966,17 @@ export default async function handler(req) {
       const empleado_id = url.searchParams.get('empleado_id');
       if (!empleado_id) return err('empleado_id requerido', 400);
 
+      const fechaParam = url.searchParams.get('fecha');
       const hoy = new Date().toISOString().split('T')[0];
+      const fecha = fechaParam || hoy;
+      const esHoy = fecha === hoy;
       const ahora = new Date();
 
-      // 1. Jornada abierta de hoy
-      const { data: jornada, error: jErr } = await supabase
-        .from('jornadas').select('*')
-        .eq('empleado_id', empleado_id).eq('fecha', hoy).is('salida', null)
-        .maybeSingle();
+      // 1. Jornada del día solicitado
+      let jornadaQuery = supabase.from('jornadas').select('*')
+        .eq('empleado_id', empleado_id).eq('fecha', fecha);
+      if (esHoy) jornadaQuery = jornadaQuery.is('salida', null);
+      const { data: jornada, error: jErr } = await jornadaQuery.maybeSingle();
       if (jErr) throw jErr;
 
       if (!jornada) {

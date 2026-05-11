@@ -2813,8 +2813,10 @@ function _renderOpGestion() {
   );
   operariosUnicos.forEach(op=>{
     const hist=HISTORIAL.filter(h=>h.operarioId===op.id);
-    const totalH=hist.reduce((a,h)=>a+msH(h.fin-h.inicio),0);
     const ses=SESIONES.find(s=>s.operarioId===op.id);
+    const sesMs=ses?Math.max(0,Date.now()-new Date(ses.inicio).getTime()):0;
+    const totalH=hist.reduce((a,h)=>a+msH(h.fin-h.inicio),0)+msH(sesMs);
+    const totalSes=hist.length+(ses?1:0);
     const exp=_opHistExpanded[op.id];
     html+=`<div class="op-row" style="flex-direction:column;gap:0;padding:0;overflow:hidden;margin-bottom:10px;">
       <div style="display:flex;align-items:center;padding:14px 20px;gap:14px;">
@@ -2822,7 +2824,7 @@ function _renderOpGestion() {
           <div class="av active" style="width:40px;height:40px;font-size:14px;flex-shrink:0;">${op.avatar||getIniciales(op.nombre)}</div>
           <div style="flex:1;">
             <div style="font-size:15px;font-weight:700;">${op.nombre}</div>
-            <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">${op.rol_app||'operario'}${window.AUTH.esAdmin()?` · <span style="color:var(--amber);font-size:10px;">${op.categoria||'directo'}</span>`:''} · ${hist.length} sesiones · ${fmtH(totalH)} totales</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">${op.rol_app||'operario'}${window.AUTH.esAdmin()?` · <span style="color:var(--amber);font-size:10px;">${op.categoria||'directo'}</span>`:''} · ${totalSes} sesiones · ${fmtH(totalH)} totales</div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;">${(op.centros&&op.centros.length)?op.centros.map(cid=>{const c=getCentro(cid);return c?`<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:1px 6px;border-radius:3px;color:${c.color};background:${c.color}12;border:1px solid ${c.color}44;">${c.icon} ${c.label}</span>`:''}).join(''):''}</div>
           ${!(op.centros&&op.centros.length)?`<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:1px 6px;border-radius:3px;color:var(--muted);background:var(--faint);border:1px solid var(--border);">SIN CENTROS</span>`:''}
           </div>
