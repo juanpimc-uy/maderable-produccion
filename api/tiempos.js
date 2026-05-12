@@ -374,7 +374,7 @@ export default async function handler(req) {
     if (action === 'empleados' && req.method === 'GET') {
       const { data, error } = await supabase
         .from('empleados')
-        .select('id,nombre,cedula,email,rol_app,categoria,centros_autorizados,horario_entrada,horario_salida,descanso_modalidad')
+        .select('id,nombre,cedula,email,rol_app,categoria,centros_autorizados,horario_entrada,horario_salida,descanso_modalidad,acceso_tiempos,pit_stop_minutos')
         .eq('activo', true)
         .order('nombre');
       if (error) throw error;
