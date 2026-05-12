@@ -458,7 +458,7 @@ textarea.campo {
     </div>
 
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
-      <button class="btn btn-primary" id="btn-iniciar" onclick="ir('pantalla-tarea');initTarea()">
+      <button class="btn btn-primary" id="btn-iniciar" onclick="iniciarSeleccion()">
         ▶&nbsp;&nbsp;INICIAR TAREA
       </button>
       <button class="btn btn-outline" id="btn-finalizar" onclick="ir('pantalla-finalizar');initFinalizar()">
@@ -477,7 +477,7 @@ textarea.campo {
 ══════════════════════════════════════════════════════════════════════ -->
 <div id="pantalla-tarea" class="pantalla">
   <div class="header">
-    <button class="back-link" onclick="ir('pantalla-menu')">← Volver</button>
+    <button class="back-link" onclick="ir('pantalla-centro-selector')">← Volver</button>
     <span class="header-logo" style="font-size:11px;">NUEVA TAREA</span>
     <div style="width:60px;"></div>
   </div>
@@ -506,7 +506,7 @@ textarea.campo {
 ══════════════════════════════════════════════════════════════════════ -->
 <div id="pantalla-centro-selector" class="pantalla">
   <div class="header">
-    <button class="back-link" onclick="ir('pantalla-tarea')">← Volver</button>
+    <button class="back-link" onclick="ir('pantalla-menu')">← Volver</button>
     <span class="header-logo" style="font-size:11px;">CENTRO DE TRABAJO</span>
     <div style="width:60px;"></div>
   </div>
@@ -1044,6 +1044,7 @@ let checkState = [false, false, false, false, false];
 let proyectoSel = null;
 let itemSel     = null;
 let centroSel   = null;
+let _modoSoloProyecto = false;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // UTILIDADES
@@ -1444,8 +1445,35 @@ function iniciarIntervalos() {
 // ═══════════════════════════════════════════════════════════════════════════
 // PANTALLA 3 — NUEVA TAREA
 // ═══════════════════════════════════════════════════════════════════════════
+function iniciarSeleccion() {
+  proyectoSel = null;
+  itemSel = null;
+  centroSel = null;
+  _modoSoloProyecto = false;
+  const autorizados = [...new Set(
+    (empleadoActual?.centros_autorizados || []).map(c =>
+      c === 'empaquetado' ? 'colocacion' : c)
+  )];
+  const el = document.getElementById('lista-centros-selector');
+  const infoEl = document.getElementById('centro-sel-info');
+  if (infoEl) infoEl.textContent = '';
+  if (!autorizados.length) {
+    el.innerHTML = '<div class="warn-box">⚠ Sin centros asignados. Contactá al supervisor.</div>';
+  } else {
+    el.innerHTML = autorizados.map(c => {
+      const label = (_cvP.find(x=>x.codigo===c)?.nombre||c.toUpperCase());
+      return `<button class="centro-btn" id="ctsel-${esc(c)}"
+        onclick="selCentroFinal('${esc(c)}','${c}')">
+        <span class="centro-dot"></span>
+        <div>${label}</div>
+      </button>`;
+    }).join('');
+  }
+  ir('pantalla-centro-selector');
+}
+
 function initTarea() {
-  proyectoSel = null; itemSel = null; centroSel = null;
+  proyectoSel = null; itemSel = null;
   _snapshotData = null; _snapQuery = '';
   document.getElementById('banner-pausada').style.display = 'none';
   const snapSearch = document.getElementById('snap-search');
@@ -1735,27 +1763,31 @@ function filtrarSnapshot() {
     const expanded  = q !== '';
     const toggleSym = expanded ? '▾' : '▸';
 
-    const mueblesHtml = muebles.length
-      ? muebles.map(m => {
-          const mcId  = esc(odf.id + '_' + m.id);
-          const banner = m.es_ultimo_del_operario
-            ? '<div class="mueble-card-banner">ÚLTIMO TRABAJADO</div>'
-            : '';
-          const btnHtml = `<button class="mueble-card-btn mueble-card-btn-iniciar" onclick="selMueble('${escAttr(odf.id)}','${escAttr(String(m.id))}')">Iniciar →</button>`;
-          return `
-            <div class="mueble-card" id="mc-${mcId}">
-              ${banner}
-              <div class="mueble-card-body">
-                ${m.codigo ? `<div class="mueble-card-codigo">${m.codigo}</div>` : ''}
-                <div class="mueble-card-nombre">${_nombreMueble(m)}</div>
-                ${m.material ? `<div class="mueble-card-material">${m.material}</div>` : ''}
-                <div>${_chipMueble(m)}</div>
-                ${btnHtml}
+    const mueblesHtml = _modoSoloProyecto
+      ? `<div style="grid-column:1/-1;padding:4px 0;">
+           <button class="btn btn-primary btn-sm" style="width:100%;" onclick="selODFSoloProyecto('${escAttr(odf.id)}')">→ Trabajar en este proyecto</button>
+         </div>`
+      : muebles.length
+        ? muebles.map(m => {
+            const mcId  = esc(odf.id + '_' + m.id);
+            const banner = m.es_ultimo_del_operario
+              ? '<div class="mueble-card-banner">ÚLTIMO TRABAJADO</div>'
+              : '';
+            const btnHtml = `<button class="mueble-card-btn mueble-card-btn-iniciar" onclick="selMueble('${escAttr(odf.id)}','${escAttr(String(m.id))}')">Iniciar →</button>`;
+            return `
+              <div class="mueble-card" id="mc-${mcId}">
+                ${banner}
+                <div class="mueble-card-body">
+                  ${m.codigo ? `<div class="mueble-card-codigo">${m.codigo}</div>` : ''}
+                  <div class="mueble-card-nombre">${_nombreMueble(m)}</div>
+                  ${m.material ? `<div class="mueble-card-material">${m.material}</div>` : ''}
+                  <div>${_chipMueble(m)}</div>
+                  ${btnHtml}
+                </div>
               </div>
-            </div>
-          `;
-        }).join('')
-      : '<div style="color:var(--muted);font-size:12px;padding:4px 0;grid-column:1/-1;">Sin muebles</div>';
+            `;
+          }).join('')
+        : '<div style="color:var(--muted);font-size:12px;padding:4px 0;grid-column:1/-1;">Sin muebles</div>';
 
     const clienteStr = odf.cliente ? ` · ${odf.cliente}` : '';
     const obraStr    = odf.obra    ? ` · ${odf.obra}`    : '';
@@ -1846,8 +1878,12 @@ function selMueble(proyectoId, muebleId) {
   document.querySelectorAll('.mueble-card').forEach(c => c.classList.remove('sel'));
   document.getElementById('mc-' + esc(proyectoId + '_' + muebleId))?.classList.add('sel');
 
-  initCentroSelector();
-  ir('pantalla-centro-selector');
+  if (centroSel) {
+    confirmarTarea();
+  } else {
+    initCentroSelector();
+    ir('pantalla-centro-selector');
+  }
 }
 
 function initCentroSelector() {
@@ -1886,18 +1922,50 @@ function selCentroFinal(id, nombre) {
   centroSel = nombre;
   document.querySelectorAll('#lista-centros-selector .centro-btn').forEach(b => b.classList.remove('sel'));
   document.getElementById('ctsel-' + id)?.classList.add('sel');
+
+  const cv = _cvP.find(x => x.codigo === nombre);
+  const reqProyecto = cv?.requiere_proyecto ?? true;
+  const reqMueble   = cv?.requiere_mueble   ?? true;
+
+  if (reqMueble) {
+    _modoSoloProyecto = false;
+    initTarea();
+    ir('pantalla-tarea');
+  } else if (reqProyecto) {
+    _modoSoloProyecto = true;
+    initTarea();
+    ir('pantalla-tarea');
+  } else {
+    proyectoSel = null;
+    itemSel = null;
+    confirmarTarea();
+  }
+}
+
+function selODFSoloProyecto(odfId) {
+  _modoSoloProyecto = false;
+  const odf = (_snapshotData?.odfs_activas || []).find(p => p.id === odfId);
+  if (!odf) return;
+  proyectoSel = {
+    id: odf.id,
+    nombre: odf.numero,
+    obra: odf.obra,
+    cliente: odf.cliente,
+    items: [],
+  };
+  itemSel = null;
   confirmarTarea();
 }
 
 async function confirmarTarea() {
-  if (!proyectoSel || !itemSel || !centroSel) return;
+  if (!centroSel) return;
 
   // D4: verificar si existe registro finalizado para esta combinación exacta (histórico completo)
   try {
     const params = new URLSearchParams({
       empleado_id: empleadoActual.id,
-      proyecto_id: proyectoSel.id,
-      item_id:     String(itemSel.id),
+      proyecto_id: proyectoSel?.id || '',
+      item_id:     String(itemSel?.id || ''),
       centro:      centroSel,
     });
     const chk = await fetch(`/api/tiempos?action=registro-finalizado-existe&${params}`).then(r => r.json());
@@ -1919,10 +1987,10 @@ async function confirmarTarea() {
     const { registro } = await apiPost('iniciar-tarea', {
       empleado_id:     empleadoActual.id,
       jornada_id:      jornada.id,
-      proyecto_id:     proyectoSel.id,
-      proyecto_nombre: proyectoSel.nombre,
-      item_id:         itemSel.id,
-      item_nombre:     itemSel.nombre,
+      proyecto_id:     proyectoSel?.id   || null,
+      proyecto_nombre: proyectoSel?.nombre || null,
+      item_id:         itemSel?.id       || null,
+      item_nombre:     itemSel?.nombre   || null,
       centro:          centroSel,
     });
     registroActivo = registro;
@@ -2189,7 +2257,7 @@ function cambiarTareaCNC() {
     updateCNCResumen();
   }
   clearInterval(_intCNC);
-  ir('pantalla-tarea'); initTarea();
+  iniciarSeleccion();
 }
 
 function finalizarTareaCNC() { cerrarOpcionesCNC(); finalizarCNC(); }
