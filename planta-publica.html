@@ -271,8 +271,6 @@ function renderSnapshot(data) {
 
   // Counters
   document.getElementById('tv-counters').innerHTML =
-    `<span style="color:var(--red);">${counters.inactivos||0} INACTIVAS</span>`+
-    `<span style="color:#444;margin:0 12px;">·</span>`+
     `<span style="color:var(--text);">${counters.en_tarea||0} EN TAREA</span>`+
     `<span style="color:#444;margin:0 12px;">·</span>`+
     `<span>${counters.sin_tarea||0} SIN TAREA</span>`;
@@ -290,21 +288,26 @@ function renderSnapshot(data) {
     return a.nombre.localeCompare(b.nombre);
   });
 
-  // ── Mobile cards ──
-  let mobHtml = '';
-  sorted.forEach(op => {
-    const esInact = op.estado === 'inactivo';
+  // ── Separar planta / oficina ──
+  const planta  = sorted.filter(op => op.rol_app === 'operario');
+  const oficina = sorted.filter(op => op.rol_app !== 'operario');
+  const separadorMob = (planta.length && oficina.length)
+    ? `<div style="border-top:1px solid var(--border);font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;padding:6px 0;">OFICINA</div>`
+    : '';
+  const separadorTbl = (planta.length && oficina.length)
+    ? `<div style="border-top:1px solid var(--border);font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;padding:6px 18px;">OFICINA</div>`
+    : '';
+
+  // ── Mobile card builder ──
+  function renderMobCard(op) {
     const esSin   = op.estado === 'sin_tarea';
-    const cardCls = esInact ? 'tv-mob-card row-inact' : esSin ? 'tv-mob-card row-sin' : 'tv-mob-card';
-    const avatarCls = (!esInact && !esSin) ? 'tv-mob-avatar activo' : 'tv-mob-avatar';
+    const cardCls = esSin ? 'tv-mob-card row-sin' : 'tv-mob-card';
+    const avatarCls = !esSin ? 'tv-mob-avatar activo' : 'tv-mob-avatar';
     const iniciales = getIniciales(op.nombre);
     const centro = esSin ? '' : (op.centro_label || '');
     const proyecto = esSin ? 'Sin tarea' : [op.proyecto?.odf, op.proyecto?.cliente].filter(Boolean).join(' · ') || '—';
     let timer = '';
-    if (esInact) {
-      const m = op.inactivo_minutos||0;
-      timer = `<span style="color:var(--red);font-family:'Space Mono',monospace;font-size:11px;">⚠ ${m>=60?Math.floor(m/60)+'h'+m%60+'m':m+'m'}</span>`;
-    } else if (op.estado === 'en_tarea') {
+    if (op.estado === 'en_tarea') {
       const m = op.tiempo_minutos||0;
       timer = `<span class="tv-mob-timer">${m>=60?Math.floor(m/60)+'h'+m%60+'m':m+'m'}</span>`;
     }
@@ -313,8 +316,7 @@ function renderSnapshot(data) {
     const obra    = op.proyecto?.obra || '—';
     const mueble  = op.mueble?.nombre || '—';
     const entradaTxt = op.entrada ? new Date(op.entrada).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'}) : '—';
-
-    mobHtml += `<div class="${cardCls}" onclick="this.classList.toggle('expanded');this.querySelector('.tv-mob-detail').classList.toggle('open');">
+    return `<div class="${cardCls}" onclick="this.classList.toggle('expanded');this.querySelector('.tv-mob-detail').classList.toggle('open');">
       <div class="tv-mob-card-summary">
         <div class="${avatarCls}">${iniciales}</div>
         <div class="tv-mob-main">
@@ -335,9 +337,38 @@ function renderSnapshot(data) {
         <div class="tv-mob-detail-row"><span class="tv-mob-detail-label">Entrada</span><span class="tv-mob-detail-val">${entradaTxt}</span></div>
       </div>
     </div>`;
-  });
+  }
 
-  // ── Desktop table ──
+  let mobHtml = planta.map(renderMobCard).join('') + separadorMob + oficina.map(renderMobCard).join('');
+
+  // ── Desktop table row builder ──
+  function renderOpRow(op) {
+    const esSin   = op.estado === 'sin_tarea';
+    const cls = esSin ? 'tv-op-row row-sin' : 'tv-op-row';
+    const prefijo = esSin ? '◌ ' : '';
+    const nombreColor = esSin ? 'var(--muted)' : 'var(--text)';
+    const centro  = esSin ? '—' : (op.centro_label || '—');
+    const odf     = esSin ? '—' : (op.proyecto?.odf || '—');
+    const cliente = esSin ? '—' : (op.proyecto?.cliente || '—');
+    const mueble  = esSin ? '—' : (op.mueble?.nombre || '—');
+    let estadoTxt = '';
+    if (op.estado === 'en_tarea') {
+      const m = op.tiempo_minutos||0;
+      estadoTxt = `<span style="color:var(--amber);">${m>=60?Math.floor(m/60)+'H '+m%60+' MIN':m+' MIN'}</span>`;
+    } else {
+      const entrada = op.entrada ? new Date(op.entrada).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'}) : '—';
+      estadoTxt = `<span style="color:var(--muted);">SIN TAREA · ${entrada}</span>`;
+    }
+    return `<div class="${cls}">
+      <div class="tv-op-col tv-op-nombre" style="color:${nombreColor};">${prefijo}${op.nombre}</div>
+      <div class="tv-op-col">${centro}</div>
+      <div class="tv-op-col" style="color:var(--amber);">${odf}</div>
+      <div class="tv-op-col">${cliente}</div>
+      <div class="tv-op-col">${mueble}</div>
+      <div class="tv-op-col" style="text-align:right;">${estadoTxt}</div>
+    </div>`;
+  }
+
   let opsHtml = `<div class="tv-header-row">
     <div style="flex:1.4;">OPERARIO</div>
     <div style="flex:1;">CENTRO</div>
@@ -346,37 +377,9 @@ function renderSnapshot(data) {
     <div style="flex:1;">MUEBLE</div>
     <div style="flex:1.2;text-align:right;">ESTADO</div>
   </div>`;
-
-  sorted.forEach(op => {
-    const esInact = op.estado === 'inactivo';
-    const esSin   = op.estado === 'sin_tarea';
-    const cls = esInact ? 'tv-op-row row-inact' : esSin ? 'tv-op-row row-sin' : 'tv-op-row';
-    const prefijo = esInact ? '⚠ ' : esSin ? '◌ ' : '';
-    const nombreColor = esInact ? '#ff8888' : esSin ? 'var(--muted)' : 'var(--text)';
-    const centro  = esSin ? '—' : (op.centro_label || '—');
-    const odf     = esSin ? '—' : (op.proyecto?.odf || '—');
-    const cliente = esSin ? '—' : (op.proyecto?.cliente || '—');
-    const mueble  = esSin ? '—' : (op.mueble?.nombre || '—');
-    let estadoTxt = '';
-    if (esInact) {
-      const m = op.inactivo_minutos||0;
-      estadoTxt = `<span style="color:var(--red);">INACTIVA ${m>=60?Math.floor(m/60)+'H '+m%60:m} MIN</span>`;
-    } else if (op.estado === 'en_tarea') {
-      const m = op.tiempo_minutos||0;
-      estadoTxt = `<span style="color:var(--amber);">${m>=60?Math.floor(m/60)+'H '+m%60+' MIN':m+' MIN'}</span>`;
-    } else {
-      const entrada = op.entrada ? new Date(op.entrada).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'}) : '—';
-      estadoTxt = `<span style="color:var(--muted);">SIN TAREA · ${entrada}</span>`;
-    }
-    opsHtml += `<div class="${cls}">
-      <div class="tv-op-col tv-op-nombre" style="color:${nombreColor};">${prefijo}${op.nombre}</div>
-      <div class="tv-op-col">${centro}</div>
-      <div class="tv-op-col" style="color:var(--amber);">${odf}</div>
-      <div class="tv-op-col">${cliente}</div>
-      <div class="tv-op-col">${mueble}</div>
-      <div class="tv-op-col" style="text-align:right;">${estadoTxt}</div>
-    </div>`;
-  });
+  opsHtml += planta.map(renderOpRow).join('');
+  opsHtml += separadorTbl;
+  opsHtml += oficina.map(renderOpRow).join('');
 
   if (!sorted.length) {
     const emptyMsg = '<div style="padding:20px;font-family:\'Space Mono\',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;">SIN ACTIVIDAD</div>';
@@ -393,8 +396,7 @@ function renderSnapshot(data) {
 
   document.getElementById('tv-centros').innerHTML = centrosToShow.map(c => {
     const sin = c.total === 0;
-    const alarm = !sin && c.sin_senal > 0;
-    const numCls = sin ? 'tv-centro-num dim' : alarm ? 'tv-centro-num alarm' : 'tv-centro-num';
+    const numCls = sin ? 'tv-centro-num dim' : 'tv-centro-num';
     const mueblesList = sin
       ? '<div class="tv-centro-empty">SIN ACTIVIDAD</div>'
       : (c.muebles||[]).map(m => {
@@ -408,7 +410,7 @@ function renderSnapshot(data) {
             : null;
           const clienteCorto = opMatch?.proyecto?.cliente || m.cliente || null;
           const linea = [nombreCorto, clienteCorto].filter(Boolean).join(' · ') || (m.odf || '—');
-          return `<div class="tv-mueble-row${m.sin_senal?' m-inact':''}">${linea}${m.sin_senal?' ⚠':''}</div>`;
+          return `<div class="tv-mueble-row">${linea}</div>`;
         }).join('');
     return `<div class="tv-centro-card">
       <div class="tv-centro-header">
