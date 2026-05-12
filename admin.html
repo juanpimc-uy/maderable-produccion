@@ -1176,6 +1176,7 @@ async function syncOperarioSupabase(op, upsert = false) {
         centros_autorizados: op.centros || op.centros_autorizados || [],
         horario_entrada: op.horario_entrada || '08:00',
         horario_salida:  op.horario_salida  || '17:00',
+        acceso_tiempos: op.acceso_tiempos ?? false,
       })
     });
   } catch(e) {
