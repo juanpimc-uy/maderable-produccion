@@ -13,66 +13,150 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MBLE · Planta</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Sora:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;}
   :root{
-    --bg:#0E0F14; --panel:#14161D; --card:#1A1D27; --border:#252836;
-    --text:#E8EAF2; --muted:#5A5F78; --faint:#20243A;
-    --amber:#F5A623; --green:#3DD68C; --red:#F05C5C;
+    --bg:#0f0f0f; --panel:#1e1e1e; --card:#252525; --border:#2a2a2a;
+    --text:#e8e8e8; --muted:#888; --faint:#1a1a1a;
+    --accent:#FFD600; --amber:#FFD600; --green:#3DD68C; --red:#F05C5C;
   }
-  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100vh;}
-  .mono{font-family:'JetBrains Mono',monospace;}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
+  .mono{font-family:'Space Mono',monospace;}
 
   /* ── Login ── */
   #screen-login{display:flex;align-items:center;justify-content:center;min-height:100vh;}
   .login-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:40px;width:100%;max-width:360px;}
-  .login-logo{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--amber);letter-spacing:3px;text-align:center;margin-bottom:6px;}
-  .login-sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-align:center;margin-bottom:28px;}
-  .login-input{width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:12px 14px;color:var(--text);font-size:15px;outline:none;margin-bottom:12px;transition:border-color .15s;font-family:'JetBrains Mono',monospace;letter-spacing:3px;}
+  .login-logo{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--amber);letter-spacing:3px;text-align:center;margin-bottom:6px;}
+  .login-sub{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-align:center;margin-bottom:28px;}
+  .login-input{width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:12px 14px;color:var(--text);font-size:15px;outline:none;margin-bottom:12px;transition:border-color .15s;font-family:'Space Mono',monospace;letter-spacing:3px;}
   .login-input:focus{border-color:var(--amber);}
-  .login-btn{width:100%;background:var(--amber);color:#0E0F14;border:none;border-radius:6px;padding:13px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:opacity .15s;}
+  .login-btn{width:100%;background:var(--amber);color:#0f0f0f;border:none;border-radius:6px;padding:13px;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:opacity .15s;}
   .login-btn:hover{opacity:.85;}
   .login-btn:disabled{opacity:.5;cursor:not-allowed;}
-  .login-error{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--red);text-align:center;min-height:18px;margin-top:10px;}
+  .login-error{font-family:'Space Mono',monospace;font-size:11px;color:var(--red);text-align:center;min-height:18px;margin-top:10px;}
 
   /* ── Dashboard ── */
   #screen-dash{display:none;}
   .tv-header{background:var(--panel);border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-  .tv-logo{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--amber);letter-spacing:3px;}
-  .tv-live{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:10px;}
+  .tv-logo{font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--amber);letter-spacing:3px;}
+  .tv-live{font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:10px;}
   .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
   .tv-content{padding:28px 32px;}
-  #tv-err{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--red);display:none;margin-bottom:10px;}
+  #tv-err{font-family:'Space Mono',monospace;font-size:11px;color:var(--red);display:none;margin-bottom:10px;}
 
   /* ── Counters ── */
-  .tv-counters{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--muted);letter-spacing:1px;margin-bottom:18px;}
+  .tv-counters{font-family:'Space Mono',monospace;font-size:14px;color:var(--muted);letter-spacing:1px;margin-bottom:18px;}
 
   /* ── Op rows (bigger than admin) ── */
-  .tv-header-row{display:flex;gap:14px;padding:9px 18px 7px;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
-  .tv-op-row{display:flex;gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid rgba(37,40,54,.5);font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:.5px;text-transform:uppercase;}
+  .tv-header-row{display:flex;gap:14px;padding:9px 18px 7px;border-bottom:1px solid var(--border);font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+  .tv-op-row{display:flex;gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid rgba(42,42,42,.5);font-family:'Space Mono',monospace;font-size:14px;letter-spacing:.5px;text-transform:uppercase;}
   .tv-op-row:last-child{border-bottom:none;}
-  .tv-op-row.row-inact{background:#2a1010;border-left:3px solid #ff4444;}
+  .tv-op-row.row-inact{background:rgba(240,92,92,.06);border-left:3px solid var(--red);}
   .tv-op-row.row-sin{background:#131313;color:var(--muted);}
   .tv-op-col{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .tv-op-nombre{flex:1.4;font-weight:700;}
 
   /* ── Centro cards (bigger) ── */
-  .tv-sec-title{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;}
+  .tv-sec-title{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;}
   .tv-centros-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
   .tv-centro-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;}
   .tv-centro-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
-  .tv-centro-label{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:1px;text-transform:uppercase;}
+  .tv-centro-label{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:1px;text-transform:uppercase;}
   .tv-centro-label.dim{color:var(--muted);}
-  .tv-centro-num{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--amber);}
+  .tv-centro-num{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--amber);}
   .tv-centro-num.dim{color:var(--muted);}
-  .tv-centro-num.alarm{color:#ff4444;}
-  .tv-mueble-row{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);padding:4px 0;border-bottom:1px solid rgba(37,40,54,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tv-centro-num.alarm{color:var(--red);}
+  .tv-mueble-row{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);padding:4px 0;border-bottom:1px solid rgba(42,42,42,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .tv-mueble-row:last-child{border-bottom:none;}
   .tv-mueble-row.m-inact{color:#ff8888;}
-  .tv-centro-empty{font-family:'JetBrains Mono',monospace;font-size:11px;color:#444;letter-spacing:1px;padding:4px 0;}
+  .tv-centro-empty{font-family:'Space Mono',monospace;font-size:11px;color:#444;letter-spacing:1px;padding:4px 0;}
 
   @media(max-width:900px){.tv-centros-grid{grid-template-columns:repeat(2,1fr);}}
+
+  /* ── Mobile cards (portrait ≤480px) ── */
+  @media(max-width:480px){
+    .tv-table-section { display: none; }
+    .tv-mobile-cards { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+    .tv-content { padding: 16px; }
+  }
+  @media(min-width:481px){
+    .tv-mobile-cards { display: none; }
+  }
+
+  .tv-mob-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  .tv-mob-card.row-inact { border-left: 3px solid var(--red); background: rgba(240,92,92,.06); }
+  .tv-mob-card.row-sin { opacity: .6; }
+  .tv-mob-card-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+  .tv-mob-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--faint); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Space Mono', monospace; font-size: 12px;
+    font-weight: 700; color: var(--amber); flex-shrink: 0;
+  }
+  .tv-mob-avatar.activo { border-color: var(--amber); background: rgba(255,214,0,.08); }
+  .tv-mob-main { flex: 1; min-width: 0; }
+  .tv-mob-nombre {
+    font-family: 'Space Mono', monospace; font-size: 12px;
+    font-weight: 700; color: var(--text); text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 4px;
+  }
+  .tv-mob-sub {
+    display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  }
+  .tv-mob-centro {
+    font-family: 'Space Mono', monospace; font-size: 9px;
+    letter-spacing: 1px; color: var(--amber);
+    background: rgba(255,214,0,.1); border: 1px solid rgba(255,214,0,.2);
+    border-radius: 3px; padding: 2px 6px; text-transform: uppercase;
+  }
+  .tv-mob-proyecto {
+    font-size: 11px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tv-mob-timer {
+    font-family: 'Space Mono', monospace; font-size: 13px;
+    font-weight: 700; color: var(--amber); flex-shrink: 0;
+  }
+  .tv-mob-detail {
+    display: none;
+    padding: 0 16px 14px;
+    border-top: 1px solid var(--border);
+  }
+  .tv-mob-detail.open { display: block; }
+  .tv-mob-detail-row {
+    display: flex; justify-content: space-between;
+    padding: 6px 0; border-bottom: 1px solid rgba(42,42,42,.5);
+    font-size: 12px;
+  }
+  .tv-mob-detail-row:last-child { border-bottom: none; }
+  .tv-mob-detail-label {
+    font-family: 'Space Mono', monospace; font-size: 9px;
+    letter-spacing: 1px; color: var(--muted); text-transform: uppercase;
+    align-self: center;
+  }
+  .tv-mob-detail-val {
+    font-size: 12px; color: var(--text); text-align: right;
+    max-width: 60%; word-break: break-word;
+  }
+  .tv-mob-chevron {
+    font-size: 10px; color: var(--muted); flex-shrink: 0;
+    transition: transform .2s;
+  }
+  .tv-mob-card.expanded .tv-mob-chevron { transform: rotate(180deg); }
 </style>
 </head>
 <body>
@@ -111,7 +195,6 @@
 
 <script>
 const FLAG_KEY = 'planta_publica_auth';
-// TODO U2.4: CENTROS_FIJOS eliminado — centros ya vienen ordenados por `orden` desde dashboard-snapshot
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 if (localStorage.getItem(FLAG_KEY) === '1') {
@@ -169,6 +252,12 @@ async function cargarSnapshot() {
   }
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function getIniciales(nombre) {
+  return (nombre||'').split(' ').filter(Boolean)
+    .slice(0,2).map(p=>p[0]).join('').toUpperCase();
+}
+
 // ── Render ────────────────────────────────────────────────────────────────────
 function renderSnapshot(data) {
   const { counters, operarios, centros, timestamp } = data;
@@ -181,7 +270,7 @@ function renderSnapshot(data) {
 
   // Counters
   document.getElementById('tv-counters').innerHTML =
-    `<span style="color:#ff4444;">${counters.inactivos||0} INACTIVAS</span>`+
+    `<span style="color:var(--red);">${counters.inactivos||0} INACTIVAS</span>`+
     `<span style="color:#444;margin:0 12px;">·</span>`+
     `<span style="color:var(--text);">${counters.en_tarea||0} EN TAREA</span>`+
     `<span style="color:#444;margin:0 12px;">·</span>`+
@@ -192,6 +281,54 @@ function renderSnapshot(data) {
   const ORDER = { inactivo:0, en_tarea:1, sin_tarea:2 };
   const sorted = [...visibles].sort((a,b) => (ORDER[a.estado]??3)-(ORDER[b.estado]??3));
 
+  // ── Mobile cards ──
+  let mobHtml = '';
+  sorted.forEach(op => {
+    const esInact = op.estado === 'inactivo';
+    const esSin   = op.estado === 'sin_tarea';
+    const cardCls = esInact ? 'tv-mob-card row-inact' : esSin ? 'tv-mob-card row-sin' : 'tv-mob-card';
+    const avatarCls = (!esInact && !esSin) ? 'tv-mob-avatar activo' : 'tv-mob-avatar';
+    const iniciales = getIniciales(op.nombre);
+    const centro = esSin ? '' : (op.centro_label || '');
+    const proyecto = esSin ? 'Sin tarea' : [op.proyecto?.odf, op.proyecto?.cliente].filter(Boolean).join(' · ') || '—';
+    let timer = '';
+    if (esInact) {
+      const m = op.inactivo_minutos||0;
+      timer = `<span style="color:var(--red);font-family:'Space Mono',monospace;font-size:11px;">⚠ ${m>=60?Math.floor(m/60)+'h'+m%60+'m':m+'m'}</span>`;
+    } else if (op.estado === 'en_tarea') {
+      const m = op.tiempo_minutos||0;
+      timer = `<span class="tv-mob-timer">${m>=60?Math.floor(m/60)+'h'+m%60+'m':m+'m'}</span>`;
+    }
+    const odf     = op.proyecto?.odf || '—';
+    const cliente = op.proyecto?.cliente || '—';
+    const obra    = op.proyecto?.obra || '—';
+    const mueble  = op.mueble?.nombre || '—';
+    const entradaTxt = op.entrada ? new Date(op.entrada).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'}) : '—';
+
+    mobHtml += `<div class="${cardCls}" onclick="this.classList.toggle('expanded');this.querySelector('.tv-mob-detail').classList.toggle('open');">
+      <div class="tv-mob-card-summary">
+        <div class="${avatarCls}">${iniciales}</div>
+        <div class="tv-mob-main">
+          <div class="tv-mob-nombre">${op.nombre}</div>
+          <div class="tv-mob-sub">
+            ${centro ? `<span class="tv-mob-centro">${centro}</span>` : ''}
+            <span class="tv-mob-proyecto">${proyecto}</span>
+          </div>
+        </div>
+        ${timer}
+        <span class="tv-mob-chevron">▾</span>
+      </div>
+      <div class="tv-mob-detail">
+        <div class="tv-mob-detail-row"><span class="tv-mob-detail-label">ODF</span><span class="tv-mob-detail-val">${odf}</span></div>
+        <div class="tv-mob-detail-row"><span class="tv-mob-detail-label">Cliente</span><span class="tv-mob-detail-val">${cliente}</span></div>
+        <div class="tv-mob-detail-row"><span class="tv-mob-detail-label">Obra</span><span class="tv-mob-detail-val">${obra}</span></div>
+        <div class="tv-mob-detail-row"><span class="tv-mob-detail-label">Mueble</span><span class="tv-mob-detail-val">${mueble}</span></div>
+        <div class="tv-mob-detail-row"><span class="tv-mob-detail-label">Entrada</span><span class="tv-mob-detail-val">${entradaTxt}</span></div>
+      </div>
+    </div>`;
+  });
+
+  // ── Desktop table ──
   let opsHtml = `<div class="tv-header-row">
     <div style="flex:1.4;">OPERARIO</div>
     <div style="flex:1;">CENTRO</div>
@@ -214,7 +351,7 @@ function renderSnapshot(data) {
     let estadoTxt = '';
     if (esInact) {
       const m = op.inactivo_minutos||0;
-      estadoTxt = `<span style="color:#ff4444;">INACTIVA ${m>=60?Math.floor(m/60)+'H '+m%60:m} MIN</span>`;
+      estadoTxt = `<span style="color:var(--red);">INACTIVA ${m>=60?Math.floor(m/60)+'H '+m%60:m} MIN</span>`;
     } else if (op.estado === 'en_tarea') {
       const m = op.tiempo_minutos||0;
       estadoTxt = `<span style="color:var(--amber);">${m>=60?Math.floor(m/60)+'H '+m%60+' MIN':m+' MIN'}</span>`;
@@ -232,11 +369,17 @@ function renderSnapshot(data) {
     </div>`;
   });
 
-  if (!sorted.length) opsHtml += '<div style="padding:20px;font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;">SIN ACTIVIDAD</div>';
-  document.getElementById('tv-ops').innerHTML = opsHtml;
+  if (!sorted.length) {
+    const emptyMsg = '<div style="padding:20px;font-family:\'Space Mono\',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;">SIN ACTIVIDAD</div>';
+    mobHtml = emptyMsg;
+    opsHtml += emptyMsg;
+  }
+
+  document.getElementById('tv-ops').innerHTML =
+    `<div class="tv-mobile-cards">${mobHtml}</div>` +
+    `<div class="tv-table-section">${opsHtml}</div>`;
 
   // Centros
-  // Centros ya ordenados por `orden` y filtrados por mostrar_dashboard_siempre en el backend
   const centrosToShow = centros || [];
 
   document.getElementById('tv-centros').innerHTML = centrosToShow.map(c => {
