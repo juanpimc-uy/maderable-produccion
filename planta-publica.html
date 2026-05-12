@@ -291,11 +291,14 @@ function renderSnapshot(data) {
   // ── Separar planta / oficina ──
   const planta  = sorted.filter(op => op.rol_app === 'operario');
   const oficina = sorted.filter(op => op.rol_app !== 'operario');
+  const lblStyle = "font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;";
+  const plantaLblMob = (planta.length && oficina.length) ? `<div style="${lblStyle}padding:6px 0;">PLANTA</div>` : '';
+  const plantaLblTbl = (planta.length && oficina.length) ? `<div style="${lblStyle}padding:6px 18px;">PLANTA</div>` : '';
   const separadorMob = (planta.length && oficina.length)
-    ? `<div style="border-top:1px solid var(--border);font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;padding:6px 0;">OFICINA</div>`
+    ? `<div style="border-top:1px solid var(--border);${lblStyle}padding:6px 0;">OFICINA</div>`
     : '';
   const separadorTbl = (planta.length && oficina.length)
-    ? `<div style="border-top:1px solid var(--border);font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;padding:6px 18px;">OFICINA</div>`
+    ? `<div style="border-top:1px solid var(--border);${lblStyle}padding:6px 18px;">OFICINA</div>`
     : '';
 
   // ── Mobile card builder ──
@@ -339,7 +342,7 @@ function renderSnapshot(data) {
     </div>`;
   }
 
-  let mobHtml = planta.map(renderMobCard).join('') + separadorMob + oficina.map(renderMobCard).join('');
+  let mobHtml = plantaLblMob + planta.map(renderMobCard).join('') + separadorMob + oficina.map(renderMobCard).join('');
 
   // ── Desktop table row builder ──
   function renderOpRow(op) {
@@ -377,6 +380,7 @@ function renderSnapshot(data) {
     <div style="flex:1;">MUEBLE</div>
     <div style="flex:1.2;text-align:right;">ESTADO</div>
   </div>`;
+  opsHtml += plantaLblTbl;
   opsHtml += planta.map(renderOpRow).join('');
   opsHtml += separadorTbl;
   opsHtml += oficina.map(renderOpRow).join('');
