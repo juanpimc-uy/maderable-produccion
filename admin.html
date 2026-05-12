@@ -520,7 +520,7 @@
   .ds-op-row.ds-inactivo { background:#2a1010; border-left:3px solid #ff4444; padding-left:11px; }
   .ds-op-row.ds-sin_tarea { background:#131313; color:var(--muted); }
   .ds-op-col { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .ds-op-nombre { flex:1.4; font-weight:700; color:var(--text); }
+  .ds-op-nombre { flex:1; font-weight:700; color:var(--text); }
   .ds-op-row.ds-sin_tarea .ds-op-nombre { color:var(--muted); }
   .ds-centro-card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:10px; }
   .ds-centro-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
@@ -1539,7 +1539,15 @@ function renderDashboard() {
   }
 
   // ── BLOQUE A: operarios (sin ausentes) ───────────────────────────────────
-  const visibles = (operarios || []).filter(op => op.estado !== 'ausente');
+  const trim4 = str => (str||'').split(' ').slice(0,4).join(' ');
+  const visibles = (operarios || [])
+    .filter(op => op.estado !== 'ausente')
+    .sort((a, b) => {
+      const pa = a.proyecto?.odf || 'zzz';
+      const pb = b.proyecto?.odf || 'zzz';
+      if (pa !== pb) return pa.localeCompare(pb);
+      return a.nombre.localeCompare(b.nombre);
+    });
   const opsEl = document.getElementById('dash-snap-ops');
   if (!opsEl) return;
   if (!visibles.length) {
@@ -1553,7 +1561,7 @@ function renderDashboard() {
       const odf     = esSinTarea ? '—' : (op.proyecto?.odf || '—');
       const cliente = esSinTarea ? '—' : (op.proyecto?.cliente || '—');
       const obra    = esSinTarea ? '—' : (op.proyecto?.obra || '—');
-      const mueble  = esSinTarea ? '—' : (op.mueble?.nombre || '—');
+      const mueble  = esSinTarea ? '—' : trim4(op.mueble?.nombre) || '—';
       const estadoTxt = op.estado.replace('_', ' ').toUpperCase();
       const sinSenalBadge = op.sin_senal_minutos > 0
         ? ` <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#FFD600;">⚠ SIN SEÑAL</span>`
@@ -1572,7 +1580,7 @@ function renderDashboard() {
     const shown = visibles.slice(0, MAX);
     const rest  = visibles.slice(MAX);
     let html = `<div class="ds-header-row">
-      <div style="flex:1.4;">OPERARIO</div><div style="flex:1;">CENTRO</div><div style="flex:1;">ODF</div><div style="flex:1;">CLIENTE</div><div style="flex:0.8;">OBRA</div><div style="flex:1;">MUEBLE</div><div style="flex:1;">ESTADO</div>
+      <div style="flex:1;">OPERARIO</div><div style="flex:1;">CENTRO</div><div style="flex:1;">ODF</div><div style="flex:1;">CLIENTE</div><div style="flex:0.8;">OBRA</div><div style="flex:1;">MUEBLE</div><div style="flex:1;">ESTADO</div>
     </div>`;
     html += shown.map(renderOpRow).join('');
     if (rest.length) {
@@ -1593,16 +1601,18 @@ function renderDashboard() {
     const mueblesList = sin
       ? '<div class="ds-centro-empty">SIN ACTIVIDAD</div>'
       : (c.muebles || []).map(m => {
-          const partes = [m.mueble_codigo, m.mueble_nombre].filter(Boolean).join(' ');
-          const linea = partes ? `${m.odf || ''} · ${partes}` : (m.odf || '—');
           const sinSenal = m.sin_senal;
           const opMatch = (operarios || []).find(op =>
             op.centro === c.centro &&
             op.proyecto?.odf === m.odf &&
             (!m.mueble_codigo || op.mueble?.codigo === m.mueble_codigo)
           );
-          const opNombre = opMatch ? ` <span style="color:#888;">— ${opMatch.nombre}</span>` : '';
-          return `<div class="ds-mueble-row${sinSenal ? ' ds-inact' : ''}">${linea}${sinSenal ? ' ⚠' : ''}${opNombre}</div>`;
+          const nombreCorto = opMatch
+            ? opMatch.nombre.split(' ').slice(0,2).join(' ')
+            : null;
+          const clienteCorto = opMatch?.proyecto?.cliente || m.cliente || null;
+          const linea = [nombreCorto, clienteCorto].filter(Boolean).join(' · ') || (m.odf || '—');
+          return `<div class="ds-mueble-row${sinSenal ? ' ds-inact' : ''}">${linea}${sinSenal ? ' ⚠' : ''}</div>`;
         }).join('');
     return `<div class="ds-centro-card">
       <div class="ds-centro-header">
