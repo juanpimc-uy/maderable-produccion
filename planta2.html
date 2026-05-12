@@ -375,6 +375,39 @@ textarea.campo {
 .banner-pausada-info { font-size: 14px; font-weight: 700; line-height: 1.4; margin-bottom: 10px; }
 .banner-pausada-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .banner-pausada-btns .btn { min-height: 44px; font-size: 11px; flex: 1; min-width: 80px; }
+
+/* ── Centro selector cards ─────────────────────────────────────────────── */
+.centro-rapido-card {
+  background: var(--card2, #1e1e1e);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.centro-rapido-card:active { opacity: .7; }
+.centro-list-row {
+  background: #1a1a1a;
+  border: 1px solid #222;
+  border-radius: 5px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.centro-list-row:active { opacity: .7; }
+.centro-list-row.sel {
+  border-color: rgba(255,214,0,.4);
+  background: rgba(255,214,0,.04);
+}
+.centro-badge-reciente {
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-family: 'Space Mono', monospace;
+}
 </style>
 </head>
 <body>
@@ -942,6 +975,14 @@ function volverAElegirOperario() {
 // Catálogo de centros cargado desde centros-virtuales al inicio (reemplaza PLANTA_CENTRO_LABEL hardcoded)
 let _cvP = [];
 
+const CENTRO_COLORS = {
+  colocacion:'#FFD600', armado:'#00cfa8', corte:'#5ba3f5', modelado:'#9f7aea',
+  cam:'#f07060', coordinacion:'#7a8599', obra:'#4ade80', enchapado:'#9f7aea',
+  revision:'#00cfa8', herreria:'#5ba3f5', electrica:'#f07060', macizo:'#FFD600',
+  descanso:'#7a8599',
+};
+function getCentroColor(codigo) { return CENTRO_COLORS[codigo] || '#888'; }
+
 // ── Placa picker ──────────────────────────────────────────────────────────────
 let placaSeleccionadaInicio = 0;
 let placaSeleccionadaIdle   = 0;
@@ -1460,14 +1501,42 @@ function iniciarSeleccion() {
   if (!autorizados.length) {
     el.innerHTML = '<div class="warn-box">⚠ Sin centros asignados. Contactá al supervisor.</div>';
   } else {
-    el.innerHTML = autorizados.map(c => {
-      const label = (_cvP.find(x=>x.codigo===c)?.nombre||c.toUpperCase());
-      return `<button class="centro-btn" id="ctsel-${esc(c)}"
-        onclick="selCentroFinal('${esc(c)}','${c}')">
-        <span class="centro-dot"></span>
-        <div>${label}</div>
-      </button>`;
-    }).join('');
+    const key = `centros_recientes_${empleadoActual.id}`;
+    const recientes = JSON.parse(localStorage.getItem(key) || '[]')
+      .filter(c => autorizados.includes(c));
+    let html = '';
+    if (recientes.length > 0) {
+      html += `<div style="font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;">ACCESO RÁPIDO</div>`;
+      html += `<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;">`;
+      recientes.slice(0, 3).forEach(c => {
+        const label = _cvP.find(x=>x.codigo===c)?.nombre || c.toUpperCase();
+        const color = getCentroColor(c);
+        html += `<div class="centro-rapido-card" style="border-left:3px solid ${color};" onclick="selCentroFinal('${esc(c)}','${c}')">
+          <div style="font-size:10px;color:${color};letter-spacing:1px;">${c.toUpperCase()}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);margin-top:2px;">${label}</div>
+        </div>`;
+      });
+      html += `</div><div style="border-top:1px solid var(--border);margin-bottom:14px;"></div>`;
+    }
+    html += `<div style="font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;">TODOS LOS CENTROS</div>`;
+    html += `<div style="display:flex;flex-direction:column;gap:4px;">`;
+    autorizados.forEach(c => {
+      const label = _cvP.find(x=>x.codigo===c)?.nombre || c.toUpperCase();
+      const color = getCentroColor(c);
+      const esReciente = recientes.includes(c);
+      html += `<div class="centro-list-row" id="ctsel-${esc(c)}" onclick="selCentroFinal('${esc(c)}','${c}')">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0;"></div>
+          <span style="font-size:14px;color:var(--text);">${label}</span>
+        </div>
+        ${esReciente
+          ? `<span class="centro-badge-reciente" style="color:${color};background:${color}18;">RECIENTE</span>`
+          : `<span style="font-size:11px;color:#444;">▸</span>`
+        }
+      </div>`;
+    });
+    html += `</div>`;
+    el.innerHTML = html;
   }
   ir('pantalla-centro-selector');
 }
@@ -1539,15 +1608,17 @@ function selItem(id) {
   } else {
     el.innerHTML = centros.map(c => {
       const label = (_cvP.find(x=>x.codigo===c)?.nombre||c.toUpperCase());
-      return `
-      <button class="centro-btn" id="ct-${esc(c)}" onclick="selCentro('${esc(c)}','${c}')">
-        <span class="centro-dot"></span>
-        <div style="display:flex;flex-direction:column;gap:3px;">
-          <span>${label}</span>
-          <span id="ct-last-${esc(c)}" style="font-size:13px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--muted);font-family:'DM Sans',sans-serif;">Cargando…</span>
+      const color = getCentroColor(c);
+      return `<div class="centro-list-row" id="ct-${esc(c)}" onclick="selCentro('${esc(c)}','${c}')">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0;"></div>
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <span style="font-size:14px;color:var(--text);">${label}</span>
+            <span id="ct-last-${esc(c)}" style="font-size:11px;color:var(--muted);font-family:'DM Sans',sans-serif;">Cargando…</span>
+          </div>
         </div>
-      </button>
-    `;
+        <span style="font-size:11px;color:#444;">▸</span>
+      </div>`;
     }).join('');
 
     // consultas paralelas para último registro por centro
@@ -1887,35 +1958,70 @@ function selMueble(proyectoId, muebleId) {
 }
 
 function initCentroSelector() {
-  const TODOS = ['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'];
   const autorizados = [...new Set(
     (empleadoActual?.centros_autorizados || []).map(c => c === 'empaquetado' ? 'colocacion' : c)
   )];
-  if (!autorizados.length) {
-    document.getElementById('lista-centros-selector').innerHTML =
-      '<div class="warn-box">⚠ Sin centros asignados. Contactá al supervisor.</div>';
-    return;
-  }
-  const listaCentros = autorizados;
-  const ultimoCentro = itemSel?.ultimo_centro || null;
 
-  // Info del mueble en el header
-  const odf = (_snapshotData?.odfs_activas || []).find(p => p.id === proyectoSel?.id);
-  const partes = [odf?.numero, itemSel?.codigo, itemSel?.nombre].filter(Boolean);
-  document.getElementById('centro-sel-info').textContent = partes.join(' · ');
+  const infoEl = document.getElementById('centro-sel-info');
+  if (infoEl) {
+    if (itemSel) {
+      const partes = [proyectoSel?.nombre, itemSel?.codigo, itemSel?.nombre].filter(Boolean);
+      infoEl.textContent = partes.join(' · ');
+    } else {
+      infoEl.textContent = '';
+    }
+  }
 
   const el = document.getElementById('lista-centros-selector');
-  el.innerHTML = listaCentros.map(c => {
-    const label       = (_cvP.find(x=>x.codigo===c)?.nombre||c.toUpperCase());
-    const esRetrabajo = ultimoCentro === c;
-    const subLabel    = esRetrabajo
-      ? `<span style="display:block;font-family:'Space Mono',monospace;font-size:10px;color:#FFD600;letter-spacing:1px;margin-top:2px;">↻ RETRABAJO</span>`
-      : '';
-    return `<button class="centro-btn" id="ctsel-${esc(c)}" onclick="selCentroFinal('${esc(c)}','${c}')">
-      <span class="centro-dot"></span>
-      <div style="display:flex;flex-direction:column;gap:0;">${label}${subLabel}</div>
-    </button>`;
-  }).join('');
+  if (!autorizados.length) {
+    el.innerHTML = '<div class="warn-box">⚠ Sin centros asignados. Contactá al supervisor.</div>';
+    return;
+  }
+
+  const key = `centros_recientes_${empleadoActual.id}`;
+  const recientes = JSON.parse(localStorage.getItem(key) || '[]')
+    .filter(c => autorizados.includes(c));
+
+  let html = '';
+  if (recientes.length > 0) {
+    html += `<div style="font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;">ACCESO RÁPIDO</div>`;
+    html += `<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;">`;
+    recientes.slice(0, 3).forEach(c => {
+      const label = _cvP.find(x=>x.codigo===c)?.nombre || c.toUpperCase();
+      const color = getCentroColor(c);
+      const esRetrabajo = itemSel?.ultimo_centro === c;
+      html += `<div class="centro-rapido-card" style="border-left:3px solid ${color};" onclick="selCentroFinal('${esc(c)}','${c}')">
+        <div style="font-size:10px;color:${color};letter-spacing:1px;">${c.toUpperCase()}</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text);margin-top:2px;">${label}</div>
+        ${esRetrabajo ? `<div style="font-size:10px;color:#FFD600;margin-top:2px;">↻ RETRABAJO</div>` : ''}
+      </div>`;
+    });
+    html += `</div>`;
+    html += `<div style="border-top:1px solid var(--border);margin-bottom:14px;"></div>`;
+  }
+
+  html += `<div style="font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:10px;">TODOS LOS CENTROS</div>`;
+  html += `<div style="display:flex;flex-direction:column;gap:4px;">`;
+  autorizados.forEach(c => {
+    const label = _cvP.find(x=>x.codigo===c)?.nombre || c.toUpperCase();
+    const color = getCentroColor(c);
+    const esReciente = recientes.includes(c);
+    const esRetrabajo = itemSel?.ultimo_centro === c;
+    html += `<div class="centro-list-row" id="ctsel-${esc(c)}" onclick="selCentroFinal('${esc(c)}','${c}')">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="centro-dot" style="background:${color};width:7px;height:7px;border-radius:50%;"></div>
+        <span style="font-size:14px;color:var(--text);">${label}</span>
+        ${esRetrabajo ? `<span style="font-size:10px;color:#FFD600;font-family:'Space Mono',monospace;">↻</span>` : ''}
+      </div>
+      ${esReciente
+        ? `<span class="centro-badge-reciente" style="color:${color};background:${color}18;">RECIENTE</span>`
+        : `<span style="font-size:11px;color:#444;">▸</span>`
+      }
+    </div>`;
+  });
+  html += `</div>`;
+
+  el.innerHTML = html;
 }
 
 function selCentroFinal(id, nombre) {
