@@ -367,6 +367,7 @@ function renderSnapshot(data) {
       <div class="tv-op-col">${centro}</div>
       <div class="tv-op-col" style="color:var(--amber);">${odf}</div>
       <div class="tv-op-col">${cliente}</div>
+      <div class="tv-op-col" style="flex:0.6;color:var(--amber);">${esSin ? '—' : (op.mueble?.codigo || '—')}</div>
       <div class="tv-op-col">${mueble}</div>
       <div class="tv-op-col" style="text-align:right;">${estadoTxt}</div>
     </div>`;
@@ -377,6 +378,7 @@ function renderSnapshot(data) {
     <div style="flex:1;">CENTRO</div>
     <div style="flex:1;">ODF</div>
     <div style="flex:1;">CLIENTE</div>
+    <div style="flex:0.6;">TIPO</div>
     <div style="flex:1;">MUEBLE</div>
     <div style="flex:1.2;text-align:right;">ESTADO</div>
   </div>`;
