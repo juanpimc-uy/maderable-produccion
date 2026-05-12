@@ -339,7 +339,7 @@ const _tJorChanges = new Map();   // jid → {field: value}
   if (u.rol_app === 'operario') { window.location.href = '/planta2.html'; return; }
   if (u.rol_app !== 'admin' && u.rol_app !== 'oficina') { window.location.href = '/index.html'; return; }
   _tUser    = u;
-  _tIsAdmin = u.rol_app === 'admin';
+  _tIsAdmin = u.rol_app === 'admin' || !!(u.acceso_tiempos);
   CALLER_ID = u.id;
 
   // Nav user info
