@@ -1533,9 +1533,7 @@ function renderDashboard() {
   // Counters
   const cntEl = document.getElementById('dash-snap-counters');
   if (cntEl) {
-    const sinS = counters.sin_senal || 0;
-    const sinSStr = sinS > 0 ? ` · ${sinS} SIN SEÑAL` : '';
-    cntEl.textContent = `${counters.en_tarea || 0} EN TAREA${sinSStr} · ${counters.sin_tarea || 0} SIN TAREA · ${counters.ausentes || 0} AUSENTES`;
+    cntEl.textContent = `${counters.en_tarea || 0} EN TAREA · ${counters.sin_tarea || 0} SIN TAREA · ${counters.ausentes || 0} AUSENTES`;
   }
 
   // ── BLOQUE A: operarios (sin ausentes) ───────────────────────────────────
@@ -1563,9 +1561,6 @@ function renderDashboard() {
       const obra    = esSinTarea ? '—' : (op.proyecto?.obra || '—');
       const mueble  = esSinTarea ? '—' : trim4(op.mueble?.nombre) || '—';
       const estadoTxt = op.estado.replace('_', ' ').toUpperCase();
-      const sinSenalBadge = op.sin_senal_minutos > 0
-        ? ` <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#FFD600;">⚠ SIN SEÑAL</span>`
-        : '';
       return `<div class="${cls}">
         <div class="ds-op-col ds-op-nombre">${prefijo}${op.nombre}</div>
         <div class="ds-op-col">${centro}</div>
@@ -1573,20 +1568,27 @@ function renderDashboard() {
         <div class="ds-op-col">${cliente}</div>
         <div class="ds-op-col">${obra}</div>
         <div class="ds-op-col">${mueble}</div>
-        <div class="ds-op-col">${estadoTxt}${sinSenalBadge}</div>
+        <div class="ds-op-col">${estadoTxt}</div>
       </div>`;
     };
+    const planta  = visibles.filter(op => op.rol_app === 'operario');
+    const oficina = visibles.filter(op => op.rol_app !== 'operario');
+    const separador = (planta.length && oficina.length)
+      ? `<div style="border-top:1px solid var(--border);margin:4px 0;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:2px;padding:6px 18px;">OFICINA</div>`
+      : '';
     const MAX = 6;
-    const shown = visibles.slice(0, MAX);
-    const rest  = visibles.slice(MAX);
+    const plantaShown = planta.slice(0, MAX);
+    const plantaRest  = planta.slice(MAX);
     let html = `<div class="ds-header-row">
       <div style="flex:1;">OPERARIO</div><div style="flex:1;">CENTRO</div><div style="flex:1;">ODF</div><div style="flex:1;">CLIENTE</div><div style="flex:0.8;">OBRA</div><div style="flex:1;">MUEBLE</div><div style="flex:1;">ESTADO</div>
     </div>`;
-    html += shown.map(renderOpRow).join('');
-    if (rest.length) {
-      html += `<div id="dash-snap-ops-rest" style="display:none;">${rest.map(renderOpRow).join('')}</div>`;
-      html += `<div class="ds-show-more" onclick="(function(el){document.getElementById('dash-snap-ops-rest').style.display='';el.style.display='none';})(this)">+ ${rest.length} OPERARIOS MÁS  ▾</div>`;
+    html += plantaShown.map(renderOpRow).join('');
+    if (plantaRest.length) {
+      html += `<div id="dash-snap-ops-rest" style="display:none;">${plantaRest.map(renderOpRow).join('')}</div>`;
+      html += `<div class="ds-show-more" onclick="(function(el){document.getElementById('dash-snap-ops-rest').style.display='';el.style.display='none';})(this)">+ ${plantaRest.length} OPERARIOS MÁS  ▾</div>`;
     }
+    html += separador;
+    html += oficina.map(renderOpRow).join('');
     opsEl.innerHTML = html;
   }
 

@@ -666,6 +666,7 @@ export default async function handler(req) {
         return {
           id:                emp.id,
           nombre:            emp.nombre,
+          rol_app:           emp.rol_app,
           entrada:           jornada?.entrada || null,
           estado,
           centro:            activo?.centro  || null,
