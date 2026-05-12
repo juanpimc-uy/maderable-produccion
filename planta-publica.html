@@ -280,7 +280,15 @@ function renderSnapshot(data) {
   // Operarios (sin ausentes)
   const visibles = (operarios||[]).filter(op => op.estado !== 'ausente');
   const ORDER = { inactivo:0, en_tarea:1, sin_tarea:2 };
-  const sorted = [...visibles].sort((a,b) => (ORDER[a.estado]??3)-(ORDER[b.estado]??3));
+  const sorted = [...visibles].sort((a, b) => {
+    const ea = ORDER[a.estado] ?? 3;
+    const eb = ORDER[b.estado] ?? 3;
+    if (ea !== eb) return ea - eb;
+    const pa = a.proyecto?.odf || 'zzz';
+    const pb = b.proyecto?.odf || 'zzz';
+    if (pa !== pb) return pa.localeCompare(pb);
+    return a.nombre.localeCompare(b.nombre);
+  });
 
   // ── Mobile cards ──
   let mobHtml = '';
@@ -390,8 +398,16 @@ function renderSnapshot(data) {
     const mueblesList = sin
       ? '<div class="tv-centro-empty">SIN ACTIVIDAD</div>'
       : (c.muebles||[]).map(m => {
-          const partes = [m.mueble_codigo, m.mueble_nombre].filter(Boolean).join(' ');
-          const linea = partes ? `${m.odf||''} · ${partes}` : (m.odf||'—');
+          const opMatch = (operarios || []).find(op =>
+            op.centro === c.centro &&
+            op.proyecto?.odf === m.odf &&
+            (!m.mueble_codigo || op.mueble?.codigo === m.mueble_codigo)
+          );
+          const nombreCorto = opMatch
+            ? opMatch.nombre.split(' ').slice(0,2).join(' ')
+            : null;
+          const clienteCorto = opMatch?.proyecto?.cliente || m.cliente || null;
+          const linea = [nombreCorto, clienteCorto].filter(Boolean).join(' · ') || (m.odf || '—');
           return `<div class="tv-mueble-row${m.sin_senal?' m-inact':''}">${linea}${m.sin_senal?' ⚠':''}</div>`;
         }).join('');
     return `<div class="tv-centro-card">
