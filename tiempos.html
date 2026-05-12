@@ -442,8 +442,10 @@ async function _tInit() {
       _empListT = d.empleados || [];
       const opSel  = document.getElementById('op-emp-select');
       const repSel = document.getElementById('rep-emp-select');
-      _empListT.forEach(e => {
+      _empListT.filter(e => e.rol_app === 'operario').forEach(e => {
         opSel.innerHTML  += `<option value="${e.id}">${e.nombre}</option>`;
+      });
+      _empListT.forEach(e => {
         repSel.innerHTML += `<option value="${e.id}">${e.nombre}</option>`;
       });
     } catch(e) { console.warn('[tiempos] empleados:', e.message); }
