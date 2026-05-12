@@ -783,27 +783,28 @@
   <div id="timer-modal" onclick="event.stopPropagation()">
     <div class="timer-modal-title" id="timer-modal-title-label">▶ INICIAR TAREA</div>
 
-    <!-- Selector proyecto -->
-    <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:6px;letter-spacing:1px;">PROYECTO</div>
-    <input class="timer-proyecto-search" id="timer-proy-search" type="text" placeholder="Buscar proyecto…" oninput="_timerFiltrarProyectos()">
-    <div class="timer-proyecto-list" id="timer-proy-list"></div>
+    <!-- CENTRO — siempre primero -->
+    <div style="font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:10px;letter-spacing:2px;">CENTRO DE TRABAJO</div>
+    <div id="timer-centro-list"></div>
 
-    <!-- Selector centro virtual (sin Descanso) -->
-    <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:10px;letter-spacing:1px;">CENTRO</div>
-    <div class="timer-centro-grid" id="timer-centro-grid"></div>
+    <!-- PROYECTO — aparece después de elegir centro -->
+    <div id="timer-proy-section" style="display:none;margin-top:16px;">
+      <div style="font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:8px;letter-spacing:2px;">PROYECTO</div>
+      <input class="timer-proyecto-search" id="timer-proy-search" type="text" placeholder="Buscar proyecto…" oninput="_timerFiltrarProyectos()">
+      <div class="timer-proyecto-list" id="timer-proy-list"></div>
+    </div>
 
-    <!-- Selector item (condicional) -->
-    <div id="timer-item-section">
-      <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:6px;letter-spacing:1px;">ITEM</div>
+    <!-- ITEM -->
+    <div id="timer-item-section" style="margin-top:16px;">
+      <div style="font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:6px;letter-spacing:2px;">ITEM</div>
       <select id="timer-item-select" onchange="_timerSelItemFn()">
         <option value="">— Elegí un item —</option>
       </select>
     </div>
 
-    <!-- Error + botones -->
     <div id="timer-modal-error"></div>
     <button id="timer-iniciar-btn" disabled onclick="_timerIniciar()">▶ INICIAR</button>
-    <button onclick="_timerModalCerrar()" style="width:100%;margin-top:10px;padding:10px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;">Cancelar</button>
+    <button onclick="_timerModalCerrar()" style="width:100%;margin-top:10px;padding:10px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'Space Mono',monospace;font-size:12px;cursor:pointer;">Cancelar</button>
   </div>
 </div>
 
@@ -1319,6 +1320,18 @@ function mapProyectoFromDB(p) {
 }
 
 let PROYECTOS = [];
+
+const CENTRO_COLORS_ADM = {
+  colocacion:'#FFD600', armado:'#00cfa8', corte:'#5ba3f5',
+  modelado:'#9f7aea', cam:'#f07060', coordinacion:'#7a8599',
+  obra:'#4ade80', enchapado:'#9f7aea', revision:'#00cfa8',
+  herreria:'#5ba3f5', electrica:'#f07060', macizo:'#FFD600',
+  descanso:'#7a8599', shop_drawing:'#9f7aea', reunion:'#7a8599',
+  compras:'#5ba3f5',
+};
+function _getCentroColorAdm(codigo) {
+  return CENTRO_COLORS_ADM[codigo?.toLowerCase()] || '#888';
+}
 
 const NOW = Date.now(), H = h => h * 3600000;
 let SESIONES  = JSON.parse(localStorage.getItem('sesiones')  || '[]');
@@ -4984,6 +4997,7 @@ async function _timerModalAbrir() {
   document.getElementById('timer-iniciar-btn').disabled = true;
   document.getElementById('timer-modal-title-label').textContent = hayTarea ? '⇄ CAMBIAR TAREA' : '▶ INICIAR TAREA';
   _timerLimpiarItem();
+  document.getElementById('timer-proy-section').style.display = 'none';
   document.getElementById('timer-modal-overlay').classList.add('open');
 
   try {
@@ -5004,8 +5018,8 @@ async function _timerModalAbrir() {
     return;
   }
 
-  _timerRenderProyectos(_cvProyectos);
   _timerRenderCentros();
+  _timerRenderProyectos(_cvProyectos);
 }
 
 function _timerModalCerrar() {
@@ -5258,24 +5272,81 @@ function _timerSelProyecto(id) {
 }
 
 function _timerRenderCentros() {
-  const grid = document.getElementById('timer-centro-grid');
+  const el = document.getElementById('timer-centro-list');
   const u = window.AUTH.usuarioActual();
-  const autorizados = u?.centros || u?.centros_autorizados || [];
-  // Filtrar centros de descanso y restringir a centros_autorizados del usuario
-  const centros = _cvCentros.filter(c => !c.es_descanso && (!autorizados.length || autorizados.includes(c.codigo)));
-  grid.innerHTML = centros.map(c => {
-    const sel = _timerSelCentro === c.codigo ? ' sel' : '';
-    return `<button class="timer-centro-btn${sel}" onclick="_timerSelCentroFn('${c.codigo}')">${c.nombre}</button>`;
-  }).join('');
+  const autorizados = (u?.centros || u?.centros_autorizados || [])
+    .filter(c => {
+      const cv = _cvCentros.find(x => x.codigo === c);
+      return cv && !cv.es_descanso;
+    });
+
+  if (!autorizados.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:12px;">Sin centros asignados.</div>';
+    return;
+  }
+
+  const key = `centros_recientes_${u.id}`;
+  const recientes = JSON.parse(localStorage.getItem(key) || '[]')
+    .filter(c => autorizados.includes(c));
+
+  let html = '';
+
+  if (recientes.length > 0) {
+    html += `<div style="font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:8px;">ACCESO RÁPIDO</div>`;
+    html += `<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">`;
+    recientes.slice(0, 3).forEach(c => {
+      const cv = _cvCentros.find(x => x.codigo === c);
+      const label = cv?.nombre || c.toUpperCase();
+      const color = _getCentroColorAdm(c);
+      const sel = _timerSelCentro === c;
+      html += `<div onclick="_timerSelCentroFn('${c}')" style="background:${sel ? color+'18' : 'var(--faint)'};border:1px solid ${sel ? color+'66' : 'var(--border)'};border-left:3px solid ${color};border-radius:6px;padding:10px 14px;cursor:pointer;">
+        <div style="font-size:9px;color:${color};letter-spacing:1px;">${c.toUpperCase()}</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-top:2px;">${label}</div>
+      </div>`;
+    });
+    html += `</div>`;
+    html += `<div style="border-top:1px solid var(--border);margin-bottom:12px;"></div>`;
+  }
+
+  html += `<div style="font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:8px;">TODOS</div>`;
+  html += `<div style="display:flex;flex-direction:column;gap:4px;">`;
+  autorizados.forEach(c => {
+    const cv = _cvCentros.find(x => x.codigo === c);
+    const label = cv?.nombre || c.toUpperCase();
+    const color = _getCentroColorAdm(c);
+    const esReciente = recientes.includes(c);
+    const sel = _timerSelCentro === c;
+    html += `<div onclick="_timerSelCentroFn('${c}')" style="background:${sel ? color+'12' : '#1a1a1a'};border:1px solid ${sel ? color+'44' : '#222'};border-radius:5px;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0;"></div>
+        <span style="font-size:13px;color:${sel ? color : 'var(--text)'};">${label}</span>
+      </div>
+      ${esReciente
+        ? `<span style="font-size:9px;color:${color};background:${color}18;padding:2px 7px;border-radius:3px;font-family:'Space Mono',monospace;">RECIENTE</span>`
+        : `<span style="font-size:11px;color:#444;">▸</span>`
+      }
+    </div>`;
+  });
+  html += `</div>`;
+  el.innerHTML = html;
 }
 
 function _timerSelCentroFn(codigo) {
   _timerSelCentro = codigo;
   _timerRenderCentros();
-  const _tscCentro = _cvCentros.find(c => c.codigo === _timerSelCentro) || null;
-  if (_timerSelProy && _tscCentro?.requiere_mueble) {
-    _timerPoblarItems();
+
+  const cv = _cvCentros.find(x => x.codigo === codigo);
+  const reqProy = cv?.requiere_proyecto ?? true;
+  if (reqProy) {
+    document.getElementById('timer-proy-section').style.display = 'block';
+    if (_timerSelProy && (cv?.requiere_mueble)) {
+      _timerPoblarItems();
+    } else {
+      _timerLimpiarItem();
+    }
   } else {
+    document.getElementById('timer-proy-section').style.display = 'none';
+    _timerSelProy = null;
     _timerLimpiarItem();
   }
   _timerCheckIniciarBtn();
