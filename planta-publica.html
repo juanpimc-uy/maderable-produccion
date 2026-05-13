@@ -116,6 +116,14 @@
   @media(max-width:900px){.main{grid-template-columns:1fr;} .lane{grid-template-columns:120px 1fr 60px;}}
   @media(max-width:480px){.hdr{flex-direction:column;gap:10px;padding:12px 16px;} .hdr-stats{gap:16px;} .main{padding:12px 16px;} .pf{padding:8px 16px 20px;} .leg{padding:8px 16px;}}
 
+  /* ── Ausentes ── */
+  .ausentes-section{padding:12px 0 4px;margin-top:8px;}
+  .ausentes-label{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:#2a2a2a;margin-bottom:8px;}
+  .ausentes-row{display:flex;flex-wrap:wrap;gap:8px;}
+  .ausente-chip{display:flex;flex-direction:column;align-items:center;gap:3px;opacity:.35;}
+  .ausente-avatar{width:32px;height:32px;border-radius:50%;background:#1a1a1a;border:1px solid #222;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;color:#444;}
+  .ausente-nombre{font-family:'Barlow Condensed',sans-serif;font-size:9px;color:#333;text-transform:uppercase;letter-spacing:.5px;max-width:48px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
   /* ── Dashboard container ── */
   #screen-dash{display:none;}
   #tv-err{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--red);display:none;padding:10px 28px;}
@@ -183,6 +191,8 @@
     </div>
     <div class="lanes" id="tv-lanes"></div>
   </div>
+
+  <div id="tv-ausentes"></div>
 </div>
 
 <script>
@@ -361,6 +371,26 @@ function renderSnapshot(data) {
   document.getElementById('cnt-proy').textContent = proyList.length;
   const maxChips = Math.max(...proyList.map(p=>p.chips.length), 1);
   document.getElementById('tv-lanes').innerHTML = proyList.map(p => buildLane(p, maxChips)).join('');
+
+  // Ausentes
+  const ausentes = (operarios || []).filter(op => op.estado === 'ausente');
+  if (ausentes.length > 0) {
+    const chips = ausentes.map(op => {
+      const ini = op.nombre.split(' ').filter(Boolean).slice(0,2).map(p=>p[0]).join('');
+      const apellido = op.nombre.split(' ').slice(-1)[0];
+      return `<div class="ausente-chip">
+        <div class="ausente-avatar">${ini}</div>
+        <div class="ausente-nombre">${apellido}</div>
+      </div>`;
+    }).join('');
+    document.getElementById('tv-ausentes').innerHTML = `
+      <div class="ausentes-section">
+        <div class="ausentes-label">SIN MARCAR HOY</div>
+        <div class="ausentes-row">${chips}</div>
+      </div>`;
+  } else {
+    document.getElementById('tv-ausentes').innerHTML = '';
+  }
 }
 
 // ── Clock ────────────────────────────────────────────────────────────────────
