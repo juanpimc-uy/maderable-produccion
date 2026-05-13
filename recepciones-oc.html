@@ -325,7 +325,7 @@ function _render() {
     const recibirBtn = `<span class="badge badge-pendiente" onclick="event.stopPropagation();_abrirRecibir('${ocNum}')">RECIBIR →</span>`;
     let badge = '';
     if (oc.estado === 'recibida') {
-      badge = `<span class="badge badge-recibida">✓ RECIBIDA</span>`;
+      badge = `<span class="badge badge-recibida">✓ RECIBIDA</span> <span style="font-size:11px;cursor:pointer;color:var(--muted);" onclick="event.stopPropagation();_abrirEtiquetasOc('${ocNum}','${(oc.oc_id_zoho||'').replace(/'/g,"\\'")}')">🏷</span>`;
     } else if (oc.estado === 'vencida') {
       badge = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
         <span class="badge badge-vencida">VENCIDA</span>
@@ -500,6 +500,23 @@ async function _imprimirEtiquetas() {
   const url = `https://juanpimc-uy.github.io/etiquetas-maderable/?fuente=zoho&prefill=${encodeURIComponent(prefill)}`;
   window.open(url, '_blank');
   _cerrarToast();
+}
+
+async function _abrirEtiquetasOc(ocNumero, ocIdZoho) {
+  if (!ocIdZoho) return;
+  try {
+    const r = await fetch(`/api/recepciones?action=detalle-oc&oc_id_zoho=${ocIdZoho}`).then(r => r.json());
+    const items = r.line_items || [];
+    const conId = items.filter(li => li.item_id);
+    if (conId.length) {
+      const prefill = conId.map(li => `${li.item_id}:${li.quantity}`).join(',');
+      window.open(`https://juanpimc-uy.github.io/etiquetas-maderable/?fuente=zoho&prefill=${encodeURIComponent(prefill)}`, '_blank');
+    } else {
+      window.open('https://juanpimc-uy.github.io/etiquetas-maderable/?fuente=zoho', '_blank');
+    }
+  } catch {
+    window.open('https://juanpimc-uy.github.io/etiquetas-maderable/?fuente=zoho', '_blank');
+  }
 }
 </script>
 </body>

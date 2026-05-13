@@ -169,6 +169,50 @@ export default async function handler(req) {
       const { oc_numero, oc_id_zoho, notas } = body;
       if (!oc_numero) return errRes('oc_numero requerido', 400);
 
+      // 1. Crear Purchase Receive en Zoho (best-effort)
+      let zohoReceive = false;
+      let zohoError = null;
+      if (oc_id_zoho) {
+        try {
+          const orgId = process.env.ZOHO_ORG_ID;
+          const token = await getZohoToken();
+          const zHeaders = { Authorization: `Zoho-oauthtoken ${token}`, 'Content-Type': 'application/json' };
+
+          // Obtener line_items del PO
+          const poRes = await fetch(
+            `https://www.zohoapis.com/books/v3/purchaseorders/${oc_id_zoho}?organization_id=${orgId}`,
+            { headers: { Authorization: `Zoho-oauthtoken ${token}` } }
+          );
+          if (!poRes.ok) throw new Error('Error obteniendo PO: ' + await poRes.text());
+          const poData = await poRes.json();
+          const poItems = (poData.purchaseorder?.line_items || [])
+            .filter(li => li.line_item_id)
+            .map(li => ({ line_item_id: li.line_item_id, quantity_received: li.quantity }));
+
+          if (poItems.length) {
+            const hoy = new Date().toISOString().split('T')[0];
+            const receiveBody = {
+              purchaseorder_id: oc_id_zoho,
+              date: hoy,
+              line_items: poItems,
+            };
+            const rcvRes = await fetch(
+              `https://www.zohoapis.com/books/v3/purchasereceives?organization_id=${orgId}`,
+              { method: 'POST', headers: zHeaders, body: JSON.stringify(receiveBody) }
+            );
+            if (!rcvRes.ok) {
+              const detail = await rcvRes.text();
+              throw new Error(detail);
+            }
+            zohoReceive = true;
+          }
+        } catch (e) {
+          zohoError = e.message;
+          console.warn('[recepciones] Zoho receive error:', e.message);
+        }
+      }
+
+      // 2. Guardar en Supabase (siempre)
       const { error } = await supabase.from('recepciones_oc')
         .upsert({
           oc_numero,
@@ -178,7 +222,7 @@ export default async function handler(req) {
         }, { onConflict: 'oc_numero' });
 
       if (error) throw error;
-      return ok({ ok: true });
+      return ok({ ok: true, zoho_receive: zohoReceive, ...(zohoError ? { zoho_error: zohoError } : {}) });
     }
 
     // ══════════════════════════════════════════════════════════════════════

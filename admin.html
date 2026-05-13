@@ -3469,7 +3469,7 @@ function _matRenderOcs() {
       const recibirBtn = `<button class="btn btn-primary" style="min-height:28px;font-size:9px;padding:0 12px;" onclick="event.stopPropagation();_matAbrirRecibir('${ocNum}')">RECIBIR →</button>`;
       let badge = '';
       if (oc.estado === 'recibida') {
-        badge = `<span class="pill" style="color:var(--green);border:1px solid rgba(61,214,140,.4);background:rgba(61,214,140,.08);">✓ RECIBIDA</span>`;
+        badge = `<span class="pill" style="color:var(--green);border:1px solid rgba(61,214,140,.4);background:rgba(61,214,140,.08);">✓ RECIBIDA</span> <span style="font-size:11px;cursor:pointer;color:var(--muted);" onclick="event.stopPropagation();_matAbrirEtiquetasOc('${ocNum}','${(oc.oc_id_zoho||'').replace(/'/g,"\\'")}')">🏷</span>`;
       } else if (oc.estado === 'vencida') {
         badge = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
           <span class="pill" style="color:var(--red);border:1px solid rgba(240,92,92,.4);background:rgba(240,92,92,.08);">VENCIDA</span>
@@ -3649,6 +3649,23 @@ async function _matImprimirEtiquetas() {
   const prefill = (items || []).map(li => `${li.item_id}:${li.quantity}`).join(',');
   window.open(`https://juanpimc-uy.github.io/etiquetas-maderable/?fuente=zoho&prefill=${encodeURIComponent(prefill)}`, '_blank');
   document.getElementById('mat-toast-etiquetas')?.remove();
+}
+
+async function _matAbrirEtiquetasOc(ocNumero, ocIdZoho) {
+  if (!ocIdZoho) return;
+  try {
+    const r = await fetch(`/api/recepciones?action=detalle-oc&oc_id_zoho=${ocIdZoho}`).then(r => r.json());
+    const items = r.line_items || [];
+    const conId = items.filter(li => li.item_id);
+    if (conId.length) {
+      const prefill = conId.map(li => `${li.item_id}:${li.quantity}`).join(',');
+      window.open(`https://juanpimc-uy.github.io/etiquetas-maderable/?fuente=zoho&prefill=${encodeURIComponent(prefill)}`, '_blank');
+    } else {
+      window.open('https://juanpimc-uy.github.io/etiquetas-maderable/?fuente=zoho', '_blank');
+    }
+  } catch {
+    window.open('https://juanpimc-uy.github.io/etiquetas-maderable/?fuente=zoho', '_blank');
+  }
 }
 
 function renderMatTabPorProyecto(){
