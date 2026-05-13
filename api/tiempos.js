@@ -1752,7 +1752,7 @@ export default async function handler(req) {
       if (!email || !credential) return err('email y credencial requeridos', 400);
       const { data, error } = await supabase
         .from('empleados')
-        .select('id, nombre, email, categoria, rol_app, acceso_tiempos')
+        .select('id, nombre, email, categoria, rol_app, acceso_tiempos, centros_autorizados')
         .eq('email', email)
         .eq('pin', credential)
         .in('rol_app', ['admin', 'oficina'])
@@ -1760,7 +1760,7 @@ export default async function handler(req) {
         .maybeSingle();
       if (error) throw error;
       if (!data) return new Response(JSON.stringify({ ok: false, error: 'Credenciales incorrectas' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      return ok({ ok: true, usuario: { id: data.id, nombre: data.nombre, email: data.email, rol_app: data.rol_app, categoria: data.categoria, acceso_tiempos: data.acceso_tiempos ?? false } });
+      return ok({ ok: true, usuario: { id: data.id, nombre: data.nombre, email: data.email, rol_app: data.rol_app, categoria: data.categoria, acceso_tiempos: data.acceso_tiempos ?? false, centros_autorizados: data.centros_autorizados || [] } });
     }
 
     // ── POST cambiar PIN propio ───────────────────────────────────────────
