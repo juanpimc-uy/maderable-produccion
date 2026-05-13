@@ -1014,8 +1014,8 @@ export default async function handler(req) {
       if (jErr) throw jErr;
       if (!jornada) return err('Jornada no encontrada', 404);
 
-      // Oficina solo puede editar sus propias jornadas
-      if (editor.rol_app === 'oficina' && jornada.empleado_id !== editor_id)
+      // Solo roles sin permisos de edición están limitados a sus propias jornadas
+      if (editor.rol_app !== 'admin' && editor.rol_app !== 'oficina' && jornada.empleado_id !== editor_id)
         return new Response(JSON.stringify({ ok: false, error: 'Solo puede editar sus propias jornadas' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
@@ -1184,7 +1184,7 @@ export default async function handler(req) {
       if (callerS.rol_app !== 'admin' && callerS.rol_app !== 'oficina')
         return new Response(JSON.stringify({ ok: false, error: 'Sin acceso' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      if (callerS.rol_app !== 'admin' && !callerS.acceso_tiempos && regS.empleado_id !== caller_id)
+      if (callerS.rol_app !== 'admin' && callerS.rol_app !== 'oficina' && !callerS.acceso_tiempos && regS.empleado_id !== caller_id)
         return new Response(JSON.stringify({ ok: false, error: 'Sin acceso a tiempos de otros empleados' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
@@ -1348,11 +1348,11 @@ export default async function handler(req) {
       if (!callerDel)
         return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      if (callerDel.rol_app !== 'admin' && !callerDel.acceso_tiempos)
-        return new Response(JSON.stringify({ ok: false, error: 'Sin acceso a tiempos' }),
+      if (callerDel.rol_app !== 'admin' && callerDel.rol_app !== 'oficina')
+        return new Response(JSON.stringify({ ok: false, error: 'Sin acceso' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      if (callerDel.rol_app === 'oficina' && regDel.empleado_id !== caller_id)
-        return new Response(JSON.stringify({ ok: false, error: 'Solo puede eliminar sus propias sesiones' }),
+      if (callerDel.rol_app !== 'admin' && callerDel.rol_app !== 'oficina' && !callerDel.acceso_tiempos && regDel.empleado_id !== caller_id)
+        return new Response(JSON.stringify({ ok: false, error: 'Sin acceso a tiempos de otros empleados' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
       const { error: uDelErr } = await supabase
