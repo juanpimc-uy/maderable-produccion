@@ -631,6 +631,20 @@ export default async function handler(req) {
       const activoPorEmp = {};
       for (const r of activos) activoPorEmp[r.empleado_id] = r;
 
+      // 3b. Lookup última sesión para ausentes
+      const ausentesIds = empleados.filter(e => !jornadaPorEmp[e.id]).map(e => e.id);
+      let ultimosPorAusente = {};
+      if (ausentesIds.length > 0) {
+        const { data: ultRegs } = await supabase
+          .from('registros_trabajo')
+          .select('empleado_id, centro, proyecto_id, proyecto_nombre, item_id, item_nombre, inicio')
+          .in('empleado_id', ausentesIds)
+          .order('inicio', { ascending: false });
+        (ultRegs || []).forEach(r => {
+          if (!ultimosPorAusente[r.empleado_id]) ultimosPorAusente[r.empleado_id] = r;
+        });
+      }
+
       // 4. Construir lista de operarios
       const operariosOut = empleados.map(emp => {
         const jornada = jornadaPorEmp[emp.id] || null;
@@ -672,6 +686,8 @@ export default async function handler(req) {
           }
         }
 
+        const ultReg = estado === 'ausente' ? ultimosPorAusente[emp.id] : null;
+
         return {
           id:                emp.id,
           nombre:            emp.nombre,
@@ -685,6 +701,10 @@ export default async function handler(req) {
           tiempo_minutos,
           sin_senal_minutos,
           registro_id:       activo?.id      || null,
+          ultimo_centro:       ultReg?.centro || null,
+          ultimo_centro_label: ultReg?.centro ? (centroLabelMap[ultReg.centro] || ultReg.centro.toUpperCase()) : null,
+          ultimo_proyecto:     ultReg ? { nombre: ultReg.proyecto_nombre } : null,
+          ultimo_mueble:       ultReg ? { nombre: ultReg.item_nombre } : null,
         };
       });
 
