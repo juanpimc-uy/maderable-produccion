@@ -3380,8 +3380,10 @@ async function renderMateriales() {
   document.getElementById('mat-tabs').innerHTML=`
     <button class="btn ${matTabActual==='ocs'?'btn-primary':'btn-ghost'}" onclick="matTabActual='ocs';renderMateriales();">📋 OCs Pendientes</button>
     <button class="btn ${matTabActual==='proyecto'?'btn-primary':'btn-ghost'}" onclick="matTabActual='proyecto';renderMateriales();">📦 Por Proyecto</button>`;
-  if(matTabActual==='ocs') await renderMatTabOCs();
-  else renderMatTabPorProyecto();
+  if(matTabActual==='ocs') {
+    if (_matOcsCargadas) _matRenderOcs();
+    else await renderMatTabOCs();
+  } else renderMatTabPorProyecto();
 }
 
 // ── State para tab OCs ────────────────────────────────────────────────────
@@ -3389,6 +3391,7 @@ let _matOcs = [];
 let _matFilter = 'todas';
 let _matCurrentOc = null;
 let _matCurrentItems = null;
+let _matOcsCargadas = false;
 
 function _matFmtDate(iso) {
   if (!iso) return null;
@@ -3403,6 +3406,7 @@ async function renderMatTabOCs() {
     const r = await fetch('/api/recepciones?action=listar-ocs').then(r => r.json());
     if (!r.ok) throw new Error(r.error || 'Error');
     _matOcs = r.ocs || [];
+    _matOcsCargadas = true;
     _matFilter = 'todas';
     _matRenderOcs();
   } catch (e) {
@@ -3432,6 +3436,7 @@ function _matRenderOcs() {
         <button class="btn ${_matFilter==='pendientes'?'btn-primary':'btn-ghost'}" style="min-height:34px;font-size:10px;padding:0 14px;" onclick="_matSetFilter('pendientes')">PENDIENTES</button>
         <button class="btn ${_matFilter==='recibidas'?'btn-primary':'btn-ghost'}" style="min-height:34px;font-size:10px;padding:0 14px;" onclick="_matSetFilter('recibidas')">RECIBIDAS</button>
       </div>
+      <button class="btn btn-ghost" style="min-height:34px;font-size:10px;padding:0 12px;" onclick="_matOcsCargadas=false;renderMatTabOCs();" title="Refrescar">↻</button>
     </div>
     <div class="mono" style="font-size:9px;color:var(--muted);margin-top:8px;letter-spacing:1px;">Mostrando desde OC-5522 · ajustable en Ajustes</div>
   </div>
