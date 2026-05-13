@@ -24,38 +24,12 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .mono{font-family:'Space Mono',monospace;}
 
 /* ── Sidebar ─────────────────────────────────────────────────────────── */
-.sidebar{width:200px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
-.sidebar-logo{padding:18px 16px;border-bottom:1px solid var(--border);font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
-.nav-item{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;font-size:13px;color:var(--muted);border-left:3px solid transparent;transition:all .15s;user-select:none;}
-.nav-item:hover{background:var(--faint);color:var(--text);}
-.nav-item.active{background:rgba(255,214,0,.08);color:var(--amber);border-left-color:var(--amber);font-weight:600;}
-
-/* ── Top nav ─────────────────────────────────────────────────────────── */
-#topnav{
-  background:var(--panel);border-bottom:1px solid var(--border);
-  height:52px;display:flex;align-items:center;justify-content:space-between;
-  padding:0 24px;flex-shrink:0;position:sticky;top:0;z-index:50;
-}
-.tnav-logo{
-  font-family:'Space Mono',monospace;font-size:13px;font-weight:700;
-  color:var(--accent);letter-spacing:2px;text-decoration:none;
-}
-.tnav-links{display:flex;gap:4px;}
-.tnav-link{
-  font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);
-  text-decoration:none;padding:5px 12px;border-radius:5px;
-  transition:color .15s,background .15s;
-}
-.tnav-link:hover{background:var(--faint);color:var(--text);}
-.tnav-user{display:flex;align-items:center;gap:12px;}
-.tnav-user-name{font-family:'Space Mono',monospace;font-size:11px;color:var(--text);text-transform:uppercase;}
-.tnav-user-rol{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);}
-.tnav-logout{
-  font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);
-  background:transparent;border:1px solid var(--border);border-radius:4px;
-  padding:4px 10px;cursor:pointer;transition:color .15s,border-color .15s;
-}
-.tnav-logout:hover{color:var(--accent);border-color:var(--accent);}
+.sidebar { width:200px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar-logo { padding:18px 16px; border-bottom:1px solid var(--border); font-family:'Space Mono',monospace; font-size:13px; font-weight:700; color:var(--amber); letter-spacing:2px; }
+.nav-item { display:flex; align-items:center; gap:10px; padding:11px 16px; cursor:pointer; font-size:13px; color:var(--muted); border-left:3px solid transparent; transition:all .15s; user-select:none; }
+.nav-item:hover { background:var(--faint); color:var(--text); }
+.nav-item.active { background:rgba(245,166,35,.08); color:var(--amber); border-left-color:var(--amber); font-weight:600; }
+.nav-icon { font-size:15px; width:20px; text-align:center; flex-shrink:0; }
 
 /* ── Layout ─────────────────────────────────────────────────────────── */
 #content{max-width:1400px;margin:0 auto;padding:24px;flex:1;overflow-y:auto;}
@@ -257,21 +231,6 @@ table.ses-table tr:not(.row-modified){border-left:3px solid transparent;}
 <!-- ═══ MAIN CONTENT ════════════════════════════════════════════════════ -->
 <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
 
-<!-- ═══ TOP NAV ══════════════════════════════════════════════════════════ -->
-<div id="topnav">
-  <div style="display:flex;align-items:center;gap:20px;">
-    <a href="/admin.html" class="tnav-logo">⬡ MADERABLE</a>
-    <div class="tnav-links">
-      <a href="/admin.html" class="tnav-link">← Admin</a>
-    </div>
-  </div>
-  <div style="display:flex;align-items:center;gap:6px;">
-    <span class="tnav-user-name" id="tnav-nombre"></span>
-    <span class="tnav-user-rol" id="tnav-rol"></span>
-    <button class="tnav-logout" onclick="window.AUTH.cerrarSesion()">↪ Salir</button>
-  </div>
-</div>
-
 <!-- ═══ CONTENT ══════════════════════════════════════════════════════════ -->
 <div id="content">
 
@@ -381,9 +340,7 @@ const _tJorChanges = new Map();   // jid → {field: value}
   _tIsAdmin = u.rol_app === 'admin' || !!(u.acceso_tiempos);
   CALLER_ID = u.id;
 
-  // Nav user info
-  document.getElementById('tnav-nombre').textContent = u.nombre.toUpperCase();
-  document.getElementById('tnav-rol').textContent    = '· ' + u.rol_app;
+  // Sidebar user info is populated by _applyRoleNav()
 })();
 
 // ── Fetch wrapper (handles 403 redirect) ──────────────────────────────────
