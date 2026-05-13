@@ -3481,7 +3481,7 @@ function _matRenderOcs() {
       } else {
         badge = recibirBtn;
       }
-      html += `<div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);">
+      html += `<div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;" onclick="_matAbrirDetalleOc('${ocNum}')">
         <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0;"></div>
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;font-weight:600;">${oc.proveedor || '—'}</div>
@@ -3649,6 +3649,84 @@ async function _matImprimirEtiquetas() {
   const prefill = (items || []).map(li => `${li.item_id}:${li.quantity}`).join(',');
   window.open(`https://juanpimc-uy.github.io/etiquetas-maderable/?fuente=zoho&prefill=${encodeURIComponent(prefill)}`, '_blank');
   document.getElementById('mat-toast-etiquetas')?.remove();
+}
+
+function _matAbrirDetalleOc(ocNumero) {
+  const oc = _matOcs.find(o => o.oc_numero === ocNumero);
+  if (!oc) return;
+  const esReprog = oc.reprogramada && oc.estado !== 'recibida';
+  let estadoBadge = '';
+  if (oc.estado === 'recibida') estadoBadge = '<span class="pill" style="color:var(--green);border:1px solid rgba(61,214,140,.4);background:rgba(61,214,140,.08);">✓ RECIBIDA</span>';
+  else if (oc.estado === 'vencida') estadoBadge = '<span class="pill" style="color:var(--red);border:1px solid rgba(240,92,92,.4);background:rgba(240,92,92,.08);">VENCIDA</span>';
+  else if (esReprog) estadoBadge = '<span class="pill" style="color:#7eb8f7;border:1px solid rgba(126,184,247,.4);background:rgba(126,184,247,.08);">REPROGRAMADA</span>';
+  else estadoBadge = '<span class="pill" style="color:var(--accent);border:1px solid rgba(255,214,0,.4);background:rgba(255,214,0,.08);">PENDIENTE</span>';
+  const fdEmision = _matFmtDate(oc.fecha_original) || '—';
+  const fdEntrega = _matFmtDate(oc.fecha_efectiva) || '—';
+  const ocNum = oc.oc_numero.replace(/'/g, "\\'");
+  const pieBtn = oc.estado !== 'recibida'
+    ? `<button class="btn btn-primary" style="flex:1;min-height:40px;" onclick="event.stopPropagation();_matCerrarDetalleOc();_matAbrirRecibir('${ocNum}')">RECIBIR →</button>`
+    : '';
+  const html = `<div id="mat-modal-detalle-oc" class="overlay open" onclick="_matCerrarDetalleOc()">
+    <div class="modal" onclick="event.stopPropagation()" style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;width:90%;max-width:560px;max-height:85vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+        <div>
+          <div class="mono" style="font-size:14px;font-weight:700;color:var(--accent);letter-spacing:1px;">${oc.oc_numero}</div>
+          <div style="font-size:15px;font-weight:600;margin-top:4px;">${oc.proveedor || '—'}</div>
+        </div>
+        ${estadoBadge}
+      </div>
+      <div class="mono" style="font-size:10px;color:var(--muted);margin-bottom:16px;display:flex;gap:16px;flex-wrap:wrap;">
+        <span>Emisión: ${fdEmision}</span>
+        <span>Entrega: ${fdEntrega}</span>
+      </div>
+      <div id="mat-detalle-oc-items" style="margin-bottom:16px;">
+        <span class="mono" style="font-size:11px;color:var(--muted);">Cargando items...</span>
+      </div>
+      <div id="mat-detalle-oc-notas"></div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button class="btn btn-ghost" style="flex:1;min-height:40px;" onclick="_matCerrarDetalleOc()">Cerrar</button>
+        ${pieBtn}
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  fetch(`/api/recepciones?action=detalle-oc&oc_id_zoho=${oc.oc_id_zoho}`)
+    .then(r => r.json())
+    .then(d => {
+      const items = d.line_items || [];
+      const el = document.getElementById('mat-detalle-oc-items');
+      if (!el) return;
+      if (!items.length) { el.innerHTML = '<span class="mono" style="font-size:11px;color:#444;">Sin items</span>'; return; }
+      el.innerHTML = `<table style="width:100%;border-collapse:collapse;">
+        <tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;font-size:9px;color:var(--muted);padding:4px 0;font-family:'Space Mono',monospace;letter-spacing:1px;">ARTÍCULO</th>
+          <th style="text-align:left;font-size:9px;color:var(--muted);padding:4px 0;font-family:'Space Mono',monospace;letter-spacing:1px;">DESCRIPCIÓN</th>
+          <th style="text-align:right;font-size:9px;color:var(--muted);padding:4px 0;font-family:'Space Mono',monospace;letter-spacing:1px;">CANT</th>
+          <th style="text-align:right;font-size:9px;color:var(--muted);padding:4px 0;font-family:'Space Mono',monospace;letter-spacing:1px;">UNIDAD</th>
+        </tr>
+        ${items.map(li => `<tr style="border-bottom:1px solid rgba(42,42,42,.3);">
+          <td style="font-size:12px;padding:6px 0;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${li.name || '—'}</td>
+          <td style="font-size:11px;padding:6px 4px;color:var(--muted);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${li.description || '—'}</td>
+          <td class="mono" style="font-size:11px;padding:6px 0;text-align:right;color:var(--accent);">${li.quantity}</td>
+          <td class="mono" style="font-size:10px;padding:6px 0;text-align:right;color:var(--muted);">${li.unit || ''}</td>
+        </tr>`).join('')}
+      </table>`;
+      const notasEl = document.getElementById('mat-detalle-oc-notas');
+      if (notasEl && d.notes) {
+        notasEl.innerHTML = `<div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;">NOTAS PROVEEDOR</div><div style="font-size:12px;color:#555;">${d.notes}</div>`;
+      }
+      if (notasEl && d.reference_number) {
+        notasEl.innerHTML += `<div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-top:10px;">REFERENCIA</div><div class="mono" style="font-size:11px;color:#555;">${d.reference_number}</div>`;
+      }
+    })
+    .catch(() => {
+      const el = document.getElementById('mat-detalle-oc-items');
+      if (el) el.innerHTML = '<span class="mono" style="font-size:11px;color:var(--red);">Error cargando items</span>';
+    });
+}
+
+function _matCerrarDetalleOc() {
+  document.getElementById('mat-modal-detalle-oc')?.remove();
 }
 
 async function _matAbrirEtiquetasOc(ocNumero, ocIdZoho) {

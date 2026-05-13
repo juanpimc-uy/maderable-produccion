@@ -269,13 +269,25 @@ export default async function handler(req) {
       const data = await res.json();
       const po = data.purchaseorder || {};
       const lineItems = (po.line_items || []).map(li => ({
+        line_item_id: li.line_item_id || '',
         item_id: li.item_id,
-        name: li.name || li.description || '',
+        name: li.name || '',
+        description: li.description || '',
         quantity: li.quantity,
+        unit: li.unit || '',
         sku: li.sku || '',
       }));
 
-      return ok({ ok: true, line_items: lineItems });
+      return ok({
+        ok: true,
+        oc_numero: po.purchaseorder_number || '',
+        vendor_name: po.vendor_name || '',
+        date: po.date || null,
+        delivery_date: po.delivery_date || null,
+        notes: po.notes || '',
+        reference_number: po.reference_number || '',
+        line_items: lineItems,
+      });
     }
 
     // ── Acción no reconocida ──────────────────────────────────────────────
