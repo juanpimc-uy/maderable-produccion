@@ -1804,7 +1804,7 @@ export default async function handler(req) {
         valid = await scryptVerify(credential, data.password_hash);
       } else {
         // Oficina siempre, o admin sin hash: comparar PIN plain text
-        valid = (data.pin === credential);
+        valid = (String(data.pin) === String(credential));
         // Migración silenciosa: admin con pin correcto → hashear
         if (valid && data.rol_app === 'admin') {
           const hash = await scryptHash(credential);
@@ -1849,7 +1849,7 @@ export default async function handler(req) {
       if (emp.password_hash) {
         valid = await scryptVerify(password_actual, emp.password_hash);
       } else {
-        valid = (emp.pin === password_actual);
+        valid = (String(emp.pin) === String(password_actual));
       }
       if (!valid)
         return new Response(JSON.stringify({ ok: false, error: 'Contraseña actual incorrecta' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
