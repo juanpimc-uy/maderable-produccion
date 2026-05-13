@@ -1830,7 +1830,7 @@ export default async function handler(req) {
         .from('empleados').select('pin').eq('id', empleado_id).maybeSingle();
       if (eErr) throw eErr;
       if (!emp) return err('Empleado no encontrado', 404);
-      if (emp.pin !== pin_actual) return new Response(JSON.stringify({ ok: false, error: 'PIN actual incorrecto' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (String(emp.pin) !== String(pin_actual)) return new Response(JSON.stringify({ ok: false, error: 'PIN actual incorrecto' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
       const { error: uErr } = await supabase.from('empleados').update({ pin: pin_nuevo }).eq('id', empleado_id);
       if (uErr) throw uErr;
       return ok({ ok: true });
@@ -2311,12 +2311,15 @@ export default async function handler(req) {
       const CATS = ['directo','indirecto','tecnico','administrativo'];
       const por_categoria = CATS
         .filter(c => horasCat[c] !== undefined)
-        .map(c => ({
-          categoria: c,
-          horas: Math.round(horasCat[c] * 100) / 100,
-          tarifa_usd: tarifaMap[c] || 0,
-          subtotal_usd: Math.round(horasCat[c] * (tarifaMap[c] || 0) * 100) / 100,
-        }));
+        .map(c => {
+          const horas = Math.round(horasCat[c] * 10) / 10;
+          return {
+            categoria: c,
+            horas,
+            tarifa_usd: tarifaMap[c] || 0,
+            subtotal_usd: Math.round(horas * (tarifaMap[c] || 0) * 100) / 100,
+          };
+        });
       const total_horas = por_categoria.reduce((a, x) => a + x.horas, 0);
       const mo_total_usd = por_categoria.reduce((a, x) => a + x.subtotal_usd, 0);
       // Calcular materiales
