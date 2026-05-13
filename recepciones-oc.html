@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>MBLE · Recepciones OC</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0f0f0f;--panel:#1e1e1e;--card:#252525;--border:#2a2a2a;
+  --text:#e8e8e8;--muted:#888;--faint:#1a1a1a;
+  --accent:#FFD600;--green:#3DD68C;--red:#F05C5C;--blue:#7eb8f7;--amber:#FFD600;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
+.mono{font-family:'Space Mono',monospace;}
+
+/* ── Login ── */
+#screen-login{display:flex;align-items:center;justify-content:center;min-height:100vh;}
+.login-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:40px;width:100%;max-width:360px;}
+.login-logo{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--accent);letter-spacing:3px;text-align:center;margin-bottom:6px;}
+.login-sub{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-align:center;margin-bottom:28px;}
+.login-input{width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:12px 14px;color:var(--text);font-size:15px;outline:none;margin-bottom:12px;transition:border-color .15s;font-family:'Space Mono',monospace;letter-spacing:3px;}
+.login-input:focus{border-color:var(--accent);}
+.login-btn{width:100%;background:var(--accent);color:#0f0f0f;border:none;border-radius:6px;padding:13px;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:opacity .15s;}
+.login-btn:hover{opacity:.85;}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-7px)}80%{transform:translateX(7px)}}
+.shake{animation:shake .35s ease;}
+
+/* ── Header ── */
+.hdr{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;}
+.hdr-logo{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:2px;}
+.hdr-title{font-family:'Space Mono',monospace;font-size:12px;color:var(--text);letter-spacing:1px;}
+.hdr-status{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.hdr-status.loading{background:var(--accent);animation:pulse 1.5s infinite;}
+.hdr-status.ok{background:var(--green);}
+.hdr-status.error{background:var(--red);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ── Filters ── */
+.filters{display:flex;align-items:center;gap:12px;padding:12px 24px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.search-input{background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-size:13px;outline:none;width:240px;font-family:'DM Sans',sans-serif;transition:border-color .15s;}
+.search-input:focus{border-color:var(--accent);}
+.chip-group{display:flex;gap:4px;}
+.chip-btn{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;padding:5px 12px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;}
+.chip-btn.active{background:rgba(255,214,0,.1);border-color:rgba(255,214,0,.3);color:var(--accent);}
+
+/* ── List ── */
+.list{padding:8px 24px 80px;}
+.row{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid #1a1a1a;}
+.row:last-child{border-bottom:none;}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.dot-vencida{background:var(--red);}
+.dot-pendiente{background:var(--accent);}
+.dot-reprogramada{background:var(--blue);}
+.dot-recibida{background:var(--green);}
+.row-info{flex:1;min-width:0;}
+.row-prov{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.row-sub{font-size:11px;color:#444;margin-top:3px;display:flex;align-items:center;gap:0;flex-wrap:wrap;}
+.row-oc{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-right:8px;}
+.actions{display:flex;gap:10px;align-items:center;flex-shrink:0;}
+.reprog-link{font-family:'Space Mono',monospace;font-size:10px;color:#2e2e2e;border-bottom:1px dotted #2a2a2a;cursor:pointer;white-space:nowrap;transition:color .15s;}
+.reprog-link:hover{color:var(--muted);}
+.badge{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;padding:4px 10px;border-radius:4px;white-space:nowrap;text-transform:uppercase;}
+.badge-vencida{background:rgba(240,92,92,.15);color:var(--red);}
+.badge-pendiente{background:rgba(255,214,0,.12);color:var(--accent);cursor:pointer;transition:opacity .15s;}
+.badge-pendiente:hover{opacity:.8;}
+.badge-reprogramada{background:rgba(126,184,247,.12);color:var(--blue);}
+.badge-recibida{background:rgba(61,214,140,.12);color:var(--green);}
+.empty{text-align:center;padding:60px 20px;font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:2px;}
+.retry-btn{margin-top:16px;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:10px 20px;color:var(--text);font-family:'Space Mono',monospace;font-size:11px;cursor:pointer;}
+
+/* ── Overlay / Modal ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;align-items:center;justify-content:center;}
+.overlay.open{display:flex;}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;width:90%;max-width:400px;max-height:85vh;overflow-y:auto;}
+.modal-title{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;letter-spacing:2px;margin-bottom:16px;}
+.modal-chip{display:inline-block;font-family:'Space Mono',monospace;font-size:11px;padding:3px 10px;border-radius:4px;margin-bottom:10px;}
+.modal-prov{font-size:14px;font-weight:600;margin-bottom:14px;}
+.modal-items{margin-bottom:14px;}
+.modal-item{font-family:'Space Mono',monospace;font-size:11px;color:#555;padding:3px 0;}
+.modal-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);margin-bottom:6px;}
+.modal-textarea{width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;resize:none;height:56px;margin-bottom:14px;}
+.modal-textarea:focus{border-color:var(--accent);}
+.modal-date{width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;margin-bottom:14px;color-scheme:dark;}
+.modal-date:focus{border-color:var(--accent);}
+.modal-btns{display:flex;gap:8px;}
+.modal-btn{flex:1;padding:11px;border-radius:6px;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;cursor:pointer;border:none;transition:opacity .15s;}
+.modal-btn:hover{opacity:.85;}
+.modal-btn:disabled{opacity:.4;cursor:not-allowed;}
+.modal-btn-cancel{background:transparent;border:1px solid var(--border);color:var(--muted);}
+.modal-btn-confirm{background:var(--accent);color:#0f0f0f;}
+.modal-btn-blue{background:var(--blue);color:#0f0f0f;}
+.modal-error{font-family:'Space Mono',monospace;font-size:11px;color:var(--red);margin-bottom:10px;min-height:16px;}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(120px);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 20px;z-index:60;display:flex;align-items:center;gap:14px;transition:transform .3s ease;white-space:nowrap;max-width:90vw;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast-text{font-family:'Space Mono',monospace;font-size:11px;color:var(--text);}
+.toast-btn{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1px;padding:6px 14px;border-radius:4px;border:none;cursor:pointer;transition:opacity .15s;}
+.toast-btn:hover{opacity:.85;}
+.toast-btn-skip{background:transparent;border:1px solid var(--border);color:var(--muted);}
+.toast-btn-print{background:var(--accent);color:#0f0f0f;}
+
+/* ── Responsive ── */
+@media(max-width:600px){
+  .filters{padding:10px 16px;}
+  .search-input{width:100%;}
+  .list{padding:8px 16px 80px;}
+  .hdr{padding:0 16px;}
+  .row{flex-wrap:wrap;gap:10px;}
+  .actions{width:100%;justify-content:flex-end;}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN ══════════════════════════════════════════════════════════════ -->
+<div id="screen-login">
+  <div class="login-card">
+    <div class="login-logo">⬡ MADERABLE</div>
+    <div class="login-sub">RECEPCIONES OC — ALMACÉN</div>
+    <input id="pw-input" class="login-input" type="password" placeholder="contraseña"
+      onkeydown="if(event.key==='Enter')_login()">
+    <button class="login-btn" onclick="_login()">INGRESAR →</button>
+  </div>
+</div>
+
+<!-- ═══ APP ════════════════════════════════════════════════════════════════ -->
+<div id="screen-app" style="display:none;">
+
+  <div class="hdr">
+    <div class="hdr-logo">⬡ MADERABLE</div>
+    <div class="hdr-title">RECEPCIONES OC</div>
+    <div class="hdr-status loading" id="hdr-dot"></div>
+  </div>
+
+  <div class="filters">
+    <input class="search-input" id="search" type="text" placeholder="Buscar OC o proveedor…" oninput="_render()">
+    <div class="chip-group">
+      <button class="chip-btn active" data-f="todas" onclick="_setFilter('todas')">TODAS</button>
+      <button class="chip-btn" data-f="pendientes" onclick="_setFilter('pendientes')">PENDIENTES</button>
+      <button class="chip-btn" data-f="recibidas" onclick="_setFilter('recibidas')">RECIBIDAS</button>
+    </div>
+  </div>
+
+  <div class="list" id="list"></div>
+</div>
+
+<!-- ═══ MODAL RECIBIR ═════════════════════════════════════════════════════ -->
+<div class="overlay" id="modal-recibir" onclick="_cerrarRecibir()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" style="color:var(--accent);">CONFIRMAR RECEPCIÓN</div>
+    <div class="modal-chip" id="mr-oc" style="background:#1a1a00;color:var(--accent);"></div>
+    <div class="modal-prov" id="mr-prov"></div>
+    <div class="modal-items" id="mr-items">
+      <span class="mono" style="font-size:11px;color:var(--muted);">cargando items...</span>
+    </div>
+    <div class="modal-label">NOTAS (OPCIONAL)</div>
+    <textarea class="modal-textarea" id="mr-notas" placeholder="Notas de recepción…"></textarea>
+    <div class="modal-error" id="mr-error"></div>
+    <div class="modal-btns">
+      <button class="modal-btn modal-btn-cancel" onclick="_cerrarRecibir()">Cancelar</button>
+      <button class="modal-btn modal-btn-confirm" id="mr-btn" onclick="_confirmarRecibir()">CONFIRMAR RECEPCIÓN</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL REPROGRAMAR ═════════════════════════════════════════════════ -->
+<div class="overlay" id="modal-reprog" onclick="_cerrarReprog()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" style="color:var(--blue);">REPROGRAMAR ENTREGA</div>
+    <div class="modal-chip" id="rp-oc" style="background:rgba(126,184,247,.1);color:var(--blue);"></div>
+    <div class="modal-prov" id="rp-prov"></div>
+    <div style="margin-bottom:14px;">
+      <div class="modal-label">FECHA ORIGINAL</div>
+      <div class="mono" style="font-size:12px;color:var(--muted);" id="rp-fecha-orig">—</div>
+    </div>
+    <div class="modal-label">NUEVA FECHA PROMETIDA</div>
+    <input class="modal-date" type="date" id="rp-fecha">
+    <div class="modal-label">MOTIVO (OPCIONAL)</div>
+    <textarea class="modal-textarea" id="rp-motivo" placeholder="Motivo de la reprogramación…"></textarea>
+    <div class="modal-error" id="rp-error"></div>
+    <div class="modal-btns">
+      <button class="modal-btn modal-btn-cancel" onclick="_cerrarReprog()">Cancelar</button>
+      <button class="modal-btn modal-btn-blue" id="rp-btn" onclick="_confirmarReprog()">REPROGRAMAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TOAST ═════════════════════════════════════════════════════════════ -->
+<div class="toast" id="toast-etiquetas">
+  <span class="toast-text">¿Imprimir etiquetas de esta OC?</span>
+  <button class="toast-btn toast-btn-skip" onclick="_cerrarToast()">Omitir</button>
+  <button class="toast-btn toast-btn-print" id="toast-print-btn" onclick="_imprimirEtiquetas()">IMPRIMIR ETIQUETAS →</button>
+</div>
+
+<script>
+// ── Auth ─────────────────────────────────────────────────────────────────
+const PASS = 'maderable2024';
+if (localStorage.getItem('oc_session') === 'ok') _mostrarApp();
+function _login() {
+  const pw = document.getElementById('pw-input').value.trim();
+  if (pw === PASS) {
+    localStorage.setItem('oc_session', 'ok');
+    _mostrarApp();
+  } else {
+    const inp = document.getElementById('pw-input');
+    inp.classList.remove('shake');
+    void inp.offsetWidth;
+    inp.classList.add('shake');
+    inp.value = '';
+  }
+}
+function _mostrarApp() {
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('screen-app').style.display = '';
+  _cargar();
+  setInterval(_cargar, 60000);
+}
+
+// ── State ────────────────────────────────────────────────────────────────
+let _ocs = [];
+let _filter = 'todas';
+let _currentOc = null;
+let _currentItems = null;
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+function _fmtDate(iso) {
+  if (!iso) return null;
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function _setDot(cls) {
+  const el = document.getElementById('hdr-dot');
+  el.className = 'hdr-status ' + cls;
+}
+
+function _setFilter(f) {
+  _filter = f;
+  document.querySelectorAll('.chip-btn').forEach(b => b.classList.toggle('active', b.dataset.f === f));
+  _render();
+}
+
+// ── Fetch ────────────────────────────────────────────────────────────────
+async function _cargar() {
+  _setDot('loading');
+  try {
+    const r = await fetch('/api/recepciones?action=listar-ocs').then(r => r.json());
+    if (!r.ok) throw new Error(r.error || 'Error');
+    _ocs = r.ocs || [];
+    _setDot('ok');
+    _render();
+  } catch (e) {
+    _setDot('error');
+    document.getElementById('list').innerHTML = `
+      <div class="empty">
+        ERROR AL CARGAR<br>
+        <span style="font-size:10px;color:#555;">${e.message}</span><br>
+        <button class="retry-btn" onclick="_cargar()">Reintentar</button>
+      </div>`;
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function _render() {
+  const q = (document.getElementById('search')?.value || '').toLowerCase().trim();
+  let filtered = _ocs;
+
+  if (_filter === 'pendientes') filtered = filtered.filter(o => o.estado !== 'recibida');
+  else if (_filter === 'recibidas') filtered = filtered.filter(o => o.estado === 'recibida');
+
+  if (q) {
+    filtered = filtered.filter(o =>
+      (o.oc_numero || '').toLowerCase().includes(q) ||
+      (o.proveedor || '').toLowerCase().includes(q)
+    );
+  }
+
+  if (!filtered.length) {
+    document.getElementById('list').innerHTML = '<div class="empty">SIN ÓRDENES</div>';
+    return;
+  }
+
+  document.getElementById('list').innerHTML = filtered.map((oc, idx) => {
+    const esReprog = oc.reprogramada && oc.estado !== 'recibida';
+    const dotCls = esReprog ? 'dot-reprogramada' : `dot-${oc.estado}`;
+
+    let fechaLabel = '';
+    const fd = _fmtDate(oc.fecha_efectiva);
+    if (fd) {
+      let color = '#444';
+      let prefix = '';
+      if (oc.estado === 'recibida') {
+        prefix = 'recibida ';
+        color = 'var(--green)';
+        const fdr = _fmtDate(oc.fecha_recepcion?.split('T')[0]);
+        if (fdr) { fechaLabel = `<span style="color:${color};">${prefix}${fdr}</span>`; }
+        else { fechaLabel = `<span style="color:${color};">${prefix}${fd}</span>`; }
+      } else if (oc.estado === 'vencida') {
+        prefix = 'venció ';
+        color = 'var(--red)';
+        fechaLabel = `<span style="color:${color};">${prefix}${fd}</span>`;
+      } else if (esReprog) {
+        prefix = 'reprog. → ';
+        color = 'var(--blue)';
+        fechaLabel = `<span style="color:${color};">${prefix}${fd}</span>`;
+      } else {
+        prefix = 'vence ';
+        color = 'var(--accent)';
+        fechaLabel = `<span style="color:${color};">${prefix}${fd}</span>`;
+      }
+    }
+
+    const ocNum = oc.oc_numero.replace(/'/g, "\\'");
+    const reprogLink = oc.estado !== 'recibida'
+      ? `<span class="reprog-link" onclick="event.stopPropagation();_abrirReprog('${ocNum}')">⟳ reprog.</span>`
+      : '';
+
+    const recibirBtn = `<span class="badge badge-pendiente" onclick="event.stopPropagation();_abrirRecibir('${ocNum}')">RECIBIR →</span>`;
+    let badge = '';
+    if (oc.estado === 'recibida') {
+      badge = `<span class="badge badge-recibida">✓ RECIBIDA</span>`;
+    } else if (oc.estado === 'vencida') {
+      badge = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+        <span class="badge badge-vencida">VENCIDA</span>
+        ${recibirBtn}
+      </div>`;
+    } else if (esReprog) {
+      badge = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+        <span class="badge badge-reprogramada">REPROGRAMADA</span>
+        ${recibirBtn}
+      </div>`;
+    } else {
+      badge = recibirBtn;
+    }
+
+    return `<div class="row">
+      <div class="dot ${dotCls}"></div>
+      <div class="row-info">
+        <div class="row-prov">${oc.proveedor || '—'}</div>
+        <div class="row-sub">
+          <span class="row-oc">${oc.oc_numero}</span>
+          ${fechaLabel}
+        </div>
+      </div>
+      <div class="actions">
+        ${reprogLink}
+        ${badge}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Modal Recibir ────────────────────────────────────────────────────────
+function _abrirRecibir(ocNumero) {
+  _currentOc = _ocs.find(o => o.oc_numero === ocNumero);
+  if (!_currentOc) return;
+  _currentItems = null;
+  document.getElementById('mr-oc').textContent = _currentOc.oc_numero;
+  document.getElementById('mr-prov').textContent = _currentOc.proveedor;
+  document.getElementById('mr-notas').value = '';
+  document.getElementById('mr-error').textContent = '';
+  document.getElementById('mr-btn').disabled = false;
+  document.getElementById('mr-btn').textContent = 'CONFIRMAR RECEPCIÓN';
+  document.getElementById('mr-items').innerHTML = '<span class="mono" style="font-size:11px;color:var(--muted);">cargando items...</span>';
+  document.getElementById('modal-recibir').classList.add('open');
+
+  fetch(`/api/recepciones?action=detalle-oc&oc_id_zoho=${_currentOc.oc_id_zoho}`)
+    .then(r => r.json())
+    .then(d => {
+      _currentItems = d.line_items || [];
+      if (!_currentItems.length) {
+        document.getElementById('mr-items').innerHTML = '<span class="mono" style="font-size:11px;color:#444;">Sin items</span>';
+      } else {
+        document.getElementById('mr-items').innerHTML = _currentItems.map(li =>
+          `<div class="modal-item">${li.name} · ${li.quantity}</div>`
+        ).join('');
+      }
+    })
+    .catch(() => {
+      document.getElementById('mr-items').innerHTML = '<span class="mono" style="font-size:11px;color:var(--red);">Error cargando items</span>';
+    });
+}
+
+function _cerrarRecibir() {
+  document.getElementById('modal-recibir').classList.remove('open');
+}
+
+async function _confirmarRecibir() {
+  const btn = document.getElementById('mr-btn');
+  const errEl = document.getElementById('mr-error');
+  btn.disabled = true;
+  btn.textContent = '...';
+  errEl.textContent = '';
+  try {
+    const r = await fetch('/api/recepciones?action=recibir-oc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        oc_numero: _currentOc.oc_numero,
+        oc_id_zoho: _currentOc.oc_id_zoho,
+        notas: document.getElementById('mr-notas').value.trim() || null,
+      }),
+    }).then(r => r.json());
+    if (!r.ok) throw new Error(r.error || 'Error');
+    // Actualizar localmente
+    _currentOc.estado = 'recibida';
+    _currentOc.fecha_recepcion = new Date().toISOString();
+    _currentOc.notas_recepcion = document.getElementById('mr-notas').value.trim() || null;
+    _cerrarRecibir();
+    _render();
+    _mostrarToastEtiquetas();
+  } catch (e) {
+    errEl.textContent = e.message;
+    btn.disabled = false;
+    btn.textContent = 'CONFIRMAR RECEPCIÓN';
+  }
+}
+
+// ── Modal Reprogramar ────────────────────────────────────────────────────
+function _abrirReprog(ocNumero) {
+  _currentOc = _ocs.find(o => o.oc_numero === ocNumero);
+  if (!_currentOc) return;
+  document.getElementById('rp-oc').textContent = _currentOc.oc_numero;
+  document.getElementById('rp-prov').textContent = _currentOc.proveedor;
+  document.getElementById('rp-fecha-orig').textContent = _fmtDate(_currentOc.fecha_original) || '—';
+  document.getElementById('rp-fecha').value = '';
+  document.getElementById('rp-motivo').value = '';
+  document.getElementById('rp-error').textContent = '';
+  document.getElementById('rp-btn').disabled = false;
+  document.getElementById('rp-btn').textContent = 'REPROGRAMAR';
+  document.getElementById('modal-reprog').classList.add('open');
+}
+
+function _cerrarReprog() {
+  document.getElementById('modal-reprog').classList.remove('open');
+}
+
+async function _confirmarReprog() {
+  const fecha = document.getElementById('rp-fecha').value;
+  if (!fecha) {
+    document.getElementById('rp-error').textContent = 'Seleccioná una fecha';
+    return;
+  }
+  const btn = document.getElementById('rp-btn');
+  const errEl = document.getElementById('rp-error');
+  btn.disabled = true;
+  btn.textContent = '...';
+  errEl.textContent = '';
+  try {
+    const r = await fetch('/api/recepciones?action=reprogramar-oc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        oc_numero: _currentOc.oc_numero,
+        fecha_anterior: _currentOc.fecha_original,
+        fecha_nueva: fecha,
+        motivo: document.getElementById('rp-motivo').value.trim() || null,
+      }),
+    }).then(r => r.json());
+    if (!r.ok) throw new Error(r.error || 'Error');
+    // Actualizar localmente
+    _currentOc.fecha_efectiva = fecha;
+    _currentOc.reprogramada = true;
+    _currentOc.motivo_reprogramacion = document.getElementById('rp-motivo').value.trim() || null;
+    _cerrarReprog();
+    _render();
+  } catch (e) {
+    errEl.textContent = e.message;
+    btn.disabled = false;
+    btn.textContent = 'REPROGRAMAR';
+  }
+}
+
+// ── Toast etiquetas ──────────────────────────────────────────────────────
+function _mostrarToastEtiquetas() {
+  const toast = document.getElementById('toast-etiquetas');
+  toast.classList.add('show');
+}
+
+function _cerrarToast() {
+  document.getElementById('toast-etiquetas').classList.remove('show');
+}
+
+async function _imprimirEtiquetas() {
+  let items = _currentItems;
+  if (!items) {
+    try {
+      const r = await fetch(`/api/recepciones?action=detalle-oc&oc_id_zoho=${_currentOc.oc_id_zoho}`).then(r => r.json());
+      items = r.line_items || [];
+    } catch { items = []; }
+  }
+  const prefill = items.map(li => `${li.item_id}:${li.quantity}`).join(',');
+  const url = `https://juanpimc-uy.github.io/etiquetas-maderable/?fuente=zoho&prefill=${encodeURIComponent(prefill)}`;
+  window.open(url, '_blank');
+  _cerrarToast();
+}
+</script>
+</body>
+</html>
