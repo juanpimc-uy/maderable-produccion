@@ -1014,6 +1014,7 @@ async function syncEmpleadoSupabase(op) {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
+        id: op.id,
         admin_id: window.AUTH.usuarioActual()?.id,
         nombre: op.nombre,
         cedula: op.cedula || null,

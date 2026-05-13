@@ -396,8 +396,17 @@ export default async function handler(req) {
       const callerRol = caller.rol_app;
       if (callerRol === 'operario') return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
-      const { data: existing } = await supabase
-        .from('empleados').select('id, rol_app').eq('nombre', nombre).maybeSingle();
+      let existing = null;
+      if (body.id) {
+        const { data } = await supabase
+          .from('empleados').select('id, rol_app').eq('id', body.id).maybeSingle();
+        existing = data;
+      }
+      if (!existing) {
+        const { data } = await supabase
+          .from('empleados').select('id, rol_app').eq('nombre', nombre).maybeSingle();
+        existing = data;
+      }
 
       const isInsert = !existing;
       if (isInsert && callerRol !== 'admin') {
