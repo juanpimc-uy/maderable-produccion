@@ -69,21 +69,22 @@ export default async function handler(req) {
       const token = await getZohoToken();
       const headers = { Authorization: `Zoho-oauthtoken ${token}` };
 
-      // Dos llamadas paralelas: Open + Billed
-      const [resOpen, resBilled] = await Promise.all([
+      // Tres llamadas paralelas: Open + Billed + Approved
+      const [resOpen, resBilled, resApproved] = await Promise.all([
         fetch(`https://www.zohoapis.com/books/v3/purchaseorders?filter_by=Status.Open&organization_id=${orgId}&per_page=200`, { headers }),
         fetch(`https://www.zohoapis.com/books/v3/purchaseorders?filter_by=Status.Billed&organization_id=${orgId}&per_page=200`, { headers }),
+        fetch(`https://www.zohoapis.com/books/v3/purchaseorders?filter_by=Status.Approved&organization_id=${orgId}&per_page=200`, { headers }),
       ]);
 
-      if (!resOpen.ok || !resBilled.ok) {
-        const detail = !resOpen.ok ? await resOpen.text() : await resBilled.text();
+      if (!resOpen.ok || !resBilled.ok || !resApproved.ok) {
+        const detail = !resOpen.ok ? await resOpen.text() : !resBilled.ok ? await resBilled.text() : await resApproved.text();
         return new Response(JSON.stringify({ ok: false, error: 'zoho_error', detalle: detail }), {
           status: 502, headers: { ...CORS, 'Content-Type': 'application/json' },
         });
       }
 
-      const [dataOpen, dataBilled] = await Promise.all([resOpen.json(), resBilled.json()]);
-      const allOcs = [...(dataOpen.purchaseorders || []), ...(dataBilled.purchaseorders || [])];
+      const [dataOpen, dataBilled, dataApproved] = await Promise.all([resOpen.json(), resBilled.json(), resApproved.json()]);
+      const allOcs = [...(dataOpen.purchaseorders || []), ...(dataBilled.purchaseorders || []), ...(dataApproved.purchaseorders || [])];
 
       // Filtrar por número >= OC_MINIMA
       const filtradas = allOcs.filter(oc => {
@@ -143,6 +144,7 @@ export default async function handler(req) {
           reprogramada: !!reprog,
           motivo_reprogramacion: reprog?.motivo || null,
           estado,
+          reference_number: oc.reference_number || null,
           notas_recepcion: recepcion?.notas || null,
           fecha_recepcion: recepcion?.creado_en || null,
         };

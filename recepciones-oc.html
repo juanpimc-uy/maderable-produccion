@@ -346,7 +346,7 @@ function _render() {
         <div class="row-prov">${oc.proveedor || '—'}</div>
         <div class="row-sub">
           <span class="row-oc">${oc.oc_numero}</span>
-          ${fechaLabel}
+          ${fechaLabel}${oc.reference_number ? ` · <span style="color:#444;">ref: ${oc.reference_number}</span>` : ''}
         </div>
       </div>
       <div class="actions">

@@ -3485,7 +3485,7 @@ function _matRenderOcs() {
         <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0;"></div>
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;font-weight:600;">${oc.proveedor || '—'}</div>
-          <div class="mono" style="font-size:10px;color:var(--muted);margin-top:3px;">${oc.oc_numero} ${fechaLabel ? '· ' + fechaLabel : ''}</div>
+          <div class="mono" style="font-size:10px;color:var(--muted);margin-top:3px;">${oc.oc_numero} ${fechaLabel ? '· ' + fechaLabel : ''}${oc.reference_number ? ' · ref: ' + oc.reference_number : ''}</div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-shrink:0;">
           ${reprogLink}
