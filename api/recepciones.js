@@ -45,7 +45,7 @@ function errRes(msg, status = 400) {
   });
 }
 
-const OC_MINIMA = 850;
+const OC_MINIMA = 5522;
 
 // ── Handler ─────────────────────────────────────────────────────────────
 export default async function handler(req) {
