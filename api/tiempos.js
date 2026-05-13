@@ -1801,7 +1801,13 @@ export default async function handler(req) {
       let valid = false;
       if (data.rol_app === 'admin' && data.password_hash) {
         // Admin con hash: verificar contra hash
-        valid = await scryptVerify(credential, data.password_hash);
+        try {
+          valid = await scryptVerify(credential, data.password_hash);
+          console.log('[debug-login] scryptVerify result:', valid, '| credential length:', credential?.length, '| hash prefix:', data.password_hash?.substring(0, 10));
+        } catch(e) {
+          console.error('[debug-login] scryptVerify threw:', e.message);
+          valid = false;
+        }
       } else {
         // Oficina siempre, o admin sin hash: comparar PIN plain text
         valid = (String(data.pin) === String(credential));
