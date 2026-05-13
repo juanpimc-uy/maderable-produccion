@@ -4568,7 +4568,7 @@ async function cambiarPasswordPropio() {
     const res = await fetch('/api/tiempos?action=cambiar-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ empleado_id: u.id, credencial_actual: actual, password_nuevo: nuevo }),
+      body: JSON.stringify({ empleado_id: u.id, password_actual: actual, password_nuevo: nuevo, password_confirmar: confirmar }),
     });
     const data = await res.json();
     if (data.ok) {
