@@ -29,7 +29,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .shake{animation:shake .35s ease;}
 
 /* ── Header ── */
-.hdr{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;}
+.hdr{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--border);height:52px;display:flex;align-items:center;justify-content:center;}
+.hdr-inner{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:960px;padding:0 24px;}
 .hdr-logo{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:2px;}
 .hdr-title{font-family:'Space Mono',monospace;font-size:12px;color:var(--text);letter-spacing:1px;}
 .hdr-status{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
@@ -39,7 +40,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
 
 /* ── Filters ── */
-.filters{display:flex;align-items:center;gap:12px;padding:12px 24px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.filters{display:flex;align-items:center;gap:12px;padding:12px 24px;border-bottom:1px solid var(--border);flex-wrap:wrap;max-width:960px;margin:0 auto;}
 .search-input{background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-size:13px;outline:none;width:240px;font-family:'DM Sans',sans-serif;transition:border-color .15s;}
 .search-input:focus{border-color:var(--accent);}
 .chip-group{display:flex;gap:4px;}
@@ -47,7 +48,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .chip-btn.active{background:rgba(255,214,0,.1);border-color:rgba(255,214,0,.3);color:var(--accent);}
 
 /* ── List ── */
-.list{padding:8px 24px 80px;}
+.list{padding:8px 24px 80px;max-width:960px;margin:0 auto;}
 .row{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid #1a1a1a;}
 .row:last-child{border-bottom:none;}
 .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
@@ -57,10 +58,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .dot-recibida{background:var(--green);}
 .row-info{flex:1;min-width:0;}
 .row-prov{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.row-sub{font-size:11px;color:#444;margin-top:3px;display:flex;align-items:center;gap:0;flex-wrap:wrap;}
+.row-sub{font-size:11px;color:#444;margin-top:3px;display:flex;align-items:center;gap:0;flex-wrap:wrap;white-space:normal;}
 .row-oc{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-right:8px;}
 .actions{display:flex;gap:10px;align-items:center;flex-shrink:0;}
-.reprog-link{font-family:'Space Mono',monospace;font-size:10px;color:#2e2e2e;border-bottom:1px dotted #2a2a2a;cursor:pointer;white-space:nowrap;transition:color .15s;}
+.reprog-link{font-family:'Space Mono',monospace;font-size:10px;color:#3a3a3a;border-bottom:1px dotted #2a2a2a;cursor:pointer;white-space:nowrap;transition:color .15s;}
 .reprog-link:hover{color:var(--muted);}
 .badge{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;padding:4px 10px;border-radius:4px;white-space:nowrap;text-transform:uppercase;}
 .badge-vencida{background:rgba(240,92,92,.15);color:var(--red);}
@@ -131,9 +132,11 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 <div id="screen-app" style="display:none;">
 
   <div class="hdr">
-    <div class="hdr-logo">⬡ MADERABLE</div>
-    <div class="hdr-title">RECEPCIONES OC</div>
-    <div class="hdr-status loading" id="hdr-dot"></div>
+    <div class="hdr-inner">
+      <div class="hdr-logo">⬡ MADERABLE</div>
+      <div class="hdr-title">RECEPCIONES OC</div>
+      <div class="hdr-status loading" id="hdr-dot"></div>
+    </div>
   </div>
 
   <div class="filters">
