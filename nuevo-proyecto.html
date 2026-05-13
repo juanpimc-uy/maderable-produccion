@@ -652,7 +652,7 @@ const FC=[
 function renderMuebles(){
   const list=document.getElementById('muebles-list');
   if(!muebles.length){
-    list.innerHTML='<div style="text-align:center;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:12px;padding:24px;">Sin muebles. Importá un ODF o usá + Agregar mueble.</div>';
+    list.innerHTML='<div style="text-align:center;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:12px;padding:24px;">Sin muebles. Importá un ODF o usá + Agregar mueble.</div><button class="btn btn-primary" onclick="addMueble()" style="margin-top:12px;width:100%;">+ Agregar mueble</button>';
     renderHorasTotales(); return;
   }
   const rows=muebles.map((m,idx)=>{
