@@ -359,8 +359,8 @@ function renderSnapshot(data) {
   // Cards
   document.getElementById('tv-planta').innerHTML  = planta.map(buildCard).join('') || '<div style="color:var(--tx3);font-size:12px;padding:8px;">Sin actividad</div>';
   document.getElementById('tv-oficina').innerHTML = oficina.map(buildCard).join('') || '';
-  document.getElementById('sc-pl').textContent = planta.length;
-  document.getElementById('sc-of').textContent = oficina.length;
+  document.getElementById('sc-pl').textContent = plantaActiva.length;
+  document.getElementById('sc-of').textContent = oficinaActiva.length;
 
   // Proyectos lanes
   const proyMap = {};
