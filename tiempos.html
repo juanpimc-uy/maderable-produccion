@@ -32,7 +32,9 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .nav-icon { font-size:15px; width:20px; text-align:center; flex-shrink:0; }
 
 /* ── Layout ─────────────────────────────────────────────────────────── */
-#content{max-width:1400px;margin:0 auto;padding:24px;flex:1;overflow-y:auto;}
+.shell { display:flex; height:100vh; overflow:hidden; }
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.content { flex:1; overflow-y:auto; padding:24px; }
 
 /* ── Tabs ────────────────────────────────────────────────────────────── */
 .tabs-bar{display:flex;gap:4px;margin-bottom:24px;border-bottom:1px solid var(--border);padding-bottom:0;}
@@ -198,7 +200,7 @@ table.ses-table tr:not(.row-modified){border-left:3px solid transparent;}
 </style>
 </head>
 <body>
-<div style="display:flex;height:100vh;overflow:hidden;">
+<div class="shell">
 
 <!-- ═══ SIDEBAR ══════════════════════════════════════════════════════════ -->
 <aside class="sidebar">
@@ -228,11 +230,9 @@ table.ses-table tr:not(.row-modified){border-left:3px solid transparent;}
   </div>
 </aside>
 
-<!-- ═══ MAIN CONTENT ════════════════════════════════════════════════════ -->
-<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
-
-<!-- ═══ CONTENT ══════════════════════════════════════════════════════════ -->
-<div id="content">
+<!-- ═══ MAIN ════════════════════════════════════════════════════════════ -->
+<div class="main">
+<div class="content">
 
   <!-- ── TABS ── -->
   <div class="tabs-bar">
@@ -438,10 +438,13 @@ async function _tInit() {
       _empListT = d.empleados || [];
       const opSel  = document.getElementById('op-emp-select');
       const repSel = document.getElementById('rep-emp-select');
-      _empListT.filter(e => e.rol_app === 'operario').forEach(e => {
+      const opFilter = _tUser.rol_app === 'admin'
+        ? _empListT
+        : _empListT.filter(e => e.rol_app === 'operario' || e.rol_app === 'oficina');
+      opFilter.forEach(e => {
         opSel.innerHTML  += `<option value="${e.id}">${e.nombre}</option>`;
       });
-      _empListT.forEach(e => {
+      opFilter.forEach(e => {
         repSel.innerHTML += `<option value="${e.id}">${e.nombre}</option>`;
       });
     } catch(e) { console.warn('[tiempos] empleados:', e.message); }
@@ -1102,7 +1105,7 @@ function _applyRoleNav() {
 _applyRoleNav();
 _tInit();
 </script>
-</div><!-- /flex main -->
-</div><!-- /flex root -->
+</div><!-- /main -->
+</div><!-- /shell -->
 </body>
 </html>
