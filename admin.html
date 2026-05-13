@@ -3384,473 +3384,266 @@ async function renderMateriales() {
   else renderMatTabPorProyecto();
 }
 
-function renderMatTabOCs() {
-  window._zohoProyStorage=PROYECTOS;
-  // OCs manuales previamente guardadas
-  const ocsManual=JSON.parse(localStorage.getItem('ocs_manuales')||'[]')
-    .filter(oc=>!ocsProcesadas.includes(oc.purchaseorder_id));
-  window._zohoOCs=[...ocsManual];
+// ── State para tab OCs ────────────────────────────────────────────────────
+let _matOcs = [];
+let _matFilter = 'todas';
+let _matCurrentOc = null;
+let _matCurrentItems = null;
 
-  const ocsSistema=JSON.parse(localStorage.getItem('ocs_sistema')||'[]');
-  let html=`
-  <!-- buscador -->
-  <div class="card" style="margin-bottom:16px;">
-    <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:14px;">BUSCAR ORDEN DE COMPRA</div>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <input id="oc-buscar-num" placeholder="Número OC  ej: 1234"
-        style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:9px 12px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;outline:none;width:220px;"
-        onkeydown="if(event.key==='Enter')buscarOCZoho()">
-      <button class="btn btn-primary" onclick="buscarOCZoho()">Buscar →</button>
-      <span id="oc-buscar-msg" style="font-size:11px;color:var(--muted);"></span>
+function _matFmtDate(iso) {
+  if (!iso) return null;
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+async function renderMatTabOCs() {
+  const el = document.getElementById('mat-contenido');
+  el.innerHTML = '<div style="padding:32px;text-align:center;"><span class="mono" style="font-size:11px;color:var(--muted);">Cargando OCs desde Zoho...</span></div>';
+  try {
+    const r = await fetch('/api/recepciones?action=listar-ocs').then(r => r.json());
+    if (!r.ok) throw new Error(r.error || 'Error');
+    _matOcs = r.ocs || [];
+    _matFilter = 'todas';
+    _matRenderOcs();
+  } catch (e) {
+    el.innerHTML = `<div class="card" style="text-align:center;padding:32px;"><div class="mono" style="font-size:11px;color:var(--red);margin-bottom:12px;">Error: ${e.message}</div><button class="btn btn-ghost" onclick="renderMatTabOCs()">Reintentar</button></div>`;
+  }
+}
+
+function _matSetFilter(f) {
+  _matFilter = f;
+  _matRenderOcs();
+}
+
+function _matRenderOcs() {
+  const q = (document.getElementById('mat-search')?.value || '').toLowerCase().trim();
+  let filtered = _matOcs;
+  if (_matFilter === 'pendientes') filtered = filtered.filter(o => o.estado !== 'recibida');
+  else if (_matFilter === 'recibidas') filtered = filtered.filter(o => o.estado === 'recibida');
+  if (q) filtered = filtered.filter(o => (o.oc_numero||'').toLowerCase().includes(q) || (o.proveedor||'').toLowerCase().includes(q));
+
+  let html = `<div class="card" style="margin-bottom:16px;padding:14px 18px;">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <input id="mat-search" placeholder="Buscar OC o proveedor…" value="${q.replace(/"/g,'&quot;')}"
+        oninput="_matRenderOcs()"
+        style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:8px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;width:240px;">
+      <div style="display:flex;gap:4px;">
+        <button class="btn ${_matFilter==='todas'?'btn-primary':'btn-ghost'}" style="min-height:34px;font-size:10px;padding:0 14px;" onclick="_matSetFilter('todas')">TODAS</button>
+        <button class="btn ${_matFilter==='pendientes'?'btn-primary':'btn-ghost'}" style="min-height:34px;font-size:10px;padding:0 14px;" onclick="_matSetFilter('pendientes')">PENDIENTES</button>
+        <button class="btn ${_matFilter==='recibidas'?'btn-primary':'btn-ghost'}" style="min-height:34px;font-size:10px;padding:0 14px;" onclick="_matSetFilter('recibidas')">RECIBIDAS</button>
+      </div>
     </div>
+    <div class="mono" style="font-size:9px;color:var(--muted);margin-top:8px;letter-spacing:1px;">Mostrando desde OC-0850 · ajustable en Ajustes</div>
   </div>
-  <!-- resultado de búsqueda -->
-  <div id="oc-resultado" style="margin-bottom:16px;"></div>
-  <!-- OCs registradas en sistema -->
-  ${ocsSistema.length?`<div class="card" style="margin-bottom:16px;">
-    <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:12px;">OCs EN SISTEMA</div>
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      ${ocsSistema.map(o=>{
-        const isPend=o.estado==='pendiente';
-        const totalItems=o.items?o.items.length:0;
-        const recibidosItems=o.items?o.items.filter(i=>(i.recibido||0)>=i.cantidad).length:0;
-        const pct=totalItems?Math.round(recibidosItems/totalItems*100):0;
-        return`<div style="background:var(--faint);border-radius:7px;border:1px solid ${isPend?'rgba(245,166,35,.3)':'rgba(61,214,140,.3)'};overflow:hidden;">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;flex-wrap:wrap;gap:8px;">
-            <div>
-              <span class="mono" style="font-size:12px;font-weight:700;color:var(--amber);">${o.numero}</span>
-              <span style="font-size:12px;color:var(--muted);margin-left:10px;">${o.proveedor} · ${fmtFecha(o.fecha)}</span>
-              <span class="pill" style="margin-left:8px;font-size:9px;color:${isPend?'var(--amber)':'var(--green)'};border:1px solid ${isPend?'rgba(245,166,35,.4)':'rgba(61,214,140,.4)'};background:${isPend?'rgba(245,166,35,.08)':'rgba(61,214,140,.08)'};">${isPend?'PENDIENTE':'RECIBIDA'}</span>
-            </div>
-            ${isPend?`<div style="display:flex;gap:6px;">
-              <button class="btn btn-success btn-sm" onclick="recibirOCRegistrada('${o.id}')">✓ Recibir OC completa</button>
-              <button class="btn btn-ghost btn-sm" onclick="toggleParcialOCSistema('${o.id}')">Recepción parcial</button>
-            </div>`:''}
-          </div>
-          ${isPend&&totalItems?`<div style="padding:0 14px 8px;">
-            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px;"><span>Ítems recibidos</span><span>${recibidosItems}/${totalItems}</span></div>
-            <div style="height:3px;background:var(--border);border-radius:2px;"><div style="height:100%;width:${pct}%;background:var(--green);border-radius:2px;transition:.3s;"></div></div>
-          </div>`:''}
-          <div id="oc-sys-parcial-${o.id}" style="display:none;padding:10px 14px;border-top:1px solid var(--border);">
-            <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">RECEPCIÓN PARCIAL</div>
-            ${(o.items||[]).map((it,idx)=>`<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;margin-bottom:6px;">
-              <div style="font-size:12px;">${it.nombre}${it.sku?`<span style="color:var(--muted);font-size:10px;margin-left:6px;">${it.sku}</span>`:''}
-                <span style="color:var(--muted);font-size:11px;margin-left:4px;">(${it.recibido||0}/${it.cantidad} ${it.unidad||''})</span>
-              </div>
-              <input type="number" id="parcial-qty-${o.id}-${idx}" min="0" max="${it.cantidad}" value="${it.cantidad-(it.recibido||0)}" style="width:70px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 7px;color:var(--text);font-size:12px;text-align:center;">
-              <input type="checkbox" id="parcial-chk-${o.id}-${idx}" checked style="width:16px;height:16px;accent-color:var(--green);">
-            </div>`).join('')}
-            <button class="btn btn-success btn-sm" style="margin-top:8px;" onclick="confirmarParcialOCSistema('${o.id}',${totalItems})">Confirmar recepción parcial</button>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>
-  </div>`:''}
-  <!-- OCs manuales guardadas -->
-  <div id="oc-lista-manual" style="display:flex;flex-direction:column;gap:12px;">
-    ${ocsManual.length ? ocsManual.map(oc=>_renderOCCard(oc)).join('') : ''}
-  </div>
-  <!-- form carga manual -->
-  <div style="margin-top:16px;">
-    <button class="btn btn-ghost" onclick="toggleEl('form-oc-manual')">+ Cargar OC manual</button>
-    <div id="form-oc-manual" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:18px;margin-top:8px;">
-      <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:14px;">NUEVA OC MANUAL</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;">
-        <div class="field"><label>Número OC</label><input id="moc-num" placeholder="OC-001" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;width:100%;"></div>
-        <div class="field"><label>Proveedor</label><input id="moc-prov" placeholder="Nombre proveedor" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;width:100%;"></div>
-        <div class="field"><label>Fecha</label><input type="date" id="moc-fecha" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;width:100%;"></div>
-      </div>
-      <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">ÍTEMS</div>
-      <div id="moc-items" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
-        <div class="moc-item-row" style="display:grid;grid-template-columns:1fr 70px 90px auto;gap:8px;align-items:center;">
-          <input placeholder="Nombre del ítem" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;">
-          <input type="number" min="1" value="1" placeholder="Cant." style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;text-align:center;outline:none;">
-          <input placeholder="Unidad" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;">
-          <button onclick="this.closest('.moc-item-row').remove()" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;font-size:12px;">✕</button>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-ghost btn-sm" onclick="agregarFilaItemOC()">+ Ítem</button>
-        <button class="btn btn-primary btn-sm" onclick="guardarOCManual()">Guardar OC</button>
-        <button class="btn btn-ghost btn-sm" onclick="toggleEl('form-oc-manual')">Cancelar</button>
-      </div>
-    </div>
-  </div>`;
-  document.getElementById('mat-contenido').innerHTML=html;
-  // restaurar OC buscada si existe (sobrevive al re-render del setInterval)
-  if(window._ocActual)renderOC(window._ocActual.oc,window._ocActual.items);
-}
+  `;
 
-function _renderOCCard(oc){
-  const fecha=oc.date||oc.created_time||'—';
-  const items=oc.line_items||[];
-  const badgeManual=oc._manual?`<span class="pill" style="font-size:9px;color:var(--blue);border:1px solid rgba(91,141,239,.4);background:rgba(91,141,239,.08);">Manual</span>`:'';
-  return`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;" id="oc-card-${oc.purchaseorder_id}">
-    <div style="padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-      <div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span class="mono" style="font-size:12px;font-weight:700;color:var(--amber);">${oc.purchaseorder_number||oc.purchaseorder_id}</span>
-          <span style="font-size:13px;font-weight:600;">${oc.vendor_name||'—'}</span>
-          ${badgeManual}
-        </div>
-        <div class="mono" style="font-size:10px;color:var(--muted);margin-top:3px;">${fecha} · ${items.length} ítem${items.length!==1?'s':''}</div>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-primary btn-sm" onclick="confirmarRecibirOCCompleta('${oc.purchaseorder_id}')">✓ Recibir OC completa</button>
-        <button class="btn btn-ghost btn-sm" onclick="abrirRecepcionParcial('${oc.purchaseorder_id}')">Recepción parcial</button>
-      </div>
-    </div>
-    <div style="padding:12px 18px;">
-      ${items.map(li=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(37,40,54,.4);">
-        <span style="font-size:12px;">${li.name||li.description||'—'}</span>
-        <span class="mono" style="font-size:11px;color:var(--muted);">${li.quantity||1} ${li.unit||''}</span>
-      </div>`).join('')}
-    </div>
-    <div id="oc-panel-${oc.purchaseorder_id}" style="display:none;"></div>
-  </div>`;
-}
-
-async function buscarOCZoho(){
-  const raw=document.getElementById('oc-buscar-num')?.value?.trim();
-  if(!raw)return;
-  const msgEl=document.getElementById('oc-buscar-msg');
-  const resEl=document.getElementById('oc-resultado');
-  msgEl.textContent='Buscando...';msgEl.style.color='var(--muted)';
-  resEl.innerHTML='';
-  try{
-    const token=await zohoTokenAdmin();
-    console.log('Token OC:', token?'SI':'NO', token?.substring(0,20));
-    if(!token)throw new Error('Sin token Zoho');
-    const limpio=raw.trim().replace(/^OC-?/i,'');
-    const formatos=[
-      'OC-'+limpio.padStart(5,'0'),
-      'OC-'+limpio,
-      limpio.padStart(5,'0'),
-      limpio,
-    ];
-    let ocId=null;
-    for(const fmt of formatos){
-      console.log('Probando OC formato:', fmt);
-      const r=await fetch('/api/zoho-books?endpoint='+encodeURIComponent('purchaseorders?purchaseorder_number='+fmt)+'&token='+encodeURIComponent(token));
-      const d=await r.json();
-      console.log('Keys respuesta OC:', Object.keys(d));
-      console.log('RAW:', JSON.stringify(d).substring(0,300));
-      const lista=d.purchaseorders||d.purchase_orders||[];
-      console.log('Resultado OC:', fmt, '->', lista.length, 'resultados');
-      if(lista.length){ocId=lista[0]?.purchaseorder_id;console.log('OC ID encontrado:', ocId);break;}
-    }
-    if(!ocId){msgEl.textContent='OC no encontrada. Probados: '+formatos.join(', ');msgEl.style.color='var(--red)';return;}
-    const r2=await fetch('/api/zoho-books?endpoint='+encodeURIComponent('purchaseorders/'+ocId)+'&token='+encodeURIComponent(token));
-    const d2=await r2.json();
-    console.log('Keys detalle OC:', Object.keys(d2));
-    const oc=d2.purchaseorder;
-    const items=oc?.line_items||[];
-    console.log('Items encontrados:', items.length);
-    console.log('Detalle OC line_items:', JSON.stringify(items).substring(0,400));
-    if(!oc){msgEl.textContent='No se pudo obtener detalle de la OC';msgEl.style.color='var(--red)';return;}
-    console.log('Renderizando OC:', oc?.purchaseorder_number, 'con', items.length, 'items');
-    msgEl.textContent='';
-    if(!window._zohoOCs)window._zohoOCs=[];
-    window._zohoOCs=window._zohoOCs.filter(o=>o.purchaseorder_id!==oc.purchaseorder_id);
-    window._zohoOCs.push({...oc,_manual:false});
-    renderOC(oc, items);
-  }catch(e){msgEl.textContent='Error: '+e.message;msgEl.style.color='var(--red)';}
-}
-
-function fmtFecha(s){if(!s)return'—';try{return new Date(s).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric'});}catch{return s;}}
-
-function renderOC(oc, items){
-  const contenedor=document.getElementById('oc-resultado');
-  if(!contenedor){console.error('No existe #oc-resultado en el DOM');return;}
-  const yaRegistrada=JSON.parse(localStorage.getItem('ocs_sistema')||'[]').some(o=>o.id===oc.purchaseorder_id&&o.estado==='pendiente');
-  contenedor.innerHTML=`
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-top:4px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
-        <div>
-          <div class="mono" style="font-size:13px;font-weight:700;color:var(--amber);">${oc.purchaseorder_number||'—'}</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:3px;">${oc.vendor_name||'—'} · ${fmtFecha(oc.date)}</div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          ${yaRegistrada
-            ?`<span class="pill" style="color:var(--amber);border:1px solid rgba(245,166,35,.4);background:rgba(245,166,35,.08);">Ya registrada</span>`
-            :`<button class="btn btn-ghost btn-sm" onclick="registrarOCPendiente()">📥 Registrar OC pendiente</button>`}
-          <button class="btn btn-success btn-sm" onclick="recibirOCCompleta()">✓ Recibir OC completa</button>
-          <button class="btn btn-ghost btn-sm" onclick="abrirRecepcionParcialActual()">Recepción parcial</button>
-        </div>
-      </div>
-      ${items.length?items.map(i=>`
-        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);align-items:flex-start;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:13px;">${i.name||i.description||'—'}</div>
-            ${(i.sku||i.account_name)?`<div class="mono" style="font-size:10px;color:var(--muted);margin-top:2px;">${[i.sku,i.account_name].filter(Boolean).join(' · ')}</div>`:''}
-          </div>
-          <span class="mono" style="color:var(--amber);white-space:nowrap;flex-shrink:0;">${i.quantity||1} ${i.unit||'unid'}</span>
-        </div>`).join(''):`<div class="mono" style="font-size:11px;color:var(--muted);padding:8px 0;">Sin ítems</div>`}
-    </div>`;
-  window._ocActual={oc,items};
-}
-
-function recibirOCCompleta(){
-  if(!window._ocActual){console.error('No hay OC activa en window._ocActual');return;}
-  const {oc,items}=window._ocActual;
-  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(items,PROYECTOS);
-  PROYECTOS.forEach(p=>syncProyectoSupabase(p));
-  ocsProcesadas.push(oc.purchaseorder_id);
-  localStorage.setItem('ocsProcesadas',JSON.stringify(ocsProcesadas));
-  const contenedor=document.getElementById('oc-resultado');
-  if(contenedor){
-    let html=`<div style="background:rgba(61,214,140,.07);border:1px solid rgba(61,214,140,.3);border-radius:10px;padding:18px;margin-top:4px;">
-      <div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:${mueblesDesbloqueados.length?'10':'0'}px;">✓ OC recibida. ${matActualizados} material${matActualizados!==1?'es':''} actualizado${matActualizados!==1?'s':''}. ${mueblesDesbloqueados.length} mueble${mueblesDesbloqueados.length!==1?'s':''} desbloqueado${mueblesDesbloqueados.length!==1?'s':''}.</div>`;
-    mueblesDesbloqueados.forEach(mu=>{html+=`<div style="font-size:11px;margin-top:4px;">🟢 <a href="#" onclick="abrirDetallePr('${mu.prId}');return false;" style="color:var(--green);">${mu.prNombre}</a> › ${mu.mNombre}</div>`;});
-    html+=`</div>`;
-    contenedor.innerHTML=html;
-  }
-  window._ocActual=null;
-}
-
-function registrarOCPendiente(){
-  if(!window._ocActual){console.error('No hay OC activa');return;}
-  const {oc,items}=window._ocActual;
-  const lista=JSON.parse(localStorage.getItem('ocs_sistema')||'[]');
-  if(lista.some(o=>o.id===oc.purchaseorder_id)){
-    // ya existe — actualizar si estaba recibida
-    return;
-  }
-  lista.push({
-    id:oc.purchaseorder_id,
-    numero:oc.purchaseorder_number||'—',
-    proveedor:oc.vendor_name||'—',
-    fecha:oc.date||'',
-    items:items.map(i=>({nombre:i.name||'',sku:i.sku||'',cantidad:i.quantity||1,unidad:i.unit||'unidades',recibido:0})),
-    estado:'pendiente',
-    fechaRegistro:new Date().toISOString(),
-  });
-  localStorage.setItem('ocs_sistema',JSON.stringify(lista));
-  // mostrar feedback en el botón sin re-renderizar la card
-  renderOC(oc,items); // re-render para mostrar "Ya registrada"
-  const contenedor=document.getElementById('oc-resultado');
-  if(contenedor){
-    const msg=document.createElement('div');
-    msg.style.cssText='font-size:12px;color:var(--green);margin-top:8px;font-weight:600;';
-    msg.textContent='✓ OC registrada como pendiente';
-    contenedor.appendChild(msg);
-    setTimeout(()=>msg.remove(),3000);
-  }
-  // actualizar lista en sistema sin perder la card
-  renderMatTabOCs();
-}
-
-function recibirOCRegistrada(ocId){
-  const lista=JSON.parse(localStorage.getItem('ocs_sistema')||'[]');
-  const ocReg=lista.find(o=>o.id===ocId);
-  if(!ocReg)return;
-  // convertir items a formato line_items para _cruzarItemsConMuebles
-  const lineItems=ocReg.items.map(i=>({name:i.nombre,sku:i.sku,quantity:i.cantidad,unit:i.unidad}));
-  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(lineItems,PROYECTOS);
-  PROYECTOS.forEach(p=>syncProyectoSupabase(p));
-  ocReg.estado='recibida';
-  ocReg.fechaRecepcion=new Date().toISOString();
-  ocReg.items=ocReg.items.map(i=>({...i,recibido:i.cantidad}));
-  localStorage.setItem('ocs_sistema',JSON.stringify(lista));
-  ocsProcesadas.push(ocId);
-  localStorage.setItem('ocsProcesadas',JSON.stringify(ocsProcesadas));
-  alert(`✓ OC recibida. ${matActualizados} materiales actualizados. ${mueblesDesbloqueados.length} muebles desbloqueados.`);
-  renderMatTabOCs();
-}
-
-function abrirRecepcionParcialActual(){
-  if(!window._ocActual)return;
-  const {oc}=window._ocActual;
-  abrirRecepcionParcial(oc.purchaseorder_id);
-}
-
-function toggleParcialOCSistema(ocId){
-  const el=document.getElementById('oc-sys-parcial-'+ocId);
-  if(!el)return;
-  el.style.display=el.style.display==='none'?'block':'none';
-}
-
-function confirmarParcialOCSistema(ocId,itemCount){
-  const lista=JSON.parse(localStorage.getItem('ocs_sistema')||'[]');
-  const ocReg=lista.find(o=>o.id===ocId);
-  if(!ocReg)return;
-  for(let idx=0;idx<itemCount;idx++){
-    const chk=document.getElementById('parcial-chk-'+ocId+'-'+idx);
-    const qty=document.getElementById('parcial-qty-'+ocId+'-'+idx);
-    if(!chk||!qty)continue;
-    if(chk.checked){
-      const cant=parseFloat(qty.value)||0;
-      ocReg.items[idx].recibido=(ocReg.items[idx].recibido||0)+cant;
-    }
-  }
-  const todoRecibido=ocReg.items.every(i=>(i.recibido||0)>=i.cantidad);
-  if(todoRecibido){
-    const lineItems=ocReg.items.map(i=>({name:i.nombre,sku:i.sku,quantity:i.cantidad,unit:i.unidad}));
-    const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(lineItems,PROYECTOS);
-    PROYECTOS.forEach(p=>syncProyectoSupabase(p));
-    ocReg.estado='recibida';
-    ocReg.fechaRecepcion=new Date().toISOString();
-    alert(`✓ OC recibida completamente. ${matActualizados} materiales actualizados. ${mueblesDesbloqueados.length} muebles desbloqueados.`);
+  if (!filtered.length) {
+    html += `<div class="mono" style="font-size:11px;color:var(--muted);text-align:center;padding:32px;">SIN ÓRDENES</div>`;
   } else {
-    const recibidos=ocReg.items.filter(i=>(i.recibido||0)>=i.cantidad).length;
-    alert(`Recepción parcial guardada. ${recibidos}/${ocReg.items.length} ítems completos.`);
-  }
-  localStorage.setItem('ocs_sistema',JSON.stringify(lista));
-  renderMatTabOCs();
-}
-
-function agregarFilaItemOC(){
-  const row=document.createElement('div');
-  row.className='moc-item-row';
-  row.style.cssText='display:grid;grid-template-columns:1fr 70px 90px auto;gap:8px;align-items:center;';
-  row.innerHTML=`
-    <input placeholder="Nombre del ítem" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;">
-    <input type="number" min="1" value="1" placeholder="Cant." style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;text-align:center;outline:none;">
-    <input placeholder="Unidad" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;">
-    <button onclick="this.closest('.moc-item-row').remove()" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;font-size:12px;">✕</button>`;
-  document.getElementById('moc-items').appendChild(row);
-}
-
-function guardarOCManual(){
-  const num=document.getElementById('moc-num')?.value?.trim();
-  const prov=document.getElementById('moc-prov')?.value?.trim();
-  const fecha=document.getElementById('moc-fecha')?.value||new Date().toISOString().slice(0,10);
-  if(!num){alert('Ingresá un número de OC');return;}
-  const rows=[...document.querySelectorAll('#moc-items .moc-item-row')];
-  const line_items=rows.map(row=>{
-    const inputs=row.querySelectorAll('input');
-    return{name:inputs[0]?.value?.trim()||'',quantity:Number(inputs[1]?.value)||1,unit:inputs[2]?.value?.trim()||'unidades'};
-  }).filter(li=>li.name);
-  if(!line_items.length){alert('Agregá al menos un ítem');return;}
-  const oc={
-    purchaseorder_id:'manual_'+Date.now(),
-    purchaseorder_number:num,
-    vendor_name:prov||'—',
-    date:fecha,
-    line_items,
-    _manual:true,
-  };
-  const lista=JSON.parse(localStorage.getItem('ocs_manuales')||'[]');
-  lista.push(oc);
-  localStorage.setItem('ocs_manuales',JSON.stringify(lista));
-  renderMatTabOCs();
-}
-
-function confirmarRecibirOCCompleta(ocId){
-  const oc=window._zohoOCs?.find(o=>o.purchaseorder_id===ocId);
-  if(!oc)return;
-  const panel=document.getElementById('oc-panel-'+ocId);
-  panel.innerHTML=`<div style="padding:14px 18px;background:rgba(61,214,140,.05);border-top:1px solid rgba(61,214,140,.2);">
-    <div style="font-size:13px;font-weight:600;margin-bottom:12px;">¿Confirmar recepción de ${oc.purchaseorder_number||ocId} completa?</div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-success btn-sm" onclick="ejecutarRecibirOCCompleta('${ocId}')">✓ Confirmar</button>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('oc-panel-${ocId}').style.display='none'">Cancelar</button>
-    </div>
-  </div>`;
-  panel.style.display='block';
-  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
-}
-
-function _cruzarItemsConMuebles(lineItems,proyStorage){
-  let matActualizados=0;
-  const mueblesDesbloqueados=[];
-  lineItems.forEach(li=>{
-    const nombre=(li.name||li.description||'').toLowerCase().trim();
-    const qty=Number(li.quantity)||1;
-    proyStorage.forEach(p=>{
-      (p.muebles||[]).forEach(m=>{
-        (m.mats||[]).forEach(mat=>{
-          const mn=mat.nombre.toLowerCase().trim();
-          if(mn&&nombre&&(mn.includes(nombre)||nombre.includes(mn))){
-            const antes=mat.recibido||0;
-            mat.recibido=Math.min(mat.requerido,antes+qty);
-            if(mat.recibido>antes)matActualizados++;
-          }
-        });
-      });
-    });
-  });
-  // recalcular semáforo
-  proyStorage.forEach(p=>{
-    (p.muebles||[]).forEach(m=>{
-      const mats=m.mats||[];
-      if(!mats.length)return;
-      const critPend=mats.filter(mat=>mat.critico&&(mat.recibido||0)<mat.requerido);
-      const allPend=mats.filter(mat=>(mat.recibido||0)<mat.requerido);
-      if(!critPend.length&&!allPend.length&&m.estado!=='listo'){
-        m.estado='listo';
-        mueblesDesbloqueados.push({prNombre:p.obra||p.nombre,mNombre:(m.codigo||'')+(m.nombre?' – '+m.nombre:''),prId:p.id});
+    filtered.forEach(oc => {
+      const esReprog = oc.reprogramada && oc.estado !== 'recibida';
+      const dotColor = oc.estado === 'recibida' ? 'var(--green)' : oc.estado === 'vencida' ? 'var(--red)' : esReprog ? '#7eb8f7' : 'var(--accent)';
+      const fd = _matFmtDate(oc.fecha_efectiva);
+      let fechaLabel = '';
+      if (fd) {
+        if (oc.estado === 'recibida') {
+          const fdr = _matFmtDate(oc.fecha_recepcion?.split('T')[0]);
+          fechaLabel = `<span style="color:var(--green);">recibida ${fdr || fd}</span>`;
+        } else if (oc.estado === 'vencida') {
+          fechaLabel = `<span style="color:var(--red);">venció ${fd}</span>`;
+        } else if (esReprog) {
+          fechaLabel = `<span style="color:#7eb8f7;">reprog. → ${fd}</span>`;
+        } else {
+          fechaLabel = `<span style="color:var(--accent);">vence ${fd}</span>`;
+        }
       }
+      const ocNum = oc.oc_numero.replace(/'/g, "\\'");
+      const reprogLink = oc.estado !== 'recibida'
+        ? `<span class="mono" style="font-size:10px;color:#3a3a3a;border-bottom:1px dotted #2a2a2a;cursor:pointer;" onclick="event.stopPropagation();_matAbrirReprog('${ocNum}')">⟳ reprog.</span>`
+        : '';
+      const recibirBtn = `<button class="btn btn-primary" style="min-height:28px;font-size:9px;padding:0 12px;" onclick="event.stopPropagation();_matAbrirRecibir('${ocNum}')">RECIBIR →</button>`;
+      let badge = '';
+      if (oc.estado === 'recibida') {
+        badge = `<span class="pill" style="color:var(--green);border:1px solid rgba(61,214,140,.4);background:rgba(61,214,140,.08);">✓ RECIBIDA</span>`;
+      } else if (oc.estado === 'vencida') {
+        badge = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <span class="pill" style="color:var(--red);border:1px solid rgba(240,92,92,.4);background:rgba(240,92,92,.08);">VENCIDA</span>
+          ${recibirBtn}</div>`;
+      } else if (esReprog) {
+        badge = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <span class="pill" style="color:#7eb8f7;border:1px solid rgba(126,184,247,.4);background:rgba(126,184,247,.08);">REPROGRAMADA</span>
+          ${recibirBtn}</div>`;
+      } else {
+        badge = recibirBtn;
+      }
+      html += `<div style="display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border);">
+        <div style="width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0;"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;">${oc.proveedor || '—'}</div>
+          <div class="mono" style="font-size:10px;color:var(--muted);margin-top:3px;">${oc.oc_numero} ${fechaLabel ? '· ' + fechaLabel : ''}</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-shrink:0;">
+          ${reprogLink}
+          ${badge}
+        </div>
+      </div>`;
     });
-  });
-  return {matActualizados,mueblesDesbloqueados};
-}
-
-function _mostrarResumenOC(ocId,matActualizados,mueblesDesbloqueados,parcial=false){
-  const panel=document.getElementById('oc-panel-'+ocId);
-  let html=`<div style="padding:14px 18px;background:rgba(61,214,140,.05);border-top:1px solid rgba(61,214,140,.2);">
-    <div style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:${mueblesDesbloqueados.length?'8':'0'}px;">✓ ${parcial?'Recepción parcial registrada':'OC recibida'}. ${matActualizados} material${matActualizados!==1?'es':''} actualizado${matActualizados!==1?'s':''}. ${mueblesDesbloqueados.length} mueble${mueblesDesbloqueados.length!==1?'s':''} desbloqueado${mueblesDesbloqueados.length!==1?'s':''}.</div>`;
-  if(mueblesDesbloqueados.length){
-    html+=`<div style="display:flex;flex-direction:column;gap:3px;margin-top:6px;">`;
-    mueblesDesbloqueados.forEach(mu=>{html+=`<div style="font-size:11px;">🟢 <a href="#" onclick="abrirDetallePr('${mu.prId}');return false;" style="color:var(--green);">${mu.prNombre}</a> › ${mu.mNombre}</div>`;});
-    html+=`</div>`;
   }
-  html+=`</div>`;
-  panel.innerHTML=html;panel.style.display='block';
+
+  document.getElementById('mat-contenido').innerHTML = html;
+  document.getElementById('mat-search')?.focus();
 }
 
-function ejecutarRecibirOCCompleta(ocId){
-  const oc=window._zohoOCs?.find(o=>o.purchaseorder_id===ocId);
-  if(!oc)return;
-  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(oc.line_items||[],PROYECTOS);
-  PROYECTOS.forEach(p=>syncProyectoSupabase(p));
-  ocsProcesadas.push(ocId);
-  localStorage.setItem('ocsProcesadas',JSON.stringify(ocsProcesadas));
-  const card=document.getElementById('oc-card-'+ocId);
-  if(card)card.style.opacity='0.55';
-  _mostrarResumenOC(ocId,matActualizados,mueblesDesbloqueados,false);
-}
-
-function abrirRecepcionParcial(ocId){
-  const oc=window._zohoOCs?.find(o=>o.purchaseorder_id===ocId);
-  if(!oc)return;
-  const items=oc.line_items||[];
-  const panel=document.getElementById('oc-panel-'+ocId);
-  panel.innerHTML=`<div style="padding:14px 18px;background:var(--faint);border-top:1px solid var(--border);">
-    <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:12px;">RECEPCIÓN PARCIAL</div>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
-      ${items.map((li,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--card);border-radius:6px;flex-wrap:wrap;">
-        <input type="checkbox" id="parcial-chk-${ocId}-${i}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--green);" checked>
-        <span style="flex:1;font-size:12px;">${li.name||li.description||'—'}</span>
-        <span class="mono" style="font-size:10px;color:var(--muted);">${li.unit||''}</span>
-        <input type="number" id="parcial-qty-${ocId}-${i}" value="${li.quantity||1}" min="0" max="${li.quantity||1}" style="width:60px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 6px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;text-align:center;outline:none;">
-      </div>`).join('')}
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn btn-success btn-sm" onclick="ejecutarRecepcionParcial('${ocId}',${items.length})">✓ Confirmar parcial</button>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('oc-panel-${ocId}').style.display='none'">Cancelar</button>
+// ── Modal Recibir OC ──────────────────────────────────────────────────────
+function _matAbrirRecibir(ocNumero) {
+  _matCurrentOc = _matOcs.find(o => o.oc_numero === ocNumero);
+  if (!_matCurrentOc) return;
+  _matCurrentItems = null;
+  const html = `<div class="overlay open" id="mat-modal-recibir" onclick="_matCerrarRecibir()">
+    <div class="modal" onclick="event.stopPropagation()" style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;width:90%;max-width:400px;max-height:85vh;overflow-y:auto;">
+      <div class="mono" style="font-size:13px;font-weight:700;color:var(--accent);letter-spacing:2px;margin-bottom:16px;">CONFIRMAR RECEPCIÓN</div>
+      <div class="mono" style="font-size:11px;padding:3px 10px;border-radius:4px;background:#1a1a00;color:var(--accent);display:inline-block;margin-bottom:10px;">${_matCurrentOc.oc_numero}</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:14px;">${_matCurrentOc.proveedor}</div>
+      <div id="mat-mr-items"><span class="mono" style="font-size:11px;color:var(--muted);">cargando items...</span></div>
+      <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:2px;margin:14px 0 6px;">NOTAS (OPCIONAL)</div>
+      <textarea id="mat-mr-notas" placeholder="Notas de recepción…" style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;resize:none;height:56px;margin-bottom:14px;"></textarea>
+      <div id="mat-mr-error" class="mono" style="font-size:11px;color:var(--red);margin-bottom:10px;min-height:16px;"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" style="flex:1;min-height:40px;" onclick="_matCerrarRecibir()">Cancelar</button>
+        <button class="btn btn-primary" style="flex:1;min-height:40px;" id="mat-mr-btn" onclick="_matConfirmarRecibir()">CONFIRMAR</button>
+      </div>
     </div>
   </div>`;
-  panel.style.display='block';
-  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+  document.body.insertAdjacentHTML('beforeend', html);
+  fetch(`/api/recepciones?action=detalle-oc&oc_id_zoho=${_matCurrentOc.oc_id_zoho}`)
+    .then(r => r.json())
+    .then(d => {
+      _matCurrentItems = d.line_items || [];
+      const el = document.getElementById('mat-mr-items');
+      if (!el) return;
+      el.innerHTML = _matCurrentItems.length
+        ? _matCurrentItems.map(li => `<div class="mono" style="font-size:11px;color:#555;padding:3px 0;">${li.name} · ${li.quantity}</div>`).join('')
+        : '<span class="mono" style="font-size:11px;color:#444;">Sin items</span>';
+    })
+    .catch(() => {
+      const el = document.getElementById('mat-mr-items');
+      if (el) el.innerHTML = '<span class="mono" style="font-size:11px;color:var(--red);">Error cargando items</span>';
+    });
 }
 
-function ejecutarRecepcionParcial(ocId,itemCount){
-  const oc=window._zohoOCs?.find(o=>o.purchaseorder_id===ocId);
-  if(!oc)return;
-  const allItems=oc.line_items||[];
-  const selItems=[];
-  for(let i=0;i<itemCount;i++){
-    const chk=document.getElementById(`parcial-chk-${ocId}-${i}`);
-    if(!chk?.checked)continue;
-    const qty=Number(document.getElementById(`parcial-qty-${ocId}-${i}`)?.value)||0;
-    if(qty<=0)continue;
-    const li=allItems[i];
-    if(li)selItems.push({...li,quantity:qty});
+function _matCerrarRecibir() {
+  document.getElementById('mat-modal-recibir')?.remove();
+}
+
+async function _matConfirmarRecibir() {
+  const btn = document.getElementById('mat-mr-btn');
+  const errEl = document.getElementById('mat-mr-error');
+  btn.disabled = true; btn.textContent = '...';
+  errEl.textContent = '';
+  try {
+    const r = await fetch('/api/recepciones?action=recibir-oc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        oc_numero: _matCurrentOc.oc_numero,
+        oc_id_zoho: _matCurrentOc.oc_id_zoho,
+        notas: document.getElementById('mat-mr-notas')?.value?.trim() || null,
+      }),
+    }).then(r => r.json());
+    if (!r.ok) throw new Error(r.error || 'Error');
+    _matCurrentOc.estado = 'recibida';
+    _matCurrentOc.fecha_recepcion = new Date().toISOString();
+    _matCerrarRecibir();
+    _matRenderOcs();
+    _matMostrarToastEtiquetas();
+  } catch (e) {
+    errEl.textContent = e.message;
+    btn.disabled = false; btn.textContent = 'CONFIRMAR';
   }
-  const {matActualizados,mueblesDesbloqueados}=_cruzarItemsConMuebles(selItems,PROYECTOS);
-  PROYECTOS.forEach(p=>syncProyectoSupabase(p));
-  _mostrarResumenOC(ocId,matActualizados,mueblesDesbloqueados,true);
+}
+
+// ── Modal Reprogramar OC ─────────────────────────────────────────────────
+function _matAbrirReprog(ocNumero) {
+  _matCurrentOc = _matOcs.find(o => o.oc_numero === ocNumero);
+  if (!_matCurrentOc) return;
+  const fdOrig = _matFmtDate(_matCurrentOc.fecha_original) || '—';
+  const html = `<div class="overlay open" id="mat-modal-reprog" onclick="_matCerrarReprog()">
+    <div class="modal" onclick="event.stopPropagation()" style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;width:90%;max-width:400px;">
+      <div class="mono" style="font-size:13px;font-weight:700;color:#7eb8f7;letter-spacing:2px;margin-bottom:16px;">REPROGRAMAR ENTREGA</div>
+      <div class="mono" style="font-size:11px;padding:3px 10px;border-radius:4px;background:rgba(126,184,247,.1);color:#7eb8f7;display:inline-block;margin-bottom:10px;">${_matCurrentOc.oc_numero}</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:14px;">${_matCurrentOc.proveedor}</div>
+      <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:6px;">FECHA ORIGINAL</div>
+      <div class="mono" style="font-size:12px;color:var(--muted);margin-bottom:14px;">${fdOrig}</div>
+      <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:6px;">NUEVA FECHA PROMETIDA</div>
+      <input type="date" id="mat-rp-fecha" style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-size:13px;outline:none;margin-bottom:14px;color-scheme:dark;">
+      <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:6px;">MOTIVO (OPCIONAL)</div>
+      <textarea id="mat-rp-motivo" placeholder="Motivo de la reprogramación…" style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;resize:none;height:56px;margin-bottom:14px;"></textarea>
+      <div id="mat-rp-error" class="mono" style="font-size:11px;color:var(--red);margin-bottom:10px;min-height:16px;"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" style="flex:1;min-height:40px;" onclick="_matCerrarReprog()">Cancelar</button>
+        <button class="btn btn-primary" style="flex:1;min-height:40px;background:#7eb8f7;color:#0f0f0f;" id="mat-rp-btn" onclick="_matConfirmarReprog()">REPROGRAMAR</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function _matCerrarReprog() {
+  document.getElementById('mat-modal-reprog')?.remove();
+}
+
+async function _matConfirmarReprog() {
+  const fecha = document.getElementById('mat-rp-fecha')?.value;
+  const errEl = document.getElementById('mat-rp-error');
+  if (!fecha) { errEl.textContent = 'Seleccioná una fecha'; return; }
+  const btn = document.getElementById('mat-rp-btn');
+  btn.disabled = true; btn.textContent = '...';
+  errEl.textContent = '';
+  try {
+    const r = await fetch('/api/recepciones?action=reprogramar-oc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        oc_numero: _matCurrentOc.oc_numero,
+        fecha_anterior: _matCurrentOc.fecha_original,
+        fecha_nueva: fecha,
+        motivo: document.getElementById('mat-rp-motivo')?.value?.trim() || null,
+      }),
+    }).then(r => r.json());
+    if (!r.ok) throw new Error(r.error || 'Error');
+    _matCurrentOc.fecha_efectiva = fecha;
+    _matCurrentOc.reprogramada = true;
+    _matCerrarReprog();
+    _matRenderOcs();
+  } catch (e) {
+    errEl.textContent = e.message;
+    btn.disabled = false; btn.textContent = 'REPROGRAMAR';
+  }
+}
+
+// ── Toast etiquetas (admin) ──────────────────────────────────────────────
+function _matMostrarToastEtiquetas() {
+  const existing = document.getElementById('mat-toast-etiquetas');
+  if (existing) existing.remove();
+  const html = `<div id="mat-toast-etiquetas" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 20px;z-index:60;display:flex;align-items:center;gap:14px;white-space:nowrap;">
+    <span class="mono" style="font-size:11px;">¿Imprimir etiquetas de esta OC?</span>
+    <button class="btn btn-ghost" style="min-height:30px;font-size:10px;padding:0 12px;" onclick="document.getElementById('mat-toast-etiquetas')?.remove()">Omitir</button>
+    <button class="btn btn-primary" style="min-height:30px;font-size:10px;padding:0 12px;" onclick="_matImprimirEtiquetas()">IMPRIMIR ETIQUETAS →</button>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+async function _matImprimirEtiquetas() {
+  let items = _matCurrentItems;
+  if (!items && _matCurrentOc) {
+    try {
+      const r = await fetch(`/api/recepciones?action=detalle-oc&oc_id_zoho=${_matCurrentOc.oc_id_zoho}`).then(r => r.json());
+      items = r.line_items || [];
+    } catch { items = []; }
+  }
+  const prefill = (items || []).map(li => `${li.item_id}:${li.quantity}`).join(',');
+  window.open(`https://juanpimc-uy.github.io/etiquetas-maderable/?fuente=zoho&prefill=${encodeURIComponent(prefill)}`, '_blank');
+  document.getElementById('mat-toast-etiquetas')?.remove();
 }
 
 function renderMatTabPorProyecto(){
