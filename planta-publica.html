@@ -344,7 +344,7 @@ function renderSnapshot(data) {
   const allOps = operarios || [];
   const plantaActiva  = visibles.filter(op => op.rol_app === 'operario' && op.estado !== 'sin_tarea');
   const plantaAusente = allOps.filter(op => op.rol_app === 'operario' && op.estado === 'ausente');
-  const CENTRO_ORDER = ['CORTE','ENCHAPADO','HERRERIA','ARMADO','COLOCACION'];
+  const CENTRO_ORDER = ['CORTE','ENCHAPADO','ARMADO','COLOCACION','HERRERIA','ELECTRICA','MACIZO'];
   function centroRank(op) {
     const c = (op.centro_label || op.centro || '').toUpperCase().split('/')[0].trim();
     const idx = CENTRO_ORDER.indexOf(c);
