@@ -227,11 +227,9 @@ let currentTab = 'todas';
 async function cargarTodo() {
   document.getElementById('lista-sos').innerHTML = '<div style="text-align:center;padding:40px;"><span class="spinner"></span> Cargando SOs desde Zoho...</div>';
 
-  const [sosRes, proysRes] = await Promise.all([
+  const [sosRes, proysData] = await Promise.all([
     apiGet('listar-sos-zoho'),
-    window.SUPABASE
-      ? window.SUPABASE.from('proyectos_cache').select('id,nombre,numero').eq('activo', true).order('nombre')
-      : Promise.resolve({ data: [] }),
+    window.sbFetch('proyectos_cache?activo=eq.true&order=nombre&select=id,nombre,numero').catch(() => []),
   ]);
 
   if (sosRes.ok !== undefined && !sosRes.ok) {
@@ -240,7 +238,7 @@ async function cargarTodo() {
   }
 
   allSos = sosRes.sos || [];
-  proyectos = proysRes.data || [];
+  proyectos = proysData || [];
 
   const obras = [...new Set(allSos.map(s => s.obra).filter(Boolean))].sort();
   const sel = document.getElementById('filtro-obra');
@@ -296,7 +294,7 @@ function renderCards(sos) {
         <span class="so-badge ${so.estado}">${so.estado.toUpperCase()}</span>
         <span class="so-contador-lineas">${so.lineas_armadas}/${so.lineas_total} lineas</span>
       </div>
-      <div class="so-row2">${esc(so.mueble || '—')}</div>
+      <div class="so-row2" id="mueble-${so.so_zoho_id}">${so.mueble ? esc(so.mueble) : ''}</div>
       <div class="so-row3">
         <span class="so-chip">${chipParts.join(' &middot; ')}</span>
         <div class="so-actions">
@@ -344,6 +342,13 @@ async function cargarDetalle(soId) {
   const eliminadas = lineas.filter(l => l.eliminada);
 
   const so = allSos.find(s => s.so_zoho_id === soId);
+
+  // Guardar mueble del detalle en el objeto local
+  if (res.mueble && so) {
+    so.mueble = res.mueble;
+    const mEl = document.getElementById('mueble-' + soId);
+    if (mEl) mEl.textContent = res.mueble;
+  }
 
   let html = `<table class="lineas-table">
     <thead><tr>
@@ -466,9 +471,19 @@ async function vincularProyecto(soId, proyId) {
 // ═══════════════════════════════════════════════════════════════
 // IMPRESION DE ETIQUETA 60x30mm
 // ═══════════════════════════════════════════════════════════════
-function imprimirEtiqueta(soId) {
+async function imprimirEtiqueta(soId) {
   const so = allSos.find(s => s.so_zoho_id === soId);
   if (!so) return;
+
+  // Fetch mueble si nunca se expandió esta SO
+  if (!so.mueble) {
+    const res = await apiGet('detalle-so-zoho', '&so_zoho_id=' + soId);
+    if (res.mueble) {
+      so.mueble = res.mueble;
+      const mEl = document.getElementById('mueble-' + soId);
+      if (mEl) mEl.textContent = res.mueble;
+    }
+  }
 
   const w = window.open('', '_blank');
   w.document.write(`<!DOCTYPE html><html><head><title>Etiqueta ${so.so_numero}</title>

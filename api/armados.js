@@ -167,7 +167,7 @@ export default async function handler(req) {
         };
       });
 
-      return ok({ ok: true, lineas });
+      return ok({ ok: true, mueble: so.subject || '', lineas });
     }
 
     // ── C) POST upsert-linea-estado ───────────────────────────────────────
