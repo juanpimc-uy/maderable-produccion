@@ -90,6 +90,18 @@ export default async function handler(req) {
       const zohoData = await zohoGet('salesorders?status=open&per_page=200');
       const salesorders = zohoData.salesorders || [];
 
+      // Log temporal: ver campos disponibles en SOs confirmadas
+      if (salesorders.length > 0) {
+        console.log('[armados] SO open keys:', Object.keys(salesorders[0]).join(', '));
+        console.log('[armados] SO open sample:', JSON.stringify({
+          salesorder_number: salesorders[0].salesorder_number,
+          reference_number: salesorders[0].reference_number,
+          cf_obra: salesorders[0].cf_obra,
+          subject: salesorders[0].subject,
+          customer_name: salesorders[0].customer_name,
+        }));
+      }
+
       // 2. Traer estado local de Supabase
       const [{ data: estados }, { data: lineasEstado }] = await Promise.all([
         supabase.from('so_estado').select('*'),
@@ -143,6 +155,15 @@ export default async function handler(req) {
       const zohoData = await zohoGet(`salesorders/${so_zoho_id}`);
       const so = zohoData.salesorder;
       if (!so) return err('SO no encontrada en Zoho', 404);
+
+      // Log temporal: ver todos los campos del detalle
+      console.log('[armados] SO detail keys:', Object.keys(so).join(', '));
+      console.log('[armados] SO detail obra fields:', JSON.stringify({
+        reference_number: so.reference_number,
+        subject: so.subject,
+        cf_obra: so.cf_obra,
+        notes: so.notes,
+      }));
 
       const lineItems = so.line_items || [];
 
