@@ -260,7 +260,7 @@ function renderCards(sos) {
       </div>
       <div class="so-row2" id="mueble-${so.so_zoho_id}">${so.mueble ? esc(so.mueble) : ''}</div>
       <div class="so-row3">
-        <span class="so-chip">${chipParts.join(' &middot; ')}</span>
+        <span class="so-chip" id="chip-${so.so_zoho_id}">${chipParts.join(' &middot; ')}</span>
         <div class="so-actions">
           <button title="${isExpanded ? 'Colapsar' : 'Expandir'}" onclick="toggleExpand('${so.so_zoho_id}')">${isExpanded ? '&#9660;' : '&#9654;'}</button>
           <button title="Imprimir etiqueta" onclick="imprimirEtiqueta('${so.so_zoho_id}')">&#9113;</button>
@@ -307,11 +307,21 @@ async function cargarDetalle(soId) {
 
   const so = allSos.find(s => s.so_zoho_id === soId);
 
-  // Guardar mueble del detalle en el objeto local
-  if (res.mueble && so) {
-    so.mueble = res.mueble;
-    const mEl = document.getElementById('mueble-' + soId);
-    if (mEl) mEl.textContent = res.mueble;
+  // Guardar mueble y obra del detalle en el objeto local
+  if (so) {
+    if (res.mueble) {
+      so.mueble = res.mueble;
+      const mEl = document.getElementById('mueble-' + soId);
+      if (mEl) mEl.textContent = res.mueble;
+    }
+    if (res.obra) {
+      so.obra = res.obra;
+    }
+    // Rearmar chip con datos actualizados
+    const proyName = so.proyecto_id ? (proyectos.find(p => p.id === so.proyecto_id)?.nombre || so.proyecto_id) : null;
+    const chipParts = [so.cliente_nombre, so.obra, proyName || '<span class="sin-proy">sin proyecto</span>'].filter(Boolean);
+    const chipEl = document.getElementById('chip-' + soId);
+    if (chipEl) chipEl.innerHTML = chipParts.join(' &middot; ');
   }
 
   let html = `<table class="lineas-table">
@@ -443,14 +453,15 @@ async function imprimirEtiqueta(soId) {
   const so = allSos.find(s => s.so_zoho_id === soId);
   if (!so) return;
 
-  // Fetch mueble si nunca se expandió esta SO
-  if (!so.mueble) {
+  // Fetch mueble/obra si nunca se expandió esta SO
+  if (!so.mueble || !so.obra) {
     const res = await apiGet('detalle-so-zoho', '&so_zoho_id=' + soId);
     if (res.mueble) {
       so.mueble = res.mueble;
       const mEl = document.getElementById('mueble-' + soId);
       if (mEl) mEl.textContent = res.mueble;
     }
+    if (res.obra) so.obra = res.obra;
   }
 
   const w = window.open('', '_blank');

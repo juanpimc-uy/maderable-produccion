@@ -188,7 +188,7 @@ export default async function handler(req) {
         };
       });
 
-      return ok({ ok: true, mueble: so.subject || '', lineas });
+      return ok({ ok: true, mueble: so.subject || '', obra: so.reference_number || '', lineas });
     }
 
     // ── C) POST upsert-linea-estado ───────────────────────────────────────
