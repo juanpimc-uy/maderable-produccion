@@ -87,7 +87,7 @@ export default async function handler(req) {
     // ── A) GET listar-sos-zoho ────────────────────────────────────────────
     if (action === 'listar-sos-zoho' && req.method === 'GET') {
       // 1. Traer SOs en borrador de Zoho
-      const zohoData = await zohoGet('salesorders?status=draft&per_page=200');
+      const zohoData = await zohoGet('salesorders?status=open&per_page=200');
       const salesorders = zohoData.salesorders || [];
 
       // 2. Traer estado local de Supabase
