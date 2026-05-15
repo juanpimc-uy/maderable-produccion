@@ -79,9 +79,8 @@ export default async function handler(req) {
     try { body = await req.json(); } catch { body = {}; }
   }
 
-  // Auth
+  // Auth (opcional — vista standalone de planta no tiene sesión de empleado)
   const caller = await autenticar(req);
-  if (!caller) return err('No autenticado', 401);
 
   try {
 

@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:,">
+<script src="/js/supabase-config.js"></script>
+<title>MBLE · Armado SO — Planta</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0f0f0f;--panel:#1e1e1e;--card:#252525;--border:#2a2a2a;
+  --text:#e8e8e8;--muted:#888;--faint:#1a1a1a;
+  --accent:#FFD600;--green:#3DD68C;--red:#F05C5C;--blue:#7eb8f7;--amber:#FFD600;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
+.mono{font-family:'Space Mono',monospace;}
+
+/* ── Login ── */
+#screen-login{display:flex;align-items:center;justify-content:center;min-height:100vh;}
+.login-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:40px;width:100%;max-width:360px;}
+.login-logo{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--accent);letter-spacing:3px;text-align:center;margin-bottom:6px;}
+.login-sub{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-align:center;margin-bottom:28px;}
+.login-input{width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:12px 14px;color:var(--text);font-size:15px;outline:none;margin-bottom:12px;transition:border-color .15s;font-family:'Space Mono',monospace;letter-spacing:3px;}
+.login-input:focus{border-color:var(--accent);}
+.login-btn{width:100%;background:var(--accent);color:#0f0f0f;border:none;border-radius:6px;padding:13px;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:opacity .15s;}
+.login-btn:hover{opacity:.85;}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-7px)}80%{transform:translateX(7px)}}
+.shake{animation:shake .35s ease;}
+
+/* ── Header (standalone) ── */
+.hdr{background:var(--panel);border-bottom:1px solid var(--border);padding:0 20px;height:48px;display:flex;align-items:center;justify-content:space-between;}
+.hdr-logo{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--accent);letter-spacing:2px;}
+.hdr-title{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
+
+/* Buttons */
+.btn{padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;transition:opacity .15s;white-space:nowrap;}
+.btn-amber{background:var(--amber);color:#0f0f0f;}
+.btn-amber:hover{opacity:.85;}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+.btn-ghost:hover{border-color:var(--amber);color:var(--text);}
+.btn-sm{padding:5px 10px;font-size:9px;}
+
+/* Page */
+.page{max-width:1100px;margin:0 auto;padding:20px 24px;}
+
+/* Filtros */
+.filtros{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+.tab-bar{display:flex;gap:0;border-radius:6px;overflow:hidden;border:1px solid var(--border);}
+.tab-btn{padding:8px 14px;background:transparent;border:none;color:var(--muted);font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;transition:all .15s;}
+.tab-btn:hover{color:var(--text);}
+.tab-btn.active{background:var(--amber);color:#0f0f0f;}
+select.filtro-select{background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 12px;font-family:'Space Mono',monospace;font-size:10px;outline:none;}
+select.filtro-select:focus{border-color:var(--amber);}
+.toggle-wrap{display:flex;align-items:center;gap:6px;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;cursor:pointer;user-select:none;}
+.toggle-wrap input{accent-color:var(--amber);}
+
+/* Contador */
+.contador{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:16px;}
+
+/* Cards SO */
+.so-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;transition:border-color .2s;}
+.so-card.expanded{border-color:var(--amber);}
+.so-card.oculta{opacity:.45;}
+.so-row1{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
+.so-num{font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--amber);}
+.so-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:4px;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;}
+.so-badge.pendiente{color:#555;background:rgba(85,85,85,.12);border:1px solid #333;}
+.so-badge.parcial{color:var(--amber);background:rgba(255,214,0,.12);border:1px solid rgba(255,214,0,.25);}
+.so-badge.completo{color:#22c55e;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.25);}
+.so-contador-lineas{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-left:auto;}
+.so-row2{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:#fff;margin-bottom:6px;}
+.so-row3{display:flex;align-items:center;gap:8px;}
+.so-chip{display:inline-flex;align-items:center;gap:0;background:#0f0f0f;border:1px solid var(--border);border-radius:4px;padding:4px 10px;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.3px;}
+.so-chip .sin-proy{color:#444;}
+.so-actions{display:flex;align-items:center;gap:6px;margin-left:auto;}
+.so-actions button{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:4px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;transition:all .15s;}
+.so-actions button:hover{border-color:var(--amber);color:var(--text);}
+
+/* Detalle expandido */
+.so-detalle{display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.so-card.expanded .so-detalle{display:block;}
+
+/* Tabla de líneas */
+.lineas-table{width:100%;border-collapse:collapse;font-size:12px;}
+.lineas-table th{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);}
+.lineas-table td{padding:8px 10px;border-bottom:1px solid var(--faint);vertical-align:middle;}
+.lineas-table tr:hover td{background:rgba(255,255,255,.02);}
+.linea-input{width:60px;background:var(--faint);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font-family:'Space Mono',monospace;font-size:12px;text-align:center;outline:none;}
+.linea-input:focus{border-color:var(--amber);}
+.linea-input.done{border-color:var(--green);}
+.linea-input.partial{border-color:var(--amber);}
+.linea-badge{display:inline-flex;padding:2px 8px;border-radius:3px;font-family:'Space Mono',monospace;font-size:8px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;}
+.linea-badge.armado{color:#22c55e;background:rgba(34,197,94,.12);}
+.linea-badge.parcial{color:var(--amber);background:rgba(255,214,0,.12);}
+.linea-badge.pendiente{color:#555;background:rgba(85,85,85,.12);}
+.chk-todo{accent-color:var(--amber);cursor:pointer;width:15px;height:15px;vertical-align:middle;}
+
+/* Eliminadas */
+.eliminadas-toggle{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);cursor:pointer;margin-top:10px;user-select:none;}
+.eliminadas-toggle:hover{color:var(--amber);}
+.fila-eliminada td{background:#111 !important;opacity:.55;}
+
+/* Proyecto selector */
+.proy-selector{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);}
+.proy-selector label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+
+/* Spinner */
+@keyframes spin{to{transform:rotate(360deg);}}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,214,0,.3);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
+
+/* Responsive */
+@media(max-width:700px){
+  .page{padding:12px;}
+  .filtros{flex-direction:column;align-items:stretch;}
+  .so-row1{flex-wrap:wrap;}
+  .so-actions{margin-left:0;margin-top:8px;}
+  .lineas-table{font-size:11px;}
+  .linea-input{width:48px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN ══════════════════════════════════════════════════════════════ -->
+<div id="screen-login">
+  <div class="login-card">
+    <div class="login-logo">⬡ MADERABLE</div>
+    <div class="login-sub">ARMADO SO — PLANTA</div>
+    <input id="pw-input" class="login-input" type="password" placeholder="contraseña"
+      onkeydown="if(event.key==='Enter')_login()">
+    <button class="login-btn" onclick="_login()">INGRESAR →</button>
+  </div>
+</div>
+
+<!-- ═══ APP ════════════════════════════════════════════════════════════════ -->
+<div id="screen-app" style="display:none;">
+
+  <div class="hdr">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <span class="hdr-logo">⬡ MADERABLE</span>
+      <span class="hdr-title">ARMADO SO</span>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="cargarTodo()">&#8634; ACTUALIZAR</button>
+  </div>
+
+  <div class="page">
+    <!-- FILTROS -->
+    <div class="filtros">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="todas" onclick="setTab(this)">TODAS</button>
+        <button class="tab-btn" data-tab="pendiente" onclick="setTab(this)">PENDIENTES</button>
+        <button class="tab-btn" data-tab="parcial" onclick="setTab(this)">PARCIALES</button>
+        <button class="tab-btn" data-tab="completo" onclick="setTab(this)">COMPLETAS</button>
+      </div>
+      <select class="filtro-select" id="filtro-obra" onchange="aplicarFiltros()">
+        <option value="">TODAS LAS OBRAS</option>
+      </select>
+      <label class="toggle-wrap">
+        <input type="checkbox" id="toggle-ocultas" onchange="aplicarFiltros()"> VER OCULTAS
+      </label>
+    </div>
+
+    <!-- CONTADOR -->
+    <div class="contador" id="contador">—</div>
+
+    <!-- LISTA DE CARDS -->
+    <div id="lista-sos"></div>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// AUTH — misma contraseña que recepciones-oc
+// ═══════════════════════════════════════════════════════════════
+const PASS = 'maderable2024';
+if (localStorage.getItem('armado_session') === 'ok') _mostrarApp();
+function _login() {
+  const pw = document.getElementById('pw-input').value.trim();
+  if (pw === PASS) {
+    localStorage.setItem('armado_session', 'ok');
+    _mostrarApp();
+  } else {
+    const inp = document.getElementById('pw-input');
+    inp.classList.remove('shake');
+    void inp.offsetWidth;
+    inp.classList.add('shake');
+    inp.value = '';
+  }
+}
+function _mostrarApp() {
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('screen-app').style.display = '';
+  cargarTodo();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// API (sin Bearer — auth es opcional en api/armados)
+// ═══════════════════════════════════════════════════════════════
+const API = '/api/armados';
+function headers() {
+  return { 'Content-Type': 'application/json' };
+}
+async function apiGet(action, params = '') {
+  const res = await fetch(`${API}?action=${action}${params}`, { headers: headers() });
+  return res.json();
+}
+async function apiPost(action, body) {
+  const res = await fetch(`${API}?action=${action}`, { method: 'POST', headers: headers(), body: JSON.stringify(body) });
+  return res.json();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+let allSos = [];
+let proyectos = [];
+let expandedId = null;
+let currentTab = 'todas';
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+async function cargarTodo() {
+  document.getElementById('lista-sos').innerHTML = '<div style="text-align:center;padding:40px;"><span class="spinner"></span> Cargando SOs desde Zoho...</div>';
+
+  const [sosRes, proysRes] = await Promise.all([
+    apiGet('listar-sos-zoho'),
+    window.SUPABASE
+      ? window.SUPABASE.from('proyectos_cache').select('id,nombre,numero').eq('activo', true).order('nombre')
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  if (sosRes.ok !== undefined && !sosRes.ok) {
+    document.getElementById('lista-sos').innerHTML = `<div style="color:var(--red);padding:20px;">Error: ${sosRes.error}</div>`;
+    return;
+  }
+
+  allSos = sosRes.sos || [];
+  proyectos = proysRes.data || [];
+
+  const obras = [...new Set(allSos.map(s => s.obra).filter(Boolean))].sort();
+  const sel = document.getElementById('filtro-obra');
+  sel.innerHTML = '<option value="">TODAS LAS OBRAS</option>' + obras.map(o => `<option value="${o}">${o}</option>`).join('');
+
+  aplicarFiltros();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FILTROS
+// ═══════════════════════════════════════════════════════════════
+function setTab(btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentTab = btn.dataset.tab;
+  aplicarFiltros();
+}
+
+function aplicarFiltros() {
+  const obraFiltro = document.getElementById('filtro-obra').value;
+  const verOcultas = document.getElementById('toggle-ocultas').checked;
+
+  let filtered = allSos.filter(s => {
+    if (!verOcultas && s.oculta) return false;
+    if (currentTab !== 'todas' && s.estado !== currentTab) return false;
+    if (obraFiltro && s.obra !== obraFiltro) return false;
+    return true;
+  });
+
+  document.getElementById('contador').textContent = `${filtered.length} SOs EN BORRADOR · desde Zoho`;
+  renderCards(filtered);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER CARDS
+// ═══════════════════════════════════════════════════════════════
+function renderCards(sos) {
+  const container = document.getElementById('lista-sos');
+  if (!sos.length) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-family:\'Space Mono\',monospace;font-size:11px;">No hay SOs para mostrar</div>';
+    return;
+  }
+
+  container.innerHTML = sos.map(so => {
+    const isExpanded = expandedId === so.so_zoho_id;
+    const proyName = so.proyecto_id ? (proyectos.find(p => p.id === so.proyecto_id)?.nombre || so.proyecto_id) : null;
+    const chipParts = [so.cliente_nombre, so.obra, proyName || '<span class="sin-proy">sin proyecto</span>'].filter(Boolean);
+
+    return `
+    <div class="so-card ${isExpanded ? 'expanded' : ''} ${so.oculta ? 'oculta' : ''}" id="card-${so.so_zoho_id}">
+      <div class="so-row1">
+        <span class="so-num">${so.so_numero}</span>
+        <span class="so-badge ${so.estado}">${so.estado.toUpperCase()}</span>
+        <span class="so-contador-lineas">${so.lineas_armadas}/${so.lineas_total} lineas</span>
+      </div>
+      <div class="so-row2">${esc(so.mueble || '—')}</div>
+      <div class="so-row3">
+        <span class="so-chip">${chipParts.join(' &middot; ')}</span>
+        <div class="so-actions">
+          <button title="${isExpanded ? 'Colapsar' : 'Expandir'}" onclick="toggleExpand('${so.so_zoho_id}')">${isExpanded ? '&#9660;' : '&#9654;'}</button>
+          <button title="Imprimir etiqueta" onclick="imprimirEtiqueta('${so.so_zoho_id}')">&#9113;</button>
+          <button title="${so.oculta ? 'Mostrar SO' : 'Ocultar SO'}" onclick="toggleOcultar('${so.so_zoho_id}',${!so.oculta})">${so.oculta ? '&#9673;' : '&#10005;'}</button>
+        </div>
+      </div>
+      <div class="so-detalle" id="detalle-${so.so_zoho_id}">
+        ${isExpanded ? '<div style="text-align:center;padding:20px;"><span class="spinner"></span></div>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  if (expandedId) cargarDetalle(expandedId);
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ═══════════════════════════════════════════════════════════════
+// EXPAND / COLLAPSE
+// ═══════════════════════════════════════════════════════════════
+function toggleExpand(id) {
+  if (expandedId === id) {
+    expandedId = null;
+  } else {
+    expandedId = id;
+  }
+  aplicarFiltros();
+}
+
+async function cargarDetalle(soId) {
+  const det = document.getElementById('detalle-' + soId);
+  if (!det) return;
+  det.innerHTML = '<div style="text-align:center;padding:20px;"><span class="spinner"></span> Cargando líneas...</div>';
+
+  const res = await apiGet('detalle-so-zoho', '&so_zoho_id=' + soId);
+  if (!res.ok) {
+    det.innerHTML = `<div style="color:var(--red);">Error: ${res.error}</div>`;
+    return;
+  }
+
+  const lineas = res.lineas || [];
+  const visibles = lineas.filter(l => !l.eliminada);
+  const eliminadas = lineas.filter(l => l.eliminada);
+
+  const so = allSos.find(s => s.so_zoho_id === soId);
+
+  let html = `<table class="lineas-table">
+    <thead><tr>
+      <th>DESCRIPCION</th><th>TOTAL</th><th>ARMADO</th><th></th><th>ESTADO</th><th></th>
+    </tr></thead><tbody>`;
+
+  visibles.forEach(l => {
+    const pct = l.cantidad_total > 0 ? l.cantidad_armada / l.cantidad_total : 0;
+    const inputClass = pct >= 1 ? 'done' : (l.cantidad_armada > 0 ? 'partial' : '');
+    const badgeClass = pct >= 1 ? 'armado' : (l.cantidad_armada > 0 ? 'parcial' : 'pendiente');
+    const badgeText = pct >= 1 ? 'ARMADO' : (l.cantidad_armada > 0 ? 'PARCIAL' : 'PENDIENTE');
+    const checked = pct >= 1 ? 'checked' : '';
+
+    html += `<tr data-linea="${l.linea_zoho_id}">
+      <td>${esc(l.descripcion)}</td>
+      <td class="mono" style="text-align:center;">${l.cantidad_total}</td>
+      <td style="display:flex;align-items:center;gap:6px;">
+        <input type="number" class="linea-input ${inputClass}" min="0" max="${l.cantidad_total}" step="1"
+          value="${l.cantidad_armada}"
+          onblur="guardarLinea('${soId}','${l.linea_zoho_id}',this)"
+          onkeydown="if(event.key==='Enter')this.blur()">
+        <input type="checkbox" class="chk-todo" ${checked}
+          title="TODO" onchange="todoLinea('${soId}','${l.linea_zoho_id}',this,${l.cantidad_total})">
+      </td>
+      <td></td>
+      <td><span class="linea-badge ${badgeClass}">${badgeText}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="eliminarLinea('${soId}','${l.linea_zoho_id}')" title="Eliminar">&times;</button></td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+
+  if (eliminadas.length) {
+    html += `<div class="eliminadas-toggle" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+      &#9660; VER ELIMINADAS (${eliminadas.length})</div>
+    <div style="display:none;"><table class="lineas-table" style="margin-top:6px;">
+      <tbody>`;
+    eliminadas.forEach(l => {
+      html += `<tr class="fila-eliminada">
+        <td>${esc(l.descripcion)}</td>
+        <td class="mono" style="text-align:center;">${l.cantidad_total}</td>
+        <td class="mono" style="text-align:center;">${l.cantidad_armada}</td>
+        <td colspan="2"></td>
+        <td><button class="btn btn-ghost btn-sm" onclick="restaurarLinea('${soId}','${l.linea_zoho_id}')">RESTAURAR</button></td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+
+  const soEstado = so || {};
+  html += `<div class="proy-selector">
+    <label>VINCULAR A PROYECTO</label>
+    <select class="filtro-select" onchange="vincularProyecto('${soId}',this.value)">
+      <option value="">— Sin proyecto —</option>
+      ${proyectos.map(p => `<option value="${p.id}" ${p.id === soEstado.proyecto_id ? 'selected' : ''}>${p.nombre || p.numero}</option>`).join('')}
+    </select>
+  </div>`;
+
+  det.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ACCIONES
+// ═══════════════════════════════════════════════════════════════
+async function guardarLinea(soId, lineaId, input) {
+  const so = allSos.find(s => s.so_zoho_id === soId);
+  const val = Math.max(0, parseInt(input.value) || 0);
+  input.value = val;
+  await apiPost('upsert-linea-estado', {
+    so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: lineaId,
+    cantidad_armada: val,
+  });
+  cargarDetalle(soId);
+}
+
+async function todoLinea(soId, lineaId, chk, total) {
+  const so = allSos.find(s => s.so_zoho_id === soId);
+  const val = chk.checked ? total : 0;
+  await apiPost('upsert-linea-estado', {
+    so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: lineaId,
+    cantidad_armada: val,
+  });
+  cargarDetalle(soId);
+}
+
+async function eliminarLinea(soId, lineaId) {
+  if (!confirm('¿Eliminar esta línea del seguimiento?')) return;
+  const so = allSos.find(s => s.so_zoho_id === soId);
+  await apiPost('upsert-linea-estado', {
+    so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: lineaId,
+    eliminada: true,
+  });
+  cargarDetalle(soId);
+}
+
+async function restaurarLinea(soId, lineaId) {
+  const so = allSos.find(s => s.so_zoho_id === soId);
+  await apiPost('upsert-linea-estado', {
+    so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: lineaId,
+    eliminada: false,
+  });
+  cargarDetalle(soId);
+}
+
+async function toggleOcultar(soId, oculta) {
+  if (oculta && !confirm('¿Ocultar esta SO de la lista?')) return;
+  const so = allSos.find(s => s.so_zoho_id === soId);
+  await apiPost('ocultar-so', { so_zoho_id: soId, so_numero: so?.so_numero, oculta });
+  if (so) so.oculta = oculta;
+  aplicarFiltros();
+}
+
+async function vincularProyecto(soId, proyId) {
+  const so = allSos.find(s => s.so_zoho_id === soId);
+  await apiPost('vincular-proyecto', { so_zoho_id: soId, so_numero: so?.so_numero, proyecto_id: proyId || null });
+  if (so) so.proyecto_id = proyId || null;
+  aplicarFiltros();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// IMPRESION DE ETIQUETA 60x30mm
+// ═══════════════════════════════════════════════════════════════
+function imprimirEtiqueta(soId) {
+  const so = allSos.find(s => s.so_zoho_id === soId);
+  if (!so) return;
+
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><title>Etiqueta ${so.so_numero}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#fff;font-family:monospace;display:flex;align-items:center;justify-content:center;min-height:100vh;}
+    .label{width:60mm;height:30mm;border:.5px solid #999;display:flex;flex-direction:column;justify-content:center;padding:2mm 3mm;overflow:hidden;}
+    .field-label{font-size:5pt;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3mm;}
+    .field-value{font-size:10pt;font-weight:700;line-height:1.2;margin-bottom:1.5mm;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+    .field-value.mueble{font-size:8pt;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+    .no-print{margin:8mm;display:flex;gap:6mm;}
+    @media print{.no-print{display:none;}body{min-height:auto;}@page{size:60mm 30mm;margin:0;}}
+  </style></head><body>
+  <div class="no-print">
+    <button onclick="window.print()" style="padding:8px 18px;background:#FFD600;border:none;border-radius:5px;font-family:monospace;font-weight:700;font-size:11px;cursor:pointer;">IMPRIMIR</button>
+    <button onclick="window.close()" style="padding:8px 14px;background:#333;color:#aaa;border:none;border-radius:5px;font-family:monospace;font-size:11px;cursor:pointer;">Cerrar</button>
+  </div>
+  <div class="label">
+    <div class="field-label">CLIENTE</div>
+    <div class="field-value">${esc(so.cliente_nombre || '—')}</div>
+    <div class="field-label">OBRA</div>
+    <div class="field-value">${esc(so.obra || '—')}</div>
+    <div class="field-label">MUEBLE</div>
+    <div class="field-value mueble">${esc(so.mueble || '—')}</div>
+  </div>
+  </body></html>`);
+  w.document.close();
+}
+</script>
+</body>
+</html>
