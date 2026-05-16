@@ -518,7 +518,7 @@ async function marcarTodo(soId) {
   await Promise.all(visibles.map(l =>
     apiPost('upsert-linea-estado', {
       so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: l.linea_zoho_id,
-      cantidad_armada: l.cantidad_total,
+      cantidad_armada: l.cantidad_total, estado: 'completo',
     })
   ));
   await cargarDetalle(soId);
@@ -528,23 +528,23 @@ async function guardarLinea(soId, lineaId, input) {
   const so = allSos.find(s => s.so_zoho_id === soId);
   const val = Math.max(0, parseInt(input.value) || 0);
   input.value = val;
+  actualizarFilaLinea(soId, input);
   await apiPost('upsert-linea-estado', {
     so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: lineaId,
-    cantidad_armada: val,
+    cantidad_armada: val, estado: so.estado,
   });
-  actualizarFilaLinea(soId, input);
 }
 
 async function todoLinea(soId, lineaId, chk, total) {
   const so = allSos.find(s => s.so_zoho_id === soId);
   const val = chk.checked ? total : 0;
-  await apiPost('upsert-linea-estado', {
-    so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: lineaId,
-    cantidad_armada: val,
-  });
   const row = chk.closest('tr');
   const inp = row.querySelector('.linea-input');
   if (inp) { inp.value = val; actualizarFilaLinea(soId, inp); }
+  await apiPost('upsert-linea-estado', {
+    so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: lineaId,
+    cantidad_armada: val, estado: so.estado,
+  });
 }
 
 function actualizarFilaLinea(soId, input) {

@@ -518,7 +518,7 @@ async function marcarTodo(soId) {
   await Promise.all(visibles.map(l =>
     apiPost('upsert-linea-estado', {
       so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: l.linea_zoho_id,
-      empleado_id: EMPLEADO_ID, cantidad_armada: l.cantidad_total,
+      empleado_id: EMPLEADO_ID, cantidad_armada: l.cantidad_total, estado: 'completo',
     })
   ));
   await cargarDetalle(soId);
@@ -528,33 +528,32 @@ async function guardarLinea(soId, lineaId, input) {
   const so = allSos.find(s => s.so_zoho_id === soId);
   const val = Math.max(0, parseInt(input.value) || 0);
   input.value = val;
+  // Actualizar visual primero para calcular estado
+  actualizarFilaLinea(soId, input);
   await apiPost('upsert-linea-estado', {
     so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: lineaId,
-    empleado_id: EMPLEADO_ID, cantidad_armada: val,
+    empleado_id: EMPLEADO_ID, cantidad_armada: val, estado: so.estado,
   });
-  actualizarFilaLinea(soId, input);
 }
 
 async function todoLinea(soId, lineaId, chk, total) {
   const so = allSos.find(s => s.so_zoho_id === soId);
   const val = chk.checked ? total : 0;
-  await apiPost('upsert-linea-estado', {
-    so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: lineaId,
-    empleado_id: EMPLEADO_ID, cantidad_armada: val,
-  });
-  // Actualizar input y visual de la fila
+  // Actualizar input y visual de la fila primero
   const row = chk.closest('tr');
   const inp = row.querySelector('.linea-input');
   if (inp) { inp.value = val; actualizarFilaLinea(soId, inp); }
+  await apiPost('upsert-linea-estado', {
+    so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: lineaId,
+    empleado_id: EMPLEADO_ID, cantidad_armada: val, estado: so.estado,
+  });
 }
 
 function actualizarFilaLinea(soId, input) {
   const val = Number(input.value);
   const total = Number(input.dataset.total || 0);
   const pct = total > 0 ? val / total : 0;
-  // Actualizar clase del input
   input.className = 'linea-input ' + (pct >= 1 ? 'done' : (val > 0 ? 'partial' : ''));
-  // Actualizar badge de la fila
   const row = input.closest('tr');
   if (row) {
     const badge = row.querySelector('.linea-badge');
@@ -564,11 +563,10 @@ function actualizarFilaLinea(soId, input) {
       badge.className = 'linea-badge ' + cls;
       badge.textContent = txt;
     }
-    // Actualizar checkbox
     const chk = row.querySelector('.chk-todo');
     if (chk) chk.checked = pct >= 1;
   }
-  // Recalcular estado card desde DOM
+  // Recalcular estado card desde DOM y persistir
   const inputs = document.querySelectorAll(`.linea-input[data-so="${soId}"]`);
   let t = inputs.length, a = 0;
   inputs.forEach(inp => {

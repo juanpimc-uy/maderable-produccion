@@ -113,9 +113,7 @@ export default async function handler(req) {
         const lineas_total = lineas.length;
         const lineas_con_avance = lineas.filter(l => l.cantidad_armada > 0).length;
 
-        let estado = 'pendiente';
-        if (lineas_con_avance > 0) estado = 'parcial';
-        // completo real se valida al expandir
+        const estado = est.estado || (lineas_con_avance > 0 ? 'parcial' : 'pendiente');
 
         return {
           so_zoho_id:     id,
@@ -199,11 +197,13 @@ export default async function handler(req) {
       const { so_zoho_id, so_numero, linea_zoho_id, empleado_id } = body;
       if (!so_zoho_id || !linea_zoho_id) return err('so_zoho_id y linea_zoho_id requeridos');
 
-      // Lazy upsert de so_estado
+      // Lazy upsert de so_estado (incluye estado si viene)
       if (so_numero) {
+        const soEstadoData = { so_zoho_id, so_numero, actualizado_en: new Date().toISOString() };
+        if (body.estado) soEstadoData.estado = body.estado;
         await supabase.from('so_estado').upsert(
-          { so_zoho_id, so_numero },
-          { onConflict: 'so_zoho_id', ignoreDuplicates: true }
+          soEstadoData,
+          { onConflict: 'so_zoho_id' }
         );
       }
 
