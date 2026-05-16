@@ -2272,10 +2272,14 @@ async function _renderCostosPr(prId) {
     let matHtml = '';
     if (matGrupos.length) {
       matGrupos.forEach((g, gi) => {
+        const gId = 'mat-grp-' + gi;
         matHtml += `<div style="${gi > 0 ? 'border-top:1px solid #1e1e1e;' : ''}">`;
-        matHtml += `<div style="background:#161616;border-left:3px solid #FFD600;padding:8px 14px;font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;display:flex;align-items:center;gap:6px;">
-          <span style="color:#FFD600;font-weight:700;">${g.so_numero}</span><span style="color:#555;">·</span><span style="color:#888;">${g.mueble}</span>
+        matHtml += `<div onclick="var b=document.getElementById('${gId}');var open=b.style.display!=='none';b.style.display=open?'none':'block';this.querySelector('.mat-chev').textContent=open?'\\u25B6':'\\u25BC';" style="background:#161616;border-left:3px solid #FFD600;padding:8px 14px;font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;display:flex;align-items:center;gap:6px;cursor:pointer;transition:background .15s;" onmouseenter="this.style.background='#1a1a1a'" onmouseleave="this.style.background='#161616'">
+          <span class="mat-chev" style="font-size:9px;color:#888;">▶</span>
+          <span style="color:#FFD600;font-weight:700;">${g.so_numero}</span><span style="color:#555;">·</span><span style="color:#888;flex:1;">${g.mueble}</span>
+          <span class="mono" style="font-size:11px;font-weight:700;color:#fff;">${fmtUSD(g.subtotal)}</span>
         </div>`;
+        matHtml += `<div id="${gId}" style="display:none;">`;
         matHtml += `<table style="width:100%;border-collapse:collapse;">
           <thead><tr>
             <th style="text-align:left;font-size:10px;color:var(--muted);padding:4px 14px;font-weight:600;">Ítem</th>
@@ -2295,11 +2299,7 @@ async function _renderCostosPr(prId) {
           </tr>`;
         });
         matHtml += `</tbody></table>`;
-        matHtml += `<div style="background:#111;padding:6px 14px;display:flex;justify-content:flex-end;align-items:center;gap:10px;">
-          <span style="font-family:'Space Mono',monospace;font-size:10px;color:#888;text-transform:uppercase;">SUBTOTAL ${g.so_numero}</span>
-          <span class="mono" style="font-size:12px;font-weight:700;color:#fff;">${fmtUSD(g.subtotal)}</span>
-        </div>`;
-        matHtml += `</div>`;
+        matHtml += `</div></div>`;
       });
     } else {
       matHtml = `<div style="color:var(--muted);font-size:12px;padding:16px 14px;">Sin materiales (vincule SOs al proyecto)</div>`;
@@ -2399,7 +2399,14 @@ async function _renderCostosPr(prId) {
     const totalProyecto = Number(mo.total_usd || 0) + mat_total_usd_round + tercTotal + manualTotal;
 
     panel.innerHTML = `
-      <div class="sec-title" style="margin-bottom:16px;">Costos del Proyecto (USD)</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div class="sec-title" style="margin:0;">Costos del Proyecto (USD)</div>
+        <div style="display:flex;align-items:baseline;gap:8px;">
+          <span style="font-family:'Space Mono',monospace;font-size:10px;color:#666;text-transform:uppercase;">TOTAL</span>
+          <span class="mono" style="font-size:18px;font-weight:700;color:#FFD600;">${fmtUSD(totalProyecto)}</span>
+        </div>
+      </div>
+
       <div class="sec-title" style="font-size:10px;margin-bottom:8px;">MANO DE OBRA</div>
       <div style="overflow-x:auto;margin-bottom:4px;"><table style="width:100%;border-collapse:collapse;">
         <thead><tr>
@@ -2415,17 +2422,6 @@ async function _renderCostosPr(prId) {
           <td class="mono" style="text-align:right;font-size:14px;font-weight:700;">${fmtUSD(mo.total_usd)}</td>
         </tr></tfoot>
       </table></div>
-
-      <div class="sec-title" style="font-size:10px;margin-top:20px;margin-bottom:8px;">MATERIALES</div>
-      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:4px;">
-        ${matHtml}
-        <div style="border-top:1px solid var(--border);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;">TOTAL MATERIALES</span>
-          <span class="mono" style="font-size:14px;font-weight:700;">${fmtUSD(mat_total_usd_round)}</span>
-        </div>
-      </div>
-
-      ${tercHtml}
 
       <div class="sec-title" style="font-size:10px;margin-top:20px;margin-bottom:8px;">COSTOS MANUALES</div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;">
@@ -2447,6 +2443,17 @@ async function _renderCostosPr(prId) {
           <td></td>
         </tr></tfoot>
       </table></div>
+
+      ${tercHtml}
+
+      <div class="sec-title" style="font-size:10px;margin-top:20px;margin-bottom:8px;">MATERIALES</div>
+      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:4px;">
+        ${matHtml}
+        <div style="border-top:1px solid var(--border);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;">TOTAL MATERIALES</span>
+          <span class="mono" style="font-size:14px;font-weight:700;">${fmtUSD(mat_total_usd_round)}</span>
+        </div>
+      </div>
 
       <div style="border-top:2px solid var(--border);margin-top:16px;padding-top:12px;display:flex;justify-content:space-between;align-items:center;">
         <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;">TOTAL PROYECTO</div>
