@@ -244,6 +244,39 @@ async function cargarTodo() {
   sel.innerHTML = '<option value="">TODAS LAS OBRAS</option>' + obras.map(o => `<option value="${o}">${o}</option>`).join('');
 
   aplicarFiltros();
+  cachearObrasMueblesFaltantes();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CACHEO BACKGROUND: obra/mueble faltantes
+// ═══════════════════════════════════════════════════════════════
+async function cachearObrasMueblesFaltantes() {
+  const sinCache = allSos.filter(so => !so.obra && !so.mueble);
+  const LOTE = 5;
+  for (let i = 0; i < sinCache.length; i += LOTE) {
+    const lote = sinCache.slice(i, i + LOTE);
+    await Promise.all(lote.map(async so => {
+      try {
+        const res = await apiGet('detalle-so-zoho&so_zoho_id=' + so.so_zoho_id);
+        if (res.ok) {
+          so.obra = res.obra || '';
+          so.mueble = res.mueble || '';
+          const mEl = document.getElementById('mueble-' + so.so_zoho_id);
+          const chipEl = document.getElementById('chip-' + so.so_zoho_id);
+          if (mEl && res.mueble) mEl.textContent = res.mueble;
+          if (chipEl) {
+            const proy = proyectos.find(p => p.id === so.proyecto_id);
+            const proyName = proy ? proy.nombre : null;
+            const parts = [so.cliente_nombre, so.obra,
+              proyName || '<span class="sin-proy">sin proyecto</span>']
+              .filter(Boolean);
+            chipEl.innerHTML = parts.join(' &middot; ');
+          }
+        }
+      } catch(e) {}
+    }));
+    await new Promise(r => setTimeout(r, 300));
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
