@@ -90,18 +90,6 @@ export default async function handler(req) {
       const zohoData = await zohoGet('salesorders?status=open&per_page=200');
       const salesorders = zohoData.salesorders || [];
 
-      // Log temporal: ver campos disponibles en SOs confirmadas
-      if (salesorders.length > 0) {
-        console.log('[armados] SO open keys:', Object.keys(salesorders[0]).join(', '));
-        console.log('[armados] SO open sample:', JSON.stringify({
-          salesorder_number: salesorders[0].salesorder_number,
-          reference_number: salesorders[0].reference_number,
-          cf_obra: salesorders[0].cf_obra,
-          subject: salesorders[0].subject,
-          customer_name: salesorders[0].customer_name,
-        }));
-      }
-
       // 2. Traer estado local de Supabase
       const [{ data: estados }, { data: lineasEstado }] = await Promise.all([
         supabase.from('so_estado').select('*'),
@@ -156,14 +144,20 @@ export default async function handler(req) {
       const so = zohoData.salesorder;
       if (!so) return err('SO no encontrada en Zoho', 404);
 
-      // Log temporal: ver todos los campos del detalle
-      console.log('[armados] SO detail keys:', Object.keys(so).join(', '));
-      console.log('[armados] SO detail obra fields:', JSON.stringify({
-        reference_number: so.reference_number,
-        subject: so.subject,
-        cf_obra: so.cf_obra,
-        notes: so.notes,
-      }));
+      // Extraer obra: primero reference_number, luego custom_fields
+      const obra = so.reference_number ||
+        (so.custom_fields || []).find(f =>
+          f.label?.toLowerCase() === 'obra' ||
+          f.api_name === 'cf_obra' ||
+          f.api_name === 'cf_obra1'
+        )?.value || '';
+
+      // Extraer mueble: primero subject, luego custom_fields con label mueble
+      const mueble = so.subject ||
+        (so.custom_fields || []).find(f =>
+          f.label?.toLowerCase() === 'mueble' ||
+          f.api_name === 'cf_mueble'
+        )?.value || '';
 
       const lineItems = so.line_items || [];
 
@@ -188,7 +182,7 @@ export default async function handler(req) {
         };
       });
 
-      return ok({ ok: true, mueble: so.subject || '', obra: so.reference_number || '', lineas, _debug_so_keys: Object.keys(so), _debug_so_raw: JSON.stringify(so).substring(0, 500) });
+      return ok({ ok: true, mueble, obra, lineas });
     }
 
     // ── C) POST upsert-linea-estado ───────────────────────────────────────

@@ -10,21 +10,28 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
 :root{
-  --bg:#0f0f0f;--panel:#161616;--card:#1e1e1e;--border:#2a2a2a;
-  --text:#e8e8e8;--muted:#5a5a5a;--faint:#222;
-  --amber:#FFD600;--green:#3DD68C;--red:#F05C5C;--blue:#5B8DEF;
+  --bg:#0f0f0f;--panel:#1e1e1e;--card:#252525;--border:#2a2a2a;--borderL:#333;
+  --text:#e8e8e8;--muted:#888;--faint:#1a1a1a;
+  --accent:#FFD600;--amber:#FFD600;--green:#3DD68C;--red:#F05C5C;--blue:#5B8DEF;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
 .mono{font-family:'Space Mono',monospace;}
 
-/* Header */
-.topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-.topbar-logo{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
-.topbar-title{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
-.topbar-right{display:flex;align-items:center;gap:12px;}
-.topbar-right a{color:var(--muted);text-decoration:none;font-size:12px;font-family:'Space Mono',monospace;}
-.topbar-right a:hover{color:var(--amber);}
+/* Sidebar */
+.sidebar{width:200px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
+.sidebar-logo{padding:18px 16px;border-bottom:1px solid var(--border);font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;font-size:13px;color:var(--muted);border-left:3px solid transparent;transition:all .15s;user-select:none;}
+.nav-item:hover{background:var(--faint);color:var(--text);}
+.nav-item.active{background:rgba(245,166,35,.08);color:var(--amber);border-left-color:var(--amber);font-weight:600;}
+.nav-icon{font-size:15px;width:20px;text-align:center;flex-shrink:0;}
+
+/* Layout */
+.shell{display:flex;height:100vh;overflow:hidden;}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.content{flex:1;overflow-y:auto;padding:24px;}
 
 /* Buttons */
 .btn{padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;transition:opacity .15s;white-space:nowrap;}
@@ -36,7 +43,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .btn-danger{background:var(--red);color:#fff;}
 
 /* Page */
-.page{max-width:1100px;margin:0 auto;padding:20px 24px;}
+.page{max-width:1100px;margin:0 auto;}
 
 /* Filtros */
 .filtros{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
@@ -105,7 +112,8 @@ select.filtro-select:focus{border-color:var(--amber);}
 
 /* Responsive */
 @media(max-width:700px){
-  .page{padding:12px;}
+  .sidebar{display:none;}
+  .content{padding:12px;}
   .filtros{flex-direction:column;align-items:stretch;}
   .so-row1{flex-wrap:wrap;}
   .so-actions{margin-left:0;margin-top:8px;}
@@ -116,35 +124,59 @@ select.filtro-select:focus{border-color:var(--amber);}
 </head>
 <body>
 
-<!-- TOPBAR -->
-<div class="topbar">
-  <div style="display:flex;align-items:center;gap:16px;">
-    <span class="topbar-logo">MBLE</span>
-    <span class="topbar-title">MRP — ARMADO DE SO</span>
-  </div>
-  <div class="topbar-right">
-    <button class="btn btn-ghost btn-sm" onclick="cargarTodo()">&#8634; ACTUALIZAR</button>
-    <a href="/admin.html">&larr; VOLVER</a>
-  </div>
-</div>
+<div class="shell">
 
-<!-- PAGE -->
+<!-- ═══ SIDEBAR ══════════════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo"><a href="admin.html" style="text-decoration:none;color:inherit;">⬡ MADERABLE</a></div>
+  <div style="flex:1;padding:8px 0;overflow-y:auto;">
+    <a href="admin.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">◈</span> Dashboard</div></a>
+    <a href="admin.html#proyectos" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">⬡</span> Proyectos</div></a>
+    <a href="admin.html#operarios" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">◎</span> Operarios</div></a>
+    <a href="/tiempos.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">⏱</span> Tiempos</div></a>
+    <a href="admin.html#materiales" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">▣</span> Materiales</div></a>
+    <a href="tercerizados.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">🧵</span> Tercerizados</div></a>
+    <a href="stock-placas.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">⬡</span> Stock Placas</div></a>
+    <div class="nav-item active"><span class="nav-icon">⬗</span> Armado SO</div>
+    <a href="admin.html#ajustes" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon" style="display:inline-flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Ajustes</div></a>
+    <a href="admin.html#mi-cuenta" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">◉</span> Mi cuenta</div></a>
+  </div>
+  <div style="padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);">
+    <div class="mono" style="font-size:10px;margin-bottom:6px;">VISTA PLANTA</div>
+    <a href="planta2.html" target="_blank" style="color:var(--green);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;text-decoration:none;display:block;">Planta v2 →</a>
+  </div>
+  <div id="sidebar-user-block" style="padding:12px 16px 16px;border-top:0.5px solid var(--border);">
+    <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px;">
+      <div id="sidebar-avatar" style="width:24px;height:24px;border-radius:50%;background:#FFD600;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;color:#000;flex-shrink:0;letter-spacing:0;">??</div>
+      <span id="sidebar-nombre" style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
+    </div>
+    <div id="sidebar-rol" style="font-family:'Space Mono',monospace;font-size:11px;color:#888;margin-bottom:10px;padding-left:33px;"></div>
+    <button onclick="window.AUTH.cerrarSesion()" style="width:100%;background:transparent;border:0.5px solid var(--border);border-radius:5px;padding:8px 10px;color:#aaa;cursor:pointer;font-size:11px;font-family:'Space Mono',monospace;text-align:left;transition:color 0.15s,border-color 0.15s;" onmouseover="this.style.color='var(--amber)';this.style.borderColor='var(--amber)';" onmouseout="this.style.color='#aaa';this.style.borderColor='var(--border)';">↪ Cerrar sesión</button>
+  </div>
+</aside>
+
+<!-- ═══ MAIN ════════════════════════════════════════════════════════════ -->
+<div class="main">
+<div class="content">
 <div class="page">
 
   <!-- FILTROS -->
   <div class="filtros">
-    <div class="tab-bar">
-      <button class="tab-btn active" data-tab="todas" onclick="setTab(this)">TODAS</button>
-      <button class="tab-btn" data-tab="pendiente" onclick="setTab(this)">PENDIENTES</button>
-      <button class="tab-btn" data-tab="parcial" onclick="setTab(this)">PARCIALES</button>
-      <button class="tab-btn" data-tab="completo" onclick="setTab(this)">COMPLETAS</button>
+    <div style="display:flex;align-items:center;gap:12px;flex:1;flex-wrap:wrap;">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="todas" onclick="setTab(this)">TODAS</button>
+        <button class="tab-btn" data-tab="pendiente" onclick="setTab(this)">PENDIENTES</button>
+        <button class="tab-btn" data-tab="parcial" onclick="setTab(this)">PARCIALES</button>
+        <button class="tab-btn" data-tab="completo" onclick="setTab(this)">COMPLETAS</button>
+      </div>
+      <select class="filtro-select" id="filtro-obra" onchange="aplicarFiltros()">
+        <option value="">TODAS LAS OBRAS</option>
+      </select>
+      <label class="toggle-wrap">
+        <input type="checkbox" id="toggle-ocultas" onchange="aplicarFiltros()"> VER OCULTAS
+      </label>
     </div>
-    <select class="filtro-select" id="filtro-obra" onchange="aplicarFiltros()">
-      <option value="">TODAS LAS OBRAS</option>
-    </select>
-    <label class="toggle-wrap">
-      <input type="checkbox" id="toggle-ocultas" onchange="aplicarFiltros()"> VER OCULTAS
-    </label>
+    <button class="btn btn-ghost btn-sm" onclick="cargarTodo()">&#8634; ACTUALIZAR</button>
   </div>
 
   <!-- CONTADOR -->
@@ -154,6 +186,9 @@ select.filtro-select:focus{border-color:var(--amber);}
   <div id="lista-sos"></div>
 
 </div>
+</div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /shell -->
 
 <script>
 // ═══════════════════════════════════════════════════════════════
@@ -490,6 +525,18 @@ async function imprimirEtiqueta(soId) {
   </div>
   </body></html>`);
   w.document.close();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SIDEBAR USER
+// ═══════════════════════════════════════════════════════════════
+if (usuario) {
+  const av = document.getElementById('sidebar-avatar');
+  const nm = document.getElementById('sidebar-nombre');
+  const rl = document.getElementById('sidebar-rol');
+  if (av) av.textContent = (usuario.nombre?.slice(0,2) || '??').toUpperCase();
+  if (nm) nm.textContent = usuario.nombre || '';
+  if (rl) rl.textContent = usuario.rol_app || '';
 }
 
 // ═══════════════════════════════════════════════════════════════
