@@ -78,6 +78,8 @@ select.filtro-select:focus{border-color:var(--amber);}
 .so-actions{display:flex;align-items:center;gap:6px;margin-left:auto;}
 .so-actions button{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:4px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;transition:all .15s;}
 .so-actions button:hover{border-color:var(--amber);color:var(--text);}
+.btn-marcar-todo{background:#22c55e;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.3px;}
+.btn-marcar-todo:hover{background:#16a34a;}
 
 /* Detalle expandido */
 .so-detalle{display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
@@ -229,7 +231,7 @@ async function cargarTodo() {
 
   const [sosRes, proysData] = await Promise.all([
     apiGet('listar-sos-zoho'),
-    window.sbFetch('proyectos_cache?activo=eq.true&order=nombre&select=id,nombre,numero').catch(() => []),
+    window.sbFetch('proyectos_cache?activo=eq.true&order=nombre&select=id,nombre,numero,cliente_nombre,obra').catch(() => []),
   ]);
 
   if (sosRes.ok !== undefined && !sosRes.ok) {
@@ -268,8 +270,7 @@ async function cachearObrasMueblesFaltantes() {
           if (chipEl) {
             const proy = proyectos.find(p => p.id === so.proyecto_id);
             const proyName = proy ? proy.nombre : null;
-            const parts = [so.cliente_nombre, so.obra,
-              proyName || '<span class="sin-proy">sin proyecto</span>']
+            const parts = [so.cliente_nombre, so.obra, proyName]
               .filter(Boolean);
             chipEl.innerHTML = parts.join(' &middot; ');
           }
@@ -318,7 +319,9 @@ function renderCards(sos) {
   container.innerHTML = sos.map(so => {
     const isExpanded = expandedId === so.so_zoho_id;
     const proyName = so.proyecto_id ? (proyectos.find(p => p.id === so.proyecto_id)?.nombre || so.proyecto_id) : null;
-    const chipParts = [so.cliente_nombre, so.obra, proyName || '<span class="sin-proy">sin proyecto</span>'].filter(Boolean);
+    const chipParts = [so.cliente_nombre, so.obra, proyName].filter(Boolean);
+    const progColor = so.lineas_total === 0 ? 'var(--muted)' : (so.lineas_armadas >= so.lineas_total ? '#22c55e' : (so.lineas_armadas > 0 ? '#eab308' : '#ef4444'));
+    const progHtml = so.lineas_total > 0 ? `<span class="so-progreso" style="color:${progColor};font-family:'Space Mono',monospace;font-weight:700;font-size:13px;">${so.lineas_armadas}/${so.lineas_total}</span>` : '';
 
     return `
     <div class="so-card ${isExpanded ? 'expanded' : ''} ${so.oculta ? 'oculta' : ''}" id="card-${so.so_zoho_id}">
@@ -331,6 +334,7 @@ function renderCards(sos) {
       <div class="so-row3">
         <span class="so-chip" id="chip-${so.so_zoho_id}">${chipParts.join(' &middot; ')}</span>
         <div class="so-actions">
+          ${progHtml}
           <button title="${isExpanded ? 'Colapsar' : 'Expandir'}" onclick="toggleExpand('${so.so_zoho_id}')">${isExpanded ? '&#9660;' : '&#9654;'}</button>
           <button title="Imprimir etiqueta" onclick="imprimirEtiqueta('${so.so_zoho_id}')">&#9113;</button>
           <button title="${so.oculta ? 'Mostrar SO' : 'Ocultar SO'}" onclick="toggleOcultar('${so.so_zoho_id}',${!so.oculta})">${so.oculta ? '&#9673;' : '&#10005;'}</button>
@@ -388,12 +392,15 @@ async function cargarDetalle(soId) {
     }
     // Rearmar chip con datos actualizados
     const proyName = so.proyecto_id ? (proyectos.find(p => p.id === so.proyecto_id)?.nombre || so.proyecto_id) : null;
-    const chipParts = [so.cliente_nombre, so.obra, proyName || '<span class="sin-proy">sin proyecto</span>'].filter(Boolean);
+    const chipParts = [so.cliente_nombre, so.obra, proyName].filter(Boolean);
     const chipEl = document.getElementById('chip-' + soId);
     if (chipEl) chipEl.innerHTML = chipParts.join(' &middot; ');
   }
 
-  let html = `<table class="lineas-table">
+  let html = `<div style="margin-bottom:8px;">
+    <button class="btn-marcar-todo" onclick="marcarTodo('${soId}')">&#10003; MARCAR TODO</button>
+  </div>
+  <table class="lineas-table">
     <thead><tr>
       <th>DESCRIPCION</th><th>TOTAL</th><th>ARMADO</th><th></th><th>ESTADO</th><th></th>
     </tr></thead><tbody>`;
@@ -446,7 +453,10 @@ async function cargarDetalle(soId) {
     <label>VINCULAR A PROYECTO</label>
     <select class="filtro-select" onchange="vincularProyecto('${soId}',this.value)">
       <option value="">— Sin proyecto —</option>
-      ${proyectos.map(p => `<option value="${p.id}" ${p.id === soEstado.proyecto_id ? 'selected' : ''}>${p.nombre || p.numero}</option>`).join('')}
+      ${proyectos.map(p => {
+        const label = [p.nombre, p.cliente_nombre, p.obra].filter(Boolean).join(' \u00b7 ');
+        return `<option value="${p.id}" ${p.id === soEstado.proyecto_id ? 'selected' : ''}>${label || p.numero}</option>`;
+      }).join('')}
     </select>
   </div>`;
 
@@ -456,6 +466,20 @@ async function cargarDetalle(soId) {
 // ═══════════════════════════════════════════════════════════════
 // ACCIONES
 // ═══════════════════════════════════════════════════════════════
+async function marcarTodo(soId) {
+  const res = await apiGet('detalle-so-zoho', '&so_zoho_id=' + soId);
+  if (!res.ok) return;
+  const so = allSos.find(s => s.so_zoho_id === soId);
+  const visibles = (res.lineas || []).filter(l => !l.eliminada && l.cantidad_armada < l.cantidad_total);
+  await Promise.all(visibles.map(l =>
+    apiPost('upsert-linea-estado', {
+      so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: l.linea_zoho_id,
+      cantidad_armada: l.cantidad_total,
+    })
+  ));
+  cargarDetalle(soId);
+}
+
 async function guardarLinea(soId, lineaId, input) {
   const so = allSos.find(s => s.so_zoho_id === soId);
   const val = Math.max(0, parseInt(input.value) || 0);
