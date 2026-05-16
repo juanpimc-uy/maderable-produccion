@@ -109,9 +109,19 @@ select.filtro-select:focus{border-color:var(--amber);}
 .eliminadas-toggle:hover{color:var(--amber);}
 .fila-eliminada td{background:#111 !important;opacity:.55;}
 
-/* Proyecto selector */
+/* Proyecto selector — combo */
 .proy-selector{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);}
-.proy-selector label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+.proy-selector label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;white-space:nowrap;}
+.proy-combo{position:relative;flex:1;}
+.proy-combo-input{width:100%;background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:7px 28px 7px 10px;color:var(--text);font-family:'Space Mono',monospace;font-size:11px;outline:none;}
+.proy-combo-input:focus{border-color:var(--amber);}
+.proy-combo-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;line-height:1;}
+.proy-combo-clear:hover{color:var(--text);}
+.proy-combo-list{display:none;position:absolute;top:100%;left:0;right:0;max-height:180px;overflow-y:auto;background:var(--panel);border:1px solid var(--border);border-top:none;border-radius:0 0 4px 4px;z-index:10;}
+.proy-combo-list.open{display:block;}
+.proy-combo-item{padding:6px 10px;font-family:'Space Mono',monospace;font-size:11px;color:var(--text);cursor:pointer;border-bottom:1px solid var(--faint);}
+.proy-combo-item:hover{background:rgba(255,214,0,.08);}
+.proy-combo-item.active{background:rgba(255,214,0,.15);}
 
 /* Spinner */
 @keyframes spin{to{transform:rotate(360deg);}}
@@ -327,7 +337,7 @@ function renderCards(sos) {
 
     return `
     <div class="so-card ${isExpanded ? 'expanded' : ''} ${so.oculta ? 'oculta' : ''}" id="card-${so.so_zoho_id}">
-      <span class="so-dot ${so.estado}"></span>
+      <span class="so-dot ${so.estado}" data-so="${so.so_zoho_id}"></span>
       <div class="so-info">
         <span class="so-num">${so.so_numero}</span>
         <div class="so-mueble" id="mueble-${so.so_zoho_id}">${so.mueble ? esc(so.mueble) : ''}</div>
@@ -335,8 +345,8 @@ function renderCards(sos) {
       </div>
       <div class="so-right">
         <div class="so-estado-block">
-          <span class="so-badge ${so.estado}">${so.estado.toUpperCase()}</span>
-          ${so.lineas_total > 0 ? `<span class="so-progreso">${so.lineas_armadas}/${so.lineas_total} líneas</span>` : ''}
+          <span class="so-badge ${so.estado}" data-so="${so.so_zoho_id}">${so.estado.toUpperCase()}</span>
+          ${so.lineas_total > 0 ? `<span class="so-progreso" data-so="${so.so_zoho_id}">${so.lineas_armadas}/${so.lineas_total} líneas</span>` : ''}
         </div>
         <div class="so-actions">
           <button title="${isExpanded ? 'Colapsar' : 'Expandir'}" onclick="toggleExpand('${so.so_zoho_id}')">${isExpanded ? '&#9660;' : '&#9654;'}</button>
@@ -421,7 +431,7 @@ async function cargarDetalle(soId) {
       <td class="mono" style="text-align:center;">${l.cantidad_total}</td>
       <td style="display:flex;align-items:center;gap:6px;">
         <input type="number" class="linea-input ${inputClass}" min="0" max="${l.cantidad_total}" step="1"
-          value="${l.cantidad_armada}"
+          value="${l.cantidad_armada}" data-so="${soId}" data-total="${l.cantidad_total}"
           onblur="guardarLinea('${soId}','${l.linea_zoho_id}',this)"
           onkeydown="if(event.key==='Enter')this.blur()">
         <input type="checkbox" class="chk-todo" ${checked}
@@ -453,20 +463,45 @@ async function cargarDetalle(soId) {
     html += '</tbody></table></div>';
   }
 
-  // Proyecto selector
+  // Proyecto selector — combo buscable
   const soEstado = so || {};
+  const proyActual = soEstado.proyecto_id ? proyectos.find(p => p.id === soEstado.proyecto_id) : null;
+  const proyActualLabel = proyActual ? [proyActual.nombre, proyActual.cliente_nombre, proyActual.obra].filter(Boolean).join(' · ') : '';
   html += `<div class="proy-selector">
     <label>VINCULAR A PROYECTO</label>
-    <select class="filtro-select" onchange="vincularProyecto('${soId}',this.value)">
-      <option value="">— Sin proyecto —</option>
-      ${proyectos.map(p => {
-        const label = [p.nombre, p.cliente_nombre, p.obra].filter(Boolean).join(' \u00b7 ');
-        return `<option value="${p.id}" ${p.id === soEstado.proyecto_id ? 'selected' : ''}>${label || p.numero}</option>`;
-      }).join('')}
-    </select>
+    <div class="proy-combo" id="proy-combo-${soId}">
+      <input type="text" class="proy-combo-input" id="proy-input-${soId}"
+        placeholder="Buscar proyecto..." value="${esc(proyActualLabel)}"
+        onfocus="abrirProyCombo('${soId}','${esc(so?.cliente_nombre || '')}')"
+        oninput="filtrarProyCombo('${soId}')">
+      ${soEstado.proyecto_id ? `<button class="proy-combo-clear" onclick="vincularProyecto('${soId}','');document.getElementById('proy-input-${soId}').value='';cerrarProyCombo('${soId}')">&times;</button>` : ''}
+      <div class="proy-combo-list" id="proy-list-${soId}"></div>
+    </div>
   </div>`;
 
   det.innerHTML = html;
+  actualizarEstadoCard(soId);
+}
+
+function actualizarEstadoCard(soId) {
+  const so = allSos.find(s => s.so_zoho_id === soId);
+  if (!so) return;
+  const inputs = document.querySelectorAll(`.linea-input[data-so="${soId}"]`);
+  let total = inputs.length, armadas = 0;
+  inputs.forEach(inp => {
+    if (Number(inp.value) >= Number(inp.dataset.total)) armadas++;
+  });
+  so.lineas_total = total;
+  so.lineas_armadas = armadas;
+  const estado = armadas === total && total > 0 ? 'completo'
+    : armadas > 0 ? 'parcial' : 'pendiente';
+  so.estado = estado;
+  const badge = document.querySelector(`.so-badge[data-so="${soId}"]`);
+  const dot = document.querySelector(`.so-dot[data-so="${soId}"]`);
+  const prog = document.querySelector(`.so-progreso[data-so="${soId}"]`);
+  if (badge) { badge.textContent = estado.toUpperCase(); badge.className = `so-badge ${estado}`; }
+  if (dot) dot.className = `so-dot ${estado}`;
+  if (prog) prog.textContent = `${armadas}/${total} líneas`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -483,7 +518,7 @@ async function marcarTodo(soId) {
       empleado_id: EMPLEADO_ID, cantidad_armada: l.cantidad_total,
     })
   ));
-  cargarDetalle(soId);
+  await cargarDetalle(soId);
 }
 
 async function guardarLinea(soId, lineaId, input) {
@@ -541,6 +576,59 @@ async function vincularProyecto(soId, proyId) {
   await apiPost('vincular-proyecto', { so_zoho_id: soId, so_numero: so?.so_numero, proyecto_id: proyId || null });
   if (so) so.proyecto_id = proyId || null;
   aplicarFiltros();
+}
+
+function proyLabel(p) { return [p.nombre, p.cliente_nombre, p.obra].filter(Boolean).join(' · ') || p.numero; }
+
+function abrirProyCombo(soId, clienteNombre) {
+  const list = document.getElementById('proy-list-' + soId);
+  const input = document.getElementById('proy-input-' + soId);
+  input.select();
+  const q = '';
+  renderProyList(soId, q, clienteNombre);
+  list.classList.add('open');
+  // Cerrar al hacer click fuera
+  setTimeout(() => document.addEventListener('click', function handler(e) {
+    const combo = document.getElementById('proy-combo-' + soId);
+    if (combo && !combo.contains(e.target)) { cerrarProyCombo(soId); document.removeEventListener('click', handler); }
+  }), 10);
+}
+
+function filtrarProyCombo(soId) {
+  const input = document.getElementById('proy-input-' + soId);
+  const so = allSos.find(s => s.so_zoho_id === soId);
+  renderProyList(soId, input.value, so?.cliente_nombre || '');
+}
+
+function renderProyList(soId, query, clienteNombre) {
+  const list = document.getElementById('proy-list-' + soId);
+  const q = query.toLowerCase();
+  // Pre-filtrar por cliente si no hay query
+  let filtered = proyectos;
+  if (!q && clienteNombre) {
+    const preFiltered = proyectos.filter(p => (p.cliente_nombre || '').toLowerCase().includes(clienteNombre.toLowerCase()));
+    if (preFiltered.length > 0) filtered = preFiltered;
+  }
+  if (q) {
+    filtered = proyectos.filter(p => proyLabel(p).toLowerCase().includes(q));
+  }
+  list.innerHTML = filtered.slice(0, 20).map(p =>
+    `<div class="proy-combo-item" onclick="seleccionarProy('${soId}','${p.id}')">${esc(proyLabel(p))}</div>`
+  ).join('') || '<div class="proy-combo-item" style="color:var(--muted);">Sin resultados</div>';
+  list.classList.add('open');
+}
+
+function seleccionarProy(soId, proyId) {
+  const p = proyectos.find(x => x.id === proyId);
+  const input = document.getElementById('proy-input-' + soId);
+  if (input && p) input.value = proyLabel(p);
+  cerrarProyCombo(soId);
+  vincularProyecto(soId, proyId);
+}
+
+function cerrarProyCombo(soId) {
+  const list = document.getElementById('proy-list-' + soId);
+  if (list) list.classList.remove('open');
 }
 
 // ═══════════════════════════════════════════════════════════════
