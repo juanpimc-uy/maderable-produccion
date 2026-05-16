@@ -121,8 +121,8 @@ export default async function handler(req) {
           so_zoho_id:     id,
           so_numero:      so.salesorder_number,
           cliente_nombre: so.customer_name,
-          obra:           so.reference_number || '',
-          mueble:         so.subject || '',
+          obra:           est.obra || so.reference_number || '',
+          mueble:         est.mueble || so.subject || '',
           oculta:         est.oculta || false,
           proyecto_id:    est.proyecto_id || null,
           lineas_total,
@@ -158,6 +158,15 @@ export default async function handler(req) {
           f.label?.toLowerCase() === 'mueble' ||
           f.api_name === 'cf_mueble'
         )?.value || '';
+
+      // Cachear obra/mueble en so_estado
+      if (obra || mueble) {
+        await supabase.from('so_estado').upsert(
+          { so_zoho_id, so_numero: so.salesorder_number, obra, mueble,
+            actualizado_en: new Date().toISOString() },
+          { onConflict: 'so_zoho_id' }
+        );
+      }
 
       const lineItems = so.line_items || [];
 

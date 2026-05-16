@@ -25,3 +25,7 @@ CREATE TABLE IF NOT EXISTS so_lineas_estado (
 );
 
 CREATE INDEX IF NOT EXISTS idx_so_lineas_estado_so ON so_lineas_estado(so_zoho_id);
+
+-- Cachear obra y mueble en so_estado
+ALTER TABLE so_estado ADD COLUMN IF NOT EXISTS obra TEXT DEFAULT '';
+ALTER TABLE so_estado ADD COLUMN IF NOT EXISTS mueble TEXT DEFAULT '';
