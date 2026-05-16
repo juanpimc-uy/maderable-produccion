@@ -480,17 +480,17 @@ async function cargarDetalle(soId) {
   </div>`;
 
   det.innerHTML = html;
-  actualizarEstadoCard(soId);
+
+  // Actualizar estado desde datos de la API
+  const lineasActivas = (res.lineas || []).filter(l => !l.eliminada);
+  const totalLineas = lineasActivas.length;
+  const armadasLineas = lineasActivas.filter(l => l.cantidad_armada >= l.cantidad_total && l.cantidad_total > 0).length;
+  actualizarEstadoCard(soId, totalLineas, armadasLineas);
 }
 
-function actualizarEstadoCard(soId) {
+function actualizarEstadoCard(soId, total, armadas) {
   const so = allSos.find(s => s.so_zoho_id === soId);
   if (!so) return;
-  const inputs = document.querySelectorAll(`.linea-input[data-so="${soId}"]`);
-  let total = inputs.length, armadas = 0;
-  inputs.forEach(inp => {
-    if (Number(inp.value) >= Number(inp.dataset.total)) armadas++;
-  });
   so.lineas_total = total;
   so.lineas_armadas = armadas;
   const estado = armadas === total && total > 0 ? 'completo'
@@ -499,9 +499,9 @@ function actualizarEstadoCard(soId) {
   const badge = document.querySelector(`.so-badge[data-so="${soId}"]`);
   const dot = document.querySelector(`.so-dot[data-so="${soId}"]`);
   const prog = document.querySelector(`.so-progreso[data-so="${soId}"]`);
-  if (badge) { badge.textContent = estado.toUpperCase(); badge.className = `so-badge ${estado}`; }
-  if (dot) dot.className = `so-dot ${estado}`;
-  if (prog) prog.textContent = `${armadas}/${total} líneas`;
+  if (badge) { badge.textContent = estado.toUpperCase(); badge.className = 'so-badge ' + estado; }
+  if (dot) dot.className = 'so-dot ' + estado;
+  if (prog) prog.textContent = armadas + '/' + total + ' líneas';
 }
 
 // ═══════════════════════════════════════════════════════════════
