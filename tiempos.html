@@ -440,7 +440,7 @@ async function _tInit() {
       const repSel = document.getElementById('rep-emp-select');
       const opFilter = _tUser.rol_app === 'admin'
         ? _empListT
-        : _empListT.filter(e => e.rol_app === 'operario' || e.rol_app === 'oficina');
+        : _empListT.filter(e => e.rol_app === 'operario' || e.id === _tUser.id);
       opFilter.forEach(e => {
         opSel.innerHTML  += `<option value="${e.id}">${e.nombre}</option>`;
       });
