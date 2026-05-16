@@ -3024,23 +3024,28 @@ function _renderOpGestion() {
     const totalH=hist.reduce((a,h)=>a+msH(h.fin-h.inicio),0)+msH(sesMs);
     const totalSes=hist.length+(ses?1:0);
     const exp=_opHistExpanded[op.id];
-    html+=`<div class="op-row" style="flex-direction:column;gap:0;padding:0;overflow:hidden;margin-bottom:10px;">
-      <div style="display:flex;align-items:center;padding:14px 20px;gap:14px;">
-        <div onclick="toggleOpHistorial('${op.id}')" style="cursor:pointer;display:flex;align-items:center;gap:14px;flex:1;user-select:none;">
-          <div class="av active" style="width:40px;height:40px;font-size:14px;flex-shrink:0;">${op.avatar||getIniciales(op.nombre)}</div>
-          <div style="flex:1;">
-            <div style="font-size:15px;font-weight:700;">${op.nombre}</div>
-            <div style="font-size:11px;color:var(--muted);margin-bottom:5px;">${op.rol_app||'operario'}${window.AUTH.esAdmin()?` · <span style="color:var(--amber);font-size:10px;">${op.categoria||'directo'}</span>`:''} · ${totalSes} sesiones · ${fmtH(totalH)} totales</div>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;">${(op.centros&&op.centros.length)?op.centros.map(cid=>{const c=getCentro(cid);return c?`<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:1px 6px;border-radius:3px;color:${c.color};background:${c.color}12;border:1px solid ${c.color}44;">${c.icon} ${c.label}</span>`:''}).join(''):''}</div>
-          ${!(op.centros&&op.centros.length)?`<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:1px 6px;border-radius:3px;color:var(--muted);background:var(--faint);border:1px solid var(--border);">SIN CENTROS</span>`:''}
-          </div>
-          <span style="font-size:13px;color:var(--muted);margin-right:8px;">${exp?'▴':'▾'}</span>
+    // Chips centros (max 3 visible)
+    const centrosArr = (op.centros||[]).map(cid=>getCentro(cid)).filter(Boolean);
+    const centrosVis = centrosArr.slice(0,3);
+    const centrosExtra = centrosArr.length - 3;
+    const chipsHtml = centrosVis.map(c=>`<span style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 6px;border-radius:3px;color:${c.color};background:${c.color}12;border:1px solid ${c.color}44;line-height:1;">${c.icon} ${c.label}</span>`).join('')
+      + (centrosExtra > 0 ? `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 6px;color:#555;">+${centrosExtra}</span>` : '')
+      + (!centrosArr.length ? `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 6px;border-radius:3px;color:var(--muted);background:var(--faint);border:1px solid var(--border);">SIN CENTROS</span>` : '');
+
+    html+=`<div style="border-bottom:1px solid #1a1a1a;transition:background .1s;" onmouseenter="this.style.background='#161616'" onmouseleave="this.style.background='transparent'">
+      <div style="display:flex;align-items:center;padding:8px 16px;gap:10px;min-height:44px;">
+        <div onclick="toggleOpHistorial('${op.id}')" style="cursor:pointer;display:flex;align-items:center;gap:10px;flex:1;user-select:none;min-width:0;">
+          <div class="av active" style="width:32px;height:32px;font-size:12px;flex-shrink:0;">${op.avatar||getIniciales(op.nombre)}</div>
+          <span style="font-size:13px;font-weight:700;white-space:nowrap;">${op.nombre}</span>
+          <span style="font-size:11px;color:#666;white-space:nowrap;">${op.rol_app||'operario'}${window.AUTH.esAdmin()?` · <span style="color:var(--amber);">${op.categoria||'directo'}</span>`:''} · ${totalSes}ses · ${fmtH(totalH)}</span>
+          <div style="display:flex;gap:4px;align-items:center;margin-left:8px;">${chipsHtml}</div>
+          <span style="font-size:11px;color:var(--muted);margin-left:auto;">${exp?'▴':'▾'}</span>
         </div>
-        <div style="display:flex;gap:6px;flex-shrink:0;">
-          ${(window.AUTH.esAdmin()||window.AUTH.esOficina()) && op.id !== _meId ? `<button onclick="resetearPinOperario('${op.id}','${op.nombre.replace(/'/g,"\\'")}') " title="Resetear PIN a 1234" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace;">↻ PIN</button>` : ''}
-          ${window.AUTH.esAdmin() ? `<button onclick="abrirModalCentrosOperario('${op.id}')" title="Centros autorizados" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;">${(op.centros&&op.centros.length)?`CENTROS · ${op.centros.length}`:'CENTROS · 0'}</button>` : ''}
-          ${window.AUTH.esAdmin() ? `<button onclick="abrirModalOperario('${op.id}')" title="Editar operario" style="padding:5px 11px;border:1px solid var(--border);border-radius:5px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:12px;display:inline-flex;align-items:center;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>` : ''}
-          ${window.AUTH.esAdmin() ? `<button onclick="eliminarOperario('${op.id}')" title="Eliminar operario" style="padding:5px 11px;border:1px solid rgba(240,92,92,.3);border-radius:5px;background:transparent;color:var(--red);cursor:pointer;font-size:12px;">🗑</button>` : ''}
+        <div style="display:flex;gap:4px;flex-shrink:0;">
+          ${(window.AUTH.esAdmin()||window.AUTH.esOficina()) && op.id !== _meId ? `<button onclick="resetearPinOperario('${op.id}','${op.nombre.replace(/'/g,"\\'")}') " title="Resetear PIN" style="padding:3px 8px;height:26px;border:1px solid var(--border);border-radius:4px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;">PIN</button>` : ''}
+          ${window.AUTH.esAdmin() ? `<button onclick="abrirModalCentrosOperario('${op.id}')" title="Centros" style="padding:3px 8px;height:26px;border:1px solid var(--border);border-radius:4px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;">C·${(op.centros||[]).length}</button>` : ''}
+          ${window.AUTH.esAdmin() ? `<button onclick="abrirModalOperario('${op.id}')" title="Editar" style="padding:3px 8px;height:26px;border:1px solid var(--border);border-radius:4px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:12px;">⚙</button>` : ''}
+          ${window.AUTH.esAdmin() ? `<button onclick="eliminarOperario('${op.id}')" title="Eliminar" style="padding:3px 8px;height:26px;border:1px solid rgba(240,92,92,.3);border-radius:4px;background:transparent;color:var(--red);cursor:pointer;font-size:12px;">🗑</button>` : ''}
         </div>
       </div>
       <div id="op-hist-${op.id}" style="display:${exp?'block':'none'};border-top:1px solid var(--border);">
