@@ -493,7 +493,7 @@ async function cargarDetalle(soId) {
   if (so && so.estado !== estadoPrevio) {
     const firstLinea = lineasActivas[0];
     if (firstLinea) {
-      apiPost('upsert-linea-estado', {
+      await apiPost('upsert-linea-estado', {
         so_zoho_id: soId, so_numero: so.so_numero,
         linea_zoho_id: firstLinea.linea_zoho_id, estado: so.estado,
       });
