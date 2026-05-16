@@ -1619,6 +1619,10 @@ function renderDashboard() {
 // ═══════════════════════════════════════════════════════════════════════════
 let _archivados = (()=>{try{return JSON.parse(localStorage.getItem('proyectos_archivados')||'[]');}catch(e){return[];}})();
 let _archivadosExpanded = false;
+let _prFiltroChip = 'todos';
+let _prOrden = 'nombre';
+let _prVista = localStorage.getItem('proyectos_vista') || 'grilla';
+let _prBusqueda = '';
 
 function archivarProyecto(prId, e) {
   e.stopPropagation();
@@ -1633,9 +1637,48 @@ function restaurarProyecto(prId, e) {
   renderProyectos();
 }
 
+function _prGetEstado(pr) {
+  const hA = hAcumPr(pr.id), hE = hEstPr(pr);
+  const pct = hE > 0 ? (hA / hE * 100) : 0;
+  if (pct >= 100) return 'atrasado';
+  if (pct > 0) return 'en_curso';
+  return 'en_curso';
+}
+
+function _prGetPct(pr) {
+  const hA = hAcumPr(pr.id), hE = hEstPr(pr);
+  return hE > 0 ? Math.round(hA / hE * 100) : 0;
+}
+
 function renderProyectos() {
-  const activos = PROYECTOS.filter(p=>!_archivados.includes(p.id));
-  const arch = PROYECTOS.filter(p=>_archivados.includes(p.id));
+  let activos = PROYECTOS.filter(p => !_archivados.includes(p.id));
+  const arch = PROYECTOS.filter(p => _archivados.includes(p.id));
+
+  // Filtro búsqueda
+  if (_prBusqueda) {
+    const q = _prBusqueda.toLowerCase();
+    activos = activos.filter(pr =>
+      (pr.nombre || '').toLowerCase().includes(q) ||
+      (pr.clienteNombre || '').toLowerCase().includes(q) ||
+      (pr.numero || '').toLowerCase().includes(q) ||
+      (pr.id || '').toLowerCase().includes(q)
+    );
+  }
+
+  // Filtro chip
+  if (_prFiltroChip === 'en_curso') {
+    activos = activos.filter(pr => { const p = _prGetPct(pr); return p > 0 && p < 100; });
+  } else if (_prFiltroChip === 'atrasados') {
+    activos = activos.filter(pr => _prGetPct(pr) >= 100);
+  } else if (_prFiltroChip === 'completados') {
+    activos = activos.filter(pr => _prGetPct(pr) >= 100 && _prGetEstado(pr) === 'atrasado');
+  }
+
+  // Orden
+  if (_prOrden === 'nombre') activos.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+  else if (_prOrden === 'menor_avance') activos.sort((a, b) => _prGetPct(a) - _prGetPct(b));
+  else if (_prOrden === 'mayor_avance') activos.sort((a, b) => _prGetPct(b) - _prGetPct(a));
+  else if (_prOrden === 'mas_items') activos.sort((a, b) => (b.items?.length || 0) - (a.items?.length || 0));
 
   function cardHtml(pr, isArchived) {
     const hA=hAcumPr(pr.id),hE=hEstPr(pr);
@@ -1669,22 +1712,93 @@ function renderProyectos() {
       </div>`;
   }
 
-  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><div class="sec-title" style="margin:0;">Proyectos</div><div style="display:flex;gap:8px;"><button class="btn btn-ghost btn-sm" onclick="syncTodosProyectos()" title="Sincroniza todos los proyectos de localStorage a Supabase para que aparezcan en Planta v2">↑ Sincronizar todos a planta</button><a href="nuevo-proyecto.html" style="text-decoration:none;"><button class="btn btn-primary">+ Nuevo Proyecto</button></a></div></div>`;
-  html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">`;
-  activos.forEach(pr=>{ html+=cardHtml(pr, false); });
-  html+=`</div>`;
+  function rowHtml(pr) {
+    const hA=hAcumPr(pr.id),hE=hEstPr(pr);
+    const pct = hE > 0 ? Math.round(hA/hE*100) : 0;
+    const barColor = pct > 100 ? '#e03030' : pct >= 70 ? '#4ade80' : pct >= 20 ? '#FFD600' : '#3a7fd4';
+    const barW = Math.min(100, pct);
+    let badgeStyle, badgeText;
+    if (pct >= 100) { badgeStyle='background:#1e1010;color:#d03030;border:1px solid #3d1818;'; badgeText='ATRASADO'; }
+    else if (pct > 0) { badgeStyle='background:#162014;color:#4a9e30;border:1px solid #243d1c;'; badgeText='ACTIVO'; }
+    else { badgeStyle='background:#0d1a2e;color:#3a7fd4;border:1px solid #1a3050;'; badgeText='NUEVO'; }
+    return `<div style="display:grid;grid-template-columns:1.5fr 1fr 120px 50px 60px 90px;align-items:center;padding:10px 14px;border-left:2px solid transparent;transition:all .15s;cursor:pointer;background:var(--faint);" onmouseenter="this.style.background='var(--panel)';this.style.borderLeftColor='var(--amber)'" onmouseleave="this.style.background='var(--faint)';this.style.borderLeftColor='transparent'" onclick="abrirDetallePr('${pr.id}')">
+      <div style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pr.nombre}</div>
+      <div style="font-size:11px;color:#777;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pr.clienteNombre || ''}</div>
+      <div style="height:4px;background:#0f0f0f;border-radius:2px;overflow:hidden;"><div style="height:100%;width:${barW}%;background:${barColor};border-radius:2px;"></div></div>
+      <div style="font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:${barColor};">${pct}%</div>
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">${pr.items.length}</div>
+      <div><span style="font-family:'Space Mono',monospace;font-size:9px;padding:2px 8px;border-radius:3px;${badgeStyle}">${badgeText}</span></div>
+    </div>`;
+  }
 
-  if(arch.length) {
-    html+=`<div style="margin-top:20px;">
+  // Header
+  const chipBtn = (id, label) => `<button onclick="_prFiltroChip='${id}';renderProyectos();" style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.5px;padding:5px 12px;border-radius:4px;border:1px solid ${_prFiltroChip===id?'#FFD600':'#2e2e2e'};background:${_prFiltroChip===id?'#FFD600':'#1e1e1e'};color:${_prFiltroChip===id?'#000':'#777'};cursor:pointer;font-weight:${_prFiltroChip===id?'700':'400'};transition:all .15s;">${label}</button>`;
+  const vistaBtn = (id, icon) => `<span onclick="_prVista='${id}';localStorage.setItem('proyectos_vista','${id}');renderProyectos();" style="cursor:pointer;font-size:16px;color:${_prVista===id?'#FFD600':'#555'};">${icon}</span>`;
+
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><div class="sec-title" style="margin:0;">Proyectos</div><div style="display:flex;gap:8px;"><button class="btn btn-ghost btn-sm" onclick="syncTodosProyectos()" title="Sincroniza todos los proyectos de localStorage a Supabase para que aparezcan en Planta v2">↑ Sincronizar todos a planta</button><a href="nuevo-proyecto.html" style="text-decoration:none;"><button class="btn btn-primary">+ Nuevo Proyecto</button></a></div></div>`;
+
+  // Buscador + toggle vista
+  html += `<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+    <div style="flex:1;position:relative;">
+      <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#555;font-size:14px;">🔍</span>
+      <input id="pr-search-input" type="text" value="${_prBusqueda.replace(/"/g,'&quot;')}" placeholder="Buscar por nombre, cliente, número ODF…" oninput="_prBusqueda=this.value;renderProyectos();" style="width:100%;background:#1e1e1e;border:1px solid #333;border-radius:6px;padding:9px 12px 9px 32px;color:#fff;font-family:'Space Mono',monospace;font-size:12px;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='#FFD600'" onblur="this.style.borderColor='#333'">
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">${vistaBtn('grilla','▦')}${vistaBtn('tabla','☰')}</div>
+  </div>`;
+
+  // Chips + select orden
+  html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+    <span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:#555;text-transform:uppercase;">ESTADO</span>
+    ${chipBtn('todos','TODOS')}${chipBtn('en_curso','EN CURSO')}${chipBtn('atrasados','ATRASADOS')}
+    <div style="margin-left:auto;">
+      <select onchange="_prOrden=this.value;renderProyectos();" style="background:#1e1e1e;border:1px solid #2e2e2e;border-radius:4px;padding:5px 8px;color:#777;font-family:'Space Mono',monospace;font-size:10px;outline:none;cursor:pointer;">
+        <option value="nombre" ${_prOrden==='nombre'?'selected':''}>NOMBRE (A→Z)</option>
+        <option value="menor_avance" ${_prOrden==='menor_avance'?'selected':''}>MENOR AVANCE</option>
+        <option value="mayor_avance" ${_prOrden==='mayor_avance'?'selected':''}>MAYOR AVANCE</option>
+        <option value="mas_items" ${_prOrden==='mas_items'?'selected':''}>MÁS ÍTEMS</option>
+      </select>
+    </div>
+  </div>`;
+
+  // Contador
+  const totalPr = PROYECTOS.filter(p => !_archivados.includes(p.id)).length;
+  html += `<div style="font-family:'Space Mono',monospace;font-size:10px;color:#555;margin-bottom:14px;">Mostrando <span style="color:#FFD600;">${activos.length}</span> de ${totalPr} proyectos</div>`;
+
+  // Render según vista
+  if (_prVista === 'tabla') {
+    html += `<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;">`;
+    html += `<div style="display:grid;grid-template-columns:1.5fr 1fr 120px 50px 60px 90px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--border);">
+      <span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);">NOMBRE</span>
+      <span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);">CLIENTE</span>
+      <span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);">PROGRESO</span>
+      <span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);">%</span>
+      <span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);">ÍTEMS</span>
+      <span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);">ESTADO</span>
+    </div>`;
+    activos.forEach(pr => { html += rowHtml(pr); });
+    html += `</div>`;
+  } else {
+    html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">`;
+    activos.forEach(pr => { html += cardHtml(pr, false); });
+    html += `</div>`;
+  }
+
+  // Archivados
+  if (arch.length) {
+    html += `<div style="margin-top:20px;">
       <div onclick="_archivadosExpanded=!_archivadosExpanded;renderProyectos();" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);user-select:none;margin-bottom:10px;">
-        <span>${_archivadosExpanded?'▼':'▶'}</span>
+        <span>${_archivadosExpanded ? '▼' : '▶'}</span>
         <span>Proyectos archivados (${arch.length})</span>
       </div>
-      ${_archivadosExpanded?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">${arch.map(pr=>cardHtml(pr,true)).join('')}</div>`:''}
+      ${_archivadosExpanded ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">${arch.map(pr => cardHtml(pr, true)).join('')}</div>` : ''}
     </div>`;
   }
 
   document.getElementById('pr-lista').innerHTML = html;
+
+  // Restore focus on search input
+  const si = document.getElementById('pr-search-input');
+  if (si && _prBusqueda) { si.focus(); si.selectionStart = si.selectionEnd = _prBusqueda.length; }
 }
 
 function abrirDetallePr(prId) {

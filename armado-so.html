@@ -142,6 +142,22 @@ select.filtro-select:focus{border-color:var(--amber);}
 </head>
 <body>
 
+<!-- ═══ LOGIN ══════════════════════════════════════════════════════════════ -->
+<div id="screen-login">
+  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:40px;width:100%;max-width:360px;">
+      <div style="font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--amber);letter-spacing:3px;text-align:center;margin-bottom:6px;">⬡ MADERABLE</div>
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-align:center;margin-bottom:28px;">ARMADO SO — PLANTA</div>
+      <input id="pw-input" type="password" placeholder="contraseña"
+        style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:12px 14px;color:var(--text);font-size:15px;outline:none;margin-bottom:12px;font-family:'Space Mono',monospace;letter-spacing:3px;"
+        onkeydown="if(event.key==='Enter')_login()">
+      <button onclick="_login()" style="width:100%;background:var(--amber);color:#0f0f0f;border:none;border-radius:6px;padding:13px;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;">INGRESAR →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ APP ════════════════════════════════════════════════════════════════ -->
+<div id="screen-app" style="display:none;">
 <div class="shell">
 
 <script src="sidebar.js"></script>
@@ -180,7 +196,6 @@ select.filtro-select:focus{border-color:var(--amber);}
 </div>
 </div><!-- /content -->
 </div><!-- /main -->
-</div><!-- /shell -->
 
 <script>
 // ═══════════════════════════════════════════════════════════════
@@ -710,5 +725,34 @@ if (usuario) {
 // ═══════════════════════════════════════════════════════════════
 cargarTodo();
 </script>
+</div><!-- /shell -->
+</div><!-- /screen-app -->
+
+<script>
+// ── Auth standalone ─────────────────────────────────────────────
+const PASS_ARMADO = 'armado2024';
+if (localStorage.getItem('armado_so_auth') === 'ok') _mostrarApp();
+function _login() {
+  const pw = document.getElementById('pw-input').value.trim();
+  if (pw === PASS_ARMADO) {
+    localStorage.setItem('armado_so_auth', 'ok');
+    _mostrarApp();
+  } else {
+    const inp = document.getElementById('pw-input');
+    inp.classList.remove('shake');
+    void inp.offsetWidth;
+    inp.classList.add('shake');
+    inp.value = '';
+  }
+}
+function _mostrarApp() {
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('screen-app').style.display = '';
+}
+</script>
+<style>
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-7px)}80%{transform:translateX(7px)}}
+.shake{animation:shake .35s ease;}
+</style>
 </body>
 </html>
