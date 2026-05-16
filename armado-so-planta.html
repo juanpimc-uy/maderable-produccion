@@ -402,7 +402,7 @@ async function cargarDetalle(soId) {
     if (chipEl) chipEl.textContent = metaParts.join(' · ');
   }
 
-  let html = `<div style="margin-bottom:8px;">
+  let html = `<div style="margin-bottom:8px;text-align:right;">
     <button class="btn-marcar-todo" onclick="marcarTodo('${soId}')">&#10003; MARCAR TODO</button>
   </div>
   <table class="lineas-table">
