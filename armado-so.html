@@ -59,29 +59,34 @@ select.filtro-select:focus{border-color:var(--amber);}
 /* Contador */
 .contador{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:16px;}
 
-/* Cards SO */
-.so-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;transition:border-color .2s;}
-.so-card.expanded{border-color:var(--amber);}
+/* Cards SO — estilo recepciones */
+.so-card{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #1a1a1a;transition:background .15s;flex-wrap:wrap;}
+.so-card:last-child{border-bottom:none;}
+.so-card.expanded{background:rgba(255,214,0,.03);border-bottom:1px solid var(--border);}
 .so-card.oculta{opacity:.45;}
-.so-row1{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
-.so-num{font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--amber);}
+.so-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.so-dot.pendiente{background:#ef4444;}
+.so-dot.parcial{background:#FFD600;}
+.so-dot.completo{background:#22c55e;}
+.so-info{flex:1;min-width:0;}
+.so-num{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);}
+.so-mueble{font-size:13px;font-weight:600;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.so-meta{font-family:'Space Mono',monospace;font-size:10px;color:#444;margin-top:3px;}
+.so-right{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.so-estado-block{text-align:right;}
 .so-badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:4px;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;}
-.so-badge.pendiente{color:#ef4444;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);}
-.so-badge.parcial{color:#FFD600;background:rgba(255,214,0,.12);border:1px solid rgba(255,214,0,.3);}
-.so-badge.completo{color:#22c55e;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.25);}
-.so-contador-lineas{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-left:auto;}
-.so-row2{font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:#fff;margin-bottom:6px;}
-.so-row3{display:flex;align-items:center;gap:8px;flex:1;}
-.so-chip{display:flex;flex:1;align-items:center;background:#0f0f0f;border:1px solid var(--border);border-radius:4px;padding:5px 12px;font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:.3px;}
-.so-chip .sin-proy{color:#444;}
-.so-actions{display:flex;align-items:center;gap:6px;margin-left:auto;}
-.so-actions button{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:4px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;transition:all .15s;}
+.so-badge.pendiente{color:#ef4444;background:rgba(239,68,68,.12);}
+.so-badge.parcial{color:#FFD600;background:rgba(255,214,0,.12);}
+.so-badge.completo{color:#22c55e;background:rgba(34,197,94,.12);}
+.so-progreso{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);display:block;margin-top:2px;}
+.so-actions{display:flex;align-items:center;gap:4px;}
+.so-actions button{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:4px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;transition:all .15s;}
 .so-actions button:hover{border-color:var(--amber);color:var(--text);}
-.btn-marcar-todo{background:#22c55e;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;cursor:pointer;letter-spacing:.3px;}
+.btn-marcar-todo{background:#22c55e;color:#fff;border:1px solid transparent;border-radius:4px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;font-weight:700;transition:all .15s;}
 .btn-marcar-todo:hover{background:#16a34a;}
 
 /* Detalle expandido */
-.so-detalle{display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.so-detalle{display:none;margin-top:10px;padding-top:12px;border-top:1px solid var(--border);width:100%;}
 .so-card.expanded .so-detalle{display:block;}
 
 /* Tabla de líneas */
@@ -117,8 +122,8 @@ select.filtro-select:focus{border-color:var(--amber);}
   .sidebar{display:none;}
   .content{padding:12px;}
   .filtros{flex-direction:column;align-items:stretch;}
-  .so-row1{flex-wrap:wrap;}
-  .so-actions{margin-left:0;margin-top:8px;}
+  .so-card{flex-wrap:wrap;gap:10px;}
+  .so-right{width:100%;justify-content:flex-end;}
   .lineas-table{font-size:11px;}
   .linea-input{width:48px;}
 }
@@ -271,7 +276,7 @@ async function cachearObrasMueblesFaltantes() {
             const proyName = proy ? proy.nombre : null;
             const parts = [so.cliente_nombre, so.obra, proyName]
               .filter(Boolean);
-            chipEl.innerHTML = parts.join(' &middot; ');
+            chipEl.textContent = parts.join(' · ');
           }
         }
       } catch(e) {}
@@ -318,28 +323,29 @@ function renderCards(sos) {
   container.innerHTML = sos.map(so => {
     const isExpanded = expandedId === so.so_zoho_id;
     const proyName = so.proyecto_id ? (proyectos.find(p => p.id === so.proyecto_id)?.nombre || so.proyecto_id) : null;
-    const chipParts = [so.cliente_nombre, so.obra, proyName].filter(Boolean);
-    const progColor = so.lineas_total === 0 ? 'var(--muted)' : (so.lineas_armadas >= so.lineas_total ? '#22c55e' : (so.lineas_armadas > 0 ? '#eab308' : '#ef4444'));
-    const progHtml = so.lineas_total > 0 ? `<span class="so-progreso" style="color:${progColor};font-family:'Space Mono',monospace;font-weight:700;font-size:13px;">${so.lineas_armadas}/${so.lineas_total}</span>` : '';
+    const metaParts = [so.cliente_nombre, so.obra, proyName].filter(Boolean);
 
     return `
     <div class="so-card ${isExpanded ? 'expanded' : ''} ${so.oculta ? 'oculta' : ''}" id="card-${so.so_zoho_id}">
-      <div class="so-row1">
+      <span class="so-dot ${so.estado}"></span>
+      <div class="so-info">
         <span class="so-num">${so.so_numero}</span>
-        <span class="so-badge ${so.estado}">${so.estado.toUpperCase()}</span>
-        <span class="so-contador-lineas">${so.lineas_armadas}/${so.lineas_total} lineas</span>
+        <div class="so-mueble" id="mueble-${so.so_zoho_id}">${so.mueble ? esc(so.mueble) : ''}</div>
+        <div class="so-meta" id="chip-${so.so_zoho_id}">${metaParts.join(' · ')}</div>
       </div>
-      <div class="so-row2" id="mueble-${so.so_zoho_id}">${so.mueble ? esc(so.mueble) : ''}</div>
-      <div class="so-row3">
-        <span class="so-chip" id="chip-${so.so_zoho_id}">${chipParts.join(' &middot; ')}</span>
+      <div class="so-right">
+        <div class="so-estado-block">
+          <span class="so-badge ${so.estado}">${so.estado.toUpperCase()}</span>
+          ${so.lineas_total > 0 ? `<span class="so-progreso">${so.lineas_armadas}/${so.lineas_total} líneas</span>` : ''}
+        </div>
         <div class="so-actions">
-          ${progHtml}
+          ${isExpanded ? `<button class="btn-marcar-todo" title="Marcar todo" onclick="event.stopPropagation();marcarTodo('${so.so_zoho_id}')">&#10003;</button>` : ''}
           <button title="${isExpanded ? 'Colapsar' : 'Expandir'}" onclick="toggleExpand('${so.so_zoho_id}')">${isExpanded ? '&#9660;' : '&#9654;'}</button>
           <button title="Imprimir etiqueta" onclick="imprimirEtiqueta('${so.so_zoho_id}')">&#9113;</button>
           <button title="${so.oculta ? 'Mostrar SO' : 'Ocultar SO'}" onclick="toggleOcultar('${so.so_zoho_id}',${!so.oculta})">${so.oculta ? '&#9673;' : '&#10005;'}</button>
         </div>
       </div>
-      <div class="so-detalle" id="detalle-${so.so_zoho_id}">
+      <div class="so-detalle" id="detalle-${so.so_zoho_id}" style="width:100%;">
         ${isExpanded ? '<div style="text-align:center;padding:20px;"><span class="spinner"></span></div>' : ''}
       </div>
     </div>`;
@@ -389,17 +395,14 @@ async function cargarDetalle(soId) {
     if (res.obra) {
       so.obra = res.obra;
     }
-    // Rearmar chip con datos actualizados
+    // Rearmar meta con datos actualizados
     const proyName = so.proyecto_id ? (proyectos.find(p => p.id === so.proyecto_id)?.nombre || so.proyecto_id) : null;
-    const chipParts = [so.cliente_nombre, so.obra, proyName].filter(Boolean);
+    const metaParts = [so.cliente_nombre, so.obra, proyName].filter(Boolean);
     const chipEl = document.getElementById('chip-' + soId);
-    if (chipEl) chipEl.innerHTML = chipParts.join(' &middot; ');
+    if (chipEl) chipEl.textContent = metaParts.join(' · ');
   }
 
-  let html = `<div style="margin-bottom:8px;">
-    <button class="btn-marcar-todo" onclick="marcarTodo('${soId}')">&#10003; MARCAR TODO</button>
-  </div>
-  <table class="lineas-table">
+  let html = `<table class="lineas-table">
     <thead><tr>
       <th>DESCRIPCION</th><th>TOTAL</th><th>ARMADO</th><th></th><th>ESTADO</th><th></th>
     </tr></thead><tbody>`;
