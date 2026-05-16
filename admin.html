@@ -2024,115 +2024,12 @@ function renderDetallePr(pr, sub) {
 
   // ── MATERIALES ──
   if(sub==='materiales'){
-    if(pr.muebles && pr.muebles.length){
-      if(!window._matExp)window._matExp=new Set();
-      html+=`<div style="display:flex;flex-direction:column;gap:10px;">`;
-      pr.muebles.forEach(m=>{
-        const mats=m.mats||[];
-        const critPend=mats.filter(x=>x.critico&&(x.recibido||0)<x.requerido);
-        const allPend=mats.filter(x=>(x.recibido||0)<x.requerido);
-        const recibidos=mats.filter(x=>(x.recibido||0)>=x.requerido).length;
-        const sem=!mats.length?'⚪':critPend.length?'🔴':allPend.length?'🟡':'🟢';
-        const pctM=mats.length?Math.round(recibidos/mats.length*100):0;
-        const expanded=window._matExp.has(m.id);
-        html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
-          <div onclick="toggleMatMueble('${m.id}')" style="cursor:pointer;padding:13px 18px;background:var(--panel);display:flex;align-items:center;gap:10px;user-select:none;">
-            <span style="font-size:16px;">${sem}</span>
-            <span class="mono" style="font-size:11px;font-weight:700;color:var(--amber);">${m.codigo||'—'}</span>
-            <span style="font-size:13px;font-weight:600;flex:1;">${m.nombre||'—'}</span>
-            <span class="mono" style="font-size:10px;color:var(--muted);white-space:nowrap;">${recibidos}/${mats.length} mat. · ${pctM}%</span>
-            <span style="font-size:12px;color:var(--muted);margin-left:6px;">${expanded?'▴':'▾'}</span>
-          </div>
-          <div id="mat-body-${m.id}" style="display:${expanded?'block':'none'};">
-            <div id="add-mat-form-${m.id}" style="display:none;padding:14px 18px;border-bottom:1px solid var(--border);background:rgba(91,141,239,.04);">
-              <div style="display:grid;grid-template-columns:1fr 100px 70px auto auto;gap:8px;align-items:end;margin-bottom:8px;">
-                <div class="field"><label style="font-size:9px;">Nombre</label><input id="nm-n-${m.id}" placeholder="Ej: MDF 18mm" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;width:100%;"></div>
-                <div class="field"><label style="font-size:9px;">Unidad</label><select id="nm-u-${m.id}" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-size:12px;outline:none;width:100%;"><option>planchas</option><option>metros</option><option>unidades</option><option>kg</option><option>litros</option></select></div>
-                <div class="field"><label style="font-size:9px;">Cant.</label><input type="number" id="nm-r-${m.id}" placeholder="0" min="1" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;width:100%;text-align:center;"></div>
-                <div class="field" style="justify-content:flex-end;"><label style="font-size:9px;">Crítico</label><input type="checkbox" id="nm-c-${m.id}" style="width:18px;height:18px;cursor:pointer;accent-color:var(--red);"></div>
-                <button class="btn btn-primary btn-sm" onclick="agregarMatManual('${pr.id}','${m.id}')">Agregar</button>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <input id="so-mat-${m.id}" placeholder="Nº SO (ej: 1234)" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;width:160px;">
-                <button class="btn btn-ghost btn-sm" onclick="buscarSOParaMueble('${pr.id}','${m.id}')">Buscar SO en Zoho</button>
-                <span id="so-mat-msg-${m.id}" style="font-size:11px;color:var(--muted);"></span>
-              </div>
-            </div>
-            <div style="padding:14px 18px;">
-              <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
-                <button class="btn btn-ghost btn-sm" onclick="toggleAddMatForm('${pr.id}','${m.id}')">+ Material</button>
-              </div>
-              ${mats.length===0?`<div class="mono" style="font-size:11px;color:var(--muted);text-align:center;padding:8px 0;">Sin materiales cargados</div>`:''}
-              ${mats.map((mat,matIdx)=>{
-                const ok=(mat.recibido||0)>=mat.requerido;
-                const isCrit=!!mat.critico;
-                let r='';
-                r+=`<div style="padding:9px 0;border-bottom:1px solid rgba(37,40,54,.4);">`;
-                r+=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">`;
-                r+=`<div style="flex:1;min-width:120px;">`;
-                r+=`<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">`;
-                r+=`<span style="font-size:13px;font-weight:600;">${mat.nombre}</span>`;
-                if(ok)r+=`<span class="pill" style="color:var(--green);background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.3);font-size:9px;">✓ RECIBIDO</span>`;
-                if(mat.manual)r+=`<span class="pill" style="color:var(--muted);background:rgba(90,95,120,.15);border:1px solid var(--border);font-size:9px;">Manual</span>`;
-                r+=`</div>`;
-                r+=`<span class="mono" style="font-size:11px;color:${ok?'var(--green)':'var(--amber)'};white-space:nowrap;">${mat.recibido||0}/${mat.requerido} ${mat.unidad||''}</span>`;
-                r+=`</div>`;
-                r+=`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">`;
-                r+=`<button onclick="toggleCriticoInline('${pr.id}','${m.id}','${mat.id}')" style="padding:3px 10px;border:1px solid ${isCrit?'rgba(240,92,92,.6)':'var(--border)'};border-radius:4px;background:${isCrit?'rgba(240,92,92,.15)':'transparent'};color:${isCrit?'var(--red)':'var(--muted)'};cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:${isCrit?700:400};">${isCrit?'🔴 CRÍTICO':'⚪ No crítico'}</button>`;
-                if(!ok)r+=`<button onclick="toggleRecibir('${m.id}','${matIdx}')" style="padding:3px 10px;border:1px solid var(--border);border-radius:4px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;">+ Recibir</button>`;
-                r+=`</div>`;
-                r+=`</div>`;
-                r+=`<div id="recv-inline-${m.id}-${matIdx}" style="display:none;margin-top:8px;padding:10px 12px;background:var(--panel);border-radius:6px;border:1px solid var(--border);">`;
-                r+=`<div style="font-size:11px;color:var(--muted);margin-bottom:7px;">Recibir manualmente:</div>`;
-                r+=`<div style="display:flex;align-items:center;gap:8px;">`;
-                r+=`<span style="font-size:11px;">Cantidad:</span>`;
-                r+=`<input type="number" id="recv-qty-${m.id}-${matIdx}" min="0.01" step="0.01" value="${mat.requerido-(mat.recibido||0)}" style="width:80px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;text-align:center;outline:none;">`;
-                r+=`<button class="btn btn-success btn-sm" onclick="confirmarRecibirInline('${pr.id}','${m.id}','${mat.id}','${matIdx}')">✓ Confirmar</button>`;
-                r+=`<button onclick="toggleRecibir('${m.id}','${matIdx}')" style="padding:4px 10px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;font-size:11px;">Cancelar</button>`;
-                r+=`</div></div></div>`;
-                return r;
-              }).join('')}
-            </div>
-          </div>
-        </div>`;
-      });
-      // ── sección colapsable SO completa ──
-      html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
-        <div style="padding:12px 18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleEl('so-bulk-body')">
-          <span class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;">BUSCAR SO COMPLETA EN ZOHO</span>
-          <span style="font-size:12px;color:var(--muted);">▾</span>
-        </div>
-        <div id="so-bulk-body" style="display:none;padding:16px 18px;border-top:1px solid var(--border);">
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
-            <input id="so-bulk-num" placeholder="Nº SO (ej: 1234)" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:7px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;width:180px;">
-            <button class="btn btn-primary btn-sm" onclick="buscarSOBulk('${pr.id}')">Buscar</button>
-            <span id="so-bulk-msg" style="font-size:11px;color:var(--muted);"></span>
-          </div>
-          <div id="so-bulk-items"></div>
-        </div>
-      </div>`;
-      html+=`</div>`;
-    } else {
-      html+=`<div style="display:flex;flex-direction:column;gap:10px;">`;
-      pr.materiales.forEach(m=>{
-        const ok=m.recibido>=m.requerido;
-        html+=`<div style="background:var(--card);border:1px solid ${ok?'rgba(61,214,140,.3)':'var(--border)'};border-radius:8px;padding:18px;display:flex;align-items:center;gap:16px;">
-          <div style="flex:1;">
-            <div style="font-size:14px;font-weight:600;margin-bottom:8px;">${m.nombre}</div>
-            <div style="display:flex;align-items:center;gap:10px;">
-              <span class="mono" style="font-size:12px;color:${ok?'var(--green)':'var(--amber)'};white-space:nowrap;">${m.recibido}/${m.requerido} ${m.unidad}</span>
-              ${bar(m.recibido,m.requerido,ok?'var(--green)':'var(--amber)')}
-            </div>
-          </div>
-          ${!ok?`<div style="display:flex;gap:6px;align-items:center;">
-            <input type="number" min="1" max="${m.requerido-m.recibido}" placeholder="cant." id="recv-${m.id}" style="width:70px;background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:6px 8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;">
-            <button class="btn btn-primary btn-sm" onclick="recibirMat('${pr.id}','${m.id}',false)">Recibir</button>
-            <button class="btn btn-ghost btn-sm" onclick="recibirMat('${pr.id}','${m.id}',true)">Todo</button>
-          </div>`:pill('✓ Completo','var(--green)')}
-        </div>`;
-      });
-      html+=`</div>`;
-    }
+    html+=`<div class="card" id="materiales-pr-panel">
+      <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:2px;">CARGANDO MATERIALES…</div>
+    </div>`;
+    document.getElementById('pr-detalle').innerHTML = html;
+    _renderMaterialesPr(pr.id);
+    return;
   }
 
   // ── MÓDULOS ──
@@ -2278,14 +2175,63 @@ function renderDetallePr(pr, sub) {
   document.getElementById('pr-detalle').innerHTML = html;
 }
 
+async function _renderMaterialesPr(prId) {
+  const panel = document.getElementById('materiales-pr-panel');
+  if (!panel) return;
+  try {
+    const res = await fetch(`/api/tiempos?action=materiales-proyecto&proyecto_id=${encodeURIComponent(prId)}`);
+    const data = await res.json();
+    if (!data.ok) { panel.innerHTML = `<div style="color:var(--red);font-size:13px;">${data.error || 'Error al cargar materiales'}</div>`; return; }
+    const materiales = data.materiales || [];
+    if (!materiales.length) {
+      panel.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:16px 0;">Sin SOs vinculadas a este proyecto</div>`;
+      return;
+    }
+    let h = `<div class="sec-title" style="margin-bottom:16px;">Materiales (desde SOs vinculadas)</div>`;
+    materiales.forEach(so => {
+      const badgeCls = so.estado === 'completo' ? 'color:#4a9e30;background:#162014;border:1px solid #243d1c;'
+        : so.estado === 'parcial' ? 'color:#FFD600;background:rgba(255,214,0,.1);border:1px solid rgba(255,214,0,.3);'
+        : 'color:#ef4444;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);';
+      h += `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden;">`;
+      h += `<div style="padding:12px 16px;background:var(--panel);display:flex;align-items:center;gap:10px;">
+        <span style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:#FFD600;">${so.so_numero}</span>
+        <span style="font-size:12px;color:#fff;">${so.mueble || ''}</span>
+        <span style="font-family:'Space Mono',monospace;font-size:9px;padding:2px 8px;border-radius:3px;margin-left:auto;${badgeCls}">${(so.estado || 'pendiente').toUpperCase()}</span>
+      </div>`;
+      if (so.error) {
+        h += `<div style="padding:12px 16px;color:rgba(240,92,92,.7);font-size:12px;">Error al cargar líneas de Zoho</div>`;
+      } else if (so.lineas.length) {
+        h += `<div style="padding:10px 16px;">`;
+        so.lineas.forEach(l => {
+          h += `<div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--faint);">
+            <span style="flex:1;font-size:12px;color:#ccc;">${l.nombre}</span>
+            <span style="font-family:'Space Mono',monospace;font-size:11px;color:#888;">×${l.cantidad} ${l.unidad}</span>
+          </div>`;
+        });
+        h += `</div>`;
+      } else {
+        h += `<div style="padding:12px 16px;color:var(--muted);font-size:12px;">Sin líneas</div>`;
+      }
+      h += `</div>`;
+    });
+    panel.innerHTML = h;
+  } catch(e) {
+    if (panel) panel.innerHTML = `<div style="color:var(--red);font-size:13px;">Error: ${e.message}</div>`;
+  }
+}
+
 async function _renderCostosPr(prId) {
   const panel = document.getElementById('costos-pr-panel');
   if (!panel) return;
   const u = window.AUTH.usuarioActual();
   if (!u) return;
   try {
-    const res = await fetch(`/api/tiempos?action=costos-proyecto&proyecto_id=${prId}&admin_id=${u.id}`);
+    const [res, matRes] = await Promise.all([
+      fetch(`/api/tiempos?action=costos-proyecto&proyecto_id=${prId}&admin_id=${u.id}`),
+      fetch(`/api/tiempos?action=materiales-proyecto&proyecto_id=${encodeURIComponent(prId)}`),
+    ]);
     const data = await res.json();
+    const matData = await matRes.json();
     if (!data.ok) { panel.innerHTML = `<div style="color:var(--red);font-size:13px;">${data.error || 'Error al cargar costos'}</div>`; return; }
 
     const fmtUSD = n => n != null ? `$${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
@@ -2304,25 +2250,37 @@ async function _renderCostosPr(prId) {
           </tr>`).join('')
       : `<tr><td colspan="4" style="color:var(--muted);font-size:12px;padding:8px 0;">Sin registros de trabajo</td></tr>`;
 
-    // Materiales
-    const mats = data.materiales;
-    const matRows = mats.items.length
-      ? mats.items.map((m, localIdx) =>
+    // Materiales — desde SOs vinculadas (nuevo endpoint)
+    const allMatLineas = [];
+    let mat_total_usd = 0;
+    let materiales_sin_costo = 0;
+    if (matData.ok) {
+      (matData.materiales || []).forEach(so => {
+        (so.lineas || []).forEach(l => {
+          allMatLineas.push({ ...l, so_numero: so.so_numero });
+          if (l.costo_total_usd != null) mat_total_usd += l.costo_total_usd;
+          else materiales_sin_costo++;
+        });
+      });
+    }
+    const matRows = allMatLineas.length
+      ? allMatLineas.map(m =>
           `<tr>
-            <td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${m.nombre}">${m.nombre||'—'}</td>
+            <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${m.nombre}">${m.nombre||'—'}</td>
+            <td class="mono" style="font-size:10px;color:var(--muted);">${m.so_numero}</td>
             <td class="mono" style="text-align:right;">${m.cantidad}</td>
             <td class="mono" style="text-align:right;color:var(--muted);">${m.unidad||'u'}</td>
-            <td class="mono" style="text-align:right;" id="cost-cu-val-${m.index}">${fmtUSD(m.costo_unitario_usd)}</td>
-            <td class="mono" style="text-align:right;font-weight:600;" id="cost-ct-val-${m.index}">${fmtUSD(m.costo_total_usd)}</td>
-            <td style="text-align:center;"><button onclick="_editarCostoMat('${prId}',${m.index},${m.cantidad})" style="background:transparent;border:none;cursor:pointer;color:var(--muted);font-size:13px;" title="Editar costo">✏</button></td>
+            <td style="text-align:right;"><input type="number" min="0" step="0.01" value="${m.costo_unitario_usd != null ? m.costo_unitario_usd : ''}" placeholder="—" data-key="${m.key}" data-cant="${m.cantidad}" onblur="_guardarCostoMat('${prId}',this)" style="width:70px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;text-align:right;outline:none;" onfocus="this.style.borderColor='#FFD600'" /></td>
+            <td class="mono" style="text-align:right;font-weight:600;">${m.costo_total_usd != null ? fmtUSD(m.costo_total_usd) : '—'}</td>
           </tr>`).join('')
-      : `<tr><td colspan="6" style="color:var(--muted);font-size:12px;padding:8px 0;">Sin materiales cargados</td></tr>`;
+      : `<tr><td colspan="6" style="color:var(--muted);font-size:12px;padding:8px 0;">Sin materiales (vincule SOs al proyecto)</td></tr>`;
+    const mat_total_usd_round = Math.round(mat_total_usd * 100) / 100;
 
     // Alertas
-    const sc = data.sin_costear;
+    const sc = data.sin_costear || {};
     const alertas = [
       sc.registros_sin_categoria ? `<div style="color:#C8832A;font-size:12px;margin-top:6px;">⚠ ${sc.registros_sin_categoria} registro(s) sin categoría de operario — no costeados</div>` : '',
-      sc.materiales_sin_costo    ? `<div style="color:#C8832A;font-size:12px;margin-top:4px;">⚠ ${sc.materiales_sin_costo} material(es) sin precio — no costeados</div>` : '',
+      materiales_sin_costo       ? `<div style="color:#C8832A;font-size:12px;margin-top:4px;">⚠ ${materiales_sin_costo} material(es) sin precio — no costeados</div>` : '',
     ].join('');
 
     // Costos directos / manuales
@@ -2409,7 +2367,7 @@ async function _renderCostosPr(prId) {
       </table></div>`;
     }
 
-    const totalProyecto = Number(mo.total_usd || 0) + Number(mats.total_usd || 0) + tercTotal + manualTotal;
+    const totalProyecto = Number(mo.total_usd || 0) + mat_total_usd_round + tercTotal + manualTotal;
 
     panel.innerHTML = `
       <div class="sec-title" style="margin-bottom:16px;">Costos del Proyecto (USD)</div>
@@ -2433,17 +2391,17 @@ async function _renderCostosPr(prId) {
       <div style="overflow-x:auto;margin-bottom:4px;"><table style="width:100%;border-collapse:collapse;">
         <thead><tr>
           <th style="text-align:left;font-size:11px;color:var(--muted);padding:6px 0;font-weight:600;">Ítem</th>
+          <th style="text-align:left;font-size:11px;color:var(--muted);font-weight:600;">SO</th>
           <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">Cant.</th>
           <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">Unid.</th>
           <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">$/u</th>
           <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">Total</th>
-          <th></th>
         </tr></thead>
         <tbody>${matRows}</tbody>
         <tfoot><tr style="border-top:1px solid var(--border);">
           <td colspan="4" style="font-size:12px;color:var(--muted);padding:8px 0;font-family:'JetBrains Mono',monospace;">TOTAL MATERIALES</td>
-          <td class="mono" style="text-align:right;font-size:14px;font-weight:700;">${fmtUSD(mats.total_usd)}</td>
           <td></td>
+          <td class="mono" style="text-align:right;font-size:14px;font-weight:700;">${fmtUSD(mat_total_usd_round)}</td>
         </tr></tfoot>
       </table></div>
 
@@ -2477,6 +2435,30 @@ async function _renderCostosPr(prId) {
       ${alertas}`;
   } catch(e) {
     if (panel) panel.innerHTML = `<div style="color:var(--red);font-size:13px;">Error: ${e.message}</div>`;
+  }
+}
+
+async function _guardarCostoMat(prId, inputEl) {
+  const val = parseFloat(inputEl.value);
+  if (!val || val <= 0) return;
+  const key = inputEl.dataset.key;
+  const cantidad = Number(inputEl.dataset.cant) || 0;
+  const u = window.AUTH.usuarioActual();
+  if (!u || !key) return;
+  try {
+    const res = await fetch('/api/tiempos?action=editar-costo-material', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_id: u.id, proyecto_id: prId, key, costo_unitario_usd: val, cantidad }),
+    });
+    const data = await res.json();
+    if (!data.ok) { inputEl.style.borderColor = 'var(--red)'; setTimeout(() => { inputEl.style.borderColor = 'var(--border)'; }, 1500); return; }
+    inputEl.style.borderColor = 'var(--green)';
+    setTimeout(() => { inputEl.style.borderColor = 'var(--border)'; }, 1500);
+    // Refresh costos tab
+    _renderCostosPr(prId);
+  } catch(e) {
+    inputEl.style.borderColor = 'var(--red)';
+    setTimeout(() => { inputEl.style.borderColor = 'var(--border)'; }, 1500);
   }
 }
 

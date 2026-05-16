@@ -2362,9 +2362,9 @@ export default async function handler(req) {
 
     // ── POST editar-costo-material (solo admin) ───────────────────────────
     if (action === 'editar-costo-material' && req.method === 'POST') {
-      const { admin_id, proyecto_id, material_index, costo_unitario_usd } = body;
-      if (!admin_id || !proyecto_id || material_index === undefined || costo_unitario_usd === undefined) {
-        return err('admin_id, proyecto_id, material_index y costo_unitario_usd requeridos', 400);
+      const { admin_id, proyecto_id, key, costo_unitario_usd, cantidad } = body;
+      if (!admin_id || !proyecto_id || !key || costo_unitario_usd === undefined) {
+        return err('admin_id, proyecto_id, key y costo_unitario_usd requeridos', 400);
       }
       if (typeof costo_unitario_usd !== 'number' || costo_unitario_usd < 0) {
         return err('costo_unitario_usd debe ser número >= 0', 400);
@@ -2380,20 +2380,85 @@ export default async function handler(req) {
       if (prErr) throw prErr;
       if (!pr) return err('Proyecto no encontrado', 404);
       const mats = pr.materiales || [];
-      const idx = Number(material_index);
-      if (isNaN(idx) || idx < 0 || idx >= mats.length) {
-        return err('material_index fuera de rango', 400);
+      const cant = Number(cantidad) || 0;
+      const costo_total_usd = Math.round(cant * costo_unitario_usd * 100) / 100;
+      const existIdx = mats.findIndex(o => o.key === key);
+      if (existIdx >= 0) {
+        mats[existIdx] = { ...mats[existIdx], costo_unitario_usd, costo_total_usd };
+      } else {
+        mats.push({ key, costo_unitario_usd, costo_total_usd });
       }
-      const cant = mats[idx].requerido || mats[idx].cantidad || 0;
-      mats[idx] = {
-        ...mats[idx],
-        costo_unitario_usd,
-        costo_total_usd: Math.round(cant * costo_unitario_usd * 100) / 100,
-      };
       const { error: uErr } = await supabase
         .from('proyectos_cache').update({ materiales: mats }).eq('id', proyecto_id);
       if (uErr) throw uErr;
-      return ok({ ok: true, material: mats[idx] });
+      return ok({ ok: true });
+    }
+
+    // ── GET materiales-proyecto ─────────────────────────────────────────────
+    if (action === 'materiales-proyecto' && req.method === 'GET') {
+      const proyecto_id = url.searchParams.get('proyecto_id');
+      if (!proyecto_id) return err('proyecto_id requerido', 400);
+
+      // SOs vinculadas al proyecto
+      const { data: sos, error: soErr } = await supabase
+        .from('so_estado')
+        .select('so_zoho_id, so_numero, mueble, obra, estado')
+        .eq('proyecto_id', proyecto_id)
+        .eq('oculta', false);
+      if (soErr) throw soErr;
+
+      // Overrides de precios guardados
+      const { data: pr } = await supabase
+        .from('proyectos_cache')
+        .select('materiales')
+        .eq('id', proyecto_id)
+        .maybeSingle();
+      const overrides = pr?.materiales || [];
+
+      // Fetch cada SO de Zoho en paralelo
+      const orgId = process.env.ZOHO_ORG_ID;
+      const zoho_token = await getZohoToken();
+
+      const results = await Promise.all((sos || []).map(async (so) => {
+        try {
+          // Buscar SO por número
+          const searchUrl = `https://www.zohoapis.com/books/v3/salesorders?salesorder_number=${encodeURIComponent(so.so_numero)}&organization_id=${orgId}`;
+          const searchRes = await fetch(searchUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zoho_token}` } });
+          if (!searchRes.ok) throw new Error('Zoho search ' + searchRes.status);
+          const searchData = await searchRes.json();
+          const soFound = (searchData.salesorders || [])[0];
+          if (!soFound) return { so_numero: so.so_numero, so_zoho_id: so.so_zoho_id, mueble: so.mueble, estado: so.estado, lineas: [], error: 'SO no encontrada en Zoho' };
+
+          // Detalle de la SO
+          const detUrl = `https://www.zohoapis.com/books/v3/salesorders/${soFound.salesorder_id}?organization_id=${orgId}`;
+          const detRes = await fetch(detUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zoho_token}` } });
+          if (!detRes.ok) throw new Error('Zoho detail ' + detRes.status);
+          const detData = await detRes.json();
+          const lineItems = detData.salesorder?.line_items || [];
+
+          const lineas = lineItems.map(li => {
+            const key = so.so_numero + '::' + li.line_item_id;
+            const ov = overrides.find(o => o.key === key);
+            const cu = ov?.costo_unitario_usd ?? null;
+            const cant = li.quantity || 0;
+            return {
+              key,
+              nombre: li.name || li.description || '',
+              cantidad: cant,
+              unidad: li.unit || 'u',
+              precio_zoho: li.rate || 0,
+              costo_unitario_usd: cu,
+              costo_total_usd: cu != null ? Math.round(cu * cant * 100) / 100 : null,
+            };
+          });
+
+          return { so_numero: so.so_numero, so_zoho_id: so.so_zoho_id, mueble: so.mueble, estado: so.estado, lineas };
+        } catch (e) {
+          return { so_numero: so.so_numero, so_zoho_id: so.so_zoho_id, mueble: so.mueble, estado: so.estado, lineas: [], error: e.message };
+        }
+      }));
+
+      return ok({ ok: true, materiales: results });
     }
 
     // ── GET buscar-oc-zoho ────────────────────────────────────────────────
