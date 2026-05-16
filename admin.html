@@ -1651,13 +1651,21 @@ function _prGetPct(pr) {
 }
 
 function renderProyectos() {
-  let activos = PROYECTOS.filter(p => !_archivados.includes(p.id));
+  const allActivos = PROYECTOS.filter(p => !_archivados.includes(p.id));
   const arch = PROYECTOS.filter(p => _archivados.includes(p.id));
+
+  // Determine display list based on chip
+  let displayList;
+  if (_prFiltroChip === 'archivados') {
+    displayList = [...arch];
+  } else {
+    displayList = [...allActivos];
+  }
 
   // Filtro búsqueda
   if (_prBusqueda) {
     const q = _prBusqueda.toLowerCase();
-    activos = activos.filter(pr =>
+    displayList = displayList.filter(pr =>
       (pr.nombre || '').toLowerCase().includes(q) ||
       (pr.clienteNombre || '').toLowerCase().includes(q) ||
       (pr.numero || '').toLowerCase().includes(q) ||
@@ -1665,32 +1673,42 @@ function renderProyectos() {
     );
   }
 
-  // Filtro chip
+  // Filtro chip (solo para activos)
   if (_prFiltroChip === 'en_curso') {
-    activos = activos.filter(pr => { const p = _prGetPct(pr); return p > 0 && p < 100; });
+    displayList = displayList.filter(pr => { const p = _prGetPct(pr); return p > 0 && p < 95; });
   } else if (_prFiltroChip === 'atrasados') {
-    activos = activos.filter(pr => _prGetPct(pr) >= 100);
+    displayList = displayList.filter(pr => _prGetPct(pr) > 100);
   } else if (_prFiltroChip === 'completados') {
-    activos = activos.filter(pr => _prGetPct(pr) >= 100 && _prGetEstado(pr) === 'atrasado');
+    displayList = displayList.filter(pr => {
+      const p = _prGetPct(pr);
+      return p >= 95 && p <= 100;
+    });
   }
+  // 'todos' y 'archivados' no aplican filtro adicional
 
   // Orden
-  if (_prOrden === 'nombre') activos.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
-  else if (_prOrden === 'menor_avance') activos.sort((a, b) => _prGetPct(a) - _prGetPct(b));
-  else if (_prOrden === 'mayor_avance') activos.sort((a, b) => _prGetPct(b) - _prGetPct(a));
-  else if (_prOrden === 'mas_items') activos.sort((a, b) => (b.items?.length || 0) - (a.items?.length || 0));
+  if (_prOrden === 'nombre') displayList.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+  else if (_prOrden === 'menor_avance') displayList.sort((a, b) => _prGetPct(a) - _prGetPct(b));
+  else if (_prOrden === 'mayor_avance') displayList.sort((a, b) => _prGetPct(b) - _prGetPct(a));
+  else if (_prOrden === 'mas_items') displayList.sort((a, b) => (b.items?.length || 0) - (a.items?.length || 0));
+
+  const isShowingArchived = _prFiltroChip === 'archivados';
 
   function cardHtml(pr, isArchived) {
     const hA=hAcumPr(pr.id),hE=hEstPr(pr);
     const matP=pr.materiales.filter(m=>m.recibido<m.requerido).length;
     const inv=pr.modulos.filter(m=>m.estado==='en_inventario').length;
     const des=pr.modulos.filter(m=>m.estado==='despachado').length;
+    const archBadge = isArchived ? `<span style="font-family:'Space Mono',monospace;font-size:9px;padding:2px 8px;border-radius:3px;background:#1e1e1e;color:#555;border:1px solid #2e2e2e;">ARCHIVADO</span>` : '';
     return `
-      <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;cursor:pointer;transition:border-color .2s;${isArchived?'opacity:0.65;':''}"
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;cursor:pointer;transition:border-color .2s;${isArchived?'opacity:0.6;':''}"
         onmouseenter="this.style.borderColor='var(--amber)'" onmouseleave="this.style.borderColor='var(--border)'"
         onclick="abrirDetallePr('${pr.id}')">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
-          <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${pr.clienteNombre}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${pr.clienteNombre}</div>
+            ${archBadge}
+          </div>
           ${isArchived
             ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;" onclick="restaurarProyecto('${pr.id}',event)">↩ Restaurar</button>`
             : `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;color:var(--muted);" onclick="archivarProyecto('${pr.id}',event)">Archivar</button>`}
@@ -1712,16 +1730,17 @@ function renderProyectos() {
       </div>`;
   }
 
-  function rowHtml(pr) {
+  function rowHtml(pr, isArchived) {
     const hA=hAcumPr(pr.id),hE=hEstPr(pr);
     const pct = hE > 0 ? Math.round(hA/hE*100) : 0;
     const barColor = pct > 100 ? '#e03030' : pct >= 70 ? '#4ade80' : pct >= 20 ? '#FFD600' : '#3a7fd4';
     const barW = Math.min(100, pct);
     let badgeStyle, badgeText;
-    if (pct >= 100) { badgeStyle='background:#1e1010;color:#d03030;border:1px solid #3d1818;'; badgeText='ATRASADO'; }
+    if (isArchived) { badgeStyle='background:#1e1e1e;color:#555;border:1px solid #2e2e2e;'; badgeText='ARCHIVADO'; }
+    else if (pct >= 100) { badgeStyle='background:#1e1010;color:#d03030;border:1px solid #3d1818;'; badgeText='ATRASADO'; }
     else if (pct > 0) { badgeStyle='background:#162014;color:#4a9e30;border:1px solid #243d1c;'; badgeText='ACTIVO'; }
-    else { badgeStyle='background:#0d1a2e;color:#3a7fd4;border:1px solid #1a3050;'; badgeText='NUEVO'; }
-    return `<div style="display:grid;grid-template-columns:1.5fr 1fr 120px 50px 60px 90px;align-items:center;padding:10px 14px;border-left:2px solid transparent;transition:all .15s;cursor:pointer;background:var(--faint);" onmouseenter="this.style.background='var(--panel)';this.style.borderLeftColor='var(--amber)'" onmouseleave="this.style.background='var(--faint)';this.style.borderLeftColor='transparent'" onclick="abrirDetallePr('${pr.id}')">
+    else { badgeStyle='background:#0d1a2e;color:#3a7fd4;border:1px solid #1a3050;'; badgeText='ACTIVO'; }
+    return `<div style="display:grid;grid-template-columns:1.5fr 1fr 120px 50px 60px 90px;align-items:center;padding:10px 14px;border-left:2px solid transparent;transition:all .15s;cursor:pointer;background:var(--faint);${isArchived?'opacity:0.6;':''}" onmouseenter="this.style.background='var(--panel)';this.style.borderLeftColor='var(--amber)'" onmouseleave="this.style.background='var(--faint)';this.style.borderLeftColor='transparent'" onclick="abrirDetallePr('${pr.id}')">
       <div style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pr.nombre}</div>
       <div style="font-size:11px;color:#777;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pr.clienteNombre || ''}</div>
       <div style="height:4px;background:#0f0f0f;border-radius:2px;overflow:hidden;"><div style="height:100%;width:${barW}%;background:${barColor};border-radius:2px;"></div></div>
@@ -1749,7 +1768,7 @@ function renderProyectos() {
   // Chips + select orden
   html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
     <span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:#555;text-transform:uppercase;">ESTADO</span>
-    ${chipBtn('todos','TODOS')}${chipBtn('en_curso','EN CURSO')}${chipBtn('atrasados','ATRASADOS')}
+    ${chipBtn('todos','TODOS')}${chipBtn('en_curso','EN CURSO')}${chipBtn('atrasados','ATRASADOS')}${chipBtn('completados','COMPLETADOS')}${chipBtn('archivados','ARCHIVADOS')}
     <div style="margin-left:auto;">
       <select onchange="_prOrden=this.value;renderProyectos();" style="background:#1e1e1e;border:1px solid #2e2e2e;border-radius:4px;padding:5px 8px;color:#777;font-family:'Space Mono',monospace;font-size:10px;outline:none;cursor:pointer;">
         <option value="nombre" ${_prOrden==='nombre'?'selected':''}>NOMBRE (A→Z)</option>
@@ -1761,8 +1780,8 @@ function renderProyectos() {
   </div>`;
 
   // Contador
-  const totalPr = PROYECTOS.filter(p => !_archivados.includes(p.id)).length;
-  html += `<div style="font-family:'Space Mono',monospace;font-size:10px;color:#555;margin-bottom:14px;">Mostrando <span style="color:#FFD600;">${activos.length}</span> de ${totalPr} proyectos</div>`;
+  const totalPr = PROYECTOS.length;
+  html += `<div style="font-family:'Space Mono',monospace;font-size:10px;color:#555;margin-bottom:14px;">Mostrando <span style="color:#FFD600;">${displayList.length}</span> de ${totalPr} proyectos</div>`;
 
   // Render según vista
   if (_prVista === 'tabla') {
@@ -1775,23 +1794,12 @@ function renderProyectos() {
       <span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);">ÍTEMS</span>
       <span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);">ESTADO</span>
     </div>`;
-    activos.forEach(pr => { html += rowHtml(pr); });
+    displayList.forEach(pr => { html += rowHtml(pr, isShowingArchived); });
     html += `</div>`;
   } else {
     html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">`;
-    activos.forEach(pr => { html += cardHtml(pr, false); });
+    displayList.forEach(pr => { html += cardHtml(pr, isShowingArchived); });
     html += `</div>`;
-  }
-
-  // Archivados
-  if (arch.length) {
-    html += `<div style="margin-top:20px;">
-      <div onclick="_archivadosExpanded=!_archivadosExpanded;renderProyectos();" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);user-select:none;margin-bottom:10px;">
-        <span>${_archivadosExpanded ? '▼' : '▶'}</span>
-        <span>Proyectos archivados (${arch.length})</span>
-      </div>
-      ${_archivadosExpanded ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">${arch.map(pr => cardHtml(pr, true)).join('')}</div>` : ''}
-    </div>`;
   }
 
   document.getElementById('pr-lista').innerHTML = html;
@@ -3356,7 +3364,7 @@ let tiemposPrSel = PROYECTOS[0]?.id;
 function renderTiempos() {
   clearTimers();
   // tabs selector
-  let tabs = PROYECTOS.map(p=>`<button class="btn ${tiemposPrSel===p.id?'btn-primary':'btn-ghost'}" onclick="tiemposPrSel='${p.id}';renderTiempos();">${p.nombre}</button>`).join('');
+  let tabs = PROYECTOS.filter(p=>!_archivados.includes(p.id)).map(p=>`<button class="btn ${tiemposPrSel===p.id?'btn-primary':'btn-ghost'}" onclick="tiemposPrSel='${p.id}';renderTiempos();">${p.nombre}</button>`).join('');
   document.getElementById('tiempos-tabs').innerHTML = tabs;
 
   const pr=PROYECTOS.find(p=>p.id===tiemposPrSel);
@@ -4985,7 +4993,9 @@ async function _timerModalAbrir() {
       fetch('/api/tiempos?action=proyectos-activos').then(r => r.json()),
       fetch('/api/tiempos?action=centros-virtuales').then(r => r.json()),
     ]);
-    _cvProyectos = (rProy.proyectos || []).map(p => ({
+    _cvProyectos = (rProy.proyectos || [])
+      .filter(p => !_archivados.includes(p.id)) // Excluir proyectos archivados del selector de horas
+      .map(p => ({
       id: p.id,
       numero: p.numero || '',
       nombre: p.nombre || '',
