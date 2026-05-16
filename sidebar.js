@@ -19,7 +19,7 @@
     ]},
     { id: 'tercerizados', icon: '🧵', label: 'Tercerizados', page: 'tercerizados.html',  section: null,         roles: ['admin', 'oficina'] },
     { id: 'stock',        icon: '⬡', label: 'Stock Placas', page: 'stock-placas.html',  section: null,         roles: ['admin', 'oficina'], hidden: true },
-    { id: 'despacho',     icon: '⇥', label: 'Despacho',     page: 'despacho.html',      section: null,         roles: ['admin', 'oficina'] },
+    { id: 'despacho',     icon: '⇥', label: 'Despacho',     page: 'despacho.html',      section: null,         roles: ['admin', 'oficina'], hidden: true },
     { id: 'ajustes',      icon: GEAR_SVG, label: 'Ajustes', page: 'admin.html',         section: 'ajustes',    roles: ['admin'], iconIsHtml: true },
     { id: 'mi-cuenta',    icon: '◉', label: 'Mi cuenta',    page: 'admin.html',         section: 'mi-cuenta',  roles: ['admin', 'oficina'] },
   ];
@@ -90,6 +90,13 @@
   function inject() {
     const root = document.getElementById('sidebar-root');
     if (!root) return;
+
+    // No renderizar si no hay sesión ERP activa
+    const sess = (() => {
+      try { return JSON.parse(sessionStorage.getItem('mble_session') || '{}'); }
+      catch(e) { return {}; }
+    })();
+    if (!sess.rol_app) { root.innerHTML = ''; return; }
 
     root.innerHTML = '<aside class="sidebar">'
       + '<div class="sidebar-logo"><a href="admin.html" style="text-decoration:none;color:inherit;">\u2B21 MADERABLE</a></div>'
