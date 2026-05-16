@@ -2251,35 +2251,59 @@ async function _renderCostosPr(prId) {
       : `<tr><td colspan="4" style="color:var(--muted);font-size:12px;padding:8px 0;">Sin registros de trabajo</td></tr>`;
 
     // Materiales — desde SOs vinculadas (nuevo endpoint)
-    const allMatLineas = [];
+    // Materiales agrupados por SO
     let mat_total_usd = 0;
     let materiales_sin_costo = 0;
+    const matGrupos = []; // [{so_numero, mueble, lineas:[{...}], subtotal}]
     if (matData.ok) {
       (matData.materiales || []).forEach(so => {
-        (so.lineas || []).forEach(l => {
-          // Precio efectivo: override > precio_zoho > null
+        let subtotal = 0;
+        const lineas = (so.lineas || []).map(l => {
           const precioEfectivo = l.costo_unitario_usd != null ? l.costo_unitario_usd : (l.precio_zoho > 0 ? l.precio_zoho : null);
           const totalEfectivo = precioEfectivo != null ? Math.round(precioEfectivo * l.cantidad * 100) / 100 : null;
-          allMatLineas.push({ ...l, so_numero: so.so_numero, _precioEfectivo: precioEfectivo, _totalEfectivo: totalEfectivo });
-          if (totalEfectivo != null) mat_total_usd += totalEfectivo;
+          if (totalEfectivo != null) { subtotal += totalEfectivo; mat_total_usd += totalEfectivo; }
           else materiales_sin_costo++;
+          return { ...l, _precioEfectivo: precioEfectivo, _totalEfectivo: totalEfectivo };
         });
+        if (lineas.length) matGrupos.push({ so_numero: so.so_numero, mueble: so.mueble || '', lineas, subtotal });
       });
     }
-    const matRows = allMatLineas.length
-      ? allMatLineas.map(m => {
-          const inputVal = m._precioEfectivo != null ? m._precioEfectivo : '';
-          return `<tr>
-            <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${m.nombre}">${m.nombre||'—'}</td>
-            <td class="mono" style="font-size:10px;color:var(--muted);">${m.so_numero}</td>
-            <td class="mono" style="text-align:right;">${m.cantidad}</td>
-            <td class="mono" style="text-align:right;color:var(--muted);">${m.unidad||'u'}</td>
-            <td style="text-align:right;"><input type="number" min="0" step="0.01" value="${inputVal}" placeholder="—" data-key="${m.key}" data-cant="${m.cantidad}" onblur="_guardarCostoMat('${prId}',this)" style="width:70px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;text-align:right;outline:none;" onfocus="this.style.borderColor='#FFD600'" /></td>
-            <td class="mono" style="text-align:right;font-weight:600;">${m._totalEfectivo != null ? fmtUSD(m._totalEfectivo) : '—'}</td>
-          </tr>`;
-        }).join('')
-      : `<tr><td colspan="6" style="color:var(--muted);font-size:12px;padding:8px 0;">Sin materiales (vincule SOs al proyecto)</td></tr>`;
     const mat_total_usd_round = Math.round(mat_total_usd * 100) / 100;
+    let matHtml = '';
+    if (matGrupos.length) {
+      matGrupos.forEach((g, gi) => {
+        matHtml += `<div style="${gi > 0 ? 'border-top:1px solid #1e1e1e;' : ''}">`;
+        matHtml += `<div style="background:#161616;border-left:3px solid #FFD600;padding:8px 14px;font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;display:flex;align-items:center;gap:6px;">
+          <span style="color:#FFD600;font-weight:700;">${g.so_numero}</span><span style="color:#555;">·</span><span style="color:#888;">${g.mueble}</span>
+        </div>`;
+        matHtml += `<table style="width:100%;border-collapse:collapse;">
+          <thead><tr>
+            <th style="text-align:left;font-size:10px;color:var(--muted);padding:4px 14px;font-weight:600;">Ítem</th>
+            <th style="text-align:right;font-size:10px;color:var(--muted);padding:4px 6px;font-weight:600;">Cant.</th>
+            <th style="text-align:right;font-size:10px;color:var(--muted);padding:4px 6px;font-weight:600;">Unid.</th>
+            <th style="text-align:right;font-size:10px;color:var(--muted);padding:4px 6px;font-weight:600;">$/u</th>
+            <th style="text-align:right;font-size:10px;color:var(--muted);padding:4px 14px;font-weight:600;">Total</th>
+          </tr></thead><tbody>`;
+        g.lineas.forEach(m => {
+          const inputVal = m._precioEfectivo != null ? m._precioEfectivo : '';
+          matHtml += `<tr>
+            <td style="font-size:12px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 14px;" title="${m.nombre}">${m.nombre||'—'}</td>
+            <td class="mono" style="text-align:right;font-size:11px;padding:5px 6px;">${m.cantidad}</td>
+            <td class="mono" style="text-align:right;font-size:11px;color:var(--muted);padding:5px 6px;">${m.unidad||'u'}</td>
+            <td style="text-align:right;padding:5px 6px;"><input type="number" min="0" step="0.01" value="${inputVal}" placeholder="—" data-key="${m.key}" data-cant="${m.cantidad}" onblur="_guardarCostoMat('${prId}',this)" style="width:64px;height:26px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;text-align:right;outline:none;" onfocus="this.style.borderColor='#FFD600'" /></td>
+            <td class="mono" style="text-align:right;font-size:11px;font-weight:600;padding:5px 14px;">${m._totalEfectivo != null ? fmtUSD(m._totalEfectivo) : '—'}</td>
+          </tr>`;
+        });
+        matHtml += `</tbody></table>`;
+        matHtml += `<div style="background:#111;padding:6px 14px;display:flex;justify-content:flex-end;align-items:center;gap:10px;">
+          <span style="font-family:'Space Mono',monospace;font-size:10px;color:#888;text-transform:uppercase;">SUBTOTAL ${g.so_numero}</span>
+          <span class="mono" style="font-size:12px;font-weight:700;color:#fff;">${fmtUSD(g.subtotal)}</span>
+        </div>`;
+        matHtml += `</div>`;
+      });
+    } else {
+      matHtml = `<div style="color:var(--muted);font-size:12px;padding:16px 14px;">Sin materiales (vincule SOs al proyecto)</div>`;
+    }
 
     // Alertas
     const sc = data.sin_costear || {};
@@ -2393,22 +2417,13 @@ async function _renderCostosPr(prId) {
       </table></div>
 
       <div class="sec-title" style="font-size:10px;margin-top:20px;margin-bottom:8px;">MATERIALES</div>
-      <div style="overflow-x:auto;margin-bottom:4px;"><table style="width:100%;border-collapse:collapse;">
-        <thead><tr>
-          <th style="text-align:left;font-size:11px;color:var(--muted);padding:6px 0;font-weight:600;">Ítem</th>
-          <th style="text-align:left;font-size:11px;color:var(--muted);font-weight:600;">SO</th>
-          <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">Cant.</th>
-          <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">Unid.</th>
-          <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">$/u</th>
-          <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">Total</th>
-        </tr></thead>
-        <tbody>${matRows}</tbody>
-        <tfoot><tr style="border-top:1px solid var(--border);">
-          <td colspan="4" style="font-size:12px;color:var(--muted);padding:8px 0;font-family:'JetBrains Mono',monospace;">TOTAL MATERIALES</td>
-          <td></td>
-          <td class="mono" style="text-align:right;font-size:14px;font-weight:700;">${fmtUSD(mat_total_usd_round)}</td>
-        </tr></tfoot>
-      </table></div>
+      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:4px;">
+        ${matHtml}
+        <div style="border-top:1px solid var(--border);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;">TOTAL MATERIALES</span>
+          <span class="mono" style="font-size:14px;font-weight:700;">${fmtUSD(mat_total_usd_round)}</span>
+        </div>
+      </div>
 
       ${tercHtml}
 
