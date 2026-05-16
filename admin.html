@@ -2257,22 +2257,27 @@ async function _renderCostosPr(prId) {
     if (matData.ok) {
       (matData.materiales || []).forEach(so => {
         (so.lineas || []).forEach(l => {
-          allMatLineas.push({ ...l, so_numero: so.so_numero });
-          if (l.costo_total_usd != null) mat_total_usd += l.costo_total_usd;
+          // Precio efectivo: override > precio_zoho > null
+          const precioEfectivo = l.costo_unitario_usd != null ? l.costo_unitario_usd : (l.precio_zoho > 0 ? l.precio_zoho : null);
+          const totalEfectivo = precioEfectivo != null ? Math.round(precioEfectivo * l.cantidad * 100) / 100 : null;
+          allMatLineas.push({ ...l, so_numero: so.so_numero, _precioEfectivo: precioEfectivo, _totalEfectivo: totalEfectivo });
+          if (totalEfectivo != null) mat_total_usd += totalEfectivo;
           else materiales_sin_costo++;
         });
       });
     }
     const matRows = allMatLineas.length
-      ? allMatLineas.map(m =>
-          `<tr>
+      ? allMatLineas.map(m => {
+          const inputVal = m._precioEfectivo != null ? m._precioEfectivo : '';
+          return `<tr>
             <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${m.nombre}">${m.nombre||'—'}</td>
             <td class="mono" style="font-size:10px;color:var(--muted);">${m.so_numero}</td>
             <td class="mono" style="text-align:right;">${m.cantidad}</td>
             <td class="mono" style="text-align:right;color:var(--muted);">${m.unidad||'u'}</td>
-            <td style="text-align:right;"><input type="number" min="0" step="0.01" value="${m.costo_unitario_usd != null ? m.costo_unitario_usd : ''}" placeholder="—" data-key="${m.key}" data-cant="${m.cantidad}" onblur="_guardarCostoMat('${prId}',this)" style="width:70px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;text-align:right;outline:none;" onfocus="this.style.borderColor='#FFD600'" /></td>
-            <td class="mono" style="text-align:right;font-weight:600;">${m.costo_total_usd != null ? fmtUSD(m.costo_total_usd) : '—'}</td>
-          </tr>`).join('')
+            <td style="text-align:right;"><input type="number" min="0" step="0.01" value="${inputVal}" placeholder="—" data-key="${m.key}" data-cant="${m.cantidad}" onblur="_guardarCostoMat('${prId}',this)" style="width:70px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;text-align:right;outline:none;" onfocus="this.style.borderColor='#FFD600'" /></td>
+            <td class="mono" style="text-align:right;font-weight:600;">${m._totalEfectivo != null ? fmtUSD(m._totalEfectivo) : '—'}</td>
+          </tr>`;
+        }).join('')
       : `<tr><td colspan="6" style="color:var(--muted);font-size:12px;padding:8px 0;">Sin materiales (vincule SOs al proyecto)</td></tr>`;
     const mat_total_usd_round = Math.round(mat_total_usd * 100) / 100;
 
