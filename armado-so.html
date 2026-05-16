@@ -70,6 +70,7 @@ select.filtro-select:focus{border-color:var(--amber);}
 .so-dot.completo{background:#22c55e;}
 .so-info{flex:1;min-width:0;}
 .so-num{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);}
+.odf-badge{background:#1e1e1e;border:1px solid #FFD600;color:#FFD600;font-family:monospace;font-size:9px;padding:2px 7px;border-radius:3px;letter-spacing:.5px;margin-left:8px;}
 .so-mueble{font-size:13px;font-weight:600;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .so-meta{font-family:'Space Mono',monospace;font-size:12px;color:#999;margin-top:3px;}
 .so-right{display:flex;align-items:center;gap:10px;flex-shrink:0;}
@@ -334,12 +335,14 @@ function renderCards(sos) {
     const isExpanded = expandedId === so.so_zoho_id;
     const proyName = so.proyecto_id ? (proyectos.find(p => p.id === so.proyecto_id)?.nombre || so.proyecto_id) : null;
     const metaParts = [so.cliente_nombre, so.obra, proyName].filter(Boolean);
+    const proyBadge = so.proyecto_id ? (proyectos.find(p => p.id === so.proyecto_id)?.nombre || '') : '';
+    const odfBadge = proyBadge ? `<span class="odf-badge">${esc(proyBadge)}</span>` : '';
 
     return `
     <div class="so-card ${isExpanded ? 'expanded' : ''} ${so.oculta ? 'oculta' : ''}" id="card-${so.so_zoho_id}">
       <span class="so-dot ${so.estado}" data-so="${so.so_zoho_id}"></span>
       <div class="so-info">
-        <span class="so-num">${so.so_numero}</span>
+        <span class="so-num">${so.so_numero}${odfBadge}</span>
         <div class="so-mueble" id="mueble-${so.so_zoho_id}">${so.mueble ? esc(so.mueble) : ''}</div>
         <div class="so-meta" id="chip-${so.so_zoho_id}">${metaParts.join(' · ')}</div>
       </div>
@@ -529,8 +532,7 @@ async function guardarLinea(soId, lineaId, input) {
     so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: lineaId,
     empleado_id: EMPLEADO_ID, cantidad_armada: val,
   });
-  // Refrescar visual de la fila
-  cargarDetalle(soId);
+  actualizarFilaLinea(soId, input);
 }
 
 async function todoLinea(soId, lineaId, chk, total) {
@@ -540,7 +542,39 @@ async function todoLinea(soId, lineaId, chk, total) {
     so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: lineaId,
     empleado_id: EMPLEADO_ID, cantidad_armada: val,
   });
-  cargarDetalle(soId);
+  // Actualizar input y visual de la fila
+  const row = chk.closest('tr');
+  const inp = row.querySelector('.linea-input');
+  if (inp) { inp.value = val; actualizarFilaLinea(soId, inp); }
+}
+
+function actualizarFilaLinea(soId, input) {
+  const val = Number(input.value);
+  const total = Number(input.dataset.total || 0);
+  const pct = total > 0 ? val / total : 0;
+  // Actualizar clase del input
+  input.className = 'linea-input ' + (pct >= 1 ? 'done' : (val > 0 ? 'partial' : ''));
+  // Actualizar badge de la fila
+  const row = input.closest('tr');
+  if (row) {
+    const badge = row.querySelector('.linea-badge');
+    if (badge) {
+      const cls = pct >= 1 ? 'armado' : (val > 0 ? 'parcial' : 'pendiente');
+      const txt = pct >= 1 ? 'ARMADO' : (val > 0 ? 'PARCIAL' : 'PENDIENTE');
+      badge.className = 'linea-badge ' + cls;
+      badge.textContent = txt;
+    }
+    // Actualizar checkbox
+    const chk = row.querySelector('.chk-todo');
+    if (chk) chk.checked = pct >= 1;
+  }
+  // Recalcular estado card desde DOM
+  const inputs = document.querySelectorAll(`.linea-input[data-so="${soId}"]`);
+  let t = inputs.length, a = 0;
+  inputs.forEach(inp => {
+    if (Number(inp.value) >= Number(inp.dataset.total || 0) && Number(inp.dataset.total || 0) > 0) a++;
+  });
+  actualizarEstadoCard(soId, t, a);
 }
 
 async function eliminarLinea(soId, lineaId) {
