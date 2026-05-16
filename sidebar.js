@@ -13,11 +13,12 @@
     { id: 'proyectos',    icon: '▦', label: 'Proyectos',    page: 'admin.html',         section: 'proyectos',  roles: ['admin', 'oficina'] },
     { id: 'operarios',    icon: '◎', label: 'Operarios',    page: 'admin.html',         section: 'operarios',  roles: ['admin'] },
     { id: 'tiempos',      icon: '⏱', label: 'Tiempos',      page: 'tiempos.html',       section: null,         roles: ['admin', 'oficina'] },
-    { id: 'materiales',   icon: '▣', label: 'Materiales',   page: 'materiales.html',    section: null,         roles: ['admin', 'oficina'] },
+    { id: 'materiales-group', icon: '▣', label: 'Materiales', group: true, roles: ['admin', 'oficina'], children: [
+      { id: 'armado-so',   icon: '⬗', label: 'Armado SO',   page: 'armado-so.html',      section: null, roles: ['admin', 'oficina'] },
+      { id: 'recepciones', icon: '◫', label: 'Recepciones', page: 'recepciones-oc.html', section: null, roles: ['admin', 'oficina'] },
+    ]},
     { id: 'tercerizados', icon: '🧵', label: 'Tercerizados', page: 'tercerizados.html',  section: null,         roles: ['admin', 'oficina'] },
-    { id: 'stock',        icon: '⬡', label: 'Stock Placas', page: 'stock-placas.html',  section: null,         roles: ['admin', 'oficina'] },
-    { id: 'armado-so',    icon: '⬗', label: 'Armado SO',    page: 'armado-so.html',     section: null,         roles: ['admin', 'oficina'] },
-    { id: 'recepciones',  icon: '◫', label: 'Recepciones',  page: 'recepciones-oc.html',section: null,         roles: ['admin', 'oficina'] },
+    { id: 'stock',        icon: '⬡', label: 'Stock Placas', page: 'stock-placas.html',  section: null,         roles: ['admin', 'oficina'], hidden: true },
     { id: 'despacho',     icon: '⇥', label: 'Despacho',     page: 'despacho.html',      section: null,         roles: ['admin', 'oficina'] },
     { id: 'ajustes',      icon: GEAR_SVG, label: 'Ajustes', page: 'admin.html',         section: 'ajustes',    roles: ['admin'], iconIsHtml: true },
     { id: 'mi-cuenta',    icon: '◉', label: 'Mi cuenta',    page: 'admin.html',         section: 'mi-cuenta',  roles: ['admin', 'oficina'] },
@@ -48,27 +49,40 @@
   }
 
   // ── 5. Construir HTML de los nav-items ─────────────────────────────
+  function renderNavItem(item, activeId, isSub) {
+    const isActive = item.id === activeId;
+    const iconHtml = item.iconIsHtml
+      ? '<span class="nav-icon" style="display:inline-flex;align-items:center;justify-content:center;">' + item.icon + '</span>'
+      : '<span class="nav-icon">' + item.icon + '</span>';
+    const cls = 'nav-item' + (isSub ? ' nav-sub-item' : '') + (isActive ? ' active' : '');
+
+    if (ON_ADMIN && item.section) {
+      return '<div class="' + cls + '" id="nav-' + item.id + '" onclick="navTo(\'' + item.section + '\')">' + iconHtml + ' ' + item.label + '</div>';
+    } else if (ON_ADMIN && item.page !== 'admin.html') {
+      return '<a href="' + item.page + '" style="text-decoration:none;"><div class="' + cls + '" id="nav-' + item.id + '">' + iconHtml + ' ' + item.label + '</div></a>';
+    } else if (!ON_ADMIN && item.section) {
+      return '<a href="admin.html#' + item.section + '" style="text-decoration:none;"><div class="' + cls + '" id="nav-' + item.id + '">' + iconHtml + ' ' + item.label + '</div></a>';
+    } else if (!ON_ADMIN && item.page === PAGE) {
+      return '<div class="' + cls.replace(isActive ? '' : 'x', '') + ' active" id="nav-' + item.id + '">' + iconHtml + ' ' + item.label + '</div>';
+    } else {
+      return '<a href="' + item.page + '" style="text-decoration:none;"><div class="' + cls + '" id="nav-' + item.id + '">' + iconHtml + ' ' + item.label + '</div></a>';
+    }
+  }
+
   function buildNavItems() {
     const activeId = getActiveId();
     return NAV_ITEMS
-      .filter(item => item.roles.includes(rol))
+      .filter(item => !item.hidden && item.roles.includes(rol))
       .map(item => {
-        const isActive = item.id === activeId;
-        const iconHtml = item.iconIsHtml
-          ? '<span class="nav-icon" style="display:inline-flex;align-items:center;justify-content:center;">' + item.icon + '</span>'
-          : '<span class="nav-icon">' + item.icon + '</span>';
-
-        if (ON_ADMIN && item.section) {
-          return '<div class="nav-item' + (isActive ? ' active' : '') + '" id="nav-' + item.id + '" onclick="navTo(\'' + item.section + '\')">' + iconHtml + ' ' + item.label + '</div>';
-        } else if (ON_ADMIN && item.page !== 'admin.html') {
-          return '<a href="' + item.page + '" style="text-decoration:none;"><div class="nav-item' + (isActive ? ' active' : '') + '" id="nav-' + item.id + '">' + iconHtml + ' ' + item.label + '</div></a>';
-        } else if (!ON_ADMIN && item.section) {
-          return '<a href="admin.html#' + item.section + '" style="text-decoration:none;"><div class="nav-item' + (isActive ? ' active' : '') + '" id="nav-' + item.id + '">' + iconHtml + ' ' + item.label + '</div></a>';
-        } else if (!ON_ADMIN && item.page === PAGE) {
-          return '<div class="nav-item active" id="nav-' + item.id + '">' + iconHtml + ' ' + item.label + '</div>';
-        } else {
-          return '<a href="' + item.page + '" style="text-decoration:none;"><div class="nav-item' + (isActive ? ' active' : '') + '" id="nav-' + item.id + '">' + iconHtml + ' ' + item.label + '</div></a>';
+        if (item.group) {
+          const children = (item.children || []).filter(c => !c.hidden && c.roles.includes(rol));
+          const childActive = children.some(c => c.id === activeId);
+          const iconHtml = '<span class="nav-icon">' + item.icon + '</span>';
+          var html = '<div class="nav-item nav-group-header' + (childActive ? ' active' : '') + '">' + iconHtml + ' ' + item.label + ' <span style="margin-left:auto;font-size:9px;opacity:.5;">\u25BE</span></div>';
+          html += children.map(c => renderNavItem(c, activeId, true)).join('\n    ');
+          return html;
         }
+        return renderNavItem(item, activeId, false);
       }).join('\n    ');
   }
 
@@ -107,6 +121,10 @@
         + '.nav-item:hover{background:var(--faint);color:var(--text);}'
         + '.nav-item.active{background:rgba(245,166,35,.08);color:var(--amber);border-left-color:var(--amber);font-weight:600;}'
         + '.nav-icon{font-size:15px;width:20px;text-align:center;flex-shrink:0;}'
+        + '.nav-group-header{cursor:default;opacity:.75;font-size:10px;letter-spacing:1px;text-transform:uppercase;}'
+        + '.nav-group-header.active{opacity:1;color:var(--amber);}'
+        + '.nav-group-header:hover{background:transparent;color:var(--muted);}'
+        + '.nav-sub-item{padding-left:28px !important;font-size:11px;}'
         + '@media(max-width:700px){.sidebar{display:none;}}';
       document.head.appendChild(style);
     }

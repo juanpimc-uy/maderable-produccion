@@ -114,6 +114,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   .actions{width:100%;justify-content:flex-end;}
 }
 </style>
+<script src="sidebar.js"></script>
 </head>
 <body>
 
@@ -129,7 +130,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 </div>
 
 <!-- ═══ APP ════════════════════════════════════════════════════════════════ -->
-<div id="screen-app" style="display:none;">
+<div id="screen-app" style="display:none;height:100vh;">
+<div style="display:flex;height:100%;">
+<div id="sidebar-root"></div>
+<div style="flex:1;overflow-y:auto;">
 
   <div class="hdr">
     <div class="hdr-inner">
@@ -149,7 +153,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   </div>
 
   <div class="list" id="list"></div>
-</div>
+</div><!-- /flex:1 content -->
+</div><!-- /flex wrapper -->
 
 <!-- ═══ MODAL RECIBIR ═════════════════════════════════════════════════════ -->
 <div class="overlay" id="modal-recibir" onclick="_cerrarRecibir()">
@@ -191,6 +196,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     </div>
   </div>
 </div>
+</div><!-- /screen-app -->
 
 <!-- ═══ TOAST ═════════════════════════════════════════════════════════════ -->
 <div class="toast" id="toast-etiquetas">
