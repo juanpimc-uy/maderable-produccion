@@ -286,8 +286,7 @@ async function cachearObrasMueblesFaltantes() {
           if (chipEl) {
             const proy = proyectos.find(p => p.id === so.proyecto_id);
             const proyName = proy ? proy.nombre : null;
-            const parts = [so.cliente_nombre, so.obra, proyName]
-              .filter(Boolean);
+            const parts = so.proyecto_id && proyName ? [so.cliente_nombre, proyName].filter(Boolean) : [so.cliente_nombre, so.obra].filter(Boolean);
             chipEl.textContent = parts.join(' · ');
           }
         }
@@ -335,7 +334,7 @@ function renderCards(sos) {
   container.innerHTML = sos.map(so => {
     const isExpanded = expandedId === so.so_zoho_id;
     const proyName = so.proyecto_id ? (proyectos.find(p => p.id === so.proyecto_id)?.nombre || so.proyecto_id) : null;
-    const metaParts = [so.cliente_nombre, so.obra, proyName].filter(Boolean);
+    const metaParts = so.proyecto_id && proyName ? [so.cliente_nombre, proyName].filter(Boolean) : [so.cliente_nombre, so.obra].filter(Boolean);
     const proyBadge = so.proyecto_id ? (proyectos.find(p => p.id === so.proyecto_id)?.nombre || '') : '';
     const odfBadge = proyBadge ? `<span class="odf-badge">${esc(proyBadge)}</span>` : '';
 
@@ -410,7 +409,7 @@ async function cargarDetalle(soId) {
     }
     // Rearmar meta con datos actualizados
     const proyName = so.proyecto_id ? (proyectos.find(p => p.id === so.proyecto_id)?.nombre || so.proyecto_id) : null;
-    const metaParts = [so.cliente_nombre, so.obra, proyName].filter(Boolean);
+    const metaParts = so.proyecto_id && proyName ? [so.cliente_nombre, proyName].filter(Boolean) : [so.cliente_nombre, so.obra].filter(Boolean);
     const chipEl = document.getElementById('chip-' + soId);
     if (chipEl) chipEl.textContent = metaParts.join(' · ');
   }
@@ -488,7 +487,18 @@ async function cargarDetalle(soId) {
   const lineasActivas = (res.lineas || []).filter(l => !l.eliminada);
   const totalLineas = lineasActivas.length;
   const armadasLineas = lineasActivas.filter(l => l.cantidad_armada >= l.cantidad_total && l.cantidad_total > 0).length;
+  const estadoPrevio = so ? so.estado : null;
   actualizarEstadoCard(soId, totalLineas, armadasLineas);
+  // Persistir si cambió
+  if (so && so.estado !== estadoPrevio) {
+    const firstLinea = lineasActivas[0];
+    if (firstLinea) {
+      apiPost('upsert-linea-estado', {
+        so_zoho_id: soId, so_numero: so.so_numero,
+        linea_zoho_id: firstLinea.linea_zoho_id, estado: so.estado,
+      });
+    }
+  }
 }
 
 function actualizarEstadoCard(soId, total, armadas) {
