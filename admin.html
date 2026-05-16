@@ -562,35 +562,8 @@
 
 <div class="shell" id="app-shell">
 
-<!-- ═══ SIDEBAR ══════════════════════════════════════════════════════════ -->
-<aside class="sidebar">
-  <div class="sidebar-logo"><a href="admin.html" style="text-decoration:none;color:inherit;">⬡ MADERABLE</a></div>
-  <div style="flex:1;padding:8px 0;overflow-y:auto;">
-    <div class="nav-item active" onclick="navTo('dashboard')"><span class="nav-icon">◈</span> Dashboard</div>
-    <div class="nav-item" onclick="navTo('proyectos')"><span class="nav-icon">⬡</span> Proyectos</div>
-    <div class="nav-item" onclick="navTo('operarios')"><span class="nav-icon">◎</span> Operarios</div>
-    <a href="/tiempos.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">⏱</span> Tiempos</div></a>
-    <div class="nav-item" onclick="navTo('materiales')"><span class="nav-icon">▣</span> Materiales</div>
-    <a href="tercerizados.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">🧵</span> Tercerizados</div></a>
-    <a href="stock-placas.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">⬡</span> Stock Placas</div></a>
-    <a href="armado-so.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">⬗</span> Armado SO</div></a>
-    <div class="nav-item" onclick="navTo('ajustes')"><span class="nav-icon" style="display:inline-flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Ajustes</div>
-    <div class="nav-item" onclick="navTo('mi-cuenta')"><span class="nav-icon">◉</span> Mi cuenta</div>
-  </div>
-  <div style="padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);">
-    <div class="mono" style="font-size:10px;margin-bottom:6px;">VISTA PLANTA</div>
-    <a href="planta2.html" target="_blank" style="color:var(--green);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-decoration:none;display:block;">Planta v2 →</a>
-    <div id="sync-status" style="font-size:10px;font-family:'JetBrains Mono',monospace;margin-top:6px;">● Cargando…</div>
-  </div>
-  <div id="sidebar-user-block" style="margin-top:16px;padding:12px 16px 16px;border-top:0.5px solid #2a2a2a;">
-    <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px;">
-      <div id="sidebar-avatar" style="width:24px;height:24px;border-radius:50%;background:#FFD600;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;color:#000;flex-shrink:0;letter-spacing:0;">??</div>
-      <span id="sidebar-nombre" style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
-    </div>
-    <div id="sidebar-rol" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#888;margin-bottom:10px;padding-left:33px;"></div>
-    <button onclick="window.AUTH.cerrarSesion()" id="btn-cerrar-sesion" style="width:100%;background:transparent;border:0.5px solid #2a2a2a;border-radius:5px;padding:8px 10px;color:#aaa;cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace;text-align:left;transition:color 0.15s,border-color 0.15s;" onmouseover="this.style.color='#FFD600';this.style.borderColor='#FFD600';" onmouseout="this.style.color='#aaa';this.style.borderColor='#2a2a2a';">↪ Cerrar sesión</button>
-  </div>
-</aside>
+<script src="sidebar.js"></script>
+<div id="sidebar-root"></div>
 
 <!-- ═══ MAIN ══════════════════════════════════════════════════════════════ -->
 <div class="main">
@@ -1452,11 +1425,7 @@ const VIEW_LABELS = {dashboard:'Dashboard',proyectos:'Proyectos',operarios:'Oper
 
 function navTo(v) {
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   document.getElementById('v-'+v).classList.add('active');
-  document.querySelectorAll('.nav-item').forEach(el=>{
-    if(el.textContent.trim().toLowerCase().startsWith(VIEW_LABELS[v].toLowerCase().slice(0,4))) el.classList.add('active');
-  });
   document.getElementById('topbar-title').textContent = VIEW_LABELS[v];
   // Si el usuario sale de Ajustes con un input activo, guardar antes de navegar
   if (currentView === 'ajustes') {
@@ -1473,6 +1442,7 @@ function navTo(v) {
   renderView(v);
   // reset proyectos
   if(v==='proyectos') { document.getElementById('pr-lista').style.display='block'; document.getElementById('pr-detalle').style.display='none'; }
+  if (window.sidebarSetActive) sidebarSetActive(v);
 }
 
 function renderCurrentView() { renderView(currentView); }
@@ -5733,21 +5703,6 @@ function _cdCerrar() {
   _cdOcData = null;
 }
 
-// Ocultar nav-items restringidos según rol
-function _applyRoleNav() {
-  const u = window.AUTH?.usuarioActual?.();
-  if (!u || u.rol_app !== 'admin') {
-    const esOficina = u?.rol_app === 'oficina';
-    document.querySelectorAll('.nav-item').forEach(el => {
-      const txt = el.textContent.trim();
-      if (txt.includes('Ajustes')) el.style.display = 'none';
-      if (esOficina && txt.includes('Operarios')) el.style.display = 'none';
-      if (esOficina && txt.includes('Stock')) el.style.display = 'none';
-    });
-  }
-}
-
-_applyRoleNav();
 renderDashboard();
 cargarTodoDesdeSupabase();
 iniciarAutoRefresh();

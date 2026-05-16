@@ -270,7 +270,7 @@ async function cargarTodo() {
 // CACHEO BACKGROUND: obra/mueble faltantes
 // ═══════════════════════════════════════════════════════════════
 async function cachearObrasMueblesFaltantes() {
-  const sinCache = allSos.filter(so => !so.obra && !so.mueble);
+  const sinCache = allSos.filter(so => !so.obra && !so.mueble).slice(0, 30);
   const LOTE = 5;
   for (let i = 0; i < sinCache.length; i += LOTE) {
     const lote = sinCache.slice(i, i + LOTE);
@@ -292,7 +292,7 @@ async function cachearObrasMueblesFaltantes() {
         }
       } catch(e) {}
     }));
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 1000));
   }
 }
 

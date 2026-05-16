@@ -144,34 +144,8 @@ select.filtro-select:focus{border-color:var(--amber);}
 
 <div class="shell">
 
-<!-- ═══ SIDEBAR ══════════════════════════════════════════════════════════ -->
-<aside class="sidebar">
-  <div class="sidebar-logo"><a href="admin.html" style="text-decoration:none;color:inherit;">⬡ MADERABLE</a></div>
-  <div style="flex:1;padding:8px 0;overflow-y:auto;">
-    <a href="admin.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">◈</span> Dashboard</div></a>
-    <a href="admin.html#proyectos" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">⬡</span> Proyectos</div></a>
-    <a href="admin.html#operarios" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">◎</span> Operarios</div></a>
-    <a href="/tiempos.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">⏱</span> Tiempos</div></a>
-    <a href="admin.html#materiales" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">▣</span> Materiales</div></a>
-    <a href="tercerizados.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">🧵</span> Tercerizados</div></a>
-    <a href="stock-placas.html" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">⬡</span> Stock Placas</div></a>
-    <div class="nav-item active"><span class="nav-icon">⬗</span> Armado SO</div>
-    <a href="admin.html#ajustes" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon" style="display:inline-flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Ajustes</div></a>
-    <a href="admin.html#mi-cuenta" style="text-decoration:none;"><div class="nav-item"><span class="nav-icon">◉</span> Mi cuenta</div></a>
-  </div>
-  <div style="padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);">
-    <div class="mono" style="font-size:10px;margin-bottom:6px;">VISTA PLANTA</div>
-    <a href="planta2.html" target="_blank" style="color:var(--green);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;text-decoration:none;display:block;">Planta v2 →</a>
-  </div>
-  <div id="sidebar-user-block" style="padding:12px 16px 16px;border-top:0.5px solid var(--border);">
-    <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px;">
-      <div id="sidebar-avatar" style="width:24px;height:24px;border-radius:50%;background:#FFD600;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;color:#000;flex-shrink:0;letter-spacing:0;">??</div>
-      <span id="sidebar-nombre" style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
-    </div>
-    <div id="sidebar-rol" style="font-family:'Space Mono',monospace;font-size:11px;color:#888;margin-bottom:10px;padding-left:33px;"></div>
-    <button onclick="window.AUTH.cerrarSesion()" style="width:100%;background:transparent;border:0.5px solid var(--border);border-radius:5px;padding:8px 10px;color:#aaa;cursor:pointer;font-size:11px;font-family:'Space Mono',monospace;text-align:left;transition:color 0.15s,border-color 0.15s;" onmouseover="this.style.color='var(--amber)';this.style.borderColor='var(--amber)';" onmouseout="this.style.color='#aaa';this.style.borderColor='var(--border)';">↪ Cerrar sesión</button>
-  </div>
-</aside>
+<script src="sidebar.js"></script>
+<div id="sidebar-root"></div>
 
 <!-- ═══ MAIN ════════════════════════════════════════════════════════════ -->
 <div class="main">
@@ -269,7 +243,7 @@ async function cargarTodo() {
 // CACHEO BACKGROUND: obra/mueble faltantes
 // ═══════════════════════════════════════════════════════════════
 async function cachearObrasMueblesFaltantes() {
-  const sinCache = allSos.filter(so => !so.obra && !so.mueble);
+  const sinCache = allSos.filter(so => !so.obra && !so.mueble).slice(0, 30);
   const LOTE = 5;
   for (let i = 0; i < sinCache.length; i += LOTE) {
     const lote = sinCache.slice(i, i + LOTE);
@@ -291,7 +265,7 @@ async function cachearObrasMueblesFaltantes() {
         }
       } catch(e) {}
     }));
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 1000));
   }
 }
 

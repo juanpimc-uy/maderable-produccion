@@ -123,23 +123,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
 <body>
 
 <!-- SIDEBAR -->
-<aside class="sidebar">
-  <div class="sidebar-logo">⬡ MADERABLE</div>
-  <div style="flex:1;padding:8px 0;">
-    <div class="nav-item active" id="nav-ingreso" onclick="switchTab('ingreso')">⬆ Ingreso</div>
-    <div class="nav-item" id="nav-salida" onclick="switchTab('salida')">⬇ Salida</div>
-    <div class="nav-item" id="nav-remito" onclick="switchTab('remito')" style="justify-content:space-between;">
-      <span>📋 Remito</span>
-      <span id="remito-badge" style="display:none;background:var(--amber);color:#0f0f0f;font-family:'Space Mono',monospace;font-size:8px;font-weight:700;padding:1px 6px;border-radius:10px;line-height:1.6;"></span>
-    </div>
-    <div class="nav-item" id="nav-inventario" onclick="switchTab('inventario')">☰ Inventario</div>
-    <div class="nav-item" id="nav-estanteria" onclick="switchTab('estanteria')">⬡ Estantería</div>
-    <div class="nav-item" id="nav-historial" onclick="switchTab('historial')">📋 Historial</div>
-  </div>
-  <div style="padding:12px 16px;border-top:1px solid var(--border);">
-    <a href="admin.html" style="color:var(--muted);font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-decoration:none;text-transform:uppercase;">← Admin</a>
-  </div>
-</aside>
+<script src="sidebar.js"></script>
+<div id="sidebar-root"></div>
 
 <!-- MAIN -->
 <div class="main">
