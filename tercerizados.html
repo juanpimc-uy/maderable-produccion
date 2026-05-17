@@ -77,9 +77,6 @@
     <span class="topbar-title">TERCERIZADOS</span>
     <div style="display:flex;gap:6px;margin-left:16px;" id="prov-chips"></div>
     <button onclick="abrirConfigProvs()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:4px;" title="Configurar proveedores">⚙</button>
-    <div style="margin-left:auto;">
-      <button class="btn-sm primary" onclick="abrirNuevaPartida()">+ Agregar partida</button>
-    </div>
   </div>
 
   <!-- BOARD -->
@@ -90,6 +87,7 @@
         <span class="col-dot" style="background:var(--accent);"></span>
         <span class="col-title">En taller</span>
         <span class="col-count" style="color:var(--accent);" id="count-taller">0</span>
+        <button onclick="abrirNuevaPartida()" style="margin-left:auto;background:#FFD600;color:#000;font-family:monospace;font-size:9px;padding:4px 10px;border-radius:3px;border:none;cursor:pointer;font-weight:700;text-transform:uppercase;">+ Agregar</button>
       </div>
       <div class="col-body" id="col-taller"></div>
     </div>

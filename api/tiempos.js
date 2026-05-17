@@ -2020,6 +2020,35 @@ export default async function handler(req) {
       return ok({ ok: true });
     }
 
+    // ── GET get-envio (público, sin auth) ────────────────────────────────
+    if (action === 'get-envio' && req.method === 'GET') {
+      const numero = url.searchParams.get('numero');
+      if (!numero) return err('numero requerido', 400);
+      const { data, error } = await supabase.from('partidas_terceros')
+        .select('*').eq('numero_envio', numero).maybeSingle();
+      if (error) throw error;
+      if (!data) return ok({ ok: false, error: 'no encontrado' });
+      const provs = {};
+      try {
+        const { data: cfg } = await supabase.from('config_global').select('valor').eq('clave', 'proveedores').maybeSingle();
+        if (cfg?.valor) { provs.tap = cfg.valor.tap; provs.lus = cfg.valor.lus; }
+      } catch(e) {}
+      return ok({ ok: true, envio: {
+        numero_envio: data.numero_envio,
+        estado: data.estado,
+        cliente: data.cliente || '',
+        obra: data.obra || '',
+        proyectoNum: data.proyecto_num || '',
+        mueble_nombre: data.mueble_nombre || '',
+        mueble_codigo: data.mueble_codigo || '',
+        proveedor: data.tipo === 'tap' ? (provs.tap || 'Tapicero') : (provs.lus || 'Lustrador'),
+        fecha_despacho: data.fecha_despacho || '',
+        fecha_retorno_estimada: data.fecha_retorno_estimada || '',
+        fecha_recepcion: data.fecha_recepcion || '',
+        obs: data.obs || '',
+      }});
+    }
+
     // ── GET partidas tercerizados ─────────────────────────────────────────
     if (action === 'partidas' && req.method === 'GET') {
       const { data, error } = await supabase.from('partidas_terceros').select('*').order('creado_at', { ascending: false });

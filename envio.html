@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>MBLE · Envio</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap');
+:root{--bg:#0f0f0f;--panel:#1a1a1a;--border:#2a2a2a;--accent:#FFD600;--green:#4caf50;--red:#ef5350;--blue:#4a9eff;--muted:#555;--text:#e0e0e0;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px;}
+.wrap{width:100%;max-width:400px;}
+.header{font-family:'Space Mono',monospace;font-size:12px;color:var(--accent);letter-spacing:2px;margin-bottom:24px;}
+.envio-num{font-family:'Space Mono',monospace;font-size:28px;font-weight:700;color:#fff;margin-bottom:20px;letter-spacing:1px;}
+.timeline{display:flex;align-items:center;gap:0;margin-bottom:24px;padding:0 8px;}
+.tl-step{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;}
+.tl-dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--border);background:var(--bg);z-index:1;margin-bottom:6px;}
+.tl-dot.done{border-color:var(--accent);background:var(--accent);}
+.tl-dot.active{border-color:var(--accent);background:var(--accent);box-shadow:0 0 8px rgba(255,214,0,.4);}
+.tl-dot.complete{border-color:var(--green);background:var(--green);}
+.tl-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;text-align:center;}
+.tl-label.active{color:var(--accent);font-weight:700;}
+.tl-label.complete{color:var(--green);}
+.tl-line{position:absolute;top:5px;left:50%;right:-50%;height:2px;background:var(--border);z-index:0;}
+.tl-line.done{background:var(--accent);}
+.tl-line.complete{background:var(--green);}
+.tl-step:last-child .tl-line{display:none;}
+.info{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.info-row{display:flex;padding:10px 16px;border-bottom:1px solid var(--border);}
+.info-row:last-child{border-bottom:none;}
+.info-lbl{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;width:90px;flex-shrink:0;}
+.info-val{font-size:13px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.badge-atrasada{display:inline-block;font-family:'Space Mono',monospace;font-size:9px;padding:3px 8px;border-radius:3px;background:#2a0a0a;color:var(--red);border:1px solid #3a1a1a;letter-spacing:1px;margin-left:8px;}
+.not-found{text-align:center;padding:60px 20px;font-family:'Space Mono',monospace;font-size:13px;color:var(--muted);}
+.loading{text-align:center;padding:40px;font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">&#9675; MADERABLE</div>
+  <div id="content"><div class="loading">CARGANDO...</div></div>
+</div>
+
+<script>
+(async () => {
+  const params = new URLSearchParams(location.search);
+  const id = params.get('id');
+  const el = document.getElementById('content');
+
+  if (!id) { el.innerHTML = '<div class="not-found">Sin ID de envio</div>'; return; }
+
+  try {
+    const res = await fetch('/api/tiempos?action=get-envio&numero=' + encodeURIComponent(id));
+    const data = await res.json();
+    if (!data.ok || !data.envio) {
+      el.innerHTML = '<div class="not-found">Envio no encontrado<br><span style="font-size:11px;opacity:.5;margin-top:8px;display:block;">' + id + '</span></div>';
+      return;
+    }
+    const e = data.envio;
+    const estado = e.estado || 'en_taller';
+
+    // Timeline
+    const steps = [
+      { id: 'en_taller', label: 'En Taller' },
+      { id: 'despachada', label: 'En Proveedor' },
+      { id: 'recibida', label: 'Recibido' },
+    ];
+    const stateIdx = estado === 'recibida' ? 2 : estado === 'despachada' ? 1 : 0;
+    const isComplete = estado === 'recibida';
+
+    let tlHtml = '<div class="timeline">';
+    steps.forEach((s, i) => {
+      const done = i <= stateIdx;
+      const active = i === stateIdx && !isComplete;
+      const complete = isComplete && done;
+      const dotCls = complete ? 'tl-dot complete' : (active ? 'tl-dot active' : (done ? 'tl-dot done' : 'tl-dot'));
+      const lblCls = complete ? 'tl-label complete' : (active ? 'tl-label active' : 'tl-label');
+      const lineCls = (i < stateIdx) ? (isComplete ? 'tl-line complete' : 'tl-line done') : 'tl-line';
+      tlHtml += '<div class="tl-step"><div class="' + lineCls + '"></div><div class="' + dotCls + '"></div><div class="' + lblCls + '">' + s.label + '</div></div>';
+    });
+    tlHtml += '</div>';
+
+    // Atrasada?
+    let atrasadaBadge = '';
+    if (e.fecha_retorno_estimada && estado !== 'recibida') {
+      const hoy = new Date(); hoy.setHours(0,0,0,0);
+      const ret = new Date(e.fecha_retorno_estimada + 'T00:00:00');
+      if (ret < hoy) atrasadaBadge = '<span class="badge-atrasada">ATRASADA</span>';
+    }
+
+    const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric'}) : '\u2014';
+
+    el.innerHTML = `
+      <div class="envio-num">${e.numero_envio || id}${atrasadaBadge}</div>
+      ${tlHtml}
+      <div class="info">
+        <div class="info-row"><span class="info-lbl">Cliente</span><span class="info-val">${e.cliente || '\u2014'}</span></div>
+        <div class="info-row"><span class="info-lbl">Proyecto</span><span class="info-val">${e.proyectoNum || ''} ${e.obra ? '\u00b7 ' + e.obra : ''}</span></div>
+        <div class="info-row"><span class="info-lbl">Mueble</span><span class="info-val">${e.mueble_nombre || '\u2014'}</span></div>
+        <div class="info-row"><span class="info-lbl">Codigo</span><span class="info-val">${e.mueble_codigo || '\u2014'}</span></div>
+        <div class="info-row"><span class="info-lbl">Proveedor</span><span class="info-val">${e.proveedor || '\u2014'}</span></div>
+        <div class="info-row"><span class="info-lbl">Despacho</span><span class="info-val">${fmtDate(e.fecha_despacho)}</span></div>
+        <div class="info-row"><span class="info-lbl">Retorno</span><span class="info-val">${fmtDate(e.fecha_retorno_estimada)}</span></div>
+        ${e.fecha_recepcion ? '<div class="info-row"><span class="info-lbl">Recibido</span><span class="info-val">' + fmtDate(e.fecha_recepcion) + '</span></div>' : ''}
+        ${e.obs ? '<div class="info-row"><span class="info-lbl">Obs.</span><span class="info-val">' + e.obs + '</span></div>' : ''}
+      </div>`;
+  } catch(err) {
+    el.innerHTML = '<div class="not-found">Error al cargar<br><span style="font-size:11px;opacity:.5;">' + err.message + '</span></div>';
+  }
+})();
+</script>
+</body>
+</html>
