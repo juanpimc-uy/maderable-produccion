@@ -452,7 +452,13 @@ function onNuevaPr(prId) {
   if (pr) {
     const sel = document.getElementById('nueva-mueble');
     const tipo = modalTipoNueva;
-    const muebles = (pr.muebles || []).filter(m => tipo === 'lus' ? (m.flujos||[]).includes('lustre') : (m.flujos||[]).includes('tapiceria'));
+    const muebles = (pr.muebles || []).filter(m => {
+      if (!tipo) return true; // General/sin tipo: mostrar todos
+      const flujos = m.flujos || [];
+      if (tipo === 'lus') return flujos.includes('lustre');
+      if (tipo === 'tap') return flujos.includes('tapiceria');
+      return true;
+    });
     sel.innerHTML = '<option value="">Seleccionar mueble...</option>' +
       (muebles.length ? muebles.map(m=>`<option value="${m.codigo}|||${m.nombre}">${m.codigo} · ${m.nombre}</option>`).join('') : '<option disabled>Sin muebles con este proceso</option>');
     const cliEl = document.getElementById('nueva-cliente');
@@ -618,7 +624,13 @@ function _imprimirEtiqueta(p) {
   const provFull = p.tipo === 'tap' ? PROVS.tap : PROVS.lus;
   const envio = p.numero_envio || 'ENV: PENDIENTE';
   const provShort = (provFull || '').split(' ')[0].toUpperCase();
-  const cliente = (p.cliente || '\u2014').toUpperCase();
+  // Cliente: fallback al proyecto si la partida no lo tiene
+  let clienteRaw = p.cliente || '';
+  if (!clienteRaw) {
+    const pr = _PROYECTOS.find(x => x.numero === p.proyectoNum);
+    clienteRaw = pr?.cliente_nombre || pr?.cliente || '';
+  }
+  const cliente = (clienteRaw || '\u2014').toUpperCase();
   const odf = (p.proyectoNum || p.obra || '\u2014').toUpperCase();
   const proyecto = (p.obra || '\u2014').toUpperCase();
   const muebleNombre = (p.muebleNombre || '\u2014').toUpperCase();
@@ -633,21 +645,23 @@ function _imprimirEtiqueta(p) {
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
 <style>
-@page{size:60mm 30mm;margin:0}*{margin:0;padding:0;box-sizing:border-box}
-body{width:60mm;height:30mm;font-family:'Courier New',monospace;background:#fff;color:#000;display:flex;flex-direction:column;overflow:hidden}
-.top{padding:1.2mm 2mm;border-bottom:0.3mm solid #ebebeb;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
-.marca{font-size:2.5px;letter-spacing:1px;text-transform:uppercase;opacity:.28}
-.env{font-size:4px;font-weight:700;letter-spacing:.5px}
-.mid{flex:1;padding:1.2mm 2mm;display:flex;gap:2mm;align-items:center;min-height:0;overflow:hidden}
-.ml{flex:1;min-width:0;display:flex;flex-direction:column}
-.prov-big{font-size:5.5px;font-weight:700;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1;color:#bbb}
-.cli-big{font-size:5.5px;font-weight:700;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1;margin-top:.6mm}
-.odf-sm{font-size:2.2px;text-transform:uppercase;opacity:.35;margin:.8mm 0 .3mm;letter-spacing:.3px}
-.proj-big{font-size:5.5px;font-weight:700;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1}
-.mueble{font-size:2.5px;font-weight:700;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.5;margin-top:.8mm}
+@page{size:60mm 30mm;margin:0}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:60mm;height:30mm;font-family:'Courier New',Courier,monospace;background:#fff;color:#000}
+body{display:flex;flex-direction:column;padding:0}
+.top{padding:1.5mm 2mm 1mm;border-bottom:0.2mm solid #ddd;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.marca{font-size:3pt;letter-spacing:0.5pt;opacity:.4;text-transform:uppercase}
+.env{font-size:5.5pt;font-weight:bold;letter-spacing:0.5pt}
+.mid{flex:1;display:flex;padding:1.5mm 2mm;gap:1.5mm;align-items:center;overflow:hidden}
+.ml{flex:1;min-width:0;display:flex;flex-direction:column;gap:0}
+.prov-big{font-size:6.5pt;font-weight:bold;text-transform:uppercase;color:#aaa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cli-big{font-size:6.5pt;font-weight:bold;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:0.3mm}
+.odf-sm{font-size:3pt;opacity:.4;text-transform:uppercase;margin:0.8mm 0 0.2mm;letter-spacing:0.3pt}
+.proj-big{font-size:6.5pt;font-weight:bold;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mueble{font-size:3pt;font-weight:bold;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.5;margin-top:1mm}
 .qr-wrap{width:16mm;height:16mm;flex-shrink:0}
-#qr img,#qr canvas{width:16mm!important;height:16mm!important}
-.foot{border-top:0.3mm solid #ebebeb;padding:.8mm 2mm;display:flex;justify-content:space-between;font-size:2px;text-transform:uppercase;opacity:.32;flex-shrink:0}
+.qr-wrap canvas,.qr-wrap img{width:16mm!important;height:16mm!important}
+.foot{border-top:0.2mm solid #ddd;padding:0.8mm 2mm;display:flex;justify-content:space-between;font-size:2.8pt;text-transform:uppercase;opacity:.38;flex-shrink:0}
 </style></head><body>
 <div class="top"><span class="marca">\u25CB MADERABLE</span><span class="env">${envio}</span></div>
 <div class="mid"><div class="ml">
