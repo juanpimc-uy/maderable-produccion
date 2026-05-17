@@ -509,12 +509,13 @@ function abrirNuevaPartida(tipo) {
     <div class="modal" onclick="event.stopPropagation()" style="background:#1e1e1e;">
       <div class="modal-title">Nueva Partida — ${tipo==='tap'?'Tapicería':'Lustre'}</div>
       <div style="display:flex;flex-direction:column;gap:14px;">
-        <div class="field"><label>Proyecto</label>
-          <select id="nueva-pr" onchange="onNuevaPr(this.value)" style="background:#111;border:1px solid #242424;">
-            <option value="">Seleccionar...</option>
-            ${proyectos.map(p=>`<option value="${p.id}">${p.numero} · ${p.obra}</option>`).join('')}
-            <option value="manual">Cargar manualmente</option>
-          </select>
+        <div class="field" style="position:relative;"><label>Proyecto</label>
+          <input type="text" id="nueva-pr-search" placeholder="Buscar proyecto..." autocomplete="off"
+            oninput="_filtrarProyNueva()" onfocus="_filtrarProyNueva()" onblur="setTimeout(()=>{const l=document.getElementById('nueva-pr-list');if(l)l.style.display='none';},150)"
+            style="background:#111;border:1px solid #242424;border-radius:4px;color:#ccc;font-size:12px;padding:7px 10px;width:100%;outline:none;" />
+          <div id="nueva-pr-list" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:4px;max-height:200px;overflow-y:auto;margin-top:2px;"></div>
+          <input type="hidden" id="nueva-pr" value="" />
+          <div style="margin-top:6px;"><a href="#" onclick="event.preventDefault();document.getElementById('nueva-pr').value='manual';document.getElementById('nueva-manual').style.display='flex';document.getElementById('nueva-muebles-wrap').style.display='none';" style="font-size:10px;color:#555;text-decoration:underline;">Cargar manualmente</a></div>
         </div>
         <div class="field"><label>Cliente</label><input id="nueva-cliente" placeholder="Nombre del cliente" style="background:#111;border:1px solid #242424;"/></div>
         <div id="nueva-manual" style="display:none;gap:14px;flex-direction:column;">
@@ -534,6 +535,33 @@ function abrirNuevaPartida(tipo) {
       </div>
     </div>`;
   document.body.appendChild(overlay);
+}
+
+function _filtrarProyNueva() {
+  const q = (document.getElementById('nueva-pr-search')?.value || '').toLowerCase();
+  const list = document.getElementById('nueva-pr-list');
+  if (!list) return;
+  const filtered = _PROYECTOS.filter(p =>
+    [p.numero, p.nombre, p.obra, p.cliente_nombre, p.cliente].join(' ').toLowerCase().includes(q)
+  ).slice(0, 6);
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#555;">Sin resultados</div>';
+  } else {
+    list.innerHTML = filtered.map(p =>
+      `<div onmousedown="_selProyNueva('${p.id}')" style="padding:8px 12px;font-size:12px;cursor:pointer;transition:background .1s;" onmouseenter="this.style.background='#222'" onmouseleave="this.style.background='transparent'"><span style="color:#FFD600;font-family:'JetBrains Mono',monospace;font-size:11px;">${p.numero||''}</span> <span style="color:#ccc;">${p.nombre||p.obra||''}</span></div>`
+    ).join('');
+  }
+  list.style.display = 'block';
+}
+
+function _selProyNueva(prId) {
+  const pr = _PROYECTOS.find(p => p.id === prId);
+  if (!pr) return;
+  document.getElementById('nueva-pr').value = prId;
+  document.getElementById('nueva-pr-search').value = (pr.numero||'') + ' · ' + (pr.nombre||pr.obra||'');
+  document.getElementById('nueva-pr-list').style.display = 'none';
+  document.getElementById('nueva-manual').style.display = 'none';
+  onNuevaPr(prId);
 }
 
 function onNuevaPr(prId) {
