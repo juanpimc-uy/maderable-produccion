@@ -237,7 +237,8 @@ function cardHtml(p, col) {
     const txt = p.estadoRecep === 'ok' ? '✓ Conforme' : p.estadoRecep === 'obs' ? '⚠ Obs.' : '✗ Rehacer';
     recepBadge = `<span class="badge-recep ${cls}">${txt}</span>`;
   }
-  return `<div class="card">
+  const clickEdit = col === 'taller' ? ` onclick="abrirEditarPartida('${p.id}')" style="cursor:pointer;"` : '';
+  return `<div class="card"${clickEdit}>
     <div class="card-row1">
       <span class="card-code">${p.muebleCodigo || '—'}</span>
       <span style="display:flex;align-items:center;gap:6px;">
@@ -247,15 +248,15 @@ function cardHtml(p, col) {
     </div>
     <div class="card-nombre">${p.muebleNombre || '—'}</div>
     <div class="card-meta">
-      ${p.obra ? p.obra + ' · ' : ''}${p.cliente ? p.cliente + ' · ' : ''}${p.partes ? p.partes : ''}
+      ${p.obra ? p.obra + ' · ' : ''}${p.cliente ? p.cliente + ' · ' : ''}${p.bultos ? p.bultos + ' bulto(s)' : ''}
+      ${p.partes ? ' · ' + p.partes : ''}
       ${p.fechaDespacho ? ' · ' + p.fechaDespacho : ''}
-      ${p.bultos ? ' · ' + p.bultos + ' bultos' : ''}
     </div>
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
       ${showProv ? `<span class="badge-prov">${p.tipo === 'tap' ? '🧵' : '✨'} ${provLabel}</span>` : ''}
       ${recepBadge}
     </div>
-    ${actions ? `<div class="card-actions" style="margin-top:6px;">${actions}</div>` : ''}
+    ${actions ? `<div class="card-actions" style="margin-top:6px;" onclick="event.stopPropagation()">${actions}</div>` : ''}
   </div>`;
 }
 
@@ -317,19 +318,20 @@ async function confirmarDespacho() {
       p.bultos = bultos; p.partes = partes; p.fechaDespacho = fecha; p.nota = nota;
     }
   } else {
-    const nueva = { ...p, id:'p'+Date.now(), estado:'despachada', tipoDespacho:'parcial',
-      bultos, partes, fechaDespacho:fecha, nota, fechaRecepcion:'', estadoRecep:'', obs:'' };
+    const nueva = { ...p, id:'p'+Date.now(), estado:'en_taller', tipoDespacho:'parcial',
+      bultos, partes, fechaRecepcion:'', estadoRecep:'', obs:'', nota:'' };
     p.nota = `Despacho parcial el ${fecha}. Quedan partes en taller.`;
-    // Asignar numero_envio a la nueva
+    PARTIDAS.push(nueva);
+    // Save nueva first, then despachar it
+    await fetch('/api/tiempos?action=guardar-partida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(nueva)}).catch(()=>{});
     try {
       const res = await fetch('/api/tiempos?action=despachar-partida', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ partida_id: nueva.id, bultos, partes, fecha, nota, tipoDespacho:'parcial' })
       });
       const data = await res.json();
-      if (data.ok) nueva.numero_envio = data.numero_envio || '';
-    } catch(e) {}
-    PARTIDAS.push(nueva);
+      if (data.ok) { nueva.estado='despachada'; nueva.numero_envio = data.numero_envio || ''; nueva.fechaDespacho = fecha; }
+    } catch(e) { nueva.estado='despachada'; nueva.fechaDespacho = fecha; }
   }
   guardarPartidas(); cerrarModal('desp'); render();
 }
@@ -473,20 +475,59 @@ function confirmarNueva() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// EDITAR PARTIDA
+// ══════════════════════════════════════════════════════════════════════════
+function abrirEditarPartida(id) {
+  const p = PARTIDAS.find(x => x.id === id);
+  if (!p) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay open';
+  overlay.id = 'overlay-edit';
+  overlay.onclick = () => document.body.removeChild(overlay);
+  overlay.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title">Editar Partida</div>
+      <div class="field"><label>Nombre / descripción</label><input id="edit-nombre" value="${(p.muebleNombre||'').replace(/"/g,'&quot;')}"/></div>
+      <div class="field"><label>Código</label><input id="edit-codigo" value="${(p.muebleCodigo||'').replace(/"/g,'&quot;')}"/></div>
+      <div class="field"><label>Piezas / partes</label><input id="edit-partes" value="${(p.partes||'').replace(/"/g,'&quot;')}" placeholder="Ej: 3 asientos, 1 respaldo"/></div>
+      <div class="field"><label>Bultos</label><input type="number" id="edit-bultos" min="1" value="${p.bultos||1}"/></div>
+      <div class="field"><label>Proceso</label>
+        <select id="edit-tipo">
+          <option value="lus" ${p.tipo==='lus'?'selected':''}>✨ Lustre</option>
+          <option value="tap" ${p.tipo==='tap'?'selected':''}>🧵 Tapicería</option>
+        </select>
+      </div>
+      <div class="field"><label>Nota</label><input id="edit-nota" value="${(p.nota||'').replace(/"/g,'&quot;')}" placeholder="Observaciones..."/></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-sm primary" onclick="_guardarEditPartida('${p.id}')">Guardar</button>
+        <button class="btn-sm" onclick="document.body.removeChild(document.getElementById('overlay-edit'))">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function _guardarEditPartida(id) {
+  const p = PARTIDAS.find(x => x.id === id);
+  if (!p) return;
+  p.muebleNombre = document.getElementById('edit-nombre')?.value || p.muebleNombre;
+  p.muebleCodigo = document.getElementById('edit-codigo')?.value || p.muebleCodigo;
+  p.partes = document.getElementById('edit-partes')?.value || '';
+  p.bultos = parseInt(document.getElementById('edit-bultos')?.value) || 1;
+  p.tipo = document.getElementById('edit-tipo')?.value || p.tipo;
+  p.nota = document.getElementById('edit-nota')?.value || '';
+  guardarPartidas();
+  const ov = document.getElementById('overlay-edit');
+  if (ov) document.body.removeChild(ov);
+  render();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // IMPRIMIR ETIQUETAS
 // ══════════════════════════════════════════════════════════════════════════
 function imprimirEtiquetas(id) {
   const p = PARTIDAS.find(x => x.id === id);
   if (!p) return;
-  let bultos = p.bultos || 0;
-  if (!bultos || bultos < 1) {
-    const input = prompt('Cantidad de bultos:', '1');
-    if (!input) return;
-    bultos = parseInt(input) || 1;
-    if (bultos < 1) bultos = 1;
-    p.bultos = bultos;
-    guardarPartidas();
-  }
+  const bultos = p.bultos || 1;
   const tipoLabel = p.tipo === 'lus' ? 'ENVIO+LUSTRE' : 'ENVIO+TAPICERIA';
   const tipoParam = p.tipo === 'lus' ? 'lustre' : 'tapiceria';
   const base = 'https://juanpimc-uy.github.io/etiquetas-maderable/';
@@ -502,21 +543,37 @@ function imprimirEtiquetas(id) {
 // ══════════════════════════════════════════════════════════════════════════
 // CONFIG PROVEEDORES
 // ══════════════════════════════════════════════════════════════════════════
-function abrirConfigProvs() {
+async function abrirConfigProvs() {
+  // Cargar proveedores de Supabase
+  let provsList = [];
+  try {
+    const res = await fetch('/api/tiempos?action=proveedores-terceros');
+    const data = await res.json();
+    if (data.ok) provsList = data.proveedores || [];
+  } catch(e) {}
+
   const overlay = document.createElement('div');
   overlay.className = 'overlay open';
   overlay.id = 'overlay-cfg-prov';
   overlay.onclick = () => document.body.removeChild(overlay);
+
+  const rowHtml = (p) => `
+    <div class="cfg-prov-row" data-id="${p.id}" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+      <input class="cfg-prov-nombre" value="${(p.nombre||'').replace(/"/g,'&quot;')}" placeholder="Nombre" style="flex:1;background:#111;border:1px solid #242424;border-radius:4px;padding:6px 8px;color:#ccc;font-size:12px;outline:none;"/>
+      <select class="cfg-prov-tipo" style="background:#111;border:1px solid #242424;border-radius:4px;padding:6px 8px;color:#ccc;font-size:12px;width:110px;">
+        <option value="lus" ${p.tipo==='lus'?'selected':''}>✨ Lustre</option>
+        <option value="tap" ${p.tipo==='tap'?'selected':''}>🧵 Tapicería</option>
+        <option value="gen" ${p.tipo==='gen'?'selected':''}>📦 General</option>
+      </select>
+      <button onclick="_eliminarProv('${p.id}',this.closest('.cfg-prov-row'))" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;" title="Eliminar">✕</button>
+    </div>`;
+
   overlay.innerHTML = `
     <div class="modal" onclick="event.stopPropagation()">
       <div class="modal-title">Configurar Proveedores</div>
-      <div class="field"><label>✨ Proveedor Lustre</label>
-        <input id="cfg-prov-lus" value="${PROVS.lus||''}" placeholder="Nombre del lustrador"/>
-      </div>
-      <div class="field"><label>🧵 Proveedor Tapicería</label>
-        <input id="cfg-prov-tap" value="${PROVS.tap||''}" placeholder="Nombre del tapicero"/>
-      </div>
-      <div style="display:flex;gap:8px;margin-top:8px;">
+      <div id="cfg-provs-list">${provsList.map(rowHtml).join('')}</div>
+      <button class="btn-sm" onclick="_addProvRow()" style="margin-top:6px;">+ Agregar proveedor</button>
+      <div style="display:flex;gap:8px;margin-top:16px;">
         <button class="btn-sm primary" onclick="_guardarConfigProvs()">Guardar</button>
         <button class="btn-sm" onclick="document.body.removeChild(document.getElementById('overlay-cfg-prov'))">Cancelar</button>
       </div>
@@ -524,10 +581,49 @@ function abrirConfigProvs() {
   document.body.appendChild(overlay);
 }
 
-function _guardarConfigProvs() {
-  PROVS.lus = document.getElementById('cfg-prov-lus')?.value || PROVS.lus;
-  PROVS.tap = document.getElementById('cfg-prov-tap')?.value || PROVS.tap;
-  localStorage.setItem('proveedores', JSON.stringify(PROVS));
+function _addProvRow() {
+  const list = document.getElementById('cfg-provs-list');
+  if (!list) return;
+  const row = document.createElement('div');
+  row.className = 'cfg-prov-row';
+  row.dataset.id = '';
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:8px;';
+  row.innerHTML = `
+    <input class="cfg-prov-nombre" value="" placeholder="Nombre" style="flex:1;background:#111;border:1px solid #242424;border-radius:4px;padding:6px 8px;color:#ccc;font-size:12px;outline:none;"/>
+    <select class="cfg-prov-tipo" style="background:#111;border:1px solid #242424;border-radius:4px;padding:6px 8px;color:#ccc;font-size:12px;width:110px;">
+      <option value="lus">✨ Lustre</option>
+      <option value="tap">🧵 Tapicería</option>
+      <option value="gen">📦 General</option>
+    </select>
+    <button onclick="this.closest('.cfg-prov-row').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;">✕</button>`;
+  list.appendChild(row);
+}
+
+async function _eliminarProv(id, rowEl) {
+  if (id) {
+    await fetch('/api/tiempos?action=eliminar-proveedor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}).catch(()=>{});
+  }
+  if (rowEl) rowEl.remove();
+}
+
+async function _guardarConfigProvs() {
+  const rows = document.querySelectorAll('.cfg-prov-row');
+  const promises = [];
+  // Update PROVS from the first lus and first tap found
+  let newLus = '', newTap = '';
+  rows.forEach(row => {
+    const id = row.dataset.id || '';
+    const nombre = row.querySelector('.cfg-prov-nombre')?.value?.trim() || '';
+    const tipo = row.querySelector('.cfg-prov-tipo')?.value || 'lus';
+    if (!nombre) return;
+    if (tipo === 'lus' && !newLus) newLus = nombre;
+    if (tipo === 'tap' && !newTap) newTap = nombre;
+    promises.push(fetch('/api/tiempos?action=guardar-proveedor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:id||undefined,nombre,tipo})}).catch(()=>{}));
+  });
+  await Promise.all(promises);
+  // Update config_global proveedores
+  if (newLus) PROVS.lus = newLus;
+  if (newTap) PROVS.tap = newTap;
   fetch('/api/tiempos?action=guardar-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clave:'proveedores',valor:PROVS})}).catch(()=>{});
   const ov = document.getElementById('overlay-cfg-prov');
   if (ov) document.body.removeChild(ov);

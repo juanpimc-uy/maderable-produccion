@@ -1983,6 +1983,43 @@ export default async function handler(req) {
       return ok({ recepcion: data });
     }
 
+    // ── GET proveedores-terceros ─────────────────────────────────────────
+    if (action === 'proveedores-terceros' && req.method === 'GET') {
+      const { data, error } = await supabase.from('proveedores_terceros')
+        .select('*').eq('activo', true).order('creado_en');
+      if (error) throw error;
+      return ok({ ok: true, proveedores: data || [] });
+    }
+
+    // ── POST guardar-proveedor ────────────────────────────────────────────
+    if (action === 'guardar-proveedor' && req.method === 'POST') {
+      const { id, nombre, tipo, icono } = body;
+      if (!nombre) return err('nombre requerido', 400);
+      if (id) {
+        // Update existing
+        const { error } = await supabase.from('proveedores_terceros')
+          .update({ nombre, tipo: tipo || null, icono: icono || '✨' })
+          .eq('id', id);
+        if (error) throw error;
+      } else {
+        // Insert new
+        const { error } = await supabase.from('proveedores_terceros')
+          .insert({ nombre, tipo: tipo || null, icono: icono || '✨', activo: true });
+        if (error) throw error;
+      }
+      return ok({ ok: true });
+    }
+
+    // ── POST eliminar-proveedor (soft delete) ─────────────────────────────
+    if (action === 'eliminar-proveedor' && req.method === 'POST') {
+      const { id } = body;
+      if (!id) return err('id requerido', 400);
+      const { error } = await supabase.from('proveedores_terceros')
+        .update({ activo: false }).eq('id', id);
+      if (error) throw error;
+      return ok({ ok: true });
+    }
+
     // ── GET partidas tercerizados ─────────────────────────────────────────
     if (action === 'partidas' && req.method === 'GET') {
       const { data, error } = await supabase.from('partidas_terceros').select('*').order('creado_at', { ascending: false });
