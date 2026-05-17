@@ -2345,8 +2345,8 @@ async function _renderCostosPr(prId) {
     // Tercerizados — solo si el proyecto tiene muebles con lus o tap
     const pr = PROYECTOS.find(p => p.id === prId);
     const prMuebles = pr?.muebles || pr?.items || [];
-    const tieneLus = prMuebles.some(m => m.lus === true);
-    const tieneTap = prMuebles.some(m => m.tap === true);
+    const tieneLus = prMuebles.some(m => (m.flujos||[]).includes('lustre'));
+    const tieneTap = prMuebles.some(m => (m.flujos||[]).includes('tapiceria'));
     const mostrarTerc = tieneLus || tieneTap;
 
     // Buscar registros existentes de tercerizados
