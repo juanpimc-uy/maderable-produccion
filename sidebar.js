@@ -14,8 +14,8 @@
     { id: 'operarios',    icon: '◎', label: 'Operarios',    page: 'admin.html',         section: 'operarios',  roles: ['admin'] },
     { id: 'tiempos',      icon: '⏱', label: 'Tiempos',      page: 'tiempos.html',       section: null,         roles: ['admin', 'oficina'] },
     { id: 'materiales-group', icon: '▣', label: 'Materiales', group: true, roles: ['admin', 'oficina'], children: [
-      { id: 'armado-so',   icon: '⬗', label: 'Armado SO',   page: 'armado-so.html',      section: null, roles: ['admin', 'oficina'] },
-      { id: 'recepciones', icon: '◫', label: 'Recepciones', page: 'recepciones-oc.html', section: null, roles: ['admin', 'oficina'] },
+      { id: 'armado-so',   icon: '⬗', label: 'Kitting SO',  page: 'armado-so.html',      section: null, roles: ['admin', 'oficina'] },
+      { id: 'recepciones', icon: '◫', label: 'Recepción',   page: 'recepciones-oc.html', section: null, roles: ['admin', 'oficina'] },
     ]},
     { id: 'tercerizados', icon: '🧵', label: 'Tercerizados', page: 'tercerizados.html',  section: null,         roles: ['admin', 'oficina'] },
     { id: 'stock',        icon: '⬡', label: 'Stock Placas', page: 'stock-placas.html',  section: null,         roles: ['admin', 'oficina'], hidden: true },
