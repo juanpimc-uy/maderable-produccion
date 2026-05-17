@@ -7,215 +7,159 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maderable · Tercerizados</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Sora:wght@400;500;600;700&display=swap');
-  :root {
-    --bg:#0f0f0f;--panel:#1e1e1e;--card:#252525;--border:#2a2a2a;
-    --text:#e8e8e8;--muted:#888;--faint:#1a1a1a;
-    --amber:#FFD600;--green:#3DD68C;--red:#F05C5C;
-    --blue:#5B8DEF;--purple:#9B6DFF;--teal:#2EC4B6;
-    --tap:var(--purple);--lus:var(--teal);
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+  :root{
+    --bg:#0f0f0f;--panel:#111;--card:#131313;--border:#1e1e1e;--border2:#2a2a2a;
+    --accent:#FFD600;--blue:#4a9eff;--green:#4caf50;--red:#e03030;
+    --muted:#555;--text:#e0e0e0;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;height:100vh;overflow:hidden;}
-  .mono{font-family:'JetBrains Mono',monospace;}
-  /* shell / sidebar */
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;height:100vh;overflow:hidden;}
   .shell{display:flex;height:100vh;overflow:hidden;}
   .sidebar{width:200px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
-  .sidebar-logo{padding:18px 16px;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
   .nav-item{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;font-size:13px;color:var(--muted);border-left:3px solid transparent;transition:all .15s;text-decoration:none;}
-  .nav-item:hover{background:var(--faint);color:var(--text);}
-  .nav-item.active{background:rgba(245,166,35,.08);color:var(--amber);border-left-color:var(--amber);font-weight:600;}
-  .nav-icon{font-size:15px;width:20px;text-align:center;flex-shrink:0;}
-  /* main */
+  .nav-item:hover{background:rgba(255,255,255,.02);color:var(--text);}
+  .nav-item.active{background:rgba(255,214,0,.06);color:var(--accent);border-left-color:var(--accent);font-weight:600;}
   .main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
-  .topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;gap:14px;flex-shrink:0;}
-  .logo{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
-  .page{padding:24px 28px 80px;overflow-y:auto;flex:1;}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
-  .sec{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;}
-  .pill{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.8px;padding:2px 8px;border-radius:3px;text-transform:uppercase;white-space:nowrap;}
-  .btn{padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;transition:opacity .15s;}
-  .btn:hover{opacity:.82;}
-  .btn-primary{background:var(--amber);color:#0E0F14;}
-  .btn-ghost{background:var(--faint);color:var(--muted);border:1px solid var(--border);}
-  .btn-success{background:var(--green);color:#0E0F14;}
-  .btn-sm{padding:4px 10px;font-size:10px;}
-  .field{display:flex;flex-direction:column;gap:5px;}
-  .field label{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
-  .field input,.field select,.field textarea{background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-family:'Sora',sans-serif;font-size:13px;outline:none;width:100%;}
-  .field input:focus,.field select:focus{border-color:var(--amber);}
-  .field textarea{height:60px;resize:vertical;}
-  select option{background:var(--faint);}
-  .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-  .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
-  .divider{height:1px;background:var(--border);margin:14px 0;}
-  .info-box{background:rgba(91,141,239,.06);border:1px solid rgba(91,141,239,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--blue);margin-bottom:14px;}
-
-  /* tabs */
-  .tabs{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:4px;margin-bottom:24px;}
-  .tab{flex:1;padding:8px 12px;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;background:#1a1a1a;color:#555;border:1px solid #222;transition:all .2s;text-align:center;}
-  .tab.active{background:#FFD600;color:#000;border-color:#FFD600;}
-
-  /* proveedor banner */
-  .prov-banner{border-radius:8px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:14px;}
-  .prov-banner.tap{background:rgba(155,109,255,.06);border:1px solid rgba(155,109,255,.25);}
-  .prov-banner.lus{background:rgba(46,196,182,.06);border:1px solid rgba(46,196,182,.25);}
-  .prov-icon{font-size:28px;}
-  .prov-name{font-size:16px;font-weight:700;}
-  .prov-sub{font-size:12px;color:var(--muted);}
-
-  /* partida card */
-  .partida{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:6px;transition:border-color .2s;}
-  .partida.en_taller{border-color:rgba(245,166,35,.3);}
-  .partida.despachada{border-color:rgba(91,141,239,.3);}
-  .partida.recibida{border-color:rgba(61,214,140,.3);}
-  .partida-header{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
-  .partida-codigo{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#FFD600;}
-  .partida-nombre{font-size:12px;font-weight:600;flex:1;}
-  .partida-body{display:flex;flex-direction:column;gap:4px;}
-
-  /* timeline */
-  .timeline{display:flex;gap:0;margin-bottom:6px;height:24px;align-items:center;}
-  .tl-step{flex:1;position:relative;}
-  .tl-dot{width:10px;height:10px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0;border:2px solid var(--border);background:var(--faint);margin:0 auto 2px;}
-  .tl-dot.done{border-color:var(--green);background:var(--green);}
-  .tl-dot.active{border-color:#FFD600;background:#FFD600;}
-  .tl-label{text-align:center;font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:.3px;}
-  .tl-line{position:absolute;top:4px;left:50%;right:-50%;height:2px;background:var(--border);z-index:0;}
-  .tl-line.done{background:var(--green);}
-  .tl-step:last-child .tl-line{display:none;}
-
-  /* modal */
+  .topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 20px;height:50px;display:flex;align-items:center;gap:14px;flex-shrink:0;}
+  .topbar-title{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
+  .chip{font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--muted);transition:all .15s;letter-spacing:.3px;}
+  .chip:hover{border-color:var(--accent);color:var(--accent);}
+  .chip.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:700;}
+  .board{flex:1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--border);overflow:hidden;}
+  .col{background:var(--bg);display:flex;flex-direction:column;overflow:hidden;}
+  .col-header{padding:12px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .col-dot{width:8px;height:8px;border-radius:50%;}
+  .col-title{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+  .col-count{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;margin-left:auto;}
+  .col-body{flex:1;overflow-y:auto;padding:10px 12px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;transition:border-color .15s;}
+  .card:hover{border-color:var(--border2);}
+  .card-row1{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .card-code{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--accent);}
+  .card-odf{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);}
+  .card-nombre{font-size:12px;font-weight:600;color:#ccc;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .card-meta{font-size:10px;color:var(--muted);margin-bottom:6px;}
+  .card-actions{display:flex;gap:6px;flex-wrap:wrap;}
+  .btn-sm{font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 10px;border-radius:3px;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--muted);transition:all .15s;}
+  .btn-sm:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-sm.primary{background:var(--accent);color:#000;border-color:var(--accent);}
+  .btn-sm.success{background:var(--green);color:#000;border-color:var(--green);}
+  .badge-prov{font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;background:#1a1a1a;border:1px solid var(--border2);color:var(--muted);}
+  .badge-recep{font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;}
+  .badge-ok{background:#0a1f0a;color:var(--green);border:1px solid #1a3a1a;}
+  .badge-obs{background:#1f1a00;color:#f59e0b;border:1px solid #3a2f00;}
+  .badge-rehacer{background:#1f0a0a;color:var(--red);border:1px solid #3a1a1a;}
+  /* overlay/modal */
   .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;}
   .overlay.open{display:flex;}
-  .modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:26px;width:440px;max-width:95vw;max-height:90vh;overflow-y:auto;}
-  .modal-title{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;}
-
-  /* config proveedores */
-  .prov-config{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:14px;}
-
-  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-  .fu{animation:fadeUp .25s ease both;}
+  .modal{background:#1e1e1e;border:1px solid var(--border2);border-radius:10px;padding:22px;width:420px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+  .modal-title{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:16px;}
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
+  .field label{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.5px;color:var(--muted);text-transform:uppercase;}
+  .field input,.field select,.field textarea{background:#111;border:1px solid #242424;border-radius:4px;padding:7px 10px;color:#ccc;font-size:12px;outline:none;width:100%;font-family:'DM Sans',sans-serif;}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent);}
+  .field textarea{height:50px;resize:vertical;}
+  .col-footer{padding:8px 16px;border-top:1px solid var(--border);flex-shrink:0;}
+  .col-footer a{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);cursor:pointer;text-decoration:underline;}
+  .col-footer a:hover{color:var(--accent);}
+  @media(max-width:900px){.board{grid-template-columns:1fr;}.sidebar{display:none;}}
 </style>
+<script src="sidebar.js"></script>
 </head>
 <body>
 <div class="shell">
-
-<script src="sidebar.js"></script>
 <div id="sidebar-root"></div>
-
 <div class="main">
+
+  <!-- TOPBAR -->
   <div class="topbar">
-    <span class="mono" style="font-size:11px;color:var(--muted);letter-spacing:2px;">TERCERIZADOS</span>
-  </div>
-
-<div class="page">
-
-  <!-- config proveedores -->
-  <div class="card fu" id="config-prov">
-    <div class="sec">Proveedores Fijos <button class="btn btn-ghost btn-sm" onclick="toggleConfig()">⚙ Editar</button></div>
-    <div class="g2">
-      <div class="prov-config">
-        <div style="font-size:10px;color:var(--purple);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:6px;">TAPICERÍA</div>
-        <div id="prov-tap-display" style="font-size:14px;font-weight:600;"></div>
-      </div>
-      <div class="prov-config">
-        <div style="font-size:10px;color:var(--teal);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:6px;">LUSTRE</div>
-        <div id="prov-lus-display" style="font-size:14px;font-weight:600;"></div>
-      </div>
+    <span class="topbar-title">TERCERIZADOS</span>
+    <div style="display:flex;gap:6px;margin-left:16px;" id="prov-chips"></div>
+    <div style="margin-left:auto;">
+      <button class="btn-sm primary" onclick="abrirNuevaPartida()">+ Agregar partida</button>
     </div>
   </div>
 
-  <!-- tabs -->
-  <div class="tabs">
-    <button class="tab tap" id="tab-tap" onclick="switchTab('tap')">🧵 Tapicería</button>
-    <button class="tab lus active" id="tab-lus" onclick="switchTab('lus')">✨ Lustre</button>
+  <!-- BOARD -->
+  <div class="board">
+    <!-- Col 1: En taller -->
+    <div class="col">
+      <div class="col-header">
+        <span class="col-dot" style="background:var(--accent);"></span>
+        <span class="col-title">En taller</span>
+        <span class="col-count" style="color:var(--accent);" id="count-taller">0</span>
+      </div>
+      <div class="col-body" id="col-taller"></div>
+    </div>
+    <!-- Col 2: En proveedor -->
+    <div class="col">
+      <div class="col-header">
+        <span class="col-dot" style="background:var(--blue);"></span>
+        <span class="col-title">En proveedor</span>
+        <span class="col-count" style="color:var(--blue);" id="count-prov">0</span>
+      </div>
+      <div class="col-body" id="col-prov"></div>
+    </div>
+    <!-- Col 3: Recibidas -->
+    <div class="col">
+      <div class="col-header">
+        <span class="col-dot" style="background:var(--green);"></span>
+        <span class="col-title">Recibidas</span>
+        <span class="col-count" style="color:var(--green);" id="count-recv">0</span>
+      </div>
+      <div class="col-body" id="col-recv"></div>
+      <div class="col-footer"><a onclick="_toggleVerTodas();" id="ver-todas-link">Ver todas</a></div>
+    </div>
   </div>
 
-  <!-- KPIs -->
-  <div class="g3" style="margin-bottom:20px;" id="kpi-bar"></div>
+</div><!-- /main -->
+</div><!-- /shell -->
 
-  <!-- contenido -->
-  <div id="content-tap" style="display:none;"></div>
-  <div id="content-lus"></div>
-
-</div>
-
-<!-- modal despacho -->
+<!-- MODAL DESPACHO -->
 <div class="overlay" id="overlay-desp" onclick="cerrarModal('desp')">
   <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-title">Despachar Partes al Proveedor</div>
-    <div style="display:flex;flex-direction:column;gap:14px;">
-
-      <!-- parcial / total -->
-      <div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Tipo de despacho</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <button id="desp-btn-total" onclick="setTipoDesp('total')"
-            style="padding:12px;border:2px solid var(--amber);border-radius:8px;background:rgba(245,166,35,.1);cursor:pointer;text-align:center;">
-            <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--amber);">Todo</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Sale completo</div>
-          </button>
-          <button id="desp-btn-parcial" onclick="setTipoDesp('parcial')"
-            style="padding:12px;border:2px solid var(--border);border-radius:8px;background:transparent;cursor:pointer;text-align:center;">
-            <div style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:var(--muted);">Parcial</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:3px;">Quedan partes</div>
-          </button>
-        </div>
+    <div class="modal-title">Despachar al Proveedor</div>
+    <div class="field"><label>Tipo de despacho</label>
+      <div style="display:flex;gap:8px;">
+        <button id="desp-btn-total" onclick="setTipoDesp('total')" class="btn-sm primary">Total</button>
+        <button id="desp-btn-parcial" onclick="setTipoDesp('parcial')" class="btn-sm">Parcial</button>
       </div>
-
-      <div class="field"><label>Cantidad de bultos</label><input type="number" id="desp-bultos" min="1" value="1" style="width:100px;"/></div>
-      <div class="field"><label>Partes que salen</label><textarea id="desp-partes" placeholder="Ej: Asiento izq., asiento der., respaldo..."></textarea></div>
-      <div class="field"><label>Fecha salida</label><input type="date" id="desp-fecha"/></div>
-      <div class="field"><label>Nota</label><input id="desp-nota" placeholder="Observaciones..."/></div>
-      <div style="display:flex;gap:10px;">
-        <button class="btn btn-primary" style="background:#FFD600;color:#000;" onclick="confirmarDespacho()">Despachar →</button>
-        <button class="btn btn-ghost" onclick="cerrarModal('desp')">Cancelar</button>
-      </div>
+    </div>
+    <div class="field"><label>Cantidad de bultos</label><input type="number" id="desp-bultos" min="1" value="1" style="width:100px;"/></div>
+    <div class="field"><label>Partes que salen</label><textarea id="desp-partes" placeholder="Ej: Asiento izq., respaldo..."></textarea></div>
+    <div class="field"><label>Fecha salida</label><input type="date" id="desp-fecha"/></div>
+    <div class="field"><label>Nota</label><input id="desp-nota" placeholder="Observaciones..."/></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-sm primary" onclick="confirmarDespacho()">Despachar →</button>
+      <button class="btn-sm" onclick="cerrarModal('desp')">Cancelar</button>
     </div>
   </div>
 </div>
 
-<!-- modal recepción -->
+<!-- MODAL RECEPCION -->
 <div class="overlay" id="overlay-recv" onclick="cerrarModal('recv')">
   <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-title">Recibir Partes del Proveedor</div>
-    <div style="display:flex;flex-direction:column;gap:14px;">
-      <div class="field"><label>Fecha de recepción</label><input type="date" id="recv-fecha"/></div>
-      <div class="field"><label>Estado al recibir</label>
-        <select id="recv-estado">
-          <option value="ok">✓ Conforme — en condiciones</option>
-          <option value="obs">⚠ Con observaciones</option>
-          <option value="rehacer">✗ A rehacer</option>
-        </select>
-      </div>
-      <div class="field"><label>Observaciones</label><textarea id="recv-obs" placeholder="Detalles del estado al recibir..."></textarea></div>
-      <div style="display:flex;gap:10px;">
-        <button class="btn btn-success" onclick="confirmarRecepcion()">✓ Confirmar Recepción</button>
-        <button class="btn btn-ghost" onclick="cerrarModal('recv')">Cancelar</button>
-      </div>
+    <div class="modal-title">Registrar Recepción</div>
+    <div class="field"><label>Fecha recepción</label><input type="date" id="recv-fecha"/></div>
+    <div class="field"><label>Estado al recibir</label>
+      <select id="recv-estado">
+        <option value="ok">✓ Conforme</option>
+        <option value="obs">⚠ Con observaciones</option>
+        <option value="rehacer">✗ A rehacer</option>
+      </select>
     </div>
-  </div>
-</div>
-
-<!-- modal config proveedores -->
-<div class="overlay" id="overlay-cfg" onclick="cerrarModal('cfg')">
-  <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-title">Configurar Proveedores</div>
-    <div style="display:flex;flex-direction:column;gap:14px;">
-      <div class="field"><label style="color:var(--purple);">Proveedor Tapicería</label><input id="cfg-tap" placeholder="Nombre del tapicero"/></div>
-      <div class="field"><label style="color:var(--teal);">Proveedor Lustre</label><input id="cfg-lus" placeholder="Nombre del lustrador"/></div>
-      <div style="display:flex;gap:10px;">
-        <button class="btn btn-primary" onclick="guardarProveedores()">Guardar</button>
-        <button class="btn btn-ghost" onclick="cerrarModal('cfg')">Cancelar</button>
-      </div>
+    <div class="field"><label>Observaciones</label><textarea id="recv-obs" placeholder="Notas..."></textarea></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-sm success" onclick="confirmarRecepcion()">✓ Confirmar</button>
+      <button class="btn-sm" onclick="cerrarModal('recv')">Cancelar</button>
     </div>
   </div>
 </div>
 
 <script>
 // ══════════════════════════════════════════════════════════════════════════
-// PROVEEDORES
+// DATOS
 // ══════════════════════════════════════════════════════════════════════════
 let PROVS = JSON.parse(localStorage.getItem('proveedores') || '{"tap":"Tapicero","lus":"Lustrador"}');
 let _PROYECTOS = [];
@@ -223,31 +167,6 @@ window.sbFetch('proyectos_cache?activo=eq.true&order=nombre')
   .then(data => { _PROYECTOS = data || []; })
   .catch(e => console.error('Error cargando proyectos:', e));
 
-function loadProvs() {
-  document.getElementById('prov-tap-display').textContent = PROVS.tap;
-  document.getElementById('prov-lus-display').textContent = PROVS.lus;
-}
-
-function toggleConfig() {
-  document.getElementById('cfg-tap').value = PROVS.tap;
-  document.getElementById('cfg-lus').value = PROVS.lus;
-  abrirModal('cfg');
-}
-
-function guardarProveedores() {
-  PROVS.tap = document.getElementById('cfg-tap').value || PROVS.tap;
-  PROVS.lus = document.getElementById('cfg-lus').value || PROVS.lus;
-  localStorage.setItem('proveedores', JSON.stringify(PROVS));
-  fetch('/api/tiempos?action=guardar-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clave:'proveedores',valor:PROVS})}).catch(()=>{});
-  loadProvs(); cerrarModal('cfg'); render();
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-// DATOS — partidas (partes que salen a proveedor)
-// ══════════════════════════════════════════════════════════════════════════
-// Estructura: { id, tipo:'tap'|'lus', proyectoNum, obra, muebleCodigo, muebleNombre,
-//               estado:'en_taller'|'despachada'|'recibida',
-//               partes, fechaDespacho, fechaRecepcion, estadoRecep, obs, nota }
 let PARTIDAS = JSON.parse(localStorage.getItem('partidas') || '[]');
 
 function guardarPartidas() {
@@ -256,227 +175,134 @@ function guardarPartidas() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-// NAVEGACIÓN TABS
+// ESTADO UI
 // ══════════════════════════════════════════════════════════════════════════
-let tabActual = 'lus';
-
-function switchTab(t) {
-  tabActual = t;
-  document.getElementById('tab-tap').classList.toggle('active', t==='tap');
-  document.getElementById('tab-lus').classList.toggle('active', t==='lus');
-  document.getElementById('content-tap').style.display = t==='tap' ? 'block' : 'none';
-  document.getElementById('content-lus').style.display = t==='lus' ? 'block' : 'none';
-  render();
-}
+let filtroProveedor = 'todos'; // 'todos' | 'tap' | 'lus'
+let modalPartidaId = null;
+let modalTipoNueva = 'lus';
+let tipoDesp = 'total';
+let verTodasRecibidas = false;
 
 // ══════════════════════════════════════════════════════════════════════════
 // RENDER
 // ══════════════════════════════════════════════════════════════════════════
 function render() {
-  renderKpis();
-  renderTab('tap');
-  renderTab('lus');
-}
+  renderChips();
+  const lista = filtroProveedor === 'todos' ? PARTIDAS : PARTIDAS.filter(p => p.tipo === filtroProveedor);
+  const taller = lista.filter(p => p.estado === 'en_taller');
+  const prov = lista.filter(p => p.estado === 'despachada');
+  let recv = lista.filter(p => p.estado === 'recibida');
 
-function renderKpis() {
-  const tap = PARTIDAS.filter(p=>p.tipo==='tap');
-  const lus = PARTIDAS.filter(p=>p.tipo==='lus');
-  const kpis = [
-    { l:'En Taller (tap.)',   v:tap.filter(p=>p.estado==='en_taller').length,   c:'var(--purple)' },
-    { l:'Despachadas (tap.)', v:tap.filter(p=>p.estado==='despachada').length,  c:'var(--blue)'   },
-    { l:'En Taller (lus.)',   v:lus.filter(p=>p.estado==='en_taller').length,   c:'var(--teal)'   },
-    { l:'Despachadas (lus.)', v:lus.filter(p=>p.estado==='despachada').length,  c:'var(--amber)'  },
-    { l:'Recibidas Hoy',      v:PARTIDAS.filter(p=>p.fechaRecepcion===hoy()).length, c:'var(--green)' },
-    { l:'Total Pendientes',   v:PARTIDAS.filter(p=>p.estado!=='recibida').length,'c':'var(--red)'  },
-  ];
-  document.getElementById('kpi-bar').innerHTML = kpis.slice(0,3).map(k=>`
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px 18px;">
-      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:8px;">${k.l.toUpperCase()}</div>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:700;color:${k.c};">${k.v}</div>
-    </div>`).join('');
-}
-
-function renderTab(tipo) {
-  const contenedor = document.getElementById('content-'+tipo);
-  const lista = PARTIDAS.filter(p=>p.tipo===tipo);
-  const prov  = tipo==='tap' ? PROVS.tap : PROVS.lus;
-  const color = tipo==='tap' ? 'var(--purple)' : 'var(--teal)';
-  const icon  = tipo==='tap' ? '🧵' : '✨';
-
-  const grupos = { en_taller:[], despachada:[], recibida:[] };
-  lista.forEach(p => grupos[p.estado]?.push(p));
-
-  let html = `
-    <div class="prov-banner ${tipo}">
-      <span class="prov-icon">${icon}</span>
-      <div>
-        <div class="prov-name" style="color:${color};">${prov}</div>
-        <div class="prov-sub">${lista.length} muebles · ${grupos.despachada.length} en camino · ${grupos.recibida.length} recibidos</div>
-      </div>
-      <div style="margin-left:auto;">
-        <button class="btn btn-primary btn-sm" onclick="abrirNuevaPartida('${tipo}')">+ Agregar partida</button>
-      </div>
-    </div>`;
-
-  // En taller — pendientes de despacho
-  if (grupos.en_taller.length) {
-    html += `<div class="card"><div class="sec" style="color:${color};">⏳ En Taller — Pendientes de Despacho <span class="pill" style="color:${color};background:${color}15;border:1px solid ${color}30;">${grupos.en_taller.length}</span></div>`;
-    grupos.en_taller.forEach(p => {
-      html += `<div class="partida en_taller">
-        <div class="partida-header">
-          <span class="partida-codigo">${p.muebleCodigo}</span>
-          <span class="partida-nombre">${p.muebleNombre}</span>
-          <span style="font-size:10px;color:#666;">${p.proyectoNum} · ${p.obra}</span>
-          <span class="pill" style="color:var(--amber);background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);">En Taller</span>
-        </div>
-        ${tlHtml(p)}
-        <div class="partida-body" style="flex-direction:row;gap:8px;align-items:center;">
-          <button class="btn btn-primary btn-sm" style="height:28px;font-size:10px;padding:4px 12px;background:#FFD600;color:#000;" onclick="abrirDespacho('${p.id}')">→ Despachar</button>
-          <button onclick="imprimirEtiquetas('${p.id}')" style="height:28px;background:#1a1a1a;border:1px solid #333;color:#aaa;font-size:10px;padding:4px 10px;border-radius:3px;cursor:pointer;font-family:'JetBrains Mono',monospace;transition:all .15s;" onmouseenter="this.style.borderColor='#FFD600';this.style.color='#FFD600'" onmouseleave="this.style.borderColor='#333';this.style.color='#aaa'">🖨 Etiquetas</button>
-        </div>
-      </div>`;
-    });
-    html += `</div>`;
+  // Recibidas: solo mes actual por defecto
+  if (!verTodasRecibidas) {
+    const mesActual = new Date().toISOString().slice(0, 7);
+    const recvMes = recv.filter(p => (p.fechaRecepcion || '').startsWith(mesActual));
+    recv = recvMes;
   }
 
-  // Despachadas — esperando retorno
-  if (grupos.despachada.length) {
-    html += `<div class="card"><div class="sec" style="color:var(--blue);">🚚 Despachadas — En poder del proveedor <span class="pill" style="color:var(--blue);background:rgba(91,141,239,.1);border:1px solid rgba(91,141,239,.3);">${grupos.despachada.length}</span></div>`;
-    grupos.despachada.forEach(p => {
-      html += `<div class="partida despachada">
-        <div class="partida-header">
-          <span class="partida-codigo">${p.muebleCodigo}</span>
-          <span class="partida-nombre">${p.muebleNombre}</span>
-          <span style="font-size:10px;color:#666;">${p.proyectoNum} · ${p.obra}</span>
-          <span class="pill" style="color:var(--blue);background:rgba(91,141,239,.1);border:1px solid rgba(91,141,239,.3);">En proveedor</span>
-        </div>
-        ${tlHtml(p)}
-        <div class="partida-body">
-          <div style="font-size:10px;color:#666;">Partes: ${p.partes||'—'} · Salida: ${p.fechaDespacho}${p.nota?' · '+p.nota:''}</div>
-          <button class="btn btn-success btn-sm" style="height:28px;font-size:10px;padding:4px 12px;" onclick="abrirRecepcion('${p.id}')">✓ Registrar Recepción</button>
-        </div>
-      </div>`;
-    });
-    html += `</div>`;
-  }
+  document.getElementById('count-taller').textContent = taller.length;
+  document.getElementById('count-prov').textContent = prov.length;
+  document.getElementById('count-recv').textContent = recv.length;
 
-  // Recibidas — vista compacta
-  if (grupos.recibida.length) {
-    html += `<div class="card">
-      <div class="sec" style="color:var(--green);margin-bottom:10px;">
-        ✓ Recibidas
-        <span class="pill" style="color:var(--green);background:rgba(61,214,140,.1);border:1px solid rgba(61,214,140,.3);">${grupos.recibida.length}</span>
-      </div>`;
-    grupos.recibida.forEach(p => {
-      const recColor = p.estadoRecep==='ok'?'var(--green)':p.estadoRecep==='obs'?'var(--amber)':'var(--red)';
-      const recIcon  = p.estadoRecep==='ok'?'✓':p.estadoRecep==='obs'?'⚠':'✗';
-      const recLabel = p.estadoRecep==='ok'?'Conforme':p.estadoRecep==='obs'?'Obs.':'Rehacer';
-      const esParcial = p.tipoDespacho === 'parcial';
-      html += `
-        <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;margin-bottom:4px;background:var(--faint);">
-          <span class="mono" style="font-size:11px;font-weight:700;color:var(--amber);min-width:52px;">${p.muebleCodigo}</span>
-          <span style="font-size:12px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.muebleNombre}</span>
-          <span style="font-size:10px;color:var(--muted);white-space:nowrap;">${p.proyectoNum}</span>
-          ${esParcial?`<span class="pill" style="color:var(--amber);background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);">Parcial</span>`:''}
-          <span style="font-size:10px;color:var(--muted);white-space:nowrap;">${p.fechaDespacho}→${p.fechaRecepcion}</span>
-          <span class="pill" style="color:${recColor};background:${recColor}15;border:1px solid ${recColor}30;">${recIcon} ${recLabel}</span>
-          ${p.obs?`<span title="${p.obs}" style="font-size:13px;cursor:help;">💬</span>`:''}
-        </div>`;
-    });
-    html += `</div>`;
-  }
+  document.getElementById('col-taller').innerHTML = taller.length
+    ? taller.map(p => cardHtml(p, 'taller')).join('')
+    : '<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px;">Sin partidas en taller</div>';
 
-  if (!lista.length) {
-    html += `<div style="text-align:center;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;padding:40px;">Sin partidas de ${tipo==='tap'?'tapicería':'lustre'} registradas.</div>`;
-  }
+  document.getElementById('col-prov').innerHTML = prov.length
+    ? prov.map(p => cardHtml(p, 'prov')).join('')
+    : '<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px;">Sin partidas en proveedor</div>';
 
-  contenedor.innerHTML = html;
+  document.getElementById('col-recv').innerHTML = recv.length
+    ? recv.map(p => cardHtml(p, 'recv')).join('')
+    : '<div style="text-align:center;padding:20px;color:var(--muted);font-size:11px;">Sin recepciones este mes</div>';
+
+  const link = document.getElementById('ver-todas-link');
+  if (link) link.textContent = verTodasRecibidas ? 'Solo este mes' : 'Ver todas';
 }
 
-function tlHtml(p) {
-  const steps = [
-    { l:'En Taller', done: true, active: p.estado==='en_taller' },
-    { l:'Despachado', done: p.estado!=='en_taller', active: p.estado==='despachada' },
-    { l:'Recibido', done: p.estado==='recibida', active: false },
-  ];
-  return `<div class="timeline" style="margin-bottom:12px;">${steps.map((s,i)=>`
-    <div class="tl-step">
-      <div class="tl-line ${i<steps.length-1&&steps[i+1].done?'done':''}"></div>
-      <div class="tl-dot ${s.done&&!s.active?'done':''} ${s.active?'active':''}">${s.done&&!s.active?'✓':i+1}</div>
-      <div class="tl-label">${s.l}</div>
-    </div>`).join('')}</div>`;
+function cardHtml(p, col) {
+  const provLabel = p.tipo === 'tap' ? PROVS.tap : PROVS.lus;
+  const showProv = filtroProveedor === 'todos';
+  let actions = '';
+  if (col === 'taller') {
+    actions = `<button class="btn-sm primary" onclick="abrirDespacho('${p.id}')">→ Despachar</button>
+      <button class="btn-sm" onclick="imprimirEtiquetas('${p.id}')" style="border-color:#333;color:#aaa;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='#333';this.style.color='#aaa'">🖨 Etiquetas</button>`;
+  } else if (col === 'prov') {
+    actions = `<button class="btn-sm success" onclick="abrirRecepcion('${p.id}')">✓ Recibir</button>`;
+  }
+  let recepBadge = '';
+  if (col === 'recv' && p.estadoRecep) {
+    const cls = p.estadoRecep === 'ok' ? 'badge-ok' : p.estadoRecep === 'obs' ? 'badge-obs' : 'badge-rehacer';
+    const txt = p.estadoRecep === 'ok' ? '✓ Conforme' : p.estadoRecep === 'obs' ? '⚠ Obs.' : '✗ Rehacer';
+    recepBadge = `<span class="badge-recep ${cls}">${txt}</span>`;
+  }
+  return `<div class="card">
+    <div class="card-row1">
+      <span class="card-code">${p.muebleCodigo || '—'}</span>
+      <span class="card-odf">${p.proyectoNum || ''}</span>
+    </div>
+    <div class="card-nombre">${p.muebleNombre || '—'}</div>
+    <div class="card-meta">
+      ${p.obra ? p.obra + ' · ' : ''}${p.cliente ? p.cliente + ' · ' : ''}${p.partes ? p.partes : ''}
+      ${p.fechaDespacho ? ' · ' + p.fechaDespacho : ''}
+      ${p.bultos ? ' · ' + p.bultos + ' bultos' : ''}
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      ${showProv ? `<span class="badge-prov">${p.tipo === 'tap' ? '🧵' : '✨'} ${provLabel}</span>` : ''}
+      ${recepBadge}
+    </div>
+    ${actions ? `<div class="card-actions" style="margin-top:6px;">${actions}</div>` : ''}
+  </div>`;
 }
+
+function renderChips() {
+  const el = document.getElementById('prov-chips');
+  const c = (id, label) => `<span class="chip ${filtroProveedor===id?'active':''}" onclick="filtroProveedor='${id}';render();">${label}</span>`;
+  el.innerHTML = c('todos','Todos') + c('lus','✨ ' + PROVS.lus) + c('tap','🧵 ' + PROVS.tap);
+}
+
+function _toggleVerTodas() { verTodasRecibidas = !verTodasRecibidas; render(); }
 
 // ══════════════════════════════════════════════════════════════════════════
 // ACCIONES
 // ══════════════════════════════════════════════════════════════════════════
-let modalPartidaId = null;
-let modalTipoNueva = null;
-let tipoDesp = 'total';
-
-function setTipoDesp(t) {
-  tipoDesp = t;
-  const btnT = document.getElementById('desp-btn-total');
-  const btnP = document.getElementById('desp-btn-parcial');
-  if (t === 'total') {
-    btnT.style.borderColor = 'var(--amber)';
-    btnT.style.background  = 'rgba(245,166,35,.1)';
-    btnT.querySelector('div').style.color = 'var(--amber)';
-    btnP.style.borderColor = 'var(--border)';
-    btnP.style.background  = 'transparent';
-    btnP.querySelector('div').style.color = 'var(--muted)';
-  } else {
-    btnP.style.borderColor = 'var(--blue)';
-    btnP.style.background  = 'rgba(91,141,239,.1)';
-    btnP.querySelector('div').style.color = 'var(--blue)';
-    btnT.style.borderColor = 'var(--border)';
-    btnT.style.background  = 'transparent';
-    btnT.querySelector('div').style.color = 'var(--muted)';
-  }
-}
-
 function abrirDespacho(id) {
   modalPartidaId = id;
   tipoDesp = 'total';
   setTipoDesp('total');
-  document.getElementById('desp-fecha').value  = hoy();
+  document.getElementById('desp-fecha').value = hoy();
+  document.getElementById('desp-bultos').value = '1';
   document.getElementById('desp-partes').value = '';
-  document.getElementById('desp-nota').value   = '';
+  document.getElementById('desp-nota').value = '';
   abrirModal('desp');
+}
+
+function setTipoDesp(t) {
+  tipoDesp = t;
+  document.getElementById('desp-btn-total').className = 'btn-sm' + (t==='total'?' primary':'');
+  document.getElementById('desp-btn-parcial').className = 'btn-sm' + (t==='parcial'?' primary':'');
 }
 
 function confirmarDespacho() {
   const p = PARTIDAS.find(x=>x.id===modalPartidaId); if(!p) return;
   const bultos = parseInt(document.getElementById('desp-bultos').value) || 1;
   const partes = document.getElementById('desp-partes').value;
-  const fecha  = document.getElementById('desp-fecha').value;
-  const nota   = document.getElementById('desp-nota').value;
+  const fecha = document.getElementById('desp-fecha').value;
+  const nota = document.getElementById('desp-nota').value;
 
   if (tipoDesp === 'total') {
-    p.estado         = 'despachada';
-    p.tipoDespacho   = 'total';
-    p.bultos         = bultos;
-    p.partes         = partes;
-    p.fechaDespacho  = fecha;
-    p.nota           = nota;
+    p.estado = 'despachada';
+    p.tipoDespacho = 'total';
+    p.bultos = bultos;
+    p.partes = partes;
+    p.fechaDespacho = fecha;
+    p.nota = nota;
   } else {
-    // despacho parcial → la partida original queda en_taller (resto pendiente)
-    // se crea una nueva partida despachada con las partes que salen
-    const nueva = {
-      ...p,
-      id:            'p'+Date.now(),
-      estado:        'despachada',
-      tipoDespacho:  'parcial',
-      bultos,
-      partes,
-      fechaDespacho: fecha,
-      nota,
-      fechaRecepcion:'', estadoRecep:'', obs:''
-    };
+    const nueva = { ...p, id:'p'+Date.now(), estado:'despachada', tipoDespacho:'parcial',
+      bultos, partes, fechaDespacho:fecha, nota, fechaRecepcion:'', estadoRecep:'', obs:'' };
     p.nota = `Despacho parcial el ${fecha}. Quedan partes en taller.`;
     PARTIDAS.push(nueva);
   }
-
   guardarPartidas(); cerrarModal('desp'); render();
 }
 
@@ -497,44 +323,57 @@ function confirmarRecepcion() {
   guardarPartidas(); cerrarModal('recv'); render();
 }
 
-function abrirNuevaPartida(tipo) {
-  modalTipoNueva = tipo;
-  // cargar proyectos del localStorage para elegir
-  const proyectos = _PROYECTOS;
+// ══════════════════════════════════════════════════════════════════════════
+// NUEVA PARTIDA
+// ══════════════════════════════════════════════════════════════════════════
+function abrirNuevaPartida() {
+  modalTipoNueva = 'lus';
   const overlay = document.createElement('div');
   overlay.className = 'overlay open';
   overlay.id = 'overlay-nueva';
   overlay.onclick = () => document.body.removeChild(overlay);
   overlay.innerHTML = `
-    <div class="modal" onclick="event.stopPropagation()" style="background:#1e1e1e;">
-      <div class="modal-title">Nueva Partida — ${tipo==='tap'?'Tapicería':'Lustre'}</div>
-      <div style="display:flex;flex-direction:column;gap:14px;">
-        <div class="field" style="position:relative;"><label>Proyecto</label>
-          <input type="text" id="nueva-pr-search" placeholder="Buscar proyecto..." autocomplete="off"
-            oninput="_filtrarProyNueva()" onfocus="_filtrarProyNueva()" onblur="setTimeout(()=>{const l=document.getElementById('nueva-pr-list');if(l)l.style.display='none';},150)"
-            style="background:#111;border:1px solid #242424;border-radius:4px;color:#ccc;font-size:12px;padding:7px 10px;width:100%;outline:none;" />
-          <div id="nueva-pr-list" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:4px;max-height:200px;overflow-y:auto;margin-top:2px;"></div>
-          <input type="hidden" id="nueva-pr" value="" />
-          <div style="margin-top:6px;"><a href="#" onclick="event.preventDefault();document.getElementById('nueva-pr').value='manual';document.getElementById('nueva-manual').style.display='flex';document.getElementById('nueva-muebles-wrap').style.display='none';" style="font-size:10px;color:#555;text-decoration:underline;">Cargar manualmente</a></div>
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title">Nueva Partida</div>
+      <div class="field"><label>Proceso</label>
+        <div style="display:flex;gap:6px;">
+          <span class="chip active" id="chip-tipo-lus" onclick="_setTipoNueva('lus')">✨ Lustre</span>
+          <span class="chip" id="chip-tipo-tap" onclick="_setTipoNueva('tap')">🧵 Tapicería</span>
         </div>
-        <div class="field"><label>Cliente</label><input id="nueva-cliente" placeholder="Nombre del cliente" style="background:#111;border:1px solid #242424;"/></div>
-        <div id="nueva-manual" style="display:none;gap:14px;flex-direction:column;">
-          <div class="field"><label>Número proyecto</label><input id="nueva-num" placeholder="ODF-2385" style="background:#111;border:1px solid #242424;"/></div>
-          <div class="field"><label>Obra</label><input id="nueva-obra" placeholder="HUGO BOSS" style="background:#111;border:1px solid #242424;"/></div>
+      </div>
+      <div class="field" style="position:relative;"><label>Proyecto</label>
+        <input type="text" id="nueva-pr-search" placeholder="Buscar proyecto..." autocomplete="off"
+          oninput="_filtrarProyNueva()" onfocus="_filtrarProyNueva()" onblur="setTimeout(()=>{const l=document.getElementById('nueva-pr-list');if(l)l.style.display='none';},150)" />
+        <div id="nueva-pr-list" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:4px;max-height:200px;overflow-y:auto;margin-top:2px;"></div>
+        <input type="hidden" id="nueva-pr" value="" />
+        <div style="margin-top:4px;"><a href="#" onclick="event.preventDefault();document.getElementById('nueva-pr').value='manual';document.getElementById('nueva-manual').style.display='flex';document.getElementById('nueva-muebles-wrap').style.display='none';" style="font-size:10px;color:#555;text-decoration:underline;">Cargar manualmente</a></div>
+      </div>
+      <div class="field"><label>Cliente</label><input id="nueva-cliente" placeholder="Nombre del cliente"/></div>
+      <div id="nueva-manual" style="display:none;gap:12px;flex-direction:column;">
+        <div class="field"><label>Número proyecto</label><input id="nueva-num" placeholder="ODF-2385"/></div>
+        <div class="field"><label>Obra</label><input id="nueva-obra" placeholder="HUGO BOSS"/></div>
+      </div>
+      <div id="nueva-muebles-wrap" style="display:none;">
+        <div class="field"><label>Mueble</label>
+          <select id="nueva-mueble"><option value="">Seleccionar mueble...</option></select>
         </div>
-        <div id="nueva-muebles-wrap" style="display:none;">
-          <div class="field"><label>Mueble</label>
-            <select id="nueva-mueble" style="background:#111;border:1px solid #242424;"><option value="">Seleccionar mueble...</option></select>
-          </div>
-        </div>
-        <div class="field"><label>Nombre mueble</label><input id="nueva-nombre" placeholder="Descripción" style="background:#111;border:1px solid #242424;"/></div>
-        <div style="display:flex;gap:10px;">
-          <button class="btn btn-primary" onclick="confirmarNueva()" style="background:#FFD600;color:#000;">Agregar</button>
-          <button class="btn btn-ghost" onclick="document.body.removeChild(document.getElementById('overlay-nueva'))">Cancelar</button>
-        </div>
+      </div>
+      <div class="field"><label>Nombre mueble</label><input id="nueva-nombre" placeholder="Descripción"/></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-sm primary" onclick="confirmarNueva()">Agregar</button>
+        <button class="btn-sm" onclick="document.body.removeChild(document.getElementById('overlay-nueva'))">Cancelar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
+}
+
+function _setTipoNueva(t) {
+  modalTipoNueva = t;
+  document.getElementById('chip-tipo-lus').className = 'chip' + (t==='lus'?' active':'');
+  document.getElementById('chip-tipo-tap').className = 'chip' + (t==='tap'?' active':'');
+  // Re-filter muebles if project selected
+  const prId = document.getElementById('nueva-pr')?.value;
+  if (prId && prId !== 'manual') onNuevaPr(prId);
 }
 
 function _filtrarProyNueva() {
@@ -565,9 +404,7 @@ function _selProyNueva(prId) {
 }
 
 function onNuevaPr(prId) {
-  const proyectos = _PROYECTOS;
-  const pr = proyectos.find(p=>p.id===prId);
-  document.getElementById('nueva-manual').style.display = prId==='manual'?'flex':'none';
+  const pr = _PROYECTOS.find(p=>p.id===prId);
   document.getElementById('nueva-muebles-wrap').style.display = pr?'block':'none';
   if (pr) {
     const sel = document.getElementById('nueva-mueble');
@@ -575,31 +412,26 @@ function onNuevaPr(prId) {
     const muebles = (pr.muebles || []).filter(m => tipo === 'lus' ? (m.flujos||[]).includes('lustre') : (m.flujos||[]).includes('tapiceria'));
     sel.innerHTML = '<option value="">Seleccionar mueble...</option>' +
       (muebles.length ? muebles.map(m=>`<option value="${m.codigo}|||${m.nombre}">${m.codigo} · ${m.nombre}</option>`).join('') : '<option disabled>Sin muebles con este proceso</option>');
-    // Auto-completar cliente
     const cliEl = document.getElementById('nueva-cliente');
     if (cliEl) cliEl.value = pr.cliente_nombre || pr.cliente || '';
-    document.getElementById('nueva-num').value = pr.numero||'';
-    document.getElementById('nueva-obra').value = pr.obra||'';
     sel.onchange = () => {
       const v=sel.value.split('|||');
-      document.getElementById('nueva-codigo').value=v[0]||'';
       document.getElementById('nueva-nombre').value=v[1]||'';
     };
   }
 }
 
 function confirmarNueva() {
-  const prId  = document.getElementById('nueva-pr')?.value;
-  const proyectos = _PROYECTOS;
-  const pr    = proyectos.find(p=>p.id===prId);
+  const prId = document.getElementById('nueva-pr')?.value;
+  const pr = _PROYECTOS.find(p=>p.id===prId);
   const muebleVal = document.getElementById('nueva-mueble')?.value || '';
   const muebleParts = muebleVal.split('|||');
   const nueva = {
     id: 'p'+Date.now(),
     tipo: modalTipoNueva,
     proyectoNum: pr?.numero || document.getElementById('nueva-num')?.value || '',
-    obra:        pr?.obra   || document.getElementById('nueva-obra')?.value || '',
-    cliente:     document.getElementById('nueva-cliente')?.value || '',
+    obra: pr?.obra || document.getElementById('nueva-obra')?.value || '',
+    cliente: document.getElementById('nueva-cliente')?.value || '',
     muebleCodigo: muebleParts[0] || '',
     muebleNombre: document.getElementById('nueva-nombre')?.value || muebleParts[1] || '',
     estado:'en_taller', partes:'', fechaDespacho:'', fechaRecepcion:'', estadoRecep:'', obs:'', nota:''
@@ -628,13 +460,8 @@ function imprimirEtiquetas(id) {
   const base = 'https://juanpimc-uy.github.io/etiquetas-maderable/';
   for (let i = 1; i <= bultos; i++) {
     const params = new URLSearchParams({
-      tipo: tipoParam,
-      proyecto: p.proyectoNum || '',
-      cliente: p.cliente || '',
-      mueble: p.muebleNombre || '',
-      bulto: i,
-      total: bultos,
-      header: tipoLabel,
+      tipo: tipoParam, proyecto: p.proyectoNum || '', cliente: p.cliente || '',
+      mueble: p.muebleNombre || '', bulto: i, total: bultos, header: tipoLabel,
     });
     setTimeout(() => window.open(base + '?' + params.toString(), '_blank'), (i - 1) * 300);
   }
@@ -643,17 +470,16 @@ function imprimirEtiquetas(id) {
 // ══════════════════════════════════════════════════════════════════════════
 // UTILS
 // ══════════════════════════════════════════════════════════════════════════
-function abrirModal(id)  { document.getElementById('overlay-'+id)?.classList.add('open'); }
+function abrirModal(id) { document.getElementById('overlay-'+id)?.classList.add('open'); }
 function cerrarModal(id) { document.getElementById('overlay-'+id)?.classList.remove('open'); }
 function hoy() { return new Date().toISOString().split('T')[0]; }
 
 // ══════════════════════════════════════════════════════════════════════════
-// INIT
+// BOOT
 // ══════════════════════════════════════════════════════════════════════════
-loadProvs();
 render();
 
-// cargar datos frescos desde Supabase en background
+// cargar datos frescos desde API en background
 (async () => {
   try {
     const [rp, rc] = await Promise.all([
@@ -662,16 +488,11 @@ render();
     ]);
     if (rp.partidas && rp.partidas.length) { PARTIDAS = rp.partidas; localStorage.setItem('partidas', JSON.stringify(rp.partidas)); }
     if (rc.config?.proveedores) { PROVS = rc.config.proveedores; localStorage.setItem('proveedores', JSON.stringify(rc.config.proveedores)); }
-    // también actualizar proyectos
     window.sbFetch('proyectos_cache?activo=eq.true&order=nombre')
-      .then(data => { _PROYECTOS = data || []; })
-      .catch(()=>{});
-    loadProvs(); render();
+      .then(data => { _PROYECTOS = data || []; }).catch(()=>{});
+    render();
   } catch(e) { console.error('API load failed, usando caché localStorage', e); }
 })();
 </script>
-</div><!-- /page -->
-</div><!-- /main -->
-</div><!-- /shell -->
 </body>
 </html>
