@@ -2069,40 +2069,60 @@ export default async function handler(req) {
       const { id, tipo, proyectoNum, obra, cliente, muebleCodigo, muebleNombre,
               estado, partes, tipoDespacho, fechaDespacho, fechaRecepcion,
               estadoRecep, obs, nota, bultos, numero_envio, fechaRetornoEstimada } = body;
+      // Asignar ENV al crear (si no tiene numero_envio y es registro nuevo)
+      let envioFinal = numero_envio || null;
+      if (!envioFinal && id) {
+        // Check if record already exists in DB
+        const { data: existing } = await supabase.from('partidas_terceros')
+          .select('numero_envio').eq('id', id).maybeSingle();
+        if (existing?.numero_envio) {
+          envioFinal = existing.numero_envio; // Keep existing
+        } else if (!existing) {
+          // New record — generate ENV
+          try {
+            const { data: seqData, error: seqErr } = await supabase.rpc('nextval_envio');
+            if (!seqErr && seqData) envioFinal = 'ENV-' + String(seqData).padStart(4, '0');
+          } catch(e) {}
+        }
+      }
       const row = { id, tipo: tipo || null, proyecto_num: proyectoNum, obra, cliente: cliente || '',
                   mueble_codigo: muebleCodigo, mueble_nombre: muebleNombre,
                   estado: estado || 'en_taller', partes, tipo_despacho: tipoDespacho,
                   fecha_despacho: fechaDespacho, fecha_recepcion: fechaRecepcion,
                   estado_recep: estadoRecep, obs, nota,
-                  bultos: bultos || 0, numero_envio: numero_envio || null };
+                  bultos: bultos || 0, numero_envio: envioFinal };
       if (fechaRetornoEstimada) row.fecha_retorno_estimada = fechaRetornoEstimada;
       const { data, error } = await supabase.from('partidas_terceros')
         .upsert(row, { onConflict: 'id' })
         .select().single();
       if (error) throw error;
-      return ok({ partida: data });
+      return ok({ partida: data, numero_envio: envioFinal });
     }
 
     // ── POST despachar-partida (asigna numero_envio) ─────────────────────
     if (action === 'despachar-partida' && req.method === 'POST') {
       const { partida_id, bultos, partes, fecha, nota, tipoDespacho } = body;
       if (!partida_id) return err('partida_id requerido', 400);
-      // Obtener próximo número de envío
-      const { data: seqData, error: seqErr } = await supabase.rpc('nextval_envio');
-      let numero_envio = 'ENV-0001';
-      if (!seqErr && seqData) {
-        numero_envio = 'ENV-' + String(seqData).padStart(4, '0');
+      // Verificar si ya tiene numero_envio; si no, asignar como fallback
+      const { data: existing } = await supabase.from('partidas_terceros')
+        .select('numero_envio').eq('id', partida_id).maybeSingle();
+      let numero_envio = existing?.numero_envio || null;
+      if (!numero_envio) {
+        try {
+          const { data: seqData, error: seqErr } = await supabase.rpc('nextval_envio');
+          if (!seqErr && seqData) numero_envio = 'ENV-' + String(seqData).padStart(4, '0');
+        } catch(e) {}
       }
+      const updateRow = {
+        estado: 'despachada', tipo_despacho: tipoDespacho || 'total',
+        bultos: bultos || 1, partes: partes || '', nota: nota || '',
+        fecha_despacho: fecha || new Date().toISOString().split('T')[0],
+      };
+      if (numero_envio) updateRow.numero_envio = numero_envio;
       const { data, error } = await supabase.from('partidas_terceros')
-        .update({
-          estado: 'despachada', tipo_despacho: tipoDespacho || 'total',
-          bultos: bultos || 1, partes: partes || '', nota: nota || '',
-          fecha_despacho: fecha || new Date().toISOString().split('T')[0],
-          numero_envio,
-        })
-        .eq('id', partida_id).select().single();
+        .update(updateRow).eq('id', partida_id).select().single();
       if (error) throw error;
-      return ok({ ok: true, numero_envio, partida: data });
+      return ok({ ok: true, numero_envio: numero_envio || data?.numero_envio, partida: data });
     }
 
     // ── GET despachos ─────────────────────────────────────────────────────

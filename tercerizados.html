@@ -224,11 +224,13 @@ function cardHtml(p, col) {
   const showProv = filtroProveedor === 'todos';
   let actions = '';
   if (col === 'taller') {
-    actions = `<button class="btn-sm primary" onclick="abrirDespacho('${p.id}')">→ Despachar</button>
-      <button class="btn-sm" onclick="imprimirEtiquetas('${p.id}')" style="border-color:#333;color:#aaa;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='#333';this.style.color='#aaa'">🖨 Etiquetas</button>`;
+    actions = `<button class="btn-sm primary" onclick="abrirDespacho('${p.id}')">→ Despachar</button>`;
   } else if (col === 'prov') {
     actions = `<button class="btn-sm success" onclick="abrirRecepcion('${p.id}')">✓ Recibir</button>`;
   }
+  // Etiquetas disponible en todas las columnas
+  const etqBtn = `<button class="btn-sm" onclick="imprimirEtiquetas('${p.id}')" style="border-color:#333;color:#aaa;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='#333';this.style.color='#aaa'">🖨</button>`;
+  actions = actions ? actions + etqBtn : etqBtn;
   let recepBadge = '';
   if (col === 'recv' && p.estadoRecep) {
     const cls = p.estadoRecep === 'ok' ? 'badge-ok' : p.estadoRecep === 'obs' ? 'badge-obs' : 'badge-rehacer';
