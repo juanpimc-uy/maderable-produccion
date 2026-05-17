@@ -3208,14 +3208,31 @@ async function _loadCentrosEnModal(op) {
   }
   const todos = _centrosActivosCache;
   const sel = op.centros || [];
-  grid.innerHTML = todos.map(c => {
+  const planta = todos.filter(c => c.tipo === 'planta');
+  const oficina = todos.filter(c => c.tipo === 'oficina');
+
+  const buildChips = (lista) => lista.map(c => {
     const isAct = sel.includes(c.codigo);
     const isPlanta = c.tipo === 'planta';
     const actStyle = isAct
       ? (isPlanta ? 'background:#1a2a1a;color:#4ade80;border:1px solid #2a4a2a;' : 'background:#1a1e2a;color:#60a5fa;border:1px solid #2a3040;')
       : 'background:#111;color:#333;border:1px solid #1e1e1e;';
-    return `<span class="mod-centro-chip" data-codigo="${c.codigo}" onclick="_toggleCentroModal(this)" style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:4px 8px;border-radius:4px;cursor:pointer;user-select:none;transition:all .15s;${actStyle}">${c.nombre}</span>`;
+    return `<span class="mod-centro-chip" data-codigo="${c.codigo}" data-tipo="${c.tipo}" onclick="_toggleCentroModal(this)" style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:4px 8px;border-radius:4px;cursor:pointer;user-select:none;transition:all .15s;${actStyle}">${c.nombre}</span>`;
   }).join('');
+
+  grid.innerHTML = `
+    <div style="width:100%;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="font-family:'Space Mono',monospace;font-size:10px;color:#444;letter-spacing:.1em;text-transform:uppercase;">PLANTA</span>
+      <button onclick="_toggleGrupoCentros('planta')" id="mod-btn-toggle-planta" style="background:none;border:none;color:#444;font-size:10px;font-family:'Space Mono',monospace;text-transform:uppercase;cursor:pointer;padding:2px 6px;" onmouseenter="this.style.color='#FFD600'" onmouseleave="this.style.color='#444'">Activar todos</button>
+    </div>
+    <div style="width:100%;display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;" id="mod-centros-planta">${buildChips(planta)}</div>
+    <div style="width:100%;border-top:1px solid #1a1a1a;margin-bottom:12px;"></div>
+    <div style="width:100%;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="font-family:'Space Mono',monospace;font-size:10px;color:#444;letter-spacing:.1em;text-transform:uppercase;">OFICINA</span>
+      <button onclick="_toggleGrupoCentros('oficina')" id="mod-btn-toggle-oficina" style="background:none;border:none;color:#444;font-size:10px;font-family:'Space Mono',monospace;text-transform:uppercase;cursor:pointer;padding:2px 6px;" onmouseenter="this.style.color='#FFD600'" onmouseleave="this.style.color='#444'">Activar todos</button>
+    </div>
+    <div style="width:100%;display:flex;flex-wrap:wrap;gap:5px;" id="mod-centros-oficina">${buildChips(oficina)}</div>`;
+  _updateToggleBtnLabels();
 }
 
 function _toggleCentroModal(el) {
@@ -3229,6 +3246,31 @@ function _toggleCentroModal(el) {
     if (isPlanta) { el.style.background='#1a2a1a'; el.style.color='#4ade80'; el.style.border='1px solid #2a4a2a'; }
     else { el.style.background='#1a1e2a'; el.style.color='#60a5fa'; el.style.border='1px solid #2a3040'; }
   }
+  _updateToggleBtnLabels();
+}
+
+function _toggleGrupoCentros(tipo) {
+  const chips = document.querySelectorAll(`.mod-centro-chip[data-tipo="${tipo}"]`);
+  const allActive = [...chips].every(el => el.style.color !== 'rgb(51, 51, 51)');
+  chips.forEach(el => {
+    if (allActive) {
+      el.style.background = '#111'; el.style.color = '#333'; el.style.border = '1px solid #1e1e1e';
+    } else {
+      if (tipo === 'planta') { el.style.background='#1a2a1a'; el.style.color='#4ade80'; el.style.border='1px solid #2a4a2a'; }
+      else { el.style.background='#1a1e2a'; el.style.color='#60a5fa'; el.style.border='1px solid #2a3040'; }
+    }
+  });
+  _updateToggleBtnLabels();
+}
+
+function _updateToggleBtnLabels() {
+  ['planta','oficina'].forEach(tipo => {
+    const btn = document.getElementById('mod-btn-toggle-' + tipo);
+    if (!btn) return;
+    const chips = document.querySelectorAll(`.mod-centro-chip[data-tipo="${tipo}"]`);
+    const allActive = [...chips].every(el => el.style.color !== 'rgb(51, 51, 51)');
+    btn.textContent = allActive ? 'Desactivar todos' : 'Activar todos';
+  });
 }
 
 async function _modalCambiarPin(opId) {
