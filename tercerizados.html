@@ -53,10 +53,8 @@
 
   /* tabs */
   .tabs{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:4px;margin-bottom:24px;}
-  .tab{flex:1;padding:8px 12px;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;background:transparent;color:var(--muted);transition:all .2s;text-align:center;}
-  .tab.active{color:#0E0F14;}
-  .tab.tap.active{background:var(--purple);}
-  .tab.lus.active{background:var(--teal);}
+  .tab{flex:1;padding:8px 12px;border:none;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;background:#1a1a1a;color:#555;border:1px solid #222;transition:all .2s;text-align:center;}
+  .tab.active{background:#FFD600;color:#000;border-color:#FFD600;}
 
   /* proveedor banner */
   .prov-banner{border-radius:8px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:center;gap:14px;}
@@ -67,23 +65,23 @@
   .prov-sub{font-size:12px;color:var(--muted);}
 
   /* partida card */
-  .partida{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;transition:border-color .2s;}
+  .partida{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:6px;transition:border-color .2s;}
   .partida.en_taller{border-color:rgba(245,166,35,.3);}
   .partida.despachada{border-color:rgba(91,141,239,.3);}
   .partida.recibida{border-color:rgba(61,214,140,.3);}
-  .partida-header{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;}
-  .partida-codigo{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--amber);min-width:60px;}
-  .partida-nombre{font-size:14px;font-weight:600;flex:1;}
-  .partida-body{display:flex;flex-direction:column;gap:10px;}
+  .partida-header{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+  .partida-codigo{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#FFD600;}
+  .partida-nombre{font-size:12px;font-weight:600;flex:1;}
+  .partida-body{display:flex;flex-direction:column;gap:4px;}
 
   /* timeline */
-  .timeline{display:flex;gap:0;margin-bottom:10px;}
+  .timeline{display:flex;gap:0;margin-bottom:6px;height:24px;align-items:center;}
   .tl-step{flex:1;position:relative;}
-  .tl-dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-family:'JetBrains Mono',monospace;font-weight:700;border:2px solid var(--border);background:var(--faint);color:var(--muted);margin:0 auto 4px;}
-  .tl-dot.done{border-color:var(--green);background:var(--green);color:#0E0F14;}
-  .tl-dot.active{border-color:var(--amber);background:var(--amber);color:#0E0F14;}
-  .tl-label{text-align:center;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;}
-  .tl-line{position:absolute;top:10px;left:50%;right:-50%;height:2px;background:var(--border);z-index:0;}
+  .tl-dot{width:10px;height:10px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0;border:2px solid var(--border);background:var(--faint);margin:0 auto 2px;}
+  .tl-dot.done{border-color:var(--green);background:var(--green);}
+  .tl-dot.active{border-color:#FFD600;background:#FFD600;}
+  .tl-label{text-align:center;font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:.3px;}
+  .tl-line{position:absolute;top:4px;left:50%;right:-50%;height:2px;background:var(--border);z-index:0;}
   .tl-line.done{background:var(--green);}
   .tl-step:last-child .tl-line{display:none;}
 
@@ -130,16 +128,16 @@
 
   <!-- tabs -->
   <div class="tabs">
-    <button class="tab tap active" id="tab-tap" onclick="switchTab('tap')">🧵 Tapicería</button>
-    <button class="tab lus" id="tab-lus" onclick="switchTab('lus')">✨ Lustre</button>
+    <button class="tab tap" id="tab-tap" onclick="switchTab('tap')">🧵 Tapicería</button>
+    <button class="tab lus active" id="tab-lus" onclick="switchTab('lus')">✨ Lustre</button>
   </div>
 
   <!-- KPIs -->
   <div class="g3" style="margin-bottom:20px;" id="kpi-bar"></div>
 
   <!-- contenido -->
-  <div id="content-tap"></div>
-  <div id="content-lus" style="display:none;"></div>
+  <div id="content-tap" style="display:none;"></div>
+  <div id="content-lus"></div>
 
 </div>
 
@@ -259,7 +257,7 @@ function guardarPartidas() {
 // ══════════════════════════════════════════════════════════════════════════
 // NAVEGACIÓN TABS
 // ══════════════════════════════════════════════════════════════════════════
-let tabActual = 'tap';
+let tabActual = 'lus';
 
 function switchTab(t) {
   tabActual = t;
@@ -326,15 +324,13 @@ function renderTab(tipo) {
       html += `<div class="partida en_taller">
         <div class="partida-header">
           <span class="partida-codigo">${p.muebleCodigo}</span>
-          <div style="flex:1;">
-            <div class="partida-nombre">${p.muebleNombre}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px;">${p.proyectoNum} · ${p.obra}</div>
-          </div>
+          <span class="partida-nombre">${p.muebleNombre}</span>
+          <span style="font-size:10px;color:#666;">${p.proyectoNum} · ${p.obra}</span>
           <span class="pill" style="color:var(--amber);background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);">En Taller</span>
         </div>
         ${tlHtml(p)}
         <div class="partida-body">
-          <button class="btn btn-primary btn-sm" onclick="abrirDespacho('${p.id}')">→ Despachar al proveedor</button>
+          <button class="btn btn-primary btn-sm" style="height:28px;font-size:10px;padding:4px 12px;background:#FFD600;color:#000;" onclick="abrirDespacho('${p.id}')">→ Despachar al proveedor</button>
         </div>
       </div>`;
     });
@@ -348,17 +344,14 @@ function renderTab(tipo) {
       html += `<div class="partida despachada">
         <div class="partida-header">
           <span class="partida-codigo">${p.muebleCodigo}</span>
-          <div style="flex:1;">
-            <div class="partida-nombre">${p.muebleNombre}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px;">${p.proyectoNum} · ${p.obra}</div>
-          </div>
+          <span class="partida-nombre">${p.muebleNombre}</span>
+          <span style="font-size:10px;color:#666;">${p.proyectoNum} · ${p.obra}</span>
           <span class="pill" style="color:var(--blue);background:rgba(91,141,239,.1);border:1px solid rgba(91,141,239,.3);">En proveedor</span>
         </div>
         ${tlHtml(p)}
         <div class="partida-body">
-          <div style="font-size:12px;color:var(--muted);">Partes: <span style="color:var(--text);">${p.partes||'—'}</span></div>
-          <div style="font-size:12px;color:var(--muted);">Salida: <span style="color:var(--text);">${p.fechaDespacho}</span>${p.nota?` · <span style="color:var(--blue);">${p.nota}</span>`:''}</div>
-          <button class="btn btn-success btn-sm" onclick="abrirRecepcion('${p.id}')">✓ Registrar Recepción</button>
+          <div style="font-size:10px;color:#666;">Partes: ${p.partes||'—'} · Salida: ${p.fechaDespacho}${p.nota?' · '+p.nota:''}</div>
+          <button class="btn btn-success btn-sm" style="height:28px;font-size:10px;padding:4px 12px;" onclick="abrirRecepcion('${p.id}')">✓ Registrar Recepción</button>
         </div>
       </div>`;
     });
@@ -509,29 +502,29 @@ function abrirNuevaPartida(tipo) {
   overlay.id = 'overlay-nueva';
   overlay.onclick = () => document.body.removeChild(overlay);
   overlay.innerHTML = `
-    <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal" onclick="event.stopPropagation()" style="background:#1e1e1e;">
       <div class="modal-title">Nueva Partida — ${tipo==='tap'?'Tapicería':'Lustre'}</div>
       <div style="display:flex;flex-direction:column;gap:14px;">
         <div class="field"><label>Proyecto</label>
-          <select id="nueva-pr" onchange="onNuevaPr(this.value)">
+          <select id="nueva-pr" onchange="onNuevaPr(this.value)" style="background:#111;border:1px solid #242424;">
             <option value="">Seleccionar...</option>
             ${proyectos.map(p=>`<option value="${p.id}">${p.numero} · ${p.obra}</option>`).join('')}
             <option value="manual">Cargar manualmente</option>
           </select>
         </div>
+        <div class="field"><label>Cliente</label><input id="nueva-cliente" placeholder="Nombre del cliente" style="background:#111;border:1px solid #242424;"/></div>
         <div id="nueva-manual" style="display:none;gap:14px;flex-direction:column;">
-          <div class="field"><label>Número proyecto</label><input id="nueva-num" placeholder="ODF-2385"/></div>
-          <div class="field"><label>Obra</label><input id="nueva-obra" placeholder="HUGO BOSS"/></div>
+          <div class="field"><label>Número proyecto</label><input id="nueva-num" placeholder="ODF-2385" style="background:#111;border:1px solid #242424;"/></div>
+          <div class="field"><label>Obra</label><input id="nueva-obra" placeholder="HUGO BOSS" style="background:#111;border:1px solid #242424;"/></div>
         </div>
         <div id="nueva-muebles-wrap" style="display:none;">
           <div class="field"><label>Mueble</label>
-            <select id="nueva-mueble"><option value="">Seleccionar mueble...</option></select>
+            <select id="nueva-mueble" style="background:#111;border:1px solid #242424;"><option value="">Seleccionar mueble...</option></select>
           </div>
         </div>
-        <div class="field"><label>Código mueble (manual)</label><input id="nueva-codigo" placeholder="C01"/></div>
-        <div class="field"><label>Nombre mueble</label><input id="nueva-nombre" placeholder="Descripción"/></div>
+        <div class="field"><label>Nombre mueble</label><input id="nueva-nombre" placeholder="Descripción" style="background:#111;border:1px solid #242424;"/></div>
         <div style="display:flex;gap:10px;">
-          <button class="btn btn-primary" onclick="confirmarNueva()">Agregar</button>
+          <button class="btn btn-primary" onclick="confirmarNueva()" style="background:#FFD600;color:#000;">Agregar</button>
           <button class="btn btn-ghost" onclick="document.body.removeChild(document.getElementById('overlay-nueva'))">Cancelar</button>
         </div>
       </div>
@@ -547,8 +540,12 @@ function onNuevaPr(prId) {
   if (pr) {
     const sel = document.getElementById('nueva-mueble');
     const tipo = modalTipoNueva;
+    const muebles = (pr.muebles || []).filter(m => tipo === 'lus' ? m.lus === true : m.tap === true);
     sel.innerHTML = '<option value="">Seleccionar mueble...</option>' +
-      pr.muebles.filter(m=>m.flujos.includes(tipo)).map(m=>`<option value="${m.codigo}|||${m.nombre}">${m.codigo} · ${m.nombre}</option>`).join('');
+      (muebles.length ? muebles.map(m=>`<option value="${m.codigo}|||${m.nombre}">${m.codigo} · ${m.nombre}</option>`).join('') : '<option disabled>Sin muebles con este proceso</option>');
+    // Auto-completar cliente
+    const cliEl = document.getElementById('nueva-cliente');
+    if (cliEl) cliEl.value = pr.cliente_nombre || pr.cliente || '';
     document.getElementById('nueva-num').value = pr.numero||'';
     document.getElementById('nueva-obra').value = pr.obra||'';
     sel.onchange = () => {
@@ -563,16 +560,19 @@ function confirmarNueva() {
   const prId  = document.getElementById('nueva-pr')?.value;
   const proyectos = _PROYECTOS;
   const pr    = proyectos.find(p=>p.id===prId);
+  const muebleVal = document.getElementById('nueva-mueble')?.value || '';
+  const muebleParts = muebleVal.split('|||');
   const nueva = {
     id: 'p'+Date.now(),
     tipo: modalTipoNueva,
     proyectoNum: pr?.numero || document.getElementById('nueva-num')?.value || '',
     obra:        pr?.obra   || document.getElementById('nueva-obra')?.value || '',
-    muebleCodigo:document.getElementById('nueva-codigo')?.value || '',
-    muebleNombre:document.getElementById('nueva-nombre')?.value || '',
+    cliente:     document.getElementById('nueva-cliente')?.value || '',
+    muebleCodigo: muebleParts[0] || '',
+    muebleNombre: document.getElementById('nueva-nombre')?.value || muebleParts[1] || '',
     estado:'en_taller', partes:'', fechaDespacho:'', fechaRecepcion:'', estadoRecep:'', obs:'', nota:''
   };
-  if (!nueva.muebleCodigo || !nueva.muebleNombre) { alert('Completá código y nombre del mueble'); return; }
+  if (!nueva.muebleNombre) { alert('Completá el nombre del mueble'); return; }
   PARTIDAS.push(nueva);
   guardarPartidas();
   const ov = document.getElementById('overlay-nueva');
