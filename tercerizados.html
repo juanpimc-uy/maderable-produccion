@@ -76,6 +76,7 @@
   <div class="topbar">
     <span class="topbar-title">TERCERIZADOS</span>
     <div style="display:flex;gap:6px;margin-left:16px;" id="prov-chips"></div>
+    <button onclick="abrirConfigProvs()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:4px;" title="Configurar proveedores">⚙</button>
     <div style="margin-left:auto;">
       <button class="btn-sm primary" onclick="abrirNuevaPartida()">+ Agregar partida</button>
     </div>
@@ -239,7 +240,10 @@ function cardHtml(p, col) {
   return `<div class="card">
     <div class="card-row1">
       <span class="card-code">${p.muebleCodigo || '—'}</span>
-      <span class="card-odf">${p.proyectoNum || ''}</span>
+      <span style="display:flex;align-items:center;gap:6px;">
+        ${p.numero_envio ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;background:#0a1a2a;color:var(--blue);border:1px solid #1a2a3a;">${p.numero_envio}</span>` : ''}
+        <span class="card-odf">${p.proyectoNum || ''}</span>
+      </span>
     </div>
     <div class="card-nombre">${p.muebleNombre || '—'}</div>
     <div class="card-meta">
@@ -283,7 +287,7 @@ function setTipoDesp(t) {
   document.getElementById('desp-btn-parcial').className = 'btn-sm' + (t==='parcial'?' primary':'');
 }
 
-function confirmarDespacho() {
+async function confirmarDespacho() {
   const p = PARTIDAS.find(x=>x.id===modalPartidaId); if(!p) return;
   const bultos = parseInt(document.getElementById('desp-bultos').value) || 1;
   const partes = document.getElementById('desp-partes').value;
@@ -291,16 +295,40 @@ function confirmarDespacho() {
   const nota = document.getElementById('desp-nota').value;
 
   if (tipoDesp === 'total') {
-    p.estado = 'despachada';
-    p.tipoDespacho = 'total';
-    p.bultos = bultos;
-    p.partes = partes;
-    p.fechaDespacho = fecha;
-    p.nota = nota;
+    // Llamar endpoint para asignar numero_envio
+    try {
+      const res = await fetch('/api/tiempos?action=despachar-partida', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ partida_id: p.id, bultos, partes, fecha, nota, tipoDespacho:'total' })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        p.estado = 'despachada';
+        p.tipoDespacho = 'total';
+        p.bultos = bultos;
+        p.partes = partes;
+        p.fechaDespacho = fecha;
+        p.nota = nota;
+        p.numero_envio = data.numero_envio || '';
+      }
+    } catch(e) {
+      // Fallback local sin numero_envio
+      p.estado = 'despachada'; p.tipoDespacho = 'total';
+      p.bultos = bultos; p.partes = partes; p.fechaDespacho = fecha; p.nota = nota;
+    }
   } else {
     const nueva = { ...p, id:'p'+Date.now(), estado:'despachada', tipoDespacho:'parcial',
       bultos, partes, fechaDespacho:fecha, nota, fechaRecepcion:'', estadoRecep:'', obs:'' };
     p.nota = `Despacho parcial el ${fecha}. Quedan partes en taller.`;
+    // Asignar numero_envio a la nueva
+    try {
+      const res = await fetch('/api/tiempos?action=despachar-partida', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ partida_id: nueva.id, bultos, partes, fecha, nota, tipoDespacho:'parcial' })
+      });
+      const data = await res.json();
+      if (data.ok) nueva.numero_envio = data.numero_envio || '';
+    } catch(e) {}
     PARTIDAS.push(nueva);
   }
   guardarPartidas(); cerrarModal('desp'); render();
@@ -450,10 +478,14 @@ function confirmarNueva() {
 function imprimirEtiquetas(id) {
   const p = PARTIDAS.find(x => x.id === id);
   if (!p) return;
-  const bultos = p.bultos || 0;
+  let bultos = p.bultos || 0;
   if (!bultos || bultos < 1) {
-    alert('Despachar primero para imprimir etiquetas');
-    return;
+    const input = prompt('Cantidad de bultos:', '1');
+    if (!input) return;
+    bultos = parseInt(input) || 1;
+    if (bultos < 1) bultos = 1;
+    p.bultos = bultos;
+    guardarPartidas();
   }
   const tipoLabel = p.tipo === 'lus' ? 'ENVIO+LUSTRE' : 'ENVIO+TAPICERIA';
   const tipoParam = p.tipo === 'lus' ? 'lustre' : 'tapiceria';
@@ -465,6 +497,41 @@ function imprimirEtiquetas(id) {
     });
     setTimeout(() => window.open(base + '?' + params.toString(), '_blank'), (i - 1) * 300);
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONFIG PROVEEDORES
+// ══════════════════════════════════════════════════════════════════════════
+function abrirConfigProvs() {
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay open';
+  overlay.id = 'overlay-cfg-prov';
+  overlay.onclick = () => document.body.removeChild(overlay);
+  overlay.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title">Configurar Proveedores</div>
+      <div class="field"><label>✨ Proveedor Lustre</label>
+        <input id="cfg-prov-lus" value="${PROVS.lus||''}" placeholder="Nombre del lustrador"/>
+      </div>
+      <div class="field"><label>🧵 Proveedor Tapicería</label>
+        <input id="cfg-prov-tap" value="${PROVS.tap||''}" placeholder="Nombre del tapicero"/>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn-sm primary" onclick="_guardarConfigProvs()">Guardar</button>
+        <button class="btn-sm" onclick="document.body.removeChild(document.getElementById('overlay-cfg-prov'))">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function _guardarConfigProvs() {
+  PROVS.lus = document.getElementById('cfg-prov-lus')?.value || PROVS.lus;
+  PROVS.tap = document.getElementById('cfg-prov-tap')?.value || PROVS.tap;
+  localStorage.setItem('proveedores', JSON.stringify(PROVS));
+  fetch('/api/tiempos?action=guardar-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clave:'proveedores',valor:PROVS})}).catch(()=>{});
+  const ov = document.getElementById('overlay-cfg-prov');
+  if (ov) document.body.removeChild(ov);
+  render();
 }
 
 // ══════════════════════════════════════════════════════════════════════════

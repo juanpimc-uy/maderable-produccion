@@ -1989,27 +1989,51 @@ export default async function handler(req) {
       if (error) throw error;
       return ok({ partidas: (data || []).map(p => ({
         id: p.id, tipo: p.tipo, proyectoNum: p.proyecto_num, obra: p.obra,
-        muebleCodigo: p.mueble_codigo, muebleNombre: p.mueble_nombre,
+        cliente: p.cliente || '', muebleCodigo: p.mueble_codigo, muebleNombre: p.mueble_nombre,
         estado: p.estado, partes: p.partes, tipoDespacho: p.tipo_despacho,
         fechaDespacho: p.fecha_despacho, fechaRecepcion: p.fecha_recepcion,
         estadoRecep: p.estado_recep, obs: p.obs, nota: p.nota,
+        bultos: p.bultos || 0, numero_envio: p.numero_envio || '',
       })) });
     }
 
     // ── POST guardar partida ──────────────────────────────────────────────
     if (action === 'guardar-partida' && req.method === 'POST') {
-      const { id, tipo, proyectoNum, obra, muebleCodigo, muebleNombre,
+      const { id, tipo, proyectoNum, obra, cliente, muebleCodigo, muebleNombre,
               estado, partes, tipoDespacho, fechaDespacho, fechaRecepcion,
-              estadoRecep, obs, nota } = body;
+              estadoRecep, obs, nota, bultos, numero_envio } = body;
       const { data, error } = await supabase.from('partidas_terceros')
-        .upsert({ id, tipo, proyecto_num: proyectoNum, obra,
+        .upsert({ id, tipo, proyecto_num: proyectoNum, obra, cliente: cliente || '',
                   mueble_codigo: muebleCodigo, mueble_nombre: muebleNombre,
                   estado: estado || 'en_taller', partes, tipo_despacho: tipoDespacho,
                   fecha_despacho: fechaDespacho, fecha_recepcion: fechaRecepcion,
-                  estado_recep: estadoRecep, obs, nota }, { onConflict: 'id' })
+                  estado_recep: estadoRecep, obs, nota,
+                  bultos: bultos || 0, numero_envio: numero_envio || null }, { onConflict: 'id' })
         .select().single();
       if (error) throw error;
       return ok({ partida: data });
+    }
+
+    // ── POST despachar-partida (asigna numero_envio) ─────────────────────
+    if (action === 'despachar-partida' && req.method === 'POST') {
+      const { partida_id, bultos, partes, fecha, nota, tipoDespacho } = body;
+      if (!partida_id) return err('partida_id requerido', 400);
+      // Obtener próximo número de envío
+      const { data: seqData, error: seqErr } = await supabase.rpc('nextval_envio');
+      let numero_envio = 'ENV-0001';
+      if (!seqErr && seqData) {
+        numero_envio = 'ENV-' + String(seqData).padStart(4, '0');
+      }
+      const { data, error } = await supabase.from('partidas_terceros')
+        .update({
+          estado: 'despachada', tipo_despacho: tipoDespacho || 'total',
+          bultos: bultos || 1, partes: partes || '', nota: nota || '',
+          fecha_despacho: fecha || new Date().toISOString().split('T')[0],
+          numero_envio,
+        })
+        .eq('id', partida_id).select().single();
+      if (error) throw error;
+      return ok({ ok: true, numero_envio, partida: data });
     }
 
     // ── GET despachos ─────────────────────────────────────────────────────
