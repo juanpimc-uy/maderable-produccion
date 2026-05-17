@@ -357,7 +357,13 @@ function confirmarRecepcion() {
 // NUEVA PARTIDA
 // ══════════════════════════════════════════════════════════════════════════
 function abrirNuevaPartida() {
-  modalTipoNueva = 'lus';
+  // Si hay filtro de proveedor activo, asignar tipo automáticamente
+  if (filtroProveedor !== 'todos') {
+    modalTipoNueva = filtroProveedor;
+  } else {
+    modalTipoNueva = 'lus';
+  }
+  const mostrarProceso = filtroProveedor === 'todos';
   const overlay = document.createElement('div');
   overlay.className = 'overlay open';
   overlay.id = 'overlay-nueva';
@@ -365,12 +371,12 @@ function abrirNuevaPartida() {
   overlay.innerHTML = `
     <div class="modal" onclick="event.stopPropagation()">
       <div class="modal-title">Nueva Partida</div>
-      <div class="field"><label>Proceso</label>
+      ${mostrarProceso ? `<div class="field"><label>Proceso</label>
         <div style="display:flex;gap:6px;">
-          <span class="chip active" id="chip-tipo-lus" onclick="_setTipoNueva('lus')">✨ Lustre</span>
-          <span class="chip" id="chip-tipo-tap" onclick="_setTipoNueva('tap')">🧵 Tapicería</span>
+          <span class="chip active" id="chip-tipo-lus" onclick="_setTipoNueva('lus')">Lustre</span>
+          <span class="chip" id="chip-tipo-tap" onclick="_setTipoNueva('tap')">Tapiceria</span>
         </div>
-      </div>
+      </div>` : ''}
       <div class="field" style="position:relative;"><label>Proyecto</label>
         <input type="text" id="nueva-pr-search" placeholder="Buscar proyecto..." autocomplete="off"
           oninput="_filtrarProyNueva()" onfocus="_filtrarProyNueva()" onblur="setTimeout(()=>{const l=document.getElementById('nueva-pr-list');if(l)l.style.display='none';},150)" />
@@ -597,39 +603,49 @@ function imprimirEtiquetas(id) {
   if (!p) return;
   const bultos = p.bultos || 1;
   const provLabel = p.tipo === 'tap' ? PROVS.tap : PROVS.lus;
-  const envio = p.numero_envio || 'ENV: PENDIENTE';
-  const retorno = p.fechaRetornoEstimada ? _fmtFechaCorta(p.fechaRetornoEstimada) : '\u2014';
+  const envio = p.numero_envio || 'PENDIENTE';
+  const qrUrl = 'https://maderable-produccion.vercel.app/envio.html?id=' + encodeURIComponent(envio);
   for (let i = 1; i <= bultos; i++) {
-    _imprimirEtiqueta(p, provLabel, envio, retorno, i, bultos);
+    setTimeout(() => _imprimirEtiqueta(p, provLabel, envio, qrUrl), (i - 1) * 500);
   }
 }
 
-function _imprimirEtiqueta(p, provLabel, envio, retorno, bultoNum, bultoTotal) {
-  const win = window.open('', '_blank', 'width=400,height=300');
+function _imprimirEtiqueta(p, provLabel, envio, qrUrl) {
+  const win = window.open('', '_blank', 'width=450,height=350');
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
 @page { size: 60mm 30mm; margin: 1.5mm; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { width: 60mm; height: 30mm; font-family: 'Space Mono', monospace; font-size: 6px; color: #000; background: #fff; display: flex; flex-direction: column; padding: 1.5mm; }
-.header { font-size: 5px; letter-spacing: 1px; opacity: 0.5; margin-bottom: 1mm; text-transform: uppercase; }
-.envio { font-size: 11px; font-weight: 700; letter-spacing: 1px; margin-bottom: 1.5mm; border-bottom: 0.3mm solid #000; padding-bottom: 1mm; }
-.row { display: flex; gap: 1mm; margin-bottom: 0.5mm; line-height: 1.3; }
-.lbl { font-size: 5px; letter-spacing: 0.5px; opacity: 0.5; text-transform: uppercase; width: 14mm; flex-shrink: 0; }
-.val { font-size: 6px; font-weight: 700; text-transform: uppercase; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.footer { margin-top: auto; display: flex; justify-content: space-between; font-size: 5px; opacity: 0.6; border-top: 0.3mm solid #ccc; padding-top: 0.5mm; }
+body { width: 60mm; height: 30mm; font-family: monospace; font-size: 6.5px; color: #000; background: #fff; padding: 1.5mm; display: flex; gap: 1.5mm; }
+.left { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.right { width: 18mm; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.hdr { font-size: 4.5px; letter-spacing: 0.5px; text-transform: uppercase; opacity: 0.5; margin-bottom: 1mm; white-space: nowrap; overflow: hidden; }
+.line1 { font-size: 6px; font-weight: 700; text-transform: uppercase; margin-bottom: 0.8mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.line2 { font-size: 7px; font-weight: 700; text-transform: uppercase; margin-bottom: 1mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.env { font-size: 5px; opacity: 0.6; margin-top: auto; }
+#qr { width: 16mm; height: 16mm; }
+#qr img, #qr canvas { width: 16mm !important; height: 16mm !important; }
 </style></head><body>
-<div class="header">&#9675; MADERABLE &middot; ENVIO TERCEROS</div>
-<div class="envio">${envio}</div>
-<div class="row"><span class="lbl">Cliente</span><span class="val">${p.cliente || '\u2014'}</span></div>
-<div class="row"><span class="lbl">Proyecto</span><span class="val">${p.proyectoNum || ''} ${p.obra ? '\u00b7 ' + p.obra : ''}</span></div>
-<div class="row"><span class="lbl">Mueble</span><span class="val">${p.muebleCodigo || ''} \u00b7 ${p.muebleNombre || '\u2014'}</span></div>
-<div class="row"><span class="lbl">Proveedor</span><span class="val">${provLabel || '\u2014'}</span></div>
-<div class="footer"><span>Bulto: ${bultoNum}/${bultoTotal}</span><span>Retorno: ${retorno}</span></div>
+<div class="left">
+  <div class="hdr">MADERABLE &rarr; ${(provLabel||'').toUpperCase()}</div>
+  <div class="line1">${(p.cliente||'').toUpperCase()} / ${p.proyectoNum||''} &middot; ${(p.obra||'').toUpperCase()}</div>
+  <div class="line2">${(p.muebleNombre||'').toUpperCase()}</div>
+  <div class="env">${envio}</div>
+</div>
+<div class="right">
+  <div id="qr"></div>
+</div>
+<script>
+new QRCode(document.getElementById('qr'), {
+  text: '${qrUrl}',
+  width: 128, height: 128,
+  correctLevel: QRCode.CorrectLevel.M
+});
+setTimeout(function(){ window.print(); window.close(); }, 600);
+<\/script>
 </body></html>`);
   win.document.close();
-  win.focus();
-  setTimeout(() => { win.print(); win.close(); }, 400);
 }
 
 function _fmtFechaCorta(dateStr) {
