@@ -548,7 +548,7 @@ function _filtrarProyNueva() {
     list.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#555;">Sin resultados</div>';
   } else {
     list.innerHTML = filtered.map(p =>
-      `<div onmousedown="_selProyNueva('${p.id}')" style="padding:8px 12px;font-size:12px;cursor:pointer;transition:background .1s;" onmouseenter="this.style.background='#222'" onmouseleave="this.style.background='transparent'"><span style="color:#FFD600;font-family:'JetBrains Mono',monospace;font-size:11px;">${p.numero||''}</span> <span style="color:#ccc;">${p.nombre||p.obra||''}</span></div>`
+      `<div onmousedown="_selProyNueva('${p.id}')" style="padding:8px 12px;font-size:12px;cursor:pointer;transition:background .1s;" onmouseenter="this.style.background='#222'" onmouseleave="this.style.background='transparent'"><span style="color:#FFD600;font-family:'JetBrains Mono',monospace;font-size:11px;">${p.numero||''}</span> <span style="color:#ccc;">${(p.nombre && p.nombre !== p.numero) ? p.nombre : p.obra || ''}</span></div>`
     ).join('');
   }
   list.style.display = 'block';
@@ -558,7 +558,7 @@ function _selProyNueva(prId) {
   const pr = _PROYECTOS.find(p => p.id === prId);
   if (!pr) return;
   document.getElementById('nueva-pr').value = prId;
-  document.getElementById('nueva-pr-search').value = (pr.numero||'') + ' · ' + (pr.nombre||pr.obra||'');
+  document.getElementById('nueva-pr-search').value = (pr.numero||'') + ' · ' + ((pr.nombre && pr.nombre !== pr.numero) ? pr.nombre : pr.obra || '');
   document.getElementById('nueva-pr-list').style.display = 'none';
   document.getElementById('nueva-manual').style.display = 'none';
   onNuevaPr(prId);
@@ -618,15 +618,10 @@ function confirmarNueva() {
 function imprimirEtiquetas(id) {
   const p = PARTIDAS.find(x => x.id === id);
   if (!p) return;
-  let bultos = p.bultos || 0;
+  const bultos = p.bultos || 0;
   if (!bultos || bultos < 1) {
-    const input = prompt('Cantidad de bultos para esta partida:', '1');
-    if (!input) return;
-    bultos = parseInt(input) || 1;
-    if (bultos < 1) bultos = 1;
-    p.bultos = bultos;
-    guardarPartidas();
-    render();
+    alert('Despachar primero para imprimir etiquetas');
+    return;
   }
   const tipoLabel = p.tipo === 'lus' ? 'ENVIO+LUSTRE' : 'ENVIO+TAPICERIA';
   const tipoParam = p.tipo === 'lus' ? 'lustre' : 'tapiceria';
