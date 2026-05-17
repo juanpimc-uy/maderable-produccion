@@ -2034,6 +2034,7 @@ export default async function handler(req) {
         if (cfg?.valor) { provs.tap = cfg.valor.tap; provs.lus = cfg.valor.lus; }
       } catch(e) {}
       return ok({ ok: true, envio: {
+        partida_id: data.id,
         numero_envio: data.numero_envio,
         estado: data.estado,
         cliente: data.cliente || '',
@@ -2042,6 +2043,7 @@ export default async function handler(req) {
         mueble_nombre: data.mueble_nombre || '',
         mueble_codigo: data.mueble_codigo || '',
         proveedor: data.tipo === 'tap' ? (provs.tap || 'Tapicero') : (provs.lus || 'Lustrador'),
+        bultos: data.bultos || 1,
         fecha_despacho: data.fecha_despacho || '',
         fecha_retorno_estimada: data.fecha_retorno_estimada || '',
         fecha_recepcion: data.fecha_recepcion || '',
@@ -2123,6 +2125,21 @@ export default async function handler(req) {
         .update(updateRow).eq('id', partida_id).select().single();
       if (error) throw error;
       return ok({ ok: true, numero_envio: numero_envio || data?.numero_envio, partida: data });
+    }
+
+    // ── POST recibir-partida (público, desde QR) ─────────────────────────
+    if (action === 'recibir-partida' && req.method === 'POST') {
+      const { partida_id } = body;
+      if (!partida_id) return err('partida_id requerido', 400);
+      const { data, error } = await supabase.from('partidas_terceros')
+        .update({
+          estado: 'recibida',
+          fecha_recepcion: new Date().toISOString().split('T')[0],
+          estado_recep: 'ok',
+        })
+        .eq('id', partida_id).select().single();
+      if (error) throw error;
+      return ok({ ok: true, partida: data });
     }
 
     // ── GET despachos ─────────────────────────────────────────────────────

@@ -2,38 +2,52 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="robots" content="noindex">
 <title>MBLE · Envio</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
 :root{--bg:#0f0f0f;--panel:#1a1a1a;--border:#2a2a2a;--accent:#FFD600;--green:#4caf50;--red:#ef5350;--blue:#4a9eff;--muted:#555;--text:#e0e0e0;}
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:20px;}
-.wrap{width:100%;max-width:400px;}
-.header{font-family:'Space Mono',monospace;font-size:12px;color:var(--accent);letter-spacing:2px;margin-bottom:24px;}
-.envio-num{font-family:'Space Mono',monospace;font-size:28px;font-weight:700;color:#fff;margin-bottom:20px;letter-spacing:1px;}
-.timeline{display:flex;align-items:center;gap:0;margin-bottom:24px;padding:0 8px;}
-.tl-step{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;}
-.tl-dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--border);background:var(--bg);z-index:1;margin-bottom:6px;}
-.tl-dot.done{border-color:var(--accent);background:var(--accent);}
-.tl-dot.active{border-color:var(--accent);background:var(--accent);box-shadow:0 0 8px rgba(255,214,0,.4);}
-.tl-dot.complete{border-color:var(--green);background:var(--green);}
-.tl-label{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;text-align:center;}
-.tl-label.active{color:var(--accent);font-weight:700;}
-.tl-label.complete{color:var(--green);}
-.tl-line{position:absolute;top:5px;left:50%;right:-50%;height:2px;background:var(--border);z-index:0;}
-.tl-line.done{background:var(--accent);}
-.tl-line.complete{background:var(--green);}
-.tl-step:last-child .tl-line{display:none;}
-.info{background:var(--panel);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
-.info-row{display:flex;padding:10px 16px;border-bottom:1px solid var(--border);}
-.info-row:last-child{border-bottom:none;}
-.info-lbl{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;width:90px;flex-shrink:0;}
-.info-val{font-size:13px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.badge-atrasada{display:inline-block;font-family:'Space Mono',monospace;font-size:9px;padding:3px 8px;border-radius:3px;background:#2a0a0a;color:var(--red);border:1px solid #3a1a1a;letter-spacing:1px;margin-left:8px;}
-.not-found{text-align:center;padding:60px 20px;font-family:'Space Mono',monospace;font-size:13px;color:var(--muted);}
-.loading{text-align:center;padding:40px;font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;min-height:100vh;}
+.wrap{width:100%;max-width:420px;margin:0 auto;padding:16px;}
+.header{font-size:12px;color:var(--accent);letter-spacing:2px;margin-bottom:20px;}
+.envio-num{font-size:24px;font-weight:700;color:#fff;margin-bottom:12px;letter-spacing:1px;}
+.info-compact{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:16px;font-size:11px;line-height:1.8;}
+.info-compact .lbl{color:var(--muted);font-size:9px;letter-spacing:.5px;text-transform:uppercase;}
+.info-compact .val{color:#ccc;font-weight:700;}
+.actions{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+.action-btn{padding:14px 16px;background:var(--panel);border:1px solid var(--border);border-radius:8px;font-family:'Space Mono',monospace;font-size:12px;color:var(--text);cursor:pointer;text-align:left;transition:border-color .15s;}
+.action-btn:hover{border-color:var(--accent);}
+.action-btn:disabled{opacity:.4;cursor:not-allowed;}
+.completed{text-align:center;padding:20px;font-size:13px;color:var(--green);}
+/* Scanner */
+.scanner-hdr{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.scanner-hdr .back{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px;}
+.scanner-hdr .title{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text);}
+#video-wrap{width:100%;aspect-ratio:4/3;background:#000;border-radius:8px;overflow:hidden;margin-bottom:12px;position:relative;}
+#video-wrap video{width:100%;height:100%;object-fit:cover;}
+#video-wrap.flash{animation:flashGreen .3s;}
+@keyframes flashGreen{0%{box-shadow:inset 0 0 40px rgba(76,175,80,.6)}100%{box-shadow:none}}
+.bultos-list{margin-bottom:16px;}
+.bulto-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--panel);border:1px solid var(--border);border-radius:6px;margin-bottom:6px;cursor:pointer;transition:border-color .15s;}
+.bulto-row.checked{border-color:var(--green);background:#0a1a0a;}
+.bulto-chk{width:18px;height:18px;border-radius:4px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}
+.bulto-row.checked .bulto-chk{border-color:var(--green);background:var(--green);color:#000;}
+.bulto-label{font-size:11px;flex:1;}
+.bulto-env{font-size:9px;color:var(--muted);}
+.confirm-btn{width:100%;padding:14px;border:none;border-radius:8px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:1px;transition:all .15s;}
+.confirm-btn:disabled{background:#141414;color:#2a2a2a;cursor:not-allowed;}
+.confirm-btn.despacho{background:var(--accent);color:#000;}
+.confirm-btn.recepcion{background:var(--green);color:#000;}
+/* Result */
+.result{text-align:center;padding:30px 16px;}
+.result-icon{font-size:36px;margin-bottom:12px;}
+.result-text{font-size:14px;font-weight:700;margin-bottom:8px;}
+.result-sub{font-size:11px;color:var(--muted);}
+.not-found{text-align:center;padding:60px 20px;font-size:12px;color:var(--muted);}
+.loading{text-align:center;padding:40px;font-size:11px;color:var(--muted);}
 </style>
 </head>
 <body>
@@ -43,72 +57,182 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 </div>
 
 <script>
+let _envioData = null;
+let _accion = null; // 'despacho' | 'recepcion'
+let _bultosMarcados = [];
+let _scanning = false;
+let _videoStream = null;
+
 (async () => {
   const params = new URLSearchParams(location.search);
   const id = params.get('id');
   const el = document.getElementById('content');
-
   if (!id) { el.innerHTML = '<div class="not-found">Sin ID de envio</div>'; return; }
 
   try {
     const res = await fetch('/api/tiempos?action=get-envio&numero=' + encodeURIComponent(id));
     const data = await res.json();
     if (!data.ok || !data.envio) {
-      el.innerHTML = '<div class="not-found">Envio no encontrado<br><span style="font-size:11px;opacity:.5;margin-top:8px;display:block;">' + id + '</span></div>';
+      el.innerHTML = '<div class="not-found">Envio no encontrado<br><span style="font-size:10px;opacity:.5;margin-top:6px;display:block;">' + id + '</span></div>';
       return;
     }
-    const e = data.envio;
-    const estado = e.estado || 'en_taller';
-
-    // Timeline
-    const steps = [
-      { id: 'en_taller', label: 'En Taller' },
-      { id: 'despachada', label: 'En Proveedor' },
-      { id: 'recibida', label: 'Recibido' },
-    ];
-    const stateIdx = estado === 'recibida' ? 2 : estado === 'despachada' ? 1 : 0;
-    const isComplete = estado === 'recibida';
-
-    let tlHtml = '<div class="timeline">';
-    steps.forEach((s, i) => {
-      const done = i <= stateIdx;
-      const active = i === stateIdx && !isComplete;
-      const complete = isComplete && done;
-      const dotCls = complete ? 'tl-dot complete' : (active ? 'tl-dot active' : (done ? 'tl-dot done' : 'tl-dot'));
-      const lblCls = complete ? 'tl-label complete' : (active ? 'tl-label active' : 'tl-label');
-      const lineCls = (i < stateIdx) ? (isComplete ? 'tl-line complete' : 'tl-line done') : 'tl-line';
-      tlHtml += '<div class="tl-step"><div class="' + lineCls + '"></div><div class="' + dotCls + '"></div><div class="' + lblCls + '">' + s.label + '</div></div>';
-    });
-    tlHtml += '</div>';
-
-    // Atrasada?
-    let atrasadaBadge = '';
-    if (e.fecha_retorno_estimada && estado !== 'recibida') {
-      const hoy = new Date(); hoy.setHours(0,0,0,0);
-      const ret = new Date(e.fecha_retorno_estimada + 'T00:00:00');
-      if (ret < hoy) atrasadaBadge = '<span class="badge-atrasada">ATRASADA</span>';
-    }
-
-    const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric'}) : '\u2014';
-
-    el.innerHTML = `
-      <div class="envio-num">${e.numero_envio || id}${atrasadaBadge}</div>
-      ${tlHtml}
-      <div class="info">
-        <div class="info-row"><span class="info-lbl">Cliente</span><span class="info-val">${e.cliente || '\u2014'}</span></div>
-        <div class="info-row"><span class="info-lbl">Proyecto</span><span class="info-val">${e.proyectoNum || ''} ${e.obra ? '\u00b7 ' + e.obra : ''}</span></div>
-        <div class="info-row"><span class="info-lbl">Mueble</span><span class="info-val">${e.mueble_nombre || '\u2014'}</span></div>
-        <div class="info-row"><span class="info-lbl">Codigo</span><span class="info-val">${e.mueble_codigo || '\u2014'}</span></div>
-        <div class="info-row"><span class="info-lbl">Proveedor</span><span class="info-val">${e.proveedor || '\u2014'}</span></div>
-        <div class="info-row"><span class="info-lbl">Despacho</span><span class="info-val">${fmtDate(e.fecha_despacho)}</span></div>
-        <div class="info-row"><span class="info-lbl">Retorno</span><span class="info-val">${fmtDate(e.fecha_retorno_estimada)}</span></div>
-        ${e.fecha_recepcion ? '<div class="info-row"><span class="info-lbl">Recibido</span><span class="info-val">' + fmtDate(e.fecha_recepcion) + '</span></div>' : ''}
-        ${e.obs ? '<div class="info-row"><span class="info-lbl">Obs.</span><span class="info-val">' + e.obs + '</span></div>' : ''}
-      </div>`;
+    _envioData = data.envio;
+    _envioData._id = id;
+    renderPantalla1();
   } catch(err) {
-    el.innerHTML = '<div class="not-found">Error al cargar<br><span style="font-size:11px;opacity:.5;">' + err.message + '</span></div>';
+    el.innerHTML = '<div class="not-found">Error: ' + err.message + '</div>';
   }
 })();
+
+function renderPantalla1() {
+  const e = _envioData;
+  const el = document.getElementById('content');
+  let btns = '';
+  if (e.estado === 'en_taller') {
+    btns = `<button class="action-btn" onclick="iniciarScanner('despacho')">\u2192 Despacho a ${e.proveedor || 'proveedor'}</button>`;
+  } else if (e.estado === 'despachada') {
+    btns = `<button class="action-btn" onclick="iniciarScanner('recepcion')">\u2713 Recepcion \u00d7 ${e.proveedor || 'proveedor'}</button>`;
+  } else {
+    btns = '<div class="completed">\u2713 Completado</div>';
+  }
+  el.innerHTML = `
+    <div class="envio-num">${e.numero_envio || e._id}</div>
+    <div class="info-compact">
+      <div><span class="lbl">Proveedor</span> <span class="val">${e.proveedor || '\u2014'}</span></div>
+      <div><span class="lbl">Cliente</span> <span class="val">${e.cliente || '\u2014'}</span></div>
+      <div><span class="lbl">Proyecto</span> <span class="val">${e.proyectoNum || ''} ${e.obra ? '\u00b7 ' + e.obra : ''}</span></div>
+      <div><span class="lbl">Mueble</span> <span class="val">${e.mueble_nombre || '\u2014'}</span></div>
+      <div><span class="lbl">Bultos</span> <span class="val">${e.bultos || 1}</span></div>
+    </div>
+    <div class="actions">${btns}</div>`;
+}
+
+function iniciarScanner(accion) {
+  _accion = accion;
+  const bultos = _envioData.bultos || 1;
+  _bultosMarcados = new Array(bultos).fill(false);
+  renderPantalla2();
+  startCamera();
+}
+
+function renderPantalla2() {
+  const e = _envioData;
+  const el = document.getElementById('content');
+  const bultos = e.bultos || 1;
+  const titulo = _accion === 'despacho' ? 'DESPACHO A ' + (e.proveedor||'').toUpperCase() : 'RECEPCION \u00d7 ' + (e.proveedor||'').toUpperCase();
+  const allChecked = _bultosMarcados.every(Boolean);
+  const btnCls = allChecked ? (_accion === 'despacho' ? 'confirm-btn despacho' : 'confirm-btn recepcion') : 'confirm-btn';
+
+  let listHtml = '';
+  for (let i = 0; i < bultos; i++) {
+    const checked = _bultosMarcados[i];
+    listHtml += `<div class="bulto-row ${checked?'checked':''}" onclick="marcarBulto(${i})">
+      <div class="bulto-chk">${checked?'\u2713':''}</div>
+      <span class="bulto-label">BULTO ${i+1}</span>
+      <span class="bulto-env">${e.numero_envio || ''}</span>
+    </div>`;
+  }
+
+  el.innerHTML = `
+    <div class="scanner-hdr">
+      <button class="back" onclick="stopCamera();renderPantalla1();">\u2190</button>
+      <span class="title">${titulo}</span>
+    </div>
+    <div id="video-wrap"><video id="qr-video" autoplay playsinline></video></div>
+    <canvas id="qr-canvas" style="display:none;"></canvas>
+    <div class="bultos-list">${listHtml}</div>
+    <button class="${btnCls}" ${allChecked?'':'disabled'} onclick="confirmarAccion()">
+      ${allChecked ? 'CONFIRMAR' : 'Escanear bultos...'}
+    </button>`;
+}
+
+function marcarBulto(idx) {
+  _bultosMarcados[idx] = true;
+  renderPantalla2();
+  if (!_scanning) startCamera();
+}
+
+async function startCamera() {
+  try {
+    _videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const video = document.getElementById('qr-video');
+    if (video) { video.srcObject = _videoStream; _scanning = true; scanLoop(); }
+  } catch(e) { /* Camera not available — manual mode */ }
+}
+
+function stopCamera() {
+  _scanning = false;
+  if (_videoStream) { _videoStream.getTracks().forEach(t => t.stop()); _videoStream = null; }
+}
+
+function scanLoop() {
+  if (!_scanning) return;
+  const video = document.getElementById('qr-video');
+  const canvas = document.getElementById('qr-canvas');
+  if (!video || !canvas || video.readyState < 2) { requestAnimationFrame(scanLoop); return; }
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const code = jsQR(imageData.data, canvas.width, canvas.height);
+  if (code && code.data) {
+    const text = code.data;
+    // Accept QR containing the ENV number
+    if (text.includes(_envioData.numero_envio || _envioData._id)) {
+      const nextIdx = _bultosMarcados.indexOf(false);
+      if (nextIdx >= 0) {
+        _bultosMarcados[nextIdx] = true;
+        const wrap = document.getElementById('video-wrap');
+        if (wrap) { wrap.classList.add('flash'); setTimeout(() => wrap.classList.remove('flash'), 300); }
+        renderPantalla2();
+        if (!_scanning) startCamera();
+      }
+    }
+  }
+  requestAnimationFrame(scanLoop);
+}
+
+async function confirmarAccion() {
+  const e = _envioData;
+  const el = document.getElementById('content');
+  stopCamera();
+  el.innerHTML = '<div class="loading">Registrando...</div>';
+  try {
+    let endpoint, body;
+    if (_accion === 'despacho') {
+      endpoint = 'despachar-partida';
+      body = { partida_id: e.partida_id || e._partida_id };
+    } else {
+      endpoint = 'recibir-partida';
+      body = { partida_id: e.partida_id || e._partida_id };
+    }
+    const res = await fetch('/api/tiempos?action=' + endpoint, {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    renderPantalla3();
+  } catch(err) {
+    el.innerHTML = `<div class="not-found">Error: ${err.message}<br><button class="action-btn" style="margin-top:16px;" onclick="renderPantalla2();startCamera();">Reintentar</button></div>`;
+  }
+}
+
+function renderPantalla3() {
+  const e = _envioData;
+  const el = document.getElementById('content');
+  const esDespacho = _accion === 'despacho';
+  el.innerHTML = `
+    <div class="result">
+      <div class="result-icon">${esDespacho ? '\u2713' : '\u2713'}</div>
+      <div class="result-text" style="color:${esDespacho ? 'var(--accent)' : 'var(--green)'};">
+        ${esDespacho ? 'Despacho registrado' : 'Recepcion registrada'}
+      </div>
+      <div class="result-sub">${e.bultos || 1}/${e.bultos || 1} bultos \u00b7 ${e.proveedor || ''}</div>
+      <div class="result-sub" style="margin-top:6px;">${e.numero_envio || e._id}</div>
+      <div class="result-sub" style="margin-top:12px;opacity:.4;">\u21BB Tercerizados actualizado</div>
+    </div>`;
+}
 </script>
 </body>
 </html>
