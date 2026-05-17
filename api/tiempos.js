@@ -2031,6 +2031,7 @@ export default async function handler(req) {
         fechaDespacho: p.fecha_despacho, fechaRecepcion: p.fecha_recepcion,
         estadoRecep: p.estado_recep, obs: p.obs, nota: p.nota,
         bultos: p.bultos || 0, numero_envio: p.numero_envio || '',
+        fechaRetornoEstimada: p.fecha_retorno_estimada || '',
       })) });
     }
 
@@ -2038,14 +2039,16 @@ export default async function handler(req) {
     if (action === 'guardar-partida' && req.method === 'POST') {
       const { id, tipo, proyectoNum, obra, cliente, muebleCodigo, muebleNombre,
               estado, partes, tipoDespacho, fechaDespacho, fechaRecepcion,
-              estadoRecep, obs, nota, bultos, numero_envio } = body;
-      const { data, error } = await supabase.from('partidas_terceros')
-        .upsert({ id, tipo, proyecto_num: proyectoNum, obra, cliente: cliente || '',
+              estadoRecep, obs, nota, bultos, numero_envio, fechaRetornoEstimada } = body;
+      const row = { id, tipo: tipo || null, proyecto_num: proyectoNum, obra, cliente: cliente || '',
                   mueble_codigo: muebleCodigo, mueble_nombre: muebleNombre,
                   estado: estado || 'en_taller', partes, tipo_despacho: tipoDespacho,
                   fecha_despacho: fechaDespacho, fecha_recepcion: fechaRecepcion,
                   estado_recep: estadoRecep, obs, nota,
-                  bultos: bultos || 0, numero_envio: numero_envio || null }, { onConflict: 'id' })
+                  bultos: bultos || 0, numero_envio: numero_envio || null };
+      if (fechaRetornoEstimada) row.fecha_retorno_estimada = fechaRetornoEstimada;
+      const { data, error } = await supabase.from('partidas_terceros')
+        .upsert(row, { onConflict: 'id' })
         .select().single();
       if (error) throw error;
       return ok({ partida: data });

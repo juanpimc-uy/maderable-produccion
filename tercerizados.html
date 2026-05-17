@@ -480,6 +480,11 @@ function confirmarNueva() {
 function abrirEditarPartida(id) {
   const p = PARTIDAS.find(x => x.id === id);
   if (!p) return;
+  const defaultRetorno = p.fechaRetornoEstimada || _fechaMasDias(2);
+  // Build proyecto options
+  const proyOpts = _PROYECTOS.map(pr => `<option value="${pr.id}" ${pr.numero === p.proyectoNum ? 'selected' : ''}>${pr.numero || ''} · ${(pr.nombre && pr.nombre !== pr.numero) ? pr.nombre : pr.obra || ''}</option>`).join('');
+  const tieneProyecto = _PROYECTOS.some(pr => pr.numero === p.proyectoNum);
+
   const overlay = document.createElement('div');
   overlay.className = 'overlay open';
   overlay.id = 'overlay-edit';
@@ -487,34 +492,77 @@ function abrirEditarPartida(id) {
   overlay.innerHTML = `
     <div class="modal" onclick="event.stopPropagation()">
       <div class="modal-title">Editar Partida</div>
-      <div class="field"><label>Nombre / descripción</label><input id="edit-nombre" value="${(p.muebleNombre||'').replace(/"/g,'&quot;')}"/></div>
-      <div class="field"><label>Código</label><input id="edit-codigo" value="${(p.muebleCodigo||'').replace(/"/g,'&quot;')}"/></div>
-      <div class="field"><label>Piezas / partes</label><input id="edit-partes" value="${(p.partes||'').replace(/"/g,'&quot;')}" placeholder="Ej: 3 asientos, 1 respaldo"/></div>
-      <div class="field"><label>Bultos</label><input type="number" id="edit-bultos" min="1" value="${p.bultos||1}"/></div>
+      <div class="field"><label>Proyecto</label>
+        <select id="edit-proyecto" onchange="_editProyChange()">
+          <option value="">— Sin proyecto —</option>
+          ${proyOpts}
+        </select>
+      </div>
+      <div class="field"><label>Mueble</label>
+        ${tieneProyecto ? `<select id="edit-mueble-sel" onchange="_editMuebleChange()"><option value="">Seleccionar...</option></select>` : ''}
+        <input id="edit-nombre" value="${(p.muebleNombre||'').replace(/"/g,'&quot;')}" ${tieneProyecto ? 'style="margin-top:6px;"' : ''} placeholder="Nombre del mueble"/>
+        ${!tieneProyecto && p.muebleNombre ? '<span style="font-size:10px;color:#f59e0b;">⚠ Dato legacy sin proyecto vinculado</span>' : ''}
+      </div>
+      <div class="field"><label>Código</label><input id="edit-codigo" value="${(p.muebleCodigo||'').replace(/"/g,'&quot;')}" ${tieneProyecto ? 'readonly style="opacity:.6;cursor:not-allowed;"' : ''}/></div>
       <div class="field"><label>Proceso</label>
         <select id="edit-tipo">
           <option value="lus" ${p.tipo==='lus'?'selected':''}>✨ Lustre</option>
-          <option value="tap" ${p.tipo==='tap'?'selected':''}>🧵 Tapicería</option>
+          <option value="tap" ${p.tipo==='tap'?'selected':''}>🧵 Tapicer��a</option>
+          <option value="" ${!p.tipo?'selected':''}>✦ General</option>
         </select>
       </div>
-      <div class="field"><label>Nota</label><input id="edit-nota" value="${(p.nota||'').replace(/"/g,'&quot;')}" placeholder="Observaciones..."/></div>
+      <div class="field"><label>Bultos</label><input type="number" id="edit-bultos" min="1" value="${p.bultos||1}"/></div>
+      <div class="field"><label>Retorno estimado</label><input type="date" id="edit-retorno" value="${defaultRetorno}"/></div>
+      <div class="field"><label>Nota</label><textarea id="edit-nota" placeholder="Observaciones...">${(p.nota||'').replace(/</g,'&lt;')}</textarea></div>
       <div style="display:flex;gap:8px;">
         <button class="btn-sm primary" onclick="_guardarEditPartida('${p.id}')">Guardar</button>
         <button class="btn-sm" onclick="document.body.removeChild(document.getElementById('overlay-edit'))">Cancelar</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  // Populate mueble dropdown if project selected
+  if (tieneProyecto) _editProyChange();
+}
+
+function _editProyChange() {
+  const prId = document.getElementById('edit-proyecto')?.value;
+  const pr = _PROYECTOS.find(x => x.id === prId);
+  const sel = document.getElementById('edit-mueble-sel');
+  if (!sel || !pr) return;
+  const tipo = document.getElementById('edit-tipo')?.value;
+  const muebles = (pr.muebles || []).filter(m => {
+    if (!tipo) return true;
+    return tipo === 'lus' ? (m.flujos||[]).includes('lustre') : (m.flujos||[]).includes('tapiceria');
+  });
+  sel.innerHTML = '<option value="">Seleccionar...</option>' +
+    muebles.map(m => `<option value="${m.codigo}|||${m.nombre}">${m.codigo} · ${m.nombre}</option>`).join('');
+}
+
+function _editMuebleChange() {
+  const sel = document.getElementById('edit-mueble-sel');
+  if (!sel || !sel.value) return;
+  const parts = sel.value.split('|||');
+  document.getElementById('edit-codigo').value = parts[0] || '';
+  document.getElementById('edit-nombre').value = parts[1] || '';
+}
+
+function _fechaMasDias(n) {
+  const d = new Date(); d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
 }
 
 function _guardarEditPartida(id) {
   const p = PARTIDAS.find(x => x.id === id);
   if (!p) return;
+  const prId = document.getElementById('edit-proyecto')?.value;
+  const pr = _PROYECTOS.find(x => x.id === prId);
+  if (pr) { p.proyectoNum = pr.numero || ''; p.obra = pr.obra || ''; }
   p.muebleNombre = document.getElementById('edit-nombre')?.value || p.muebleNombre;
   p.muebleCodigo = document.getElementById('edit-codigo')?.value || p.muebleCodigo;
-  p.partes = document.getElementById('edit-partes')?.value || '';
   p.bultos = parseInt(document.getElementById('edit-bultos')?.value) || 1;
-  p.tipo = document.getElementById('edit-tipo')?.value || p.tipo;
+  p.tipo = document.getElementById('edit-tipo')?.value || null;
   p.nota = document.getElementById('edit-nota')?.value || '';
+  p.fechaRetornoEstimada = document.getElementById('edit-retorno')?.value || '';
   guardarPartidas();
   const ov = document.getElementById('overlay-edit');
   if (ov) document.body.removeChild(ov);
