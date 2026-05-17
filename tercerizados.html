@@ -481,9 +481,10 @@ function abrirEditarPartida(id) {
   const p = PARTIDAS.find(x => x.id === id);
   if (!p) return;
   const defaultRetorno = p.fechaRetornoEstimada || _fechaMasDias(2);
-  // Build proyecto options
-  const proyOpts = _PROYECTOS.map(pr => `<option value="${pr.id}" ${pr.numero === p.proyectoNum ? 'selected' : ''}>${pr.numero || ''} · ${(pr.nombre && pr.nombre !== pr.numero) ? pr.nombre : pr.obra || ''}</option>`).join('');
   const tieneProyecto = _PROYECTOS.some(pr => pr.numero === p.proyectoNum);
+  const prActual = _PROYECTOS.find(pr => pr.numero === p.proyectoNum);
+  const clienteActual = p.cliente || prActual?.cliente_nombre || prActual?.cliente || '';
+  const prLabel = prActual ? (prActual.numero||'') + ' \u00b7 ' + ((prActual.nombre && prActual.nombre !== prActual.numero) ? prActual.nombre : prActual.obra || '') : '';
 
   const overlay = document.createElement('div');
   overlay.className = 'overlay open';
@@ -492,25 +493,20 @@ function abrirEditarPartida(id) {
   overlay.innerHTML = `
     <div class="modal" onclick="event.stopPropagation()">
       <div class="modal-title">Editar Partida</div>
-      <div class="field"><label>Proyecto</label>
-        <select id="edit-proyecto" onchange="_editProyChange()">
-          <option value="">— Sin proyecto —</option>
-          ${proyOpts}
-        </select>
+      <div class="field" style="position:relative;"><label>Proyecto</label>
+        <input type="text" id="edit-proy-search" value="${prLabel.replace(/"/g,'&quot;')}" placeholder="Buscar proyecto..." autocomplete="off"
+          oninput="_editFiltrarProy()" onfocus="_editFiltrarProy()" onblur="setTimeout(()=>{const l=document.getElementById('edit-proy-list');if(l)l.style.display='none';},150)"/>
+        <div id="edit-proy-list" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:4px;max-height:240px;overflow-y:auto;margin-top:2px;"></div>
+        <input type="hidden" id="edit-proyecto" value="${prActual?.id||''}"/>
+      </div>
+      <div class="field"><label>Cliente</label>
+        <div id="edit-cliente-display" style="font-size:12px;color:#ccc;padding:7px 0;">${clienteActual || '<span style="color:var(--muted);">—</span>'}</div>
       </div>
       <div class="field"><label>Mueble</label>
-        ${tieneProyecto ? `<select id="edit-mueble-sel" onchange="_editMuebleChange()"><option value="">Seleccionar...</option></select>` : ''}
-        <input id="edit-nombre" value="${(p.muebleNombre||'').replace(/"/g,'&quot;')}" ${tieneProyecto ? 'style="margin-top:6px;"' : ''} placeholder="Nombre del mueble"/>
-        ${!tieneProyecto && p.muebleNombre ? '<span style="font-size:10px;color:#f59e0b;">⚠ Dato legacy sin proyecto vinculado</span>' : ''}
+        <select id="edit-mueble-sel" onchange="_editMuebleChange()" style="${tieneProyecto?'':'display:none;'}"><option value="">Seleccionar...</option></select>
+        <input id="edit-nombre" value="${(p.muebleNombre||'').replace(/"/g,'&quot;')}" placeholder="Nombre del mueble" style="${tieneProyecto?'margin-top:6px;':''}"/>
       </div>
-      <div class="field"><label>Código</label><input id="edit-codigo" value="${(p.muebleCodigo||'').replace(/"/g,'&quot;')}" ${tieneProyecto ? 'readonly style="opacity:.6;cursor:not-allowed;"' : ''}/></div>
-      <div class="field"><label>Proceso</label>
-        <select id="edit-tipo">
-          <option value="lus" ${p.tipo==='lus'?'selected':''}>✨ Lustre</option>
-          <option value="tap" ${p.tipo==='tap'?'selected':''}>🧵 Tapicer��a</option>
-          <option value="" ${!p.tipo?'selected':''}>✦ General</option>
-        </select>
-      </div>
+      <div class="field"><label>Código</label><input id="edit-codigo" value="${(p.muebleCodigo||'').replace(/"/g,'&quot;')}" readonly style="opacity:.6;cursor:not-allowed;"/></div>
       <div class="field"><label>Bultos</label><input type="number" id="edit-bultos" min="1" value="${p.bultos||1}"/></div>
       <div class="field"><label>Retorno estimado</label><input type="date" id="edit-retorno" value="${defaultRetorno}"/></div>
       <div class="field"><label>Nota</label><textarea id="edit-nota" placeholder="Observaciones...">${(p.nota||'').replace(/</g,'&lt;')}</textarea></div>
@@ -520,22 +516,47 @@ function abrirEditarPartida(id) {
       </div>
     </div>`;
   document.body.appendChild(overlay);
-  // Populate mueble dropdown if project selected
-  if (tieneProyecto) _editProyChange();
+  if (tieneProyecto) _editLoadMuebles(prActual);
 }
 
-function _editProyChange() {
-  const prId = document.getElementById('edit-proyecto')?.value;
-  const pr = _PROYECTOS.find(x => x.id === prId);
+function _editFiltrarProy() {
+  const q = (document.getElementById('edit-proy-search')?.value || '').toLowerCase();
+  const list = document.getElementById('edit-proy-list');
+  if (!list) return;
+  const filtered = _PROYECTOS.filter(p =>
+    [p.numero, p.nombre, p.obra, p.cliente_nombre, p.cliente].join(' ').toLowerCase().includes(q)
+  ).slice(0, 8);
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:#555;">Sin resultados</div>';
+  } else {
+    list.innerHTML = filtered.map(p =>
+      `<div onmousedown="_editSelProy('${p.id}')" style="padding:8px 12px;font-size:12px;cursor:pointer;transition:background .1s;" onmouseenter="this.style.background='#222'" onmouseleave="this.style.background='transparent'"><span style="color:#FFD600;font-family:'JetBrains Mono',monospace;font-size:11px;">${p.numero||''}</span> <span style="color:#ccc;">${(p.nombre && p.nombre !== p.numero) ? p.nombre : p.obra || ''}</span></div>`
+    ).join('');
+  }
+  list.style.display = 'block';
+}
+
+function _editSelProy(prId) {
+  const pr = _PROYECTOS.find(p => p.id === prId);
+  if (!pr) return;
+  document.getElementById('edit-proyecto').value = prId;
+  document.getElementById('edit-proy-search').value = (pr.numero||'') + ' \u00b7 ' + ((pr.nombre && pr.nombre !== pr.numero) ? pr.nombre : pr.obra || '');
+  document.getElementById('edit-proy-list').style.display = 'none';
+  // Update cliente
+  const cli = pr.cliente_nombre || pr.cliente || '';
+  document.getElementById('edit-cliente-display').innerHTML = cli || '<span style="color:var(--muted);">—</span>';
+  // Show and load muebles
+  const mSel = document.getElementById('edit-mueble-sel');
+  if (mSel) { mSel.style.display = ''; }
+  _editLoadMuebles(pr);
+}
+
+function _editLoadMuebles(pr) {
   const sel = document.getElementById('edit-mueble-sel');
   if (!sel || !pr) return;
-  const tipo = document.getElementById('edit-tipo')?.value;
-  const muebles = (pr.muebles || []).filter(m => {
-    if (!tipo) return true;
-    return tipo === 'lus' ? (m.flujos||[]).includes('lustre') : (m.flujos||[]).includes('tapiceria');
-  });
+  const muebles = pr.muebles || [];
   sel.innerHTML = '<option value="">Seleccionar...</option>' +
-    muebles.map(m => `<option value="${m.codigo}|||${m.nombre}">${m.codigo} · ${m.nombre}</option>`).join('');
+    muebles.map(m => `<option value="${m.codigo}|||${m.nombre}">${m.codigo} \u00b7 ${m.nombre}</option>`).join('');
 }
 
 function _editMuebleChange() {
@@ -556,11 +577,10 @@ function _guardarEditPartida(id) {
   if (!p) return;
   const prId = document.getElementById('edit-proyecto')?.value;
   const pr = _PROYECTOS.find(x => x.id === prId);
-  if (pr) { p.proyectoNum = pr.numero || ''; p.obra = pr.obra || ''; }
+  if (pr) { p.proyectoNum = pr.numero || ''; p.obra = pr.obra || ''; p.cliente = pr.cliente_nombre || pr.cliente || ''; }
   p.muebleNombre = document.getElementById('edit-nombre')?.value || p.muebleNombre;
   p.muebleCodigo = document.getElementById('edit-codigo')?.value || p.muebleCodigo;
   p.bultos = parseInt(document.getElementById('edit-bultos')?.value) || 1;
-  p.tipo = document.getElementById('edit-tipo')?.value || null;
   p.nota = document.getElementById('edit-nota')?.value || '';
   p.fechaRetornoEstimada = document.getElementById('edit-retorno')?.value || '';
   guardarPartidas();
@@ -576,16 +596,46 @@ function imprimirEtiquetas(id) {
   const p = PARTIDAS.find(x => x.id === id);
   if (!p) return;
   const bultos = p.bultos || 1;
-  const tipoLabel = p.tipo === 'lus' ? 'ENVIO+LUSTRE' : 'ENVIO+TAPICERIA';
-  const tipoParam = p.tipo === 'lus' ? 'lustre' : 'tapiceria';
-  const base = 'https://juanpimc-uy.github.io/etiquetas-maderable/';
+  const provLabel = p.tipo === 'tap' ? PROVS.tap : PROVS.lus;
+  const envio = p.numero_envio || 'ENV: PENDIENTE';
+  const retorno = p.fechaRetornoEstimada ? _fmtFechaCorta(p.fechaRetornoEstimada) : '\u2014';
   for (let i = 1; i <= bultos; i++) {
-    const params = new URLSearchParams({
-      tipo: tipoParam, proyecto: p.proyectoNum || '', cliente: p.cliente || '',
-      mueble: p.muebleNombre || '', bulto: i, total: bultos, header: tipoLabel,
-    });
-    setTimeout(() => window.open(base + '?' + params.toString(), '_blank'), (i - 1) * 300);
+    _imprimirEtiqueta(p, provLabel, envio, retorno, i, bultos);
   }
+}
+
+function _imprimirEtiqueta(p, provLabel, envio, retorno, bultoNum, bultoTotal) {
+  const win = window.open('', '_blank', 'width=400,height=300');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+@page { size: 60mm 30mm; margin: 1.5mm; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { width: 60mm; height: 30mm; font-family: 'Space Mono', monospace; font-size: 6px; color: #000; background: #fff; display: flex; flex-direction: column; padding: 1.5mm; }
+.header { font-size: 5px; letter-spacing: 1px; opacity: 0.5; margin-bottom: 1mm; text-transform: uppercase; }
+.envio { font-size: 11px; font-weight: 700; letter-spacing: 1px; margin-bottom: 1.5mm; border-bottom: 0.3mm solid #000; padding-bottom: 1mm; }
+.row { display: flex; gap: 1mm; margin-bottom: 0.5mm; line-height: 1.3; }
+.lbl { font-size: 5px; letter-spacing: 0.5px; opacity: 0.5; text-transform: uppercase; width: 14mm; flex-shrink: 0; }
+.val { font-size: 6px; font-weight: 700; text-transform: uppercase; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.footer { margin-top: auto; display: flex; justify-content: space-between; font-size: 5px; opacity: 0.6; border-top: 0.3mm solid #ccc; padding-top: 0.5mm; }
+</style></head><body>
+<div class="header">&#9675; MADERABLE &middot; ENVIO TERCEROS</div>
+<div class="envio">${envio}</div>
+<div class="row"><span class="lbl">Cliente</span><span class="val">${p.cliente || '\u2014'}</span></div>
+<div class="row"><span class="lbl">Proyecto</span><span class="val">${p.proyectoNum || ''} ${p.obra ? '\u00b7 ' + p.obra : ''}</span></div>
+<div class="row"><span class="lbl">Mueble</span><span class="val">${p.muebleCodigo || ''} \u00b7 ${p.muebleNombre || '\u2014'}</span></div>
+<div class="row"><span class="lbl">Proveedor</span><span class="val">${provLabel || '\u2014'}</span></div>
+<div class="footer"><span>Bulto: ${bultoNum}/${bultoTotal}</span><span>Retorno: ${retorno}</span></div>
+</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); win.close(); }, 400);
+}
+
+function _fmtFechaCorta(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T12:00:00');
+  return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0');
 }
 
 // ══════════════════════════════════════════════════════════════════════════
