@@ -731,7 +731,10 @@ cargarTodo();
 <script>
 // ── Auth standalone ─────────────────────────────────────────────
 const PASS_ARMADO = 'armado2024';
-if (localStorage.getItem('armado_so_auth') === 'ok') _mostrarApp();
+// Skip login si hay sesión ERP activa
+const _sess = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session') || '{}'); } catch(e) { return {}; } })();
+if (_sess.rol_app === 'admin' || _sess.rol_app === 'oficina') _mostrarApp();
+else if (localStorage.getItem('armado_so_auth') === 'ok') _mostrarApp();
 function _login() {
   const pw = document.getElementById('pw-input').value.trim();
   if (pw === PASS_ARMADO) {
