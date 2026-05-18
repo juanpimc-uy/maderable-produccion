@@ -188,7 +188,7 @@ let verTodasRecibidas = false;
 // ══════════════════════════════════════════════════════════════════════════
 function render() {
   renderChips();
-  const lista = filtroProveedor === 'todos' ? PARTIDAS : PARTIDAS.filter(p => p.tipo === filtroProveedor);
+  const lista = filtroProveedor === 'todos' ? PARTIDAS : PARTIDAS.filter(p => p.proveedorNombre === filtroProveedor || (p.tipo === filtroProveedor));
   const taller = lista.filter(p => p.estado === 'en_taller');
   const prov = lista.filter(p => p.estado === 'despachada');
   let recv = lista.filter(p => p.estado === 'recibida');
@@ -278,7 +278,11 @@ function cardHtml(p, col) {
 function renderChips() {
   const el = document.getElementById('prov-chips');
   const c = (id, label) => `<span class="chip ${filtroProveedor===id?'active':''}" onclick="filtroProveedor='${id}';render();">${label}</span>`;
-  el.innerHTML = c('todos','Todos') + c('lus','✨ ' + PROVS.lus) + c('tap','🧵 ' + PROVS.tap);
+  let html = c('todos','Todos');
+  _provsCache.forEach(pv => { html += c(pv.nombre, pv.nombre); });
+  // Fallback si no hay proveedores cargados aún
+  if (!_provsCache.length) { html += c('lus', PROVS.lus) + c('tap', PROVS.tap); }
+  el.innerHTML = html;
 }
 
 function _toggleVerTodas() { verTodasRecibidas = !verTodasRecibidas; render(); }
@@ -835,12 +839,14 @@ render();
 // cargar datos frescos desde API en background
 (async () => {
   try {
-    const [rp, rc] = await Promise.all([
+    const [rp, rc, rpv] = await Promise.all([
       fetch('/api/tiempos?action=partidas').then(r=>r.json()),
       fetch('/api/tiempos?action=config').then(r=>r.json()),
+      fetch('/api/tiempos?action=proveedores-terceros').then(r=>r.json()),
     ]);
     if (rp.partidas && rp.partidas.length) { PARTIDAS = rp.partidas; localStorage.setItem('partidas', JSON.stringify(rp.partidas)); }
     if (rc.config?.proveedores) { PROVS = rc.config.proveedores; localStorage.setItem('proveedores', JSON.stringify(rc.config.proveedores)); }
+    if (rpv.ok && rpv.proveedores) { _provsCache = rpv.proveedores; }
     window.sbFetch('proyectos_cache?activo=eq.true&order=nombre')
       .then(data => { _PROYECTOS = data || []; }).catch(()=>{});
     render();
