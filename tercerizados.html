@@ -64,10 +64,29 @@
   .col-footer a{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);cursor:pointer;text-decoration:underline;}
   .col-footer a:hover{color:var(--accent);}
   @media(max-width:900px){.board{grid-template-columns:1fr;}.sidebar{display:none;}}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-7px)}80%{transform:translateX(7px)}}
+  .shake{animation:shake .35s ease;}
 </style>
 <script src="sidebar.js"></script>
 </head>
 <body>
+
+<!-- LOGIN -->
+<div id="screen-login">
+  <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg);">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:40px;width:100%;max-width:360px;">
+      <div style="font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--accent);letter-spacing:3px;text-align:center;margin-bottom:6px;">&#9675; MADERABLE</div>
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-align:center;margin-bottom:28px;">TERCERIZADOS</div>
+      <input id="pw-input" type="password" placeholder="contrase\u00f1a"
+        style="width:100%;background:#111;border:1px solid var(--border);border-radius:6px;padding:12px 14px;color:var(--text);font-size:15px;outline:none;margin-bottom:12px;font-family:'Space Mono',monospace;letter-spacing:3px;"
+        onkeydown="if(event.key==='Enter')_login()">
+      <button onclick="_login()" style="width:100%;background:var(--accent);color:#000;border:none;border-radius:6px;padding:13px;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;">INGRESAR \u2192</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="screen-app" style="display:none;">
 <div class="shell">
 <div id="sidebar-root"></div>
 <div class="main">
@@ -919,6 +938,32 @@ render();
     render();
   } catch(e) { console.error('API load failed, usando caché localStorage', e); }
 })();
+</script>
+</div><!-- /screen-app -->
+
+<script>
+// ── Auth standalone ─────────────────────────────────────────────
+const PASS_TERC = 'terceros2024';
+const _sess = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session') || '{}'); } catch(e) { return {}; } })();
+if (_sess.rol_app === 'admin' || _sess.rol_app === 'oficina') _mostrarApp();
+else if (localStorage.getItem('tercerizados_auth') === 'ok') _mostrarApp();
+function _login() {
+  const pw = document.getElementById('pw-input').value.trim();
+  if (pw === PASS_TERC) {
+    localStorage.setItem('tercerizados_auth', 'ok');
+    _mostrarApp();
+  } else {
+    const inp = document.getElementById('pw-input');
+    inp.classList.remove('shake');
+    void inp.offsetWidth;
+    inp.classList.add('shake');
+    inp.value = '';
+  }
+}
+function _mostrarApp() {
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('screen-app').style.display = '';
+}
 </script>
 </body>
 </html>
