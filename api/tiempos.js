@@ -2065,6 +2065,7 @@ export default async function handler(req) {
         fechaRetornoEstimada: p.fecha_retorno_estimada || '',
         fechaRecepcionProveedor: p.fecha_recepcion_proveedor || '',
         archivada: p.archivada || false,
+        proveedorNombre: p.proveedor_nombre || '',
       })) });
     }
 
@@ -2072,7 +2073,7 @@ export default async function handler(req) {
     if (action === 'guardar-partida' && req.method === 'POST') {
       const { id, tipo, proyectoNum, obra, cliente, muebleCodigo, muebleNombre,
               estado, partes, tipoDespacho, fechaDespacho, fechaRecepcion,
-              estadoRecep, obs, nota, bultos, numero_envio, fechaRetornoEstimada } = body;
+              estadoRecep, obs, nota, bultos, numero_envio, fechaRetornoEstimada, proveedorNombre } = body;
       // Asignar ENV al crear (si no tiene numero_envio y es registro nuevo)
       let envioFinal = numero_envio || null;
       if (!envioFinal && id) {
@@ -2094,7 +2095,8 @@ export default async function handler(req) {
                   estado: estado || 'en_taller', partes, tipo_despacho: tipoDespacho,
                   fecha_despacho: fechaDespacho, fecha_recepcion: fechaRecepcion,
                   estado_recep: estadoRecep, obs, nota,
-                  bultos: bultos || 0, numero_envio: envioFinal };
+                  bultos: bultos || 0, numero_envio: envioFinal,
+                  proveedor_nombre: proveedorNombre || null };
       if (fechaRetornoEstimada) row.fecha_retorno_estimada = fechaRetornoEstimada;
       const { data, error } = await supabase.from('partidas_terceros')
         .upsert(row, { onConflict: 'id' })

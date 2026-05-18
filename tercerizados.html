@@ -221,7 +221,7 @@ function render() {
 }
 
 function cardHtml(p, col) {
-  const provLabel = p.tipo === 'tap' ? PROVS.tap : PROVS.lus;
+  const provLabel = p.proveedorNombre || (p.tipo === 'tap' ? PROVS.tap : PROVS.lus);
   const showProv = filtroProveedor === 'todos';
   let actions = '';
   if (col === 'taller') {
@@ -380,14 +380,25 @@ async function archivarPartida(id) {
 // ══════════════════════════════════════════════════════════════════════════
 // NUEVA PARTIDA
 // ══════════════════════════════════════════════════════════════════════════
-function abrirNuevaPartida() {
+let _provsCache = [];
+async function abrirNuevaPartida() {
   // Si hay filtro de proveedor activo, asignar tipo automáticamente
   if (filtroProveedor !== 'todos') {
     modalTipoNueva = filtroProveedor;
   } else {
     modalTipoNueva = 'lus';
   }
+  // Cargar proveedores
+  try {
+    const r = await fetch('/api/tiempos?action=proveedores-terceros');
+    const d = await r.json();
+    if (d.ok) _provsCache = d.proveedores || [];
+  } catch(e) {}
   const mostrarProceso = filtroProveedor === 'todos';
+  // Determinar proveedor pre-seleccionado por filtro
+  const provFiltrado = (filtroProveedor !== 'todos') ? _provsCache.find(pv => pv.tipo === filtroProveedor) : null;
+  const provOpts = _provsCache.map(pv => `<option value="${pv.nombre}" data-tipo="${pv.tipo}" ${provFiltrado && pv.id === provFiltrado.id ? 'selected' : ''}>${pv.nombre}</option>`).join('');
+
   const overlay = document.createElement('div');
   overlay.className = 'overlay open';
   overlay.id = 'overlay-nueva';
@@ -401,6 +412,12 @@ function abrirNuevaPartida() {
           <span class="chip" id="chip-tipo-tap" onclick="_setTipoNueva('tap')">Tapiceria</span>
         </div>
       </div>` : ''}
+      <div class="field"><label>Proveedor</label>
+        <select id="nueva-proveedor" ${provFiltrado ? 'disabled' : ''}>
+          <option value="">Seleccionar...</option>
+          ${provOpts}
+        </select>
+      </div>
       <div class="field" style="position:relative;"><label>Proyecto</label>
         <input type="text" id="nueva-pr-search" placeholder="Buscar proyecto..." autocomplete="off"
           oninput="_filtrarProyNueva()" onfocus="_filtrarProyNueva()" onblur="setTimeout(()=>{const l=document.getElementById('nueva-pr-list');if(l)l.style.display='none';},150)" />
@@ -492,6 +509,7 @@ function confirmarNueva() {
   const pr = _PROYECTOS.find(p=>p.id===prId);
   const muebleVal = document.getElementById('nueva-mueble')?.value || '';
   const muebleParts = muebleVal.split('|||');
+  const provSel = document.getElementById('nueva-proveedor')?.value || '';
   const nueva = {
     id: 'p'+Date.now(),
     tipo: modalTipoNueva,
@@ -500,6 +518,7 @@ function confirmarNueva() {
     cliente: document.getElementById('nueva-cliente')?.value || '',
     muebleCodigo: muebleParts[0] || '',
     muebleNombre: document.getElementById('nueva-nombre')?.value || muebleParts[1] || '',
+    proveedorNombre: provSel,
     estado:'en_taller', partes:'', fechaDespacho:'', fechaRecepcion:'', estadoRecep:'', obs:'', nota:''
   };
   if (!nueva.muebleNombre) { alert('Completá el nombre del mueble'); return; }
@@ -638,7 +657,7 @@ function imprimirEtiquetas(id) {
 }
 
 function _imprimirEtiqueta(p) {
-  const provFull = p.tipo === 'tap' ? PROVS.tap : PROVS.lus;
+  const provFull = p.proveedorNombre || (p.tipo === 'tap' ? PROVS.tap : PROVS.lus);
   const envio = p.numero_envio || 'ENV: PENDIENTE';
   const provShort = (provFull || '').split(' ')[0].toUpperCase();
   // Cliente: fallback al proyecto si la partida no lo tiene
