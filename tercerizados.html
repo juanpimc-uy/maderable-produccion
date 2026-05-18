@@ -287,15 +287,83 @@ function _toggleVerTodas() { verTodasRecibidas = !verTodasRecibidas; render(); }
 // ══════════════════════════════════════════════════════════════════════════
 // ACCIONES
 // ══════════════════════════════════════════════════════════════════════════
+let _despBultosMarcados = [];
+
 function abrirDespacho(id) {
   modalPartidaId = id;
-  tipoDesp = 'total';
-  setTipoDesp('total');
-  document.getElementById('desp-fecha').value = hoy();
-  document.getElementById('desp-bultos').value = '1';
-  document.getElementById('desp-partes').value = '';
-  document.getElementById('desp-nota').value = '';
-  abrirModal('desp');
+  const p = PARTIDAS.find(x => x.id === id);
+  if (!p) return;
+  const bultos = p.bultos || 1;
+  const provNombre = p.proveedorNombre || (p.tipo === 'tap' ? PROVS.tap : PROVS.lus);
+  _despBultosMarcados = new Array(bultos).fill(false);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay open';
+  overlay.id = 'overlay-desp-bultos';
+  overlay.onclick = () => document.body.removeChild(overlay);
+  overlay.innerHTML = `<div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">DESPACHO A ${(provNombre||'').toUpperCase()}</div>
+    <div id="desp-bultos-list"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button id="desp-confirm-btn" class="btn-sm" disabled onclick="_confirmarDespachoBultos('${id}')">Confirmar despacho (0/${bultos})</button>
+      <button class="btn-sm" onclick="document.body.removeChild(document.getElementById('overlay-desp-bultos'))">Cancelar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  _renderDespBultos(p);
+}
+
+function _renderDespBultos(p) {
+  const bultos = p.bultos || 1;
+  const list = document.getElementById('desp-bultos-list');
+  if (!list) return;
+  let html = '';
+  for (let i = 0; i < bultos; i++) {
+    const checked = _despBultosMarcados[i];
+    html += `<div onclick="_toggleDespBulto(${i})" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:${checked?'#0a1a0a':'var(--panel)'};border:1px solid ${checked?'var(--green)':'var(--border)'};border-radius:6px;margin-bottom:6px;cursor:pointer;transition:all .15s;">
+      <div style="width:18px;height:18px;border-radius:4px;border:2px solid ${checked?'var(--green)':'var(--border)'};display:flex;align-items:center;justify-content:center;font-size:11px;${checked?'background:var(--green);color:#000;':'color:transparent;'}">${checked?'\u2713':''}</div>
+      <span style="font-size:11px;font-family:'Space Mono',monospace;">BULTO ${i+1}</span>
+      <span style="font-size:9px;color:var(--muted);margin-left:auto;">${p.numero_envio||''}</span>
+    </div>`;
+  }
+  list.innerHTML = html;
+  const marcados = _despBultosMarcados.filter(Boolean).length;
+  const btn = document.getElementById('desp-confirm-btn');
+  if (btn) {
+    btn.textContent = `Confirmar despacho (${marcados}/${bultos})`;
+    btn.disabled = marcados < bultos;
+    btn.className = marcados >= bultos ? 'btn-sm primary' : 'btn-sm';
+  }
+}
+
+function _toggleDespBulto(idx) {
+  _despBultosMarcados[idx] = !_despBultosMarcados[idx];
+  const p = PARTIDAS.find(x => x.id === modalPartidaId);
+  if (p) _renderDespBultos(p);
+}
+
+async function _confirmarDespachoBultos(id) {
+  const p = PARTIDAS.find(x => x.id === id);
+  if (!p) return;
+  try {
+    const res = await fetch('/api/tiempos?action=despachar-partida', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ partida_id: p.id, bultos: p.bultos||1, partes:'', fecha: hoy(), nota:'', tipoDespacho:'total' })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      p.estado = 'despachada';
+      p.tipoDespacho = 'total';
+      p.fechaDespacho = hoy();
+      p.numero_envio = data.numero_envio || p.numero_envio || '';
+    }
+  } catch(e) {
+    p.estado = 'despachada'; p.fechaDespacho = hoy();
+  }
+  guardarPartidas([p.id]);
+  const ov = document.getElementById('overlay-desp-bultos');
+  if (ov) document.body.removeChild(ov);
+  render();
 }
 
 function setTipoDesp(t) {
