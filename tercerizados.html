@@ -168,9 +168,10 @@ window.sbFetch('proyectos_cache?activo=eq.true&order=nombre')
 
 let PARTIDAS = JSON.parse(localStorage.getItem('partidas') || '[]');
 
-function guardarPartidas() {
+function guardarPartidas(ids) {
   localStorage.setItem('partidas', JSON.stringify(PARTIDAS));
-  PARTIDAS.forEach(p=>fetch('/api/tiempos?action=guardar-partida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).catch(()=>{}));
+  const lista = ids ? PARTIDAS.filter(p => ids.includes(p.id)) : PARTIDAS;
+  lista.forEach(p => fetch('/api/tiempos?action=guardar-partida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).catch(err => console.error('guardar-partida error:', err)));
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -337,7 +338,7 @@ async function confirmarDespacho() {
     p.nota = `Despacho parcial el ${fecha}. Quedan partes en taller.`;
     PARTIDAS.push(nueva);
     // Save nueva first, then despachar it
-    await fetch('/api/tiempos?action=guardar-partida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(nueva)}).catch(()=>{});
+    await fetch('/api/tiempos?action=guardar-partida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(nueva)}).catch(err=>console.error('guardar-partida error:',err));
     try {
       const res = await fetch('/api/tiempos?action=despachar-partida', {
         method:'POST', headers:{'Content-Type':'application/json'},
@@ -347,7 +348,7 @@ async function confirmarDespacho() {
       if (data.ok) { nueva.estado='despachada'; nueva.numero_envio = data.numero_envio || ''; nueva.fechaDespacho = fecha; }
     } catch(e) { nueva.estado='despachada'; nueva.fechaDespacho = fecha; }
   }
-  guardarPartidas(); cerrarModal('desp'); render();
+  guardarPartidas([p.id]); cerrarModal('desp'); render();
 }
 
 function abrirRecepcion(id) {
@@ -364,7 +365,7 @@ function confirmarRecepcion() {
   p.fechaRecepcion = document.getElementById('recv-fecha').value;
   p.estadoRecep = document.getElementById('recv-estado').value;
   p.obs = document.getElementById('recv-obs').value;
-  guardarPartidas(); cerrarModal('recv'); render();
+  guardarPartidas([p.id]); cerrarModal('recv'); render();
 }
 
 async function archivarPartida(id) {
@@ -523,7 +524,7 @@ function confirmarNueva() {
   };
   if (!nueva.muebleNombre) { alert('Completá el nombre del mueble'); return; }
   PARTIDAS.push(nueva);
-  guardarPartidas();
+  guardarPartidas([nueva.id]);
   const ov = document.getElementById('overlay-nueva');
   if(ov) document.body.removeChild(ov);
   render();
@@ -638,7 +639,7 @@ function _guardarEditPartida(id) {
   p.bultos = parseInt(document.getElementById('edit-bultos')?.value) || 1;
   p.nota = document.getElementById('edit-nota')?.value || '';
   p.fechaRetornoEstimada = document.getElementById('edit-retorno')?.value || '';
-  guardarPartidas();
+  guardarPartidas([p.id]);
   const ov = document.getElementById('overlay-edit');
   if (ov) document.body.removeChild(ov);
   render();

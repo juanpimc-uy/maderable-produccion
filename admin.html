@@ -2226,12 +2226,16 @@ async function _renderCostosPr(prId) {
   const u = window.AUTH.usuarioActual();
   if (!u) return;
   try {
-    const [res, matRes] = await Promise.all([
+    const _prObj = PROYECTOS.find(p => p.id === prId);
+    const _prNum = _prObj?.numero || prId;
+    const [res, matRes, tercRes] = await Promise.all([
       fetch(`/api/tiempos?action=costos-proyecto&proyecto_id=${prId}&admin_id=${u.id}`),
       fetch(`/api/tiempos?action=materiales-proyecto&proyecto_id=${encodeURIComponent(prId)}`),
+      fetch(`/api/tiempos?action=partidas-terceros-proyecto&proyecto_num=${encodeURIComponent(_prNum)}`),
     ]);
     const data = await res.json();
     const matData = await matRes.json();
+    const tercData = await tercRes.json();
     if (!data.ok) { panel.innerHTML = `<div style="color:var(--red);font-size:13px;">${data.error || 'Error al cargar costos'}</div>`; return; }
 
     const fmtUSD = n => n != null ? `$${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
@@ -2318,11 +2322,12 @@ async function _renderCostosPr(prId) {
     _cdPrId = prId;
     _cdCostosMap = {};
     cdItems.forEach(c => { _cdCostosMap[c.id] = c; });
-    // Separar tercerizados de manuales
-    const tercItems = cdItems.filter(c => c.tipo === 'manual' && (c.descripcion || '').match(/^(LUSTRE|TAPIZADO)\s*[–—-]/i));
-    const manualItems = cdItems.filter(c => !tercItems.includes(c));
+    const manualItems = cdItems;
     const manualTotal = manualItems.reduce((a, c) => a + Number(c.monto_usd || 0), 0);
-    const tercTotal = tercItems.reduce((a, c) => a + Number(c.monto_usd || 0), 0);
+
+    // Tercerizados — desde partidas_terceros
+    const tercPartidas = (tercData.ok ? tercData.partidas : []) || [];
+    const tercTotal = tercPartidas.reduce((a, p) => a + (p.monto_usd != null ? p.monto_usd : 0), 0);
 
     const cdRows = manualItems.length
       ? manualItems.map(c => {
@@ -2342,56 +2347,34 @@ async function _renderCostosPr(prId) {
         }).join('')
       : `<tr><td colspan="5" style="color:var(--muted);font-size:12px;padding:8px 0;">Sin costos manuales imputados</td></tr>`;
 
-    // Tercerizados — solo si el proyecto tiene muebles con lus o tap
-    const pr = PROYECTOS.find(p => p.id === prId);
-    const prMuebles = pr?.muebles || pr?.items || [];
-    const tieneLus = prMuebles.some(m => (m.flujos||[]).includes('lustre'));
-    const tieneTap = prMuebles.some(m => (m.flujos||[]).includes('tapiceria'));
-    const mostrarTerc = tieneLus || tieneTap;
-
-    // Buscar registros existentes de tercerizados
-    const lusReg = tercItems.find(c => (c.descripcion || '').toUpperCase().startsWith('LUSTRE'));
-    const tapReg = tercItems.find(c => (c.descripcion || '').toUpperCase().startsWith('TAPIZADO'));
-    const lusProveedorMatch = lusReg ? (lusReg.descripcion || '').match(/^LUSTRE\s*[–—-]\s*(.+)$/i) : null;
-    const tapProveedorMatch = tapReg ? (tapReg.descripcion || '').match(/^TAPIZADO\s*[–—-]\s*(.+)$/i) : null;
-    const lusProveedor = lusProveedorMatch ? lusProveedorMatch[1] : '';
-    const tapProveedor = tapProveedorMatch ? tapProveedorMatch[1] : '';
-
+    // Tercerizados — renderizar desde partidas_terceros
     let tercHtml = '';
-    if (mostrarTerc) {
+    if (tercPartidas.length) {
+      const tercRows = tercPartidas.map(tp => {
+        const tipoLabel = tp.tipo === 'tap' ? 'TAP' : tp.tipo === 'lus' ? 'LUS' : '—';
+        const montoVal = tp.monto_usd != null ? tp.monto_usd : '';
+        return `<tr>
+          <td><span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;background:#0a1a2a;color:var(--blue);border:1px solid #1a2a3a;">${tp.numero_envio||'—'}</span></td>
+          <td style="font-size:10px;color:var(--muted);">${tipoLabel}</td>
+          <td style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${tp.proveedorNombre||'—'}</td>
+          <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${tp.muebleNombre||''}">${tp.muebleNombre||'—'}</td>
+          <td style="text-align:right;"><input type="number" min="0" step="0.01" value="${montoVal}" placeholder="—" data-pid="${tp.id}" onblur="_guardarMontoTerc(this)" style="width:70px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:3px 6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;text-align:right;outline:none;" onfocus="this.style.borderColor='#FFD600'" /></td>
+        </tr>`;
+      }).join('');
       tercHtml = `
       <div class="sec-title" style="font-size:10px;margin-top:20px;margin-bottom:8px;">PROCESOS TERCERIZADOS</div>
       <div style="overflow-x:auto;margin-bottom:4px;"><table style="width:100%;border-collapse:collapse;">
         <thead><tr>
-          <th style="text-align:left;font-size:11px;color:var(--muted);padding:6px 0;font-weight:600;">Proceso</th>
-          <th style="text-align:left;font-size:11px;color:var(--muted);font-weight:600;">Proveedor</th>
-          <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">Monto USD</th>
-          <th style="width:70px;"></th>
+          <th style="text-align:left;font-size:10px;color:var(--muted);padding:6px 0;font-weight:600;">ENV</th>
+          <th style="text-align:left;font-size:10px;color:var(--muted);font-weight:600;">Proc.</th>
+          <th style="text-align:left;font-size:10px;color:var(--muted);font-weight:600;">Proveedor</th>
+          <th style="text-align:left;font-size:10px;color:var(--muted);font-weight:600;">Mueble</th>
+          <th style="text-align:right;font-size:10px;color:var(--muted);font-weight:600;">USD</th>
         </tr></thead>
-        <tbody>
-          ${tieneLus ? `<tr>
-            <td style="font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:600;">LUSTRE</td>
-            <td><input type="text" id="terc-lus-prov" value="${lusProveedor.replace(/"/g,'&quot;')}" placeholder="Proveedor" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text);font-size:12px;width:100%;outline:none;" onfocus="this.style.borderColor='#FFD600'" onblur="this.style.borderColor='var(--border)'"></td>
-            <td><input type="number" id="terc-lus-monto" value="${lusReg ? lusReg.monto_usd : ''}" min="0" step="0.01" placeholder="0.00" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;width:90px;text-align:right;outline:none;" onfocus="this.style.borderColor='#FFD600'" onblur="this.style.borderColor='var(--border)'"></td>
-            <td style="text-align:center;">
-              <button onclick="_tercGuardar('${prId}','LUSTRE','${lusReg?.id||''}')" style="background:var(--green);border:none;border-radius:4px;padding:3px 8px;color:#000;font-size:11px;font-weight:700;cursor:pointer;">✓</button>
-              <button onclick="_tercEliminar('${prId}','${lusReg?.id||''}','LUSTRE')" style="background:transparent;border:1px solid rgba(240,92,92,.3);border-radius:4px;padding:3px 8px;color:var(--red);font-size:11px;cursor:pointer;margin-left:4px;">✕</button>
-            </td>
-          </tr>` : ''}
-          ${tieneTap ? `<tr>
-            <td style="font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:600;">TAPIZADO</td>
-            <td><input type="text" id="terc-tap-prov" value="${tapProveedor.replace(/"/g,'&quot;')}" placeholder="Proveedor" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text);font-size:12px;width:100%;outline:none;" onfocus="this.style.borderColor='#FFD600'" onblur="this.style.borderColor='var(--border)'"></td>
-            <td><input type="number" id="terc-tap-monto" value="${tapReg ? tapReg.monto_usd : ''}" min="0" step="0.01" placeholder="0.00" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;width:90px;text-align:right;outline:none;" onfocus="this.style.borderColor='#FFD600'" onblur="this.style.borderColor='var(--border)'"></td>
-            <td style="text-align:center;">
-              <button onclick="_tercGuardar('${prId}','TAPIZADO','${tapReg?.id||''}')" style="background:var(--green);border:none;border-radius:4px;padding:3px 8px;color:#000;font-size:11px;font-weight:700;cursor:pointer;">✓</button>
-              <button onclick="_tercEliminar('${prId}','${tapReg?.id||''}','TAPIZADO')" style="background:transparent;border:1px solid rgba(240,92,92,.3);border-radius:4px;padding:3px 8px;color:var(--red);font-size:11px;cursor:pointer;margin-left:4px;">✕</button>
-            </td>
-          </tr>` : ''}
-        </tbody>
+        <tbody>${tercRows}</tbody>
         <tfoot><tr style="border-top:1px solid var(--border);">
-          <td colspan="2" style="font-size:12px;color:var(--muted);padding:8px 0;font-family:'JetBrains Mono',monospace;">TOTAL TERCERIZADOS</td>
+          <td colspan="4" style="font-size:12px;color:var(--muted);padding:8px 0;font-family:'JetBrains Mono',monospace;">TOTAL TERCERIZADOS</td>
           <td class="mono" style="text-align:right;font-size:14px;font-weight:700;">${fmtUSD(tercTotal)}</td>
-          <td></td>
         </tr></tfoot>
       </table></div>`;
     }
@@ -5743,6 +5726,21 @@ function _toast(msg, isError = false) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PROCESOS TERCERIZADOS — guardar/eliminar
 // ═══════════════════════════════════════════════════════════════════════════
+async function _guardarMontoTerc(inputEl) {
+  const val = parseFloat(inputEl.value);
+  const pid = inputEl.dataset.pid;
+  if (!pid) return;
+  try {
+    const res = await fetch('/api/tiempos?action=actualizar-monto-tercerizado', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ partida_id: pid, monto_usd: isNaN(val) ? null : val })
+    });
+    const data = await res.json();
+    if (data.ok) { inputEl.style.borderColor='var(--green)'; setTimeout(()=>{inputEl.style.borderColor='var(--border)';},1500); }
+    else { inputEl.style.borderColor='var(--red)'; setTimeout(()=>{inputEl.style.borderColor='var(--border)';},1500); }
+  } catch(e) { inputEl.style.borderColor='var(--red)'; setTimeout(()=>{inputEl.style.borderColor='var(--border)';},1500); }
+}
+
 async function _tercGuardar(prId, proceso, existingId) {
   const u = window.AUTH.usuarioActual();
   if (!u) return;

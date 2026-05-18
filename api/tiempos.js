@@ -2051,6 +2051,34 @@ export default async function handler(req) {
       }});
     }
 
+    // ── GET partidas-terceros-proyecto ───────────────────────────────────
+    if (action === 'partidas-terceros-proyecto' && req.method === 'GET') {
+      const proyecto_num = url.searchParams.get('proyecto_num');
+      if (!proyecto_num) return err('proyecto_num requerido', 400);
+      const { data, error } = await supabase.from('partidas_terceros')
+        .select('id, numero_envio, tipo, proveedor_nombre, mueble_nombre, mueble_codigo, estado, fecha_despacho, monto_usd')
+        .eq('proyecto_num', proyecto_num)
+        .order('creado_at');
+      if (error) throw error;
+      return ok({ ok: true, partidas: (data || []).map(p => ({
+        id: p.id, numero_envio: p.numero_envio || '', tipo: p.tipo,
+        proveedorNombre: p.proveedor_nombre || '', muebleNombre: p.mueble_nombre || '',
+        muebleCodigo: p.mueble_codigo || '', estado: p.estado, fechaDespacho: p.fecha_despacho || '',
+        monto_usd: p.monto_usd != null ? Number(p.monto_usd) : null,
+      })) });
+    }
+
+    // ── POST actualizar-monto-tercerizado ─────────────────────────────────
+    if (action === 'actualizar-monto-tercerizado' && req.method === 'POST') {
+      const { partida_id, monto_usd } = body;
+      if (!partida_id) return err('partida_id requerido', 400);
+      const val = monto_usd != null ? Number(monto_usd) : null;
+      const { error } = await supabase.from('partidas_terceros')
+        .update({ monto_usd: val }).eq('id', partida_id);
+      if (error) throw error;
+      return ok({ ok: true });
+    }
+
     // ── GET partidas tercerizados ─────────────────────────────────────────
     if (action === 'partidas' && req.method === 'GET') {
       const { data, error } = await supabase.from('partidas_terceros').select('*').order('creado_at', { ascending: false });
