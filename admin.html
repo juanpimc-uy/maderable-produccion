@@ -1525,8 +1525,11 @@ function renderDashboard() {
   // ── BLOQUE A: operarios (sin ausentes) ───────────────────────────────────
   const trim4 = str => (str||'').split(' ').slice(0,4).join(' ');
   const visibles = (operarios || [])
-    .filter(op => op.estado !== 'ausente')
     .sort((a, b) => {
+      // Activos primero, luego sin_tarea, luego ausentes
+      const ord = { en_tarea: 0, sin_tarea: 1, ausente: 2 };
+      const oa = ord[a.estado] ?? 1, ob = ord[b.estado] ?? 1;
+      if (oa !== ob) return oa - ob;
       const pa = a.proyecto?.odf || 'zzz';
       const pb = b.proyecto?.odf || 'zzz';
       if (pa !== pb) return pa.localeCompare(pb);
@@ -1539,22 +1542,26 @@ function renderDashboard() {
   } else {
     const renderOpRow = (op) => {
       const esSinTarea  = op.estado === 'sin_tarea';
-      const cls = esSinTarea ? 'ds-op-row ds-sin_tarea' : 'ds-op-row';
-      const prefijo = esSinTarea ? '◌ ' : '';
-      const centro  = esSinTarea ? '—' : (op.centro_label || op.centro || '—');
-      const odf     = esSinTarea ? '—' : (op.proyecto?.odf || '—');
-      const cliente = esSinTarea ? '—' : (op.proyecto?.cliente || '—');
-      const obra    = esSinTarea ? '—' : (op.proyecto?.obra || '—');
-      const mueble  = esSinTarea ? '—' : trim4(op.mueble?.nombre) || '—';
-      const estadoTxt = op.estado.replace('_', ' ').toUpperCase();
-      return `<div class="${cls}" style="cursor:pointer;" onclick="navTo('operarios')">
+      const esAusente   = op.estado === 'ausente';
+      const sinActividad = esSinTarea || esAusente;
+      const cls = esAusente ? 'ds-op-row ds-ausente' : (esSinTarea ? 'ds-op-row ds-sin_tarea' : 'ds-op-row');
+      const prefijo = esAusente ? '⊘ ' : (esSinTarea ? '◌ ' : '');
+      const centro  = sinActividad ? '—' : (op.centro_label || op.centro || '—');
+      const odf     = sinActividad ? '—' : (op.proyecto?.odf || '—');
+      const cliente = sinActividad ? '—' : (op.proyecto?.cliente || '—');
+      const obra    = sinActividad ? '—' : (op.proyecto?.obra || '—');
+      const mueble  = sinActividad ? '—' : trim4(op.mueble?.nombre) || '—';
+      const estadoTxt = esAusente ? 'SIN ACTIVIDAD' : op.estado.replace('_', ' ').toUpperCase();
+      const rowStyle = esAusente ? 'cursor:pointer;background:#2a0a0a;border-left:2px solid #3a1a1a;' : 'cursor:pointer;';
+      const estadoStyle = esAusente ? 'color:#ef5350;' : '';
+      return `<div class="${cls}" style="${rowStyle}" onclick="navTo('operarios')">
         <div class="ds-op-col ds-op-nombre">${prefijo}${op.nombre}</div>
         <div class="ds-op-col">${centro}</div>
         <div class="ds-op-col">${odf}</div>
         <div class="ds-op-col">${cliente}</div>
         <div class="ds-op-col">${obra}</div>
         <div class="ds-op-col">${mueble}</div>
-        <div class="ds-op-col">${estadoTxt}</div>
+        <div class="ds-op-col" style="${estadoStyle}">${estadoTxt}</div>
       </div>`;
     };
     const planta  = visibles.filter(op => op.rol_app === 'operario');
