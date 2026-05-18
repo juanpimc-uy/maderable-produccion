@@ -188,15 +188,16 @@ let verTodasRecibidas = false;
 // ══════════════════════════════════════════════════════════════════════════
 function render() {
   renderChips();
-  const lista = filtroProveedor === 'todos' ? PARTIDAS : PARTIDAS.filter(p => p.proveedorNombre === filtroProveedor || (p.tipo === filtroProveedor));
-  const taller = lista.filter(p => p.estado === 'en_taller');
-  const prov = lista.filter(p => p.estado === 'despachada');
-  let recv = lista.filter(p => p.estado === 'recibida');
-
-  // Recibidas: solo mes actual por defecto
-  // Excluir archivadas por defecto
-  if (!verTodasRecibidas) {
-    recv = recv.filter(p => !p.archivada);
+  const listaBase = filtroProveedor === 'todos' ? PARTIDAS : PARTIDAS.filter(p => p.proveedorNombre === filtroProveedor || (p.tipo === filtroProveedor));
+  const listaActiva = listaBase.filter(p => !p.archivada);
+  const taller = listaActiva.filter(p => p.estado === 'en_taller');
+  const prov = listaActiva.filter(p => p.estado === 'despachada');
+  let recv;
+  if (verTodasRecibidas) {
+    // Ver todas incluye archivadas
+    recv = listaBase.filter(p => p.estado === 'recibida');
+  } else {
+    recv = listaActiva.filter(p => p.estado === 'recibida');
     const mesActual = new Date().toISOString().slice(0, 7);
     recv = recv.filter(p => (p.fechaRecepcion || '').startsWith(mesActual));
   }
@@ -232,12 +233,8 @@ function cardHtml(p, col) {
   }
   // Etiquetas + archivar en todas las columnas
   const etqBtn = `<button class="btn-sm" onclick="imprimirEtiquetas('${p.id}')" style="border-color:#333;color:#aaa;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='#333';this.style.color='#aaa'">\u{1F5A8}</button>`;
-  if (col === 'recv') {
-    const archBtn = `<button class="btn-sm" onclick="archivarPartida('${p.id}')" style="border-color:#333;color:#555;font-size:9px;" onmouseenter="this.style.borderColor='var(--muted)';this.style.color='var(--muted)'" onmouseleave="this.style.borderColor='#333';this.style.color='#555'">Archivar</button>`;
-    actions = etqBtn + archBtn;
-  } else {
-    actions = actions ? actions + etqBtn : etqBtn;
-  }
+  const archBtn = `<button class="btn-sm" onclick="archivarPartida('${p.id}')" style="border-color:#333;color:#555;font-size:9px;" onmouseenter="this.style.borderColor='var(--muted)';this.style.color='var(--muted)'" onmouseleave="this.style.borderColor='#333';this.style.color='#555'">Archivar</button>`;
+  actions = (actions ? actions : '') + etqBtn + archBtn;
   let recepBadge = '';
   if (col === 'recv' && p.estadoRecep) {
     const cls = p.estadoRecep === 'ok' ? 'badge-ok' : p.estadoRecep === 'obs' ? 'badge-obs' : 'badge-rehacer';
@@ -373,12 +370,13 @@ function confirmarRecepcion() {
 }
 
 async function archivarPartida(id) {
+  if (!confirm('¿Archivar esta partida? No aparecerá más en el tablero.')) return;
   const p = PARTIDAS.find(x => x.id === id);
   if (!p) return;
   p.archivada = true;
   try {
     await fetch('/api/tiempos?action=archivar-partida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({partida_id:id})});
-  } catch(e) {}
+  } catch(e) { console.error('archivar error:', e); }
   render();
 }
 
