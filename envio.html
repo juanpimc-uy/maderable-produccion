@@ -226,11 +226,11 @@ function renderPantalla3() {
     <div class="result">
       <div class="result-icon">${esDespacho ? '\u2713' : '\u2713'}</div>
       <div class="result-text" style="color:${esDespacho ? 'var(--accent)' : 'var(--green)'};">
-        ${esDespacho ? 'Despacho registrado' : 'Recepcion registrada'}
+        ${esDespacho ? 'Despacho registrado' : 'Recepcion confirmada'}
       </div>
       <div class="result-sub">${e.bultos || 1}/${e.bultos || 1} bultos \u00b7 ${e.proveedor || ''}</div>
       <div class="result-sub" style="margin-top:6px;">${e.numero_envio || e._id}</div>
-      <div class="result-sub" style="margin-top:12px;opacity:.4;">\u21BB Tercerizados actualizado</div>
+      ${esDespacho ? '<div class="result-sub" style="margin-top:12px;opacity:.4;">\u21BB Tercerizados actualizado</div>' : ''}
     </div>`;
 }
 </script>

@@ -2063,6 +2063,8 @@ export default async function handler(req) {
         estadoRecep: p.estado_recep, obs: p.obs, nota: p.nota,
         bultos: p.bultos || 0, numero_envio: p.numero_envio || '',
         fechaRetornoEstimada: p.fecha_retorno_estimada || '',
+        fechaRecepcionProveedor: p.fecha_recepcion_proveedor || '',
+        archivada: p.archivada || false,
       })) });
     }
 
@@ -2127,16 +2129,22 @@ export default async function handler(req) {
       return ok({ ok: true, numero_envio: numero_envio || data?.numero_envio, partida: data });
     }
 
-    // ── POST recibir-partida (público, desde QR) ─────────────────────────
+    // ── POST archivar-partida ────────────────────────────────────────────
+    if (action === 'archivar-partida' && req.method === 'POST') {
+      const { partida_id } = body;
+      if (!partida_id) return err('partida_id requerido', 400);
+      const { error } = await supabase.from('partidas_terceros')
+        .update({ archivada: true }).eq('id', partida_id);
+      if (error) throw error;
+      return ok({ ok: true });
+    }
+
+    // ── POST recibir-partida (público, desde QR — confirma recepción por proveedor)
     if (action === 'recibir-partida' && req.method === 'POST') {
       const { partida_id } = body;
       if (!partida_id) return err('partida_id requerido', 400);
       const { data, error } = await supabase.from('partidas_terceros')
-        .update({
-          estado: 'recibida',
-          fecha_recepcion: new Date().toISOString().split('T')[0],
-          estado_recep: 'ok',
-        })
+        .update({ fecha_recepcion_proveedor: new Date().toISOString() })
         .eq('id', partida_id).select().single();
       if (error) throw error;
       return ok({ ok: true, partida: data });

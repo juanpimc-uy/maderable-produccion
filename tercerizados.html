@@ -193,10 +193,11 @@ function render() {
   let recv = lista.filter(p => p.estado === 'recibida');
 
   // Recibidas: solo mes actual por defecto
+  // Excluir archivadas por defecto
   if (!verTodasRecibidas) {
+    recv = recv.filter(p => !p.archivada);
     const mesActual = new Date().toISOString().slice(0, 7);
-    const recvMes = recv.filter(p => (p.fechaRecepcion || '').startsWith(mesActual));
-    recv = recvMes;
+    recv = recv.filter(p => (p.fechaRecepcion || '').startsWith(mesActual));
   }
 
   document.getElementById('count-taller').textContent = taller.length;
@@ -228,9 +229,14 @@ function cardHtml(p, col) {
   } else if (col === 'prov') {
     actions = `<button class="btn-sm success" onclick="abrirRecepcion('${p.id}')">✓ Recibir</button>`;
   }
-  // Etiquetas disponible en todas las columnas
-  const etqBtn = `<button class="btn-sm" onclick="imprimirEtiquetas('${p.id}')" style="border-color:#333;color:#aaa;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='#333';this.style.color='#aaa'">🖨</button>`;
-  actions = actions ? actions + etqBtn : etqBtn;
+  // Etiquetas + archivar en todas las columnas
+  const etqBtn = `<button class="btn-sm" onclick="imprimirEtiquetas('${p.id}')" style="border-color:#333;color:#aaa;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='#333';this.style.color='#aaa'">\u{1F5A8}</button>`;
+  if (col === 'recv') {
+    const archBtn = `<button class="btn-sm" onclick="archivarPartida('${p.id}')" style="border-color:#333;color:#555;font-size:9px;" onmouseenter="this.style.borderColor='var(--muted)';this.style.color='var(--muted)'" onmouseleave="this.style.borderColor='#333';this.style.color='#555'">Archivar</button>`;
+    actions = etqBtn + archBtn;
+  } else {
+    actions = actions ? actions + etqBtn : etqBtn;
+  }
   let recepBadge = '';
   if (col === 'recv' && p.estadoRecep) {
     const cls = p.estadoRecep === 'ok' ? 'badge-ok' : p.estadoRecep === 'obs' ? 'badge-obs' : 'badge-rehacer';
@@ -253,7 +259,7 @@ function cardHtml(p, col) {
       ${p.fechaDespacho ? ' · ' + p.fechaDespacho : ''}
     </div>
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-      ${showProv ? `<span class="badge-prov">${p.tipo === 'tap' ? 'TAP' : 'LUS'} ${provLabel}</span>` : ''}
+      ${showProv ? `<span class="badge-prov" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${provLabel}</span>` : ''}
       ${recepBadge}
       ${col === 'prov' && p.fechaRetornoEstimada ? (() => {
         const hoy = new Date(); hoy.setHours(0,0,0,0);
@@ -262,6 +268,7 @@ function cardHtml(p, col) {
         const fmtRet = ret.toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit'});
         return `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);">Retorno: ${fmtRet}</span><span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;letter-spacing:1px;text-transform:uppercase;${atrasada?'background:#2a0a0a;color:#ef5350;border:1px solid #3a1a1a;':'background:#0a2a0a;color:#4caf50;border:1px solid #1a3a1a;'}">${atrasada?'ATRASADA':'VIGENTE'}</span>`;
       })() : ''}
+      ${col === 'prov' && p.fechaRecepcionProveedor ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#4caf50;">\u2713 Recibido por proveedor \u00b7 ${new Date(p.fechaRecepcionProveedor).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>` : ''}
     </div>
     ${actions ? `<div class="card-actions" style="margin-top:6px;" onclick="event.stopPropagation()">${actions}</div>` : ''}
   </div>`;
@@ -358,6 +365,16 @@ function confirmarRecepcion() {
   p.estadoRecep = document.getElementById('recv-estado').value;
   p.obs = document.getElementById('recv-obs').value;
   guardarPartidas(); cerrarModal('recv'); render();
+}
+
+async function archivarPartida(id) {
+  const p = PARTIDAS.find(x => x.id === id);
+  if (!p) return;
+  p.archivada = true;
+  try {
+    await fetch('/api/tiempos?action=archivar-partida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({partida_id:id})});
+  } catch(e) {}
+  render();
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -702,15 +719,18 @@ async function abrirConfigProvs() {
   overlay.id = 'overlay-cfg-prov';
   overlay.onclick = () => document.body.removeChild(overlay);
 
+  const tipoLabel = t => t === 'tap' ? 'Tapiceria' : t === 'lus' ? 'Lustre' : 'General';
   const rowHtml = (p) => `
-    <div class="cfg-prov-row" data-id="${p.id}" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
-      <input class="cfg-prov-nombre" value="${(p.nombre||'').replace(/"/g,'&quot;')}" placeholder="Nombre" style="flex:1;background:#111;border:1px solid #242424;border-radius:4px;padding:6px 8px;color:#ccc;font-size:12px;outline:none;"/>
-      <select class="cfg-prov-tipo" style="background:#111;border:1px solid #242424;border-radius:4px;padding:6px 8px;color:#ccc;font-size:12px;width:110px;">
-        <option value="lus" ${p.tipo==='lus'?'selected':''}>✨ Lustre</option>
-        <option value="tap" ${p.tipo==='tap'?'selected':''}>🧵 Tapicería</option>
-        <option value="gen" ${p.tipo==='gen'?'selected':''}>📦 General</option>
-      </select>
-      <button onclick="_eliminarProv('${p.id}',this.closest('.cfg-prov-row'))" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;" title="Eliminar">✕</button>
+    <div class="cfg-prov-row" data-id="${p.id}" data-tipo="${p.tipo||''}" style="display:flex;gap:8px;align-items:center;margin-bottom:10px;padding:8px 10px;background:#111;border:1px solid #1e1e1e;border-radius:6px;">
+      <div style="flex-shrink:0;width:70px;">
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">TIPO</div>
+        <div style="font-size:11px;color:#888;">${tipoLabel(p.tipo)}</div>
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">EMPRESA</div>
+        <input class="cfg-prov-nombre" value="${(p.nombre||'').replace(/"/g,'&quot;')}" placeholder="Nombre empresa" style="width:100%;background:transparent;border:none;border-bottom:1px solid #242424;padding:3px 0;color:#ccc;font-size:12px;outline:none;font-family:'Space Mono',monospace;" onfocus="this.style.borderColor='#FFD600'" onblur="this.style.borderColor='#242424'"/>
+      </div>
+      <button onclick="_eliminarProv('${p.id}',this.closest('.cfg-prov-row'))" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;flex-shrink:0;" title="Eliminar">\u2715</button>
     </div>`;
 
   overlay.innerHTML = `
@@ -732,15 +752,20 @@ function _addProvRow() {
   const row = document.createElement('div');
   row.className = 'cfg-prov-row';
   row.dataset.id = '';
-  row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:8px;';
+  row.dataset.tipo = 'lus';
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:10px;padding:8px 10px;background:#111;border:1px solid #1e1e1e;border-radius:6px;';
   row.innerHTML = `
-    <input class="cfg-prov-nombre" value="" placeholder="Nombre" style="flex:1;background:#111;border:1px solid #242424;border-radius:4px;padding:6px 8px;color:#ccc;font-size:12px;outline:none;"/>
-    <select class="cfg-prov-tipo" style="background:#111;border:1px solid #242424;border-radius:4px;padding:6px 8px;color:#ccc;font-size:12px;width:110px;">
-      <option value="lus">✨ Lustre</option>
-      <option value="tap">🧵 Tapicería</option>
-      <option value="gen">📦 General</option>
-    </select>
-    <button onclick="this.closest('.cfg-prov-row').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;">✕</button>`;
+    <div style="flex-shrink:0;width:70px;">
+      <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">TIPO</div>
+      <select class="cfg-prov-tipo" style="background:transparent;border:none;color:#888;font-size:11px;outline:none;padding:0;">
+        <option value="lus">Lustre</option><option value="tap">Tapiceria</option><option value="gen">General</option>
+      </select>
+    </div>
+    <div style="flex:1;">
+      <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">EMPRESA</div>
+      <input class="cfg-prov-nombre" value="" placeholder="Nombre empresa" style="width:100%;background:transparent;border:none;border-bottom:1px solid #242424;padding:3px 0;color:#ccc;font-size:12px;outline:none;font-family:'Space Mono',monospace;" onfocus="this.style.borderColor='#FFD600'" onblur="this.style.borderColor='#242424'"/>
+    </div>
+    <button onclick="this.closest('.cfg-prov-row').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;flex-shrink:0;">\u2715</button>`;
   list.appendChild(row);
 }
 
@@ -759,7 +784,7 @@ async function _guardarConfigProvs() {
   rows.forEach(row => {
     const id = row.dataset.id || '';
     const nombre = row.querySelector('.cfg-prov-nombre')?.value?.trim() || '';
-    const tipo = row.querySelector('.cfg-prov-tipo')?.value || 'lus';
+    const tipo = row.querySelector('.cfg-prov-tipo')?.value || row.dataset.tipo || 'lus';
     if (!nombre) return;
     if (tipo === 'lus' && !newLus) newLus = nombre;
     if (tipo === 'tap' && !newTap) newTap = nombre;
