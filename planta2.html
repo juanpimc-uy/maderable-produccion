@@ -2065,6 +2065,8 @@ function selODFSoloProyecto(odfId) {
 
 async function confirmarTarea() {
   if (!centroSel) return;
+  if (_accionEnCurso) return;           // guard contra doble-tap / reconexión
+  _accionEnCurso = true;
 
   // D4: verificar si existe registro finalizado para esta combinación exacta (histórico completo)
   try {
@@ -2079,7 +2081,7 @@ async function confirmarTarea() {
       const fechaStr = chk.ultimo?.fin
         ? new Date(chk.ultimo.fin).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' })
         : 'fecha desconocida';
-      if (!confirm(`Este centro ya fue finalizado el ${fechaStr}. ¿Querés iniciar otra sesión de trabajo?`)) return;
+      if (!confirm(`Este centro ya fue finalizado el ${fechaStr}. ¿Querés iniciar otra sesión de trabajo?`)) { _accionEnCurso = false; return; }
     }
   } catch (_) { /* si el check falla, no bloquear */ }
 
@@ -2087,7 +2089,6 @@ async function confirmarTarea() {
   if (btn) { btn.textContent = 'Iniciando…'; btn.disabled = true; }
   // Deshabilitar botones de centro mientras se confirma
   document.querySelectorAll('#lista-centros-selector .centro-btn').forEach(b => { b.disabled = true; });
-  _accionEnCurso = true;
 
   try {
     const { registro } = await apiPost('iniciar-tarea', {

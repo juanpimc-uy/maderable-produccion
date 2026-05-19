@@ -275,7 +275,18 @@ async function _iniciarTareaImpl(sb, {
       es_retrabajo: false,
     })
     .select().single();
-  if (error) throw error;
+  if (error) {
+    // Unique violation (uq_registro_activo): otra petición concurrente ya insertó
+    if (error.code === '23505') {
+      const { data: existing } = await sb.from('registros_trabajo')
+        .select()
+        .eq('empleado_id', empleado_id)
+        .eq('estado', 'activo')
+        .maybeSingle();
+      if (existing) return { registro: existing };
+    }
+    throw error;
+  }
   return { registro: data };
 }
 
