@@ -944,9 +944,11 @@ render();
 <script>
 // ── Auth standalone ─────────────────────────────────────────────
 const PASS_TERC = 'terceros2024';
-const _sess = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session') || '{}'); } catch(e) { return {}; } })();
-if (_sess.rol_app === 'admin' || _sess.rol_app === 'oficina') _mostrarApp();
-else if (localStorage.getItem('tercerizados_auth') === 'ok') _mostrarApp();
+document.addEventListener('DOMContentLoaded', () => {
+  const _sess = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session') || '{}'); } catch(e) { return {}; } })();
+  if (_sess.rol_app === 'admin' || _sess.rol_app === 'oficina') _mostrarApp();
+  else if (localStorage.getItem('tercerizados_auth') === 'ok') _mostrarApp();
+});
 function _login() {
   const pw = document.getElementById('pw-input').value.trim();
   if (pw === PASS_TERC) {

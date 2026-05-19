@@ -195,7 +195,9 @@ select.filtro-select:focus{border-color:var(--amber);}
 // AUTH — misma contraseña que recepciones-oc
 // ═══════════════════════════════════════════════════════════════
 const PASS = 'maderable2024';
-if (localStorage.getItem('armado_session') === 'ok') _mostrarApp();
+document.addEventListener('DOMContentLoaded', () => {
+  if (localStorage.getItem('armado_session') === 'ok') _mostrarApp();
+});
 function _login() {
   const pw = document.getElementById('pw-input').value.trim();
   if (pw === PASS) {
