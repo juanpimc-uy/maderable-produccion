@@ -1195,9 +1195,6 @@ export default async function handler(req) {
       if (callerS.rol_app !== 'admin' && callerS.rol_app !== 'oficina')
         return new Response(JSON.stringify({ ok: false, error: 'Sin acceso' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      if (callerS.rol_app !== 'admin' && callerS.rol_app !== 'oficina' && !callerS.acceso_tiempos && regS.empleado_id !== caller_id)
-        return new Response(JSON.stringify({ ok: false, error: 'Sin acceso a tiempos de otros empleados' }),
-          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
       if (inicio !== undefined && inicio !== null && new Date(inicio).toString() === 'Invalid Date')
         return err('inicio no es una fecha válida', 400);
@@ -1233,17 +1230,27 @@ export default async function handler(req) {
       if (inicioISO) {
         const { data: solapadosS } = await supabase
           .from('registros_trabajo')
-          .select('id, inicio, fin')
+          .select('id, inicio, fin, estado')
           .eq('empleado_id', regS.empleado_id)
           .eq('eliminada', false)
           .neq('id', reg_id)
           .lt('inicio', finChequeoS)
           .or(`fin.is.null,fin.gt.${inicioISO}`);
         if (solapadosS && solapadosS.length > 0) {
-          const s = solapadosS[0];
-          return new Response(JSON.stringify({
-            ok: false, error: `Solapamiento con sesión ${s.id} (${s.inicio} - ${s.fin})`,
-          }), { status: 409, headers: { ...CORS, 'Content-Type': 'application/json' } });
+          // Si el solapado es la sesión activa (fin=null, estado='activo')
+          // y estamos editando el fin de otra sesión → auto-ajustar inicio de la activa
+          const activaSolapada = solapadosS.find(ss => ss.estado === 'activo' && !ss.fin);
+          const soloActivas    = solapadosS.every(ss => ss.estado === 'activo' && !ss.fin);
+          if (activaSolapada && soloActivas && finEfectivo) {
+            await supabase.from('registros_trabajo')
+              .update({ inicio: new Date(finEfectivo).toISOString() })
+              .eq('id', activaSolapada.id);
+          } else {
+            const s = solapadosS[0];
+            return new Response(JSON.stringify({
+              ok: false, error: `Solapamiento con sesión ${s.id} (${s.inicio} - ${s.fin})`,
+            }), { status: 409, headers: { ...CORS, 'Content-Type': 'application/json' } });
+          }
         }
       }
 
@@ -1284,14 +1291,19 @@ export default async function handler(req) {
       if (!callerAg)
         return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      if (callerAg.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede agregar sesiones' }),
+      if (callerAg.rol_app !== 'admin' && callerAg.rol_app !== 'oficina')
+        return new Response(JSON.stringify({ ok: false, error: 'Sin acceso' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
       const { data: jornAg, error: jAgErr } = await supabase
         .from('jornadas').select('id, empleado_id').eq('id', jornada_id).maybeSingle();
       if (jAgErr) throw jAgErr;
       if (!jornAg) return err('Jornada no encontrada', 404);
+
+      // Oficina solo puede agregar sesiones para sí mismo
+      if (callerAg.rol_app === 'oficina' && jornAg.empleado_id !== caller_id)
+        return new Response(JSON.stringify({ ok: false, error: 'Oficina solo puede agregar sus propias sesiones' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
       const { data: cvAg, error: cvAgErr } = await supabase
         .from('centros_virtuales').select('activo, requiere_proyecto').eq('codigo', centro).maybeSingle();

@@ -197,6 +197,106 @@ table.ses-table tr:not(.row-modified){border-left:3px solid transparent;}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
 @keyframes spin{to{transform:rotate(360deg)}}
 .add-row-tr td{background:rgba(255,214,0,.04);}
+
+/* ── Session edit modal ─────────────────────────────────────────── */
+.modal-overlay{
+  position:fixed;top:0;left:0;right:0;bottom:0;z-index:200;
+  background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .15s;
+}
+.modal-overlay.open{opacity:1;pointer-events:auto;}
+.modal-box{
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  width:500px;max-width:95vw;max-height:90vh;overflow-y:auto;
+  box-shadow:0 8px 40px rgba(0,0,0,.4);
+}
+.modal-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px;border-bottom:1px solid var(--border);
+}
+.modal-title{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--text);}
+.modal-subtitle{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px;}
+.modal-close{
+  background:none;border:none;color:var(--muted);font-size:18px;
+  cursor:pointer;padding:4px 8px;transition:color .15s;
+}
+.modal-close:hover{color:var(--red);}
+.modal-body{padding:20px;}
+.modal-section{margin-bottom:18px;}
+.modal-label{
+  font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.5px;
+  color:var(--muted);text-transform:uppercase;margin-bottom:6px;display:block;
+}
+.modal-time-row{display:flex;gap:12px;align-items:flex-start;}
+.modal-time-field{flex:1;}
+.modal-time-field input[type="time"]{
+  background:var(--card);border:1px solid var(--border);border-radius:5px;
+  padding:8px 10px;color:var(--text);font-family:'Space Mono',monospace;
+  font-size:13px;outline:none;width:100%;transition:border-color .15s;
+}
+.modal-time-field input[type="time"]:focus{border-color:var(--accent);}
+.modal-time-field input[type="time"]:disabled{opacity:.5;cursor:not-allowed;}
+.link-badge{
+  display:inline-block;font-family:'Space Mono',monospace;font-size:8px;
+  letter-spacing:.5px;color:var(--blue);background:rgba(91,141,239,.1);
+  padding:2px 6px;border-radius:3px;margin-top:4px;
+}
+.en-curso-live{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:'Space Mono',monospace;font-size:11px;color:var(--green);
+  background:rgba(61,214,140,.08);padding:6px 10px;border-radius:5px;margin-top:4px;
+}
+.centro-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.centro-chip{
+  font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.5px;
+  padding:6px 12px;background:var(--card);border:1px solid var(--border);
+  border-radius:5px;cursor:pointer;color:var(--muted);transition:all .15s;
+  user-select:none;
+}
+.centro-chip:hover{border-color:var(--text);color:var(--text);}
+.centro-chip.selected{background:rgba(255,214,0,.12);border-color:var(--accent);color:var(--accent);font-weight:700;}
+.modal-input{
+  background:var(--card);border:1px solid var(--border);border-radius:5px;
+  padding:8px 10px;color:var(--text);font-family:'Space Mono',monospace;
+  font-size:12px;outline:none;width:100%;transition:border-color .15s;
+}
+.modal-input:focus{border-color:var(--accent);}
+.proy-results{
+  max-height:120px;overflow-y:auto;background:var(--card);border:1px solid var(--border);
+  border-radius:0 0 5px 5px;border-top:none;margin-top:-1px;display:none;
+}
+.proy-results.open{display:block;}
+.proy-item{
+  padding:6px 10px;font-family:'Space Mono',monospace;font-size:11px;
+  color:var(--text);cursor:pointer;transition:background .1s;
+}
+.proy-item:hover{background:rgba(255,214,0,.08);}
+.modal-footer{
+  padding:16px 20px;border-top:1px solid var(--border);
+  display:flex;justify-content:flex-end;gap:10px;
+}
+.modal-btn{
+  font-family:'Space Mono',monospace;font-size:11px;font-weight:700;
+  letter-spacing:.5px;padding:8px 20px;border-radius:5px;cursor:pointer;
+  border:none;transition:opacity .15s;
+}
+.modal-btn:disabled{opacity:.45;cursor:not-allowed;}
+.modal-btn-primary{background:var(--accent);color:#000;}
+.modal-btn-secondary{background:transparent;border:1px solid var(--border);color:var(--muted);}
+.modal-btn-secondary:hover{border-color:var(--text);color:var(--text);}
+.modal-error{font-family:'Space Mono',monospace;font-size:10px;color:var(--red);margin-top:8px;display:none;}
+/* mini-form for new task */
+.mini-form{
+  background:rgba(255,214,0,.04);border:1px solid var(--border);border-radius:8px;
+  padding:14px;margin-top:12px;display:none;
+}
+.mini-form.open{display:block;}
+.mini-form-row{display:flex;gap:10px;margin-top:10px;align-items:flex-end;}
+/* clickable session rows */
+table.ses-table tbody tr{cursor:pointer;transition:background .1s;}
+table.ses-table tbody tr:hover{background:rgba(255,255,255,.03);}
+table.ses-table tbody tr.add-row-tr{cursor:default;}
+table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
 </style>
 </head>
 <body>
@@ -289,6 +389,61 @@ table.ses-table tr:not(.row-modified){border-left:3px solid transparent;}
 
 <!-- ═══ SHARED DATALIST FOR PROJECTS ════════════════════════════════ -->
 <datalist id="proyectos-dl"></datalist>
+
+<!-- ═══ SESSION EDIT MODAL ═════════════════════════════════════════ -->
+<div class="modal-overlay" id="ses-modal" onclick="if(event.target===this)_tModalClose()">
+<div class="modal-box">
+  <div class="modal-header">
+    <div>
+      <div class="modal-title" id="modal-title">Editar sesión</div>
+      <div class="modal-subtitle" id="modal-subtitle"></div>
+    </div>
+    <button class="modal-close" onclick="_tModalClose()">✕</button>
+  </div>
+  <div class="modal-body">
+    <!-- Horario -->
+    <div class="modal-section">
+      <span class="modal-label">HORARIO</span>
+      <div class="modal-time-row">
+        <div class="modal-time-field">
+          <span class="modal-label" style="font-size:8px;">INICIO</span>
+          <input type="time" id="modal-inicio" step="60">
+          <div id="modal-inicio-link"></div>
+        </div>
+        <div class="modal-time-field">
+          <span class="modal-label" style="font-size:8px;">FIN</span>
+          <input type="time" id="modal-fin" step="60">
+          <div id="modal-fin-link"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Centro -->
+    <div class="modal-section">
+      <span class="modal-label">CENTRO</span>
+      <div class="centro-chips" id="modal-centros"></div>
+    </div>
+    <!-- Proyecto -->
+    <div class="modal-section">
+      <span class="modal-label">PROYECTO</span>
+      <input class="modal-input" type="text" id="modal-proyecto" placeholder="Buscar proyecto..." autocomplete="off">
+      <div class="proy-results" id="modal-proy-results"></div>
+    </div>
+    <!-- Mueble -->
+    <div class="modal-section" id="modal-mueble-section">
+      <span class="modal-label">MUEBLE</span>
+      <input class="modal-input" type="text" id="modal-mueble" placeholder="Nombre del mueble...">
+    </div>
+    <!-- Nueva tarea (solo sesión activa) -->
+    <div id="modal-nueva-tarea-wrap"></div>
+    <!-- Error -->
+    <div class="modal-error" id="modal-error"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="modal-btn modal-btn-secondary" onclick="_tModalClose()">CANCELAR</button>
+    <button class="modal-btn modal-btn-primary" id="modal-guardar" onclick="_tModalGuardar()">GUARDAR</button>
+  </div>
+</div>
+</div>
 
 <script>
 'use strict';
@@ -543,69 +698,45 @@ async function _tGuardarTodo() {
   _tUpdateSaveBtn();
 }
 
+// ── Session data store (for modal access to adjacent sessions) ───────────
+const _tSessionsByJornada = new Map(); // jornadaId → [{...session}]
+
 // ── Shared session table renderer ─────────────────────────────────────────
-function _tSesionTable(sesiones, jornadaId) {
-  const centroOpts = _cvT.map(c =>
-    `<option value="${c.codigo}">${c.nombre}</option>`
-  ).join('');
+function _tSesionTable(sesiones, jornadaId, empNombre) {
+  // Store session data for modal
+  _tSessionsByJornada.set(jornadaId, sesiones);
 
   const rows = sesiones.map(s => {
-    const activo    = s.estado === 'activo';
-    const sinFin    = !s.fin;
-    const cv        = _cvT.find(c => c.codigo === s.centro);
-    const proyLabel = [s.proyecto_nombre].filter(Boolean).join('') || '';
-    const muebleVis = cv?.requiere_mueble ? '' : 'none';
+    const activo  = s.estado === 'activo';
+    const sinFin  = !s.fin;
+    const cv      = _cvT.find(c => c.codigo === s.centro);
+    const centroLabel = cv?.nombre || s.centro || '—';
+    const proyLabel   = s.proyecto_nombre || '—';
+    const fmtTime = iso => {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    };
+    const estadoBadge = activo
+      ? '<span class="en-curso">EN CURSO</span>'
+      : `<span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">${s.estado}</span>`;
 
     return `
-<tr data-sid="${s.id}">
-  <td style="min-width:160px;">
-    <input class="ses-input" type="datetime-local"
-      value="${toLocalDT(s.inicio)}"
-      onchange="_tSesField('${s.id}','inicio',this.value)">
-  </td>
-  <td style="min-width:160px;">
-    ${sinFin && activo ? `<span class="en-curso">EN CURSO</span><br>` : ''}
-    <input class="ses-input" type="datetime-local"
-      value="${toLocalDT(s.fin)}"
-      placeholder="${sinFin && activo ? 'EN CURSO' : ''}"
-      onchange="_tSesField('${s.id}','fin',this.value)">
-  </td>
-  <td style="min-width:130px;">
-    <select class="ses-select" onchange="_tSesCentro('${s.id}',this.value)">
-      <option value="">—</option>
-      ${_cvT.map(c => `<option value="${c.codigo}"${c.codigo===s.centro?' selected':''}>${c.nombre}</option>`).join('')}
-    </select>
-  </td>
-  <td style="min-width:160px;">
-    <input class="ses-input" type="text"
-      value="${proyLabel}"
-      list="proyectos-dl"
-      placeholder="proyecto…"
-      onchange="_tSesProyecto('${s.id}',this.value)">
-  </td>
-  <td style="min-width:120px;">
-    <div class="mueble-wrap" style="display:${muebleVis}">
-      <input class="ses-input" type="text"
-        value="${s.item_nombre||''}"
-        placeholder="mueble…"
-        onchange="_tSesField('${s.id}','item_nombre',this.value)">
-    </div>
-  </td>
-  <td style="min-width:110px;">
-    <select class="ses-select" onchange="_tSesField('${s.id}','estado',this.value)">
-      <option value="activo"${s.estado==='activo'?' selected':''}>activo</option>
-      <option value="finalizado"${s.estado==='finalizado'?' selected':''}>finalizado</option>
-      <option value="retrabajo"${s.estado==='retrabajo'?' selected':''}>retrabajo</option>
-    </select>
-  </td>
+<tr data-sid="${s.id}" data-jid="${jornadaId}" onclick="_tModalOpen('${s.id}','${jornadaId}'${empNombre ? `,'${empNombre.replace(/'/g,"\\'")}'` : ''})">
+  <td class="mono" style="font-size:12px;">${fmtTime(s.inicio)}</td>
+  <td class="mono" style="font-size:12px;">${sinFin && activo ? '' : fmtTime(s.fin)} ${estadoBadge}</td>
+  <td style="font-size:11px;">${centroLabel}</td>
+  <td style="font-size:11px;color:var(--muted);">${proyLabel}</td>
+  <td style="font-size:11px;color:var(--muted);">${s.item_nombre||''}</td>
   <td>
-    <button class="btn-eliminar" onclick="_tEliminarSesion('${s.id}',this)">✕</button>
+    <button class="btn-eliminar" onclick="event.stopPropagation();_tEliminarSesion('${s.id}',this)">✕</button>
     <div class="ses-error"></div>
   </td>
 </tr>`;
   }).join('');
 
-  const addBtn = _tIsAdmin
+  const canAdd = _tUser && (_tUser.rol_app === 'admin' || _tUser.rol_app === 'oficina');
+  const addBtn = canAdd
     ? `<button class="btn-add-ses" onclick="_tAgregarSesion('${jornadaId}',this)">+ AGREGAR SESIÓN</button>`
     : '';
 
@@ -613,12 +744,347 @@ function _tSesionTable(sesiones, jornadaId) {
 <div class="ses-wrap">
 <table class="ses-table">
   <thead><tr>
-    <th>INICIO</th><th>FIN</th><th>CENTRO</th><th>PROYECTO</th><th>MUEBLE</th><th>ESTADO</th><th></th>
+    <th>INICIO</th><th>FIN</th><th>CENTRO</th><th>PROYECTO</th><th>MUEBLE</th><th></th>
   </tr></thead>
   <tbody>${rows}</tbody>
 </table>
 </div>
 ${addBtn}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SESSION EDIT MODAL
+// ═══════════════════════════════════════════════════════════════════════════
+let _modalSesion    = null;  // current session data
+let _modalJornadaId = null;
+let _modalSesiones  = [];    // all sessions for this jornada (sorted by inicio)
+let _modalIdx       = -1;    // index of current session in _modalSesiones
+let _modalEmpNombre = '';
+let _modalLiveTimer = null;
+let _modalProyId    = null;
+let _modalProyNombre = null;
+
+function _tModalOpen(sesionId, jornadaId, empNombre) {
+  const sesiones = _tSessionsByJornada.get(jornadaId) || [];
+  const sorted   = [...sesiones].sort((a,b) => new Date(a.inicio) - new Date(b.inicio));
+  const idx      = sorted.findIndex(s => s.id === sesionId);
+  if (idx < 0) return;
+
+  _modalSesion    = sorted[idx];
+  _modalJornadaId = jornadaId;
+  _modalSesiones  = sorted;
+  _modalIdx       = idx;
+  _modalEmpNombre = empNombre || '';
+
+  const s    = _modalSesion;
+  const prev = idx > 0 ? sorted[idx - 1] : null;
+  const next = idx < sorted.length - 1 ? sorted[idx + 1] : null;
+  const activo = s.estado === 'activo';
+
+  // Header
+  const fecha = s.inicio ? new Date(s.inicio).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' }) : '';
+  document.getElementById('modal-title').textContent = 'Editar sesión';
+  document.getElementById('modal-subtitle').textContent = [_modalEmpNombre, fecha].filter(Boolean).join(' · ');
+
+  // Inicio time
+  const inicioInput = document.getElementById('modal-inicio');
+  inicioInput.value = _isoToHM(s.inicio);
+  inicioInput.disabled = false;
+  const inicioLink = document.getElementById('modal-inicio-link');
+  if (prev) {
+    inicioLink.innerHTML = '<span class="link-badge">&#9889; = fin sesión anterior</span>';
+  } else {
+    inicioLink.innerHTML = '';
+  }
+
+  // Fin time
+  const finInput = document.getElementById('modal-fin');
+  const finLink  = document.getElementById('modal-fin-link');
+  if (activo) {
+    finInput.value    = '';
+    finInput.disabled = true;
+    finLink.innerHTML = '';
+    _modalStartLiveTimer();
+  } else {
+    finInput.value    = _isoToHM(s.fin);
+    finInput.disabled = false;
+    if (next) {
+      finLink.innerHTML = '<span class="link-badge">&#9889; = inicio sesión siguiente</span>';
+    } else {
+      finLink.innerHTML = '';
+    }
+    _modalStopLiveTimer();
+  }
+
+  // Centro chips
+  const centrosDiv = document.getElementById('modal-centros');
+  centrosDiv.innerHTML = _cvT.map(c =>
+    `<div class="centro-chip${c.codigo === s.centro ? ' selected' : ''}" data-codigo="${c.codigo}" onclick="_tModalSelCentro(this)">${c.nombre}</div>`
+  ).join('');
+
+  // Proyecto
+  _modalProyId     = s.proyecto_id || null;
+  _modalProyNombre = s.proyecto_nombre || '';
+  document.getElementById('modal-proyecto').value = _modalProyNombre;
+  document.getElementById('modal-proy-results').classList.remove('open');
+
+  // Mueble
+  const cv = _cvT.find(c => c.codigo === s.centro);
+  document.getElementById('modal-mueble-section').style.display = cv?.requiere_mueble ? '' : 'none';
+  document.getElementById('modal-mueble').value = s.item_nombre || '';
+
+  // Nueva tarea mini-form (solo sesión activa)
+  const ntWrap = document.getElementById('modal-nueva-tarea-wrap');
+  if (activo) {
+    ntWrap.innerHTML = `
+      <button class="btn-add-ses" onclick="_tModalToggleNuevaTarea()" style="margin-top:8px;">+ AGREGAR NUEVA TAREA ACTIVA</button>
+      <div class="mini-form" id="modal-mini-form">
+        <span class="modal-label">NUEVA TAREA</span>
+        <div class="centro-chips" id="modal-nt-centros" style="margin-top:6px;">
+          ${_cvT.map(c => `<div class="centro-chip" data-codigo="${c.codigo}" onclick="_tModalSelNTCentro(this)">${c.nombre}</div>`).join('')}
+        </div>
+        <div style="margin-top:10px;">
+          <span class="modal-label" style="font-size:8px;">PROYECTO</span>
+          <input class="modal-input" type="text" id="modal-nt-proyecto" placeholder="Buscar proyecto..." autocomplete="off" oninput="_tModalNTProySearch(this.value)">
+          <div class="proy-results" id="modal-nt-proy-results"></div>
+        </div>
+        <div class="mini-form-row">
+          <button class="modal-btn modal-btn-primary" onclick="_tModalConfirmNuevaTarea()" style="font-size:10px;padding:6px 14px;">INICIAR TAREA</button>
+        </div>
+      </div>`;
+  } else {
+    ntWrap.innerHTML = '';
+  }
+
+  // Error
+  document.getElementById('modal-error').style.display = 'none';
+  document.getElementById('modal-error').textContent   = '';
+
+  // Show
+  document.getElementById('ses-modal').classList.add('open');
+
+  // Project search listener
+  const proyInput = document.getElementById('modal-proyecto');
+  proyInput.oninput = () => _tModalProySearch(proyInput.value);
+  proyInput.onfocus = () => { if (proyInput.value) _tModalProySearch(proyInput.value); };
+}
+
+function _tModalClose() {
+  document.getElementById('ses-modal').classList.remove('open');
+  _modalStopLiveTimer();
+  _modalSesion = null;
+}
+
+// ── Time helpers ──────────────────────────────────────────────────────────
+function _isoToHM(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function _hmToISO(hm, refISO) {
+  if (!hm || !refISO) return null;
+  const [h, m] = hm.split(':').map(Number);
+  const d = new Date(refISO);
+  d.setHours(h, m, 0, 0);
+  return d.toISOString();
+}
+
+// ── Live timer for active session ─────────────────────────────────────────
+function _modalStartLiveTimer() {
+  _modalStopLiveTimer();
+  const finLink = document.getElementById('modal-fin-link');
+  const update = () => {
+    if (!_modalSesion) return;
+    const elapsed = Date.now() - new Date(_modalSesion.inicio).getTime();
+    const mins = Math.floor(elapsed / 60000);
+    const h = Math.floor(mins / 60), m = mins % 60;
+    finLink.innerHTML = `<span class="en-curso-live">EN CURSO &nbsp;${h}h ${String(m).padStart(2,'0')}m</span>`;
+  };
+  update();
+  _modalLiveTimer = setInterval(update, 15000);
+}
+function _modalStopLiveTimer() {
+  if (_modalLiveTimer) { clearInterval(_modalLiveTimer); _modalLiveTimer = null; }
+}
+
+// ── Centro chip selection ─────────────────────────────────────────────────
+function _tModalSelCentro(el) {
+  el.closest('.centro-chips').querySelectorAll('.centro-chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  const codigo = el.dataset.codigo;
+  const cv = _cvT.find(c => c.codigo === codigo);
+  document.getElementById('modal-mueble-section').style.display = cv?.requiere_mueble ? '' : 'none';
+}
+
+// ── Project search ────────────────────────────────────────────────────────
+function _tModalProySearch(q) {
+  const resultsDiv = document.getElementById('modal-proy-results');
+  if (!q || q.length < 2) { resultsDiv.classList.remove('open'); return; }
+  const lq = q.toLowerCase();
+  const matches = _proyectosT.filter(p => {
+    const label = [p.numero, p.nombre].filter(Boolean).join(' ').toLowerCase();
+    return label.includes(lq);
+  }).slice(0, 8);
+  if (matches.length === 0) { resultsDiv.classList.remove('open'); return; }
+  resultsDiv.innerHTML = matches.map(p => {
+    const label = [p.numero, p.nombre].filter(Boolean).join(' · ');
+    return `<div class="proy-item" onclick="_tModalPickProy('${p.id}',\`${p.nombre||label}\`)">${label}</div>`;
+  }).join('');
+  resultsDiv.classList.add('open');
+}
+function _tModalPickProy(id, nombre) {
+  _modalProyId     = id;
+  _modalProyNombre = nombre;
+  document.getElementById('modal-proyecto').value = nombre;
+  document.getElementById('modal-proy-results').classList.remove('open');
+}
+
+// ── Nueva tarea mini-form ─────────────────────────────────────────────────
+let _modalNTCentro  = null;
+let _modalNTProyId  = null;
+let _modalNTProyNom = null;
+
+function _tModalToggleNuevaTarea() {
+  const mf = document.getElementById('modal-mini-form');
+  if (mf) mf.classList.toggle('open');
+}
+function _tModalSelNTCentro(el) {
+  el.closest('.centro-chips').querySelectorAll('.centro-chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  _modalNTCentro = el.dataset.codigo;
+}
+function _tModalNTProySearch(q) {
+  const resultsDiv = document.getElementById('modal-nt-proy-results');
+  if (!q || q.length < 2) { resultsDiv.classList.remove('open'); return; }
+  const lq = q.toLowerCase();
+  const matches = _proyectosT.filter(p => {
+    const label = [p.numero, p.nombre].filter(Boolean).join(' ').toLowerCase();
+    return label.includes(lq);
+  }).slice(0, 8);
+  if (matches.length === 0) { resultsDiv.classList.remove('open'); return; }
+  resultsDiv.innerHTML = matches.map(p => {
+    const label = [p.numero, p.nombre].filter(Boolean).join(' · ');
+    return `<div class="proy-item" onclick="_tModalPickNTProy('${p.id}',\`${p.nombre||label}\`)">${label}</div>`;
+  }).join('');
+  resultsDiv.classList.add('open');
+}
+function _tModalPickNTProy(id, nombre) {
+  _modalNTProyId  = id;
+  _modalNTProyNom = nombre;
+  document.getElementById('modal-nt-proyecto').value = nombre;
+  document.getElementById('modal-nt-proy-results').classList.remove('open');
+}
+
+async function _tModalConfirmNuevaTarea() {
+  if (!_modalNTCentro) { alert('Seleccioná un centro'); return; }
+  const errEl = document.getElementById('modal-error');
+  errEl.style.display = 'none';
+  try {
+    const res = await _tFetch('/api/tiempos?action=iniciar-tarea', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        empleado_id:     _modalSesion.empleado_id,
+        jornada_id:      _modalJornadaId,
+        proyecto_id:     _modalNTProyId  || null,
+        proyecto_nombre: _modalNTProyNom || null,
+        centro:          _modalNTCentro,
+      }),
+    });
+    const json = await res.json();
+    if (json.error) throw new Error(json.error);
+    _tModalClose();
+    // Reload current view
+    _tReloadCurrentView();
+  } catch(e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+// ── Modal save ────────────────────────────────────────────────────────────
+async function _tModalGuardar() {
+  if (!_modalSesion) return;
+  const btn   = document.getElementById('modal-guardar');
+  const errEl = document.getElementById('modal-error');
+  btn.disabled = true;
+  btn.textContent = 'GUARDANDO...';
+  errEl.style.display = 'none';
+
+  const s    = _modalSesion;
+  const activo = s.estado === 'activo';
+  const prev = _modalIdx > 0 ? _modalSesiones[_modalIdx - 1] : null;
+  const next = _modalIdx < _modalSesiones.length - 1 ? _modalSesiones[_modalIdx + 1] : null;
+
+  // Collect changes
+  const newInicio = _hmToISO(document.getElementById('modal-inicio').value, s.inicio);
+  const newFin    = activo ? undefined : _hmToISO(document.getElementById('modal-fin').value, s.inicio);
+  const selChip   = document.querySelector('#modal-centros .centro-chip.selected');
+  const newCentro = selChip?.dataset.codigo;
+  const newMueble = document.getElementById('modal-mueble').value || null;
+
+  // Build patch for this session
+  const patch = {};
+  if (newInicio && newInicio !== s.inicio) patch.inicio = newInicio;
+  if (newFin !== undefined && newFin !== s.fin) patch.fin = newFin;
+  if (newCentro && newCentro !== s.centro) patch.centro = newCentro;
+  if (_modalProyId !== s.proyecto_id) {
+    patch.proyecto_id     = _modalProyId;
+    patch.proyecto_nombre = _modalProyNombre;
+  }
+  if (newMueble !== (s.item_nombre || null)) patch.item_nombre = newMueble;
+
+  // Linked time patches for adjacent sessions
+  const linkedPatches = [];
+  if (patch.inicio && prev) {
+    // Update fin of previous session to match new inicio
+    linkedPatches.push({ sesion_id: prev.id, caller_id: CALLER_ID, fin: patch.inicio });
+  }
+  if (patch.fin && next) {
+    // Update inicio of next session to match new fin
+    linkedPatches.push({ sesion_id: next.id, caller_id: CALLER_ID, inicio: patch.fin });
+  }
+
+  try {
+    // Save this session if changed
+    if (Object.keys(patch).length > 0) {
+      const res = await _tFetch('/api/tiempos?action=editar-sesion', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ sesion_id: s.id, caller_id: CALLER_ID, ...patch }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'Error al guardar');
+    }
+
+    // Save linked patches
+    for (const lp of linkedPatches) {
+      const res = await _tFetch('/api/tiempos?action=editar-sesion', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(lp),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'Error al guardar sesión enlazada');
+    }
+
+    _tModalClose();
+    _tReloadCurrentView();
+  } catch(e) {
+    errEl.textContent  = e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = 'GUARDAR';
+  }
+}
+
+// ── Reload helper ─────────────────────────────────────────────────────────
+function _tReloadCurrentView() {
+  _tClearChanges();
+  const activeTab = document.querySelector('.tab-btn.active')?.textContent?.trim();
+  if (activeTab === 'POR DÍA') _tCargarDia();
+  else if (activeTab === 'POR OPERARIO') _tCargarOperario();
 }
 
 // ── Eliminar sesión ───────────────────────────────────────────────────────
@@ -794,7 +1260,7 @@ function _tRenderDia(data) {
       </div>
       ${_tomoDescD}
     </div>
-    ${_tSesionTable(emp.sesiones, jornada.id)}
+    ${_tSesionTable(emp.sesiones, jornada.id, emp.nombre)}
   </div>
 </div>`;
   }).join('');
@@ -897,7 +1363,7 @@ ${data.dias.map(dia => {
       </div>
       ${_tomoDescO}
     </div>
-    ${_tSesionTable(dia.sesiones, jornada.id)}
+    ${_tSesionTable(dia.sesiones, jornada.id, data.nombre)}
   </div>
 </div>`;
 }).join('')}`;
