@@ -287,7 +287,9 @@ function cardHtml(p, col) {
       })() : ''}
       ${col === 'prov' && p.fechaDespacho ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#888;">\u2192 Despachado \u00b7 ${new Date(p.fechaDespacho + (p.fechaDespacho.includes('T') ? '' : 'T12:00:00')).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>` : ''}
       ${col === 'prov' && p.fechaRecepcionProveedor ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#4caf50;">\u2713 Recibido por proveedor \u00b7 ${new Date(p.fechaRecepcionProveedor).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>` : ''}
+      ${col === 'prov' && p.baru_completado_at ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;background:#0a2a0a;color:#4caf50;border:1px solid #1a3a1a;">\u2713 Completado por BARU</span>` : ''}
     </div>
+    ${col === 'prov' && p.instruccion_lustre && (p.proveedorNombre||'').toUpperCase().includes('BARU') ? `<div style="margin-top:6px;border-left:2px solid var(--accent);padding-left:8px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.instruccion_lustre}</div>` : ''}
     ${actions ? `<div class="card-actions" style="margin-top:6px;" onclick="event.stopPropagation()">${actions}</div>` : ''}
   </div>`;
 }
@@ -321,8 +323,17 @@ function abrirDespacho(id) {
   overlay.className = 'overlay open';
   overlay.id = 'overlay-desp-bultos';
   overlay.onclick = () => document.body.removeChild(overlay);
+  const esBaru = (provNombre||'').toUpperCase().includes('BARU');
+  const instruccionField = esBaru ? `
+    <div class="field" style="margin-bottom:14px;">
+      <label>Instrucción de lustre</label>
+      <textarea id="desp-instruccion" placeholder="Ej: Lustrado según muestra..." style="height:60px;font-family:'Space Mono',monospace;font-size:11px;">${(p.instruccion_lustre||'').replace(/</g,'&lt;')}</textarea>
+      <div id="desp-sugerencias" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;"></div>
+    </div>` : '';
+
   overlay.innerHTML = `<div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">DESPACHO A ${(provNombre||'').toUpperCase()}</div>
+    ${instruccionField}
     <div id="desp-bultos-list"></div>
     <div style="display:flex;gap:8px;margin-top:14px;">
       <button id="desp-confirm-btn" class="btn-sm" disabled onclick="_confirmarDespachoBultos('${id}')">Confirmar despacho (0/${bultos})</button>
@@ -331,6 +342,20 @@ function abrirDespacho(id) {
   </div>`;
   document.body.appendChild(overlay);
   _renderDespBultos(p);
+
+  // Cargar sugerencias de instrucción para BARU
+  if (esBaru && p.proyectoNum) {
+    fetch('/api/baru-sugerencias-instruccion?proyecto_num=' + encodeURIComponent(p.proyectoNum))
+      .then(r => r.json())
+      .then(d => {
+        if (!d.ok || !d.sugerencias?.length) return;
+        const el = document.getElementById('desp-sugerencias');
+        if (!el) return;
+        el.innerHTML = d.sugerencias.map(s =>
+          `<span onclick="document.getElementById('desp-instruccion').value=this.textContent" style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:3px 8px;border-radius:3px;background:#111;border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .15s;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">${s}</span>`
+        ).join('');
+      }).catch(() => {});
+  }
 }
 
 function _renderDespBultos(p) {
@@ -365,6 +390,18 @@ function _toggleDespBulto(idx) {
 async function _confirmarDespachoBultos(id) {
   const p = PARTIDAS.find(x => x.id === id);
   if (!p) return;
+  // Guardar instrucción de lustre si existe el campo
+  const instrEl = document.getElementById('desp-instruccion');
+  if (instrEl) {
+    const instruccion = instrEl.value.trim();
+    try {
+      await fetch('/api/baru-guardar-instruccion', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ id: p.id, instruccion_lustre: instruccion })
+      });
+      p.instruccion_lustre = instruccion;
+    } catch(e) { console.error('guardar-instruccion error:', e); }
+  }
   try {
     const res = await fetch('/api/tiempos?action=despachar-partida', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -766,7 +803,10 @@ function _imprimirEtiqueta(p) {
   const retorno = p.fechaRetornoEstimada
     ? new Date(p.fechaRetornoEstimada + 'T12:00:00').toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit'})
     : '\u2014';
-  const qrUrl = 'https://maderable-produccion.vercel.app/envio.html?id=' + encodeURIComponent(envio);
+  const esBaru = (provFull||'').toUpperCase().includes('BARU');
+  const qrUrl = esBaru
+    ? 'https://maderable-produccion.vercel.app/baru-recepcion.html?id=' + encodeURIComponent(p.id)
+    : 'https://maderable-produccion.vercel.app/envio.html?id=' + encodeURIComponent(envio);
 
   const win = window.open('', '_blank', 'width=450,height=350');
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">

@@ -2117,6 +2117,8 @@ export default async function handler(req) {
         fechaRecepcionProveedor: p.fecha_recepcion_proveedor || '',
         archivada: p.archivada || false,
         proveedorNombre: p.proveedor_nombre || '',
+        instruccion_lustre: p.instruccion_lustre || '',
+        baru_completado_at: p.baru_completado_at || null,
       })) });
     }
 

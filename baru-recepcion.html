@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="robots" content="noindex">
+<title>MBLE · Recepción BARU</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0f0f0f;--panel:#1e1e1e;--border:#333;--yellow:#FFD600;--yellow-dim:rgba(255,214,0,0.12);--green:#22c55e;--green-dim:rgba(34,197,94,0.12);--red:#ef4444;--text:#f0f0f0;--muted:#888;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
+.wrap{width:100%;max-width:420px;margin:0 auto;padding:20px 16px;}
+.header{font-family:'Space Mono',monospace;font-size:10px;color:var(--yellow);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
+.header-sub{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:24px;}
+.envio-badge{display:inline-block;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--yellow);background:var(--yellow-dim);padding:4px 12px;border-radius:4px;letter-spacing:1px;margin-bottom:12px;}
+.mueble-name{font-size:18px;font-weight:600;color:#fff;margin-bottom:6px;}
+.meta{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:16px;line-height:1.6;}
+.instruccion-block{background:var(--panel);border-left:3px solid var(--yellow);border-radius:0 6px 6px 0;padding:14px 16px;margin-bottom:20px;}
+.instruccion-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.instruccion-text{font-family:'Space Mono',monospace;font-size:12px;color:var(--text);line-height:1.5;white-space:pre-wrap;}
+.status-banner{padding:12px 16px;border-radius:6px;font-family:'Space Mono',monospace;font-size:11px;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.status-recibido{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,0.2);}
+.status-pendiente{background:rgba(255,214,0,0.06);color:var(--yellow);border:1px solid rgba(255,214,0,0.15);}
+.btn-confirmar{width:100%;padding:14px;border:none;border-radius:8px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:1px;background:var(--green);color:#000;transition:opacity .15s;margin-bottom:12px;}
+.btn-confirmar:hover{opacity:.85;}
+.btn-confirmar:disabled{opacity:.4;cursor:not-allowed;}
+.link-portal{display:block;text-align:center;font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);text-decoration:none;padding:10px;transition:color .15s;}
+.link-portal:hover{color:var(--yellow);}
+.loading{text-align:center;padding:60px 20px;font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+.error-msg{text-align:center;padding:60px 20px;font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">&#9675; MADERABLE</div>
+  <div class="header-sub">Tercerizados · Recepción</div>
+  <div id="content"><div class="loading">CARGANDO...</div></div>
+</div>
+
+<script>
+'use strict';
+let _partida = null;
+
+(async () => {
+  const el = document.getElementById('content');
+  const id = new URLSearchParams(location.search).get('id');
+  if (!id) { el.innerHTML = '<div class="error-msg">Sin ID de partida</div>'; return; }
+
+  try {
+    const res = await fetch('/api/baru-partida?id=' + encodeURIComponent(id));
+    const data = await res.json();
+    if (!data.ok || !data.partida) {
+      el.innerHTML = '<div class="error-msg">Partida no encontrada</div>';
+      return;
+    }
+    _partida = data.partida;
+    renderPartida();
+  } catch (e) {
+    el.innerHTML = '<div class="error-msg">Error: ' + e.message + '</div>';
+  }
+})();
+
+function renderPartida() {
+  const p = _partida;
+  const el = document.getElementById('content');
+  const yaRecibida = !!p.fecha_recepcion_proveedor;
+
+  const fmtFecha = iso => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  let statusHtml = '';
+  if (yaRecibida) {
+    statusHtml = `<div class="status-banner status-recibido">&#10003; Recibido por proveedor &middot; ${fmtFecha(p.fecha_recepcion_proveedor)}</div>`;
+  } else {
+    statusHtml = `<div class="status-banner status-pendiente">Pendiente de recepción</div>`;
+  }
+
+  let instruccionHtml = '';
+  if (p.instruccion_lustre) {
+    instruccionHtml = `
+      <div class="instruccion-block">
+        <div class="instruccion-label">Instrucción de lustre</div>
+        <div class="instruccion-text">${esc(p.instruccion_lustre)}</div>
+      </div>`;
+  }
+
+  let actionHtml = '';
+  if (!yaRecibida) {
+    actionHtml = `<button class="btn-confirmar" id="btn-confirmar" onclick="confirmarRecepcion()">&#10003; Confirmar recepción</button>`;
+  }
+
+  el.innerHTML = `
+    ${p.numero_envio ? `<div class="envio-badge">${esc(p.numero_envio)}</div>` : ''}
+    <div class="mueble-name">${esc(p.mueble_nombre || '—')}</div>
+    <div class="meta">
+      ${p.obra ? esc(p.obra) + ' &middot; ' : ''}${p.cliente ? esc(p.cliente) + ' &middot; ' : ''}${p.bultos ? p.bultos + ' bulto(s)' : ''}
+      ${p.fecha_despacho ? '<br>Despachado: ' + fmtFecha(p.fecha_despacho) : ''}
+      ${p.fecha_retorno_estimada ? '<br>Retorno estimado: ' + p.fecha_retorno_estimada : ''}
+    </div>
+    ${instruccionHtml}
+    ${statusHtml}
+    ${actionHtml}
+    <a href="/baru.html" class="link-portal">&rarr; Ir al portal BARU</a>
+  `;
+}
+
+async function confirmarRecepcion() {
+  const btn = document.getElementById('btn-confirmar');
+  if (!btn || !_partida) return;
+  btn.disabled = true;
+  btn.textContent = 'CONFIRMANDO...';
+
+  try {
+    const res = await fetch('/api/baru-confirmar-recepcion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: _partida.id }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    _partida.fecha_recepcion_proveedor = new Date().toISOString();
+    renderPartida();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'ERROR — REINTENTAR';
+    alert('Error: ' + e.message);
+  }
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+</script>
+</body>
+</html>

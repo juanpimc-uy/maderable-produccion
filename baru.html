@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>BARU · Portal Proveedores</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#0f0f0f;--panel:#1e1e1e;--panel2:#2a2a2a;--border:#333;
+  --yellow:#FFD600;--yellow-dim:rgba(255,214,0,0.12);
+  --green:#22c55e;--green-dim:rgba(34,197,94,0.12);
+  --red:#ef4444;--red-dim:rgba(239,68,68,0.12);
+  --text:#f0f0f0;--muted:#888;
+  --mono:'Space Mono',monospace;--sans:'DM Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;}
+
+/* ── Login ───────────────────────────────────────────────────── */
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;}
+.login-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:40px;width:100%;max-width:360px;}
+.login-brand{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--yellow);letter-spacing:3px;text-align:center;margin-bottom:4px;}
+.login-sub{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:2px;text-align:center;margin-bottom:6px;text-transform:uppercase;}
+.login-sub2{font-family:var(--sans);font-size:12px;color:var(--muted);text-align:center;margin-bottom:28px;}
+.login-input{width:100%;background:#111;border:1px solid var(--border);border-radius:6px;padding:12px 14px;color:var(--text);font-size:14px;outline:none;margin-bottom:10px;font-family:var(--mono);letter-spacing:1px;}
+.login-input:focus{border-color:var(--yellow);}
+.login-btn{width:100%;background:var(--yellow);color:#000;border:none;border-radius:6px;padding:13px;font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;text-transform:uppercase;}
+.login-btn:disabled{opacity:.5;cursor:not-allowed;}
+.login-error{font-family:var(--mono);font-size:10px;color:var(--red);text-align:center;margin-top:10px;min-height:14px;}
+
+/* ── App shell ───────────────────────────────────────────────── */
+.app{display:none;}
+.topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 20px;height:50px;display:flex;align-items:center;justify-content:space-between;}
+.topbar-left{display:flex;align-items:center;gap:12px;}
+.topbar-brand{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--yellow);letter-spacing:2px;}
+.topbar-sep{color:var(--border);font-size:14px;}
+.topbar-sub{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:1px;}
+.topbar-logout{background:none;border:1px solid var(--border);border-radius:4px;padding:5px 12px;font-family:var(--mono);font-size:10px;color:var(--muted);cursor:pointer;transition:all .15s;}
+.topbar-logout:hover{border-color:var(--red);color:var(--red);}
+.content{max-width:900px;margin:0 auto;padding:24px 20px;}
+
+/* ── Tabs ────────────────────────────────────────────────────── */
+.tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:0;}
+.tab{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:8px 16px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;transition:color .15s,border-color .15s;position:relative;top:1px;}
+.tab.active{color:var(--yellow);border-bottom-color:var(--yellow);}
+.tab-badge{font-family:var(--mono);font-size:9px;background:var(--panel2);padding:1px 5px;border-radius:3px;margin-left:4px;}
+
+/* ── Cards ───────────────────────────────────────────────────── */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:border-color .15s;}
+.card:hover{border-color:var(--yellow);}
+.card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.card-envio{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--yellow);background:var(--yellow-dim);padding:2px 8px;border-radius:3px;}
+.card-fecha{font-family:var(--mono);font-size:9px;color:var(--muted);}
+.card-mueble{font-size:14px;font-weight:600;color:#fff;margin-bottom:4px;}
+.card-meta{font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.5;}
+.badge-vencido{font-family:var(--mono);font-size:8px;padding:2px 6px;border-radius:3px;background:var(--red-dim);color:var(--red);letter-spacing:.5px;text-transform:uppercase;margin-left:6px;}
+.badge-recibido{font-family:var(--mono);font-size:8px;padding:2px 6px;border-radius:3px;background:var(--green-dim);color:var(--green);margin-top:4px;display:inline-block;}
+
+/* ── Export bar ──────────────────────────────────────────────── */
+.export-bar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+.periodo-btn{font-family:var(--mono);font-size:10px;padding:5px 12px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;}
+.periodo-btn.active{background:var(--yellow);color:#000;border-color:var(--yellow);font-weight:700;}
+.nav-btn{font-family:var(--mono);font-size:14px;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 10px;color:var(--muted);cursor:pointer;transition:all .15s;}
+.nav-btn:hover{border-color:var(--yellow);color:var(--yellow);}
+.rango-label{font-family:var(--mono);font-size:11px;color:var(--text);letter-spacing:1px;text-transform:uppercase;}
+.export-btn{font-family:var(--mono);font-size:10px;font-weight:700;padding:5px 14px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;margin-left:auto;}
+.export-btn:hover{border-color:var(--yellow);color:var(--yellow);}
+
+/* ── Completados table ───────────────────────────────────────── */
+.rep-table{width:100%;border-collapse:collapse;font-size:11px;}
+.rep-table th{font-family:var(--mono);font-size:8px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;text-align:left;padding:8px 6px;border-bottom:1px solid var(--border);}
+.rep-table td{padding:6px;border-bottom:1px solid rgba(51,51,51,.5);font-family:var(--mono);font-size:10px;}
+.rep-table tr.total td{font-weight:700;background:var(--panel);border-top:2px solid var(--border);}
+
+/* ── Detail view ─────────────────────────────────────────────── */
+.detail{display:none;}
+.back-btn{font-family:var(--mono);font-size:11px;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px 0;margin-bottom:16px;transition:color .15s;}
+.back-btn:hover{color:var(--yellow);}
+.detail-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+.detail-envio{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--yellow);}
+.detail-mueble{font-size:16px;font-weight:600;color:#fff;}
+.info-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:16px;}
+.info-row{display:flex;gap:20px;flex-wrap:wrap;}
+.info-item{margin-bottom:8px;}
+.info-lbl{font-family:var(--mono);font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
+.info-val{font-size:12px;color:var(--text);margin-top:2px;}
+.instruccion-block{background:var(--panel);border-left:3px solid var(--yellow);border-radius:0 6px 6px 0;padding:14px 16px;margin-bottom:20px;}
+.instruccion-label{font-family:var(--mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.instruccion-text{font-family:var(--mono);font-size:12px;color:var(--text);line-height:1.5;white-space:pre-wrap;}
+.banner{padding:10px 14px;border-radius:6px;font-family:var(--mono);font-size:11px;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.banner-green{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,0.2);}
+.banner-yellow{background:var(--yellow-dim);color:var(--yellow);border:1px solid rgba(255,214,0,0.15);}
+
+/* ── Work items form ─────────────────────────────────────────── */
+.separator{height:1px;background:var(--border);margin:20px 0;}
+.section-title{font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;}
+.item-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:10px;position:relative;}
+.item-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.item-num{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;}
+.item-remove{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px;transition:color .15s;}
+.item-remove:hover{color:var(--red);}
+.field-label{font-family:var(--mono);font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}
+.lustre-wrap{position:relative;margin-bottom:10px;}
+.lustre-input{width:100%;background:#111;border:1px solid var(--border);border-radius:5px;padding:8px 10px;color:var(--text);font-family:var(--mono);font-size:11px;outline:none;}
+.lustre-input:focus{border-color:var(--yellow);}
+.lustre-input.selected{color:var(--yellow);font-weight:700;}
+.lustre-dropdown{position:absolute;top:100%;left:0;right:0;z-index:50;background:#1a1a1a;border:1px solid var(--border);border-radius:0 0 5px 5px;max-height:200px;overflow-y:auto;display:none;}
+.lustre-dropdown.open{display:block;}
+.lustre-option{padding:8px 10px;font-family:var(--mono);font-size:10px;color:var(--text);cursor:pointer;transition:background .1s;}
+.lustre-option:hover{background:var(--yellow-dim);}
+.m2-row{display:flex;align-items:center;gap:8px;}
+.m2-input{width:100px;background:#111;border:1px solid var(--border);border-radius:5px;padding:8px 10px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none;}
+.m2-input:focus{border-color:var(--yellow);}
+.m2-unit{font-family:var(--mono);font-size:11px;color:var(--muted);}
+.btn-add-item{font-family:var(--mono);font-size:10px;font-weight:700;padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--muted);cursor:pointer;transition:all .15s;margin-bottom:16px;}
+.btn-add-item:hover{border-color:var(--yellow);color:var(--yellow);}
+.btn-completar{width:100%;padding:14px;border:none;border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:1px;background:var(--green);color:#000;transition:opacity .15s;}
+.btn-completar:hover{opacity:.85;}
+.btn-completar:disabled{opacity:.4;cursor:not-allowed;}
+.empty{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center;padding:40px 20px;}
+
+/* ── Print ───────────────────────────────────────────────────── */
+@media print{
+  body{background:#fff;color:#000;}
+  .topbar,.tabs,.export-bar,.back-btn,.btn-completar,.btn-add-item,.item-remove,.card,.detail .info-card,.detail .instruccion-block,.detail .banner{break-inside:avoid;}
+  .topbar{display:none !important;}
+  .tabs{display:none !important;}
+  .export-bar .export-btn,.export-bar .periodo-btn,.export-bar .nav-btn{display:none !important;}
+  .rep-table th,.rep-table td{color:#000;border-color:#ccc;}
+  .print-header{display:block !important;text-align:center;margin-bottom:16px;font-family:var(--mono);font-size:14px;font-weight:700;}
+}
+.print-header{display:none;}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN ════════════════════════════════════════════════════ -->
+<div id="screen-login">
+  <div class="login-wrap">
+    <div class="login-box">
+      <div class="login-brand">&#9675; MADERABLE</div>
+      <div class="login-sub">Tercerizados</div>
+      <div class="login-sub2">BARU &middot; Portal de proveedores</div>
+      <input class="login-input" id="login-user" placeholder="Usuario" autocomplete="username">
+      <input class="login-input" id="login-pass" type="password" placeholder="Contraseña" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter')doLogin()">
+      <button class="login-btn" id="login-btn" onclick="doLogin()">INGRESAR &rarr;</button>
+      <div class="login-error" id="login-error"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ APP ══════════════════════════════════════════════════════ -->
+<div class="app" id="screen-app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="topbar-brand">BARU</span>
+      <span class="topbar-sep">/</span>
+      <span class="topbar-sub">Portal de proveedores &middot; Maderable</span>
+    </div>
+    <button class="topbar-logout" onclick="doLogout()">Cerrar sesión</button>
+  </div>
+
+  <div class="content">
+    <!-- Lista view -->
+    <div id="list-view">
+      <div class="tabs" id="tabs"></div>
+      <!-- Export bar (solo completados) -->
+      <div class="export-bar" id="export-bar" style="display:none;"></div>
+      <div class="print-header" id="print-header">MADERABLE &mdash; Reporte BARU</div>
+      <div id="list-content"></div>
+    </div>
+    <!-- Detail view -->
+    <div class="detail" id="detail-view"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════
+// TYPES & CONSTANTS
+// ═══════════════════════════════════════════════════════════════
+const TIPOS_LUSTRE = [
+  'LUSTRE 5%','LUSTRE EMP.','LACA BLANCO','LACA COLOR >3m2',
+  'LACA BLANCO RUTEADO','LACA COLOR RUTEADO','LITRO DE PINTURA COLOR',
+  'ROBLE PORO ABIERTO BLANCO','ROBLE PORO ABIERTO COLOR',
+  'OTRAS PATINAS','LACA METALIZADA BR 20',
+  'LACA MET. BR 100 S/PULIR','LACA MET. BR 100 PULIDO',
+];
+
+let _token = null;
+let _tab = 'por_recibir';
+let _partidas = [];
+let _reportePartidas = [];
+let _reporteRango = null;
+let _reportePeriodo = 'semana';
+let _reporteFecha = new Date().toISOString().split('T')[0];
+let _counts = { por_recibir: 0, en_proceso: 0, completados: 0 };
+let _detailPartida = null;
+let _workItems = []; // items de trabajo en detalle
+
+// ═══════════════════════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════════════════════
+function getToken() {
+  const t = sessionStorage.getItem('baru_token');
+  if (!t) return null;
+  try {
+    const payload = atob(t.replace(/-/g,'+').replace(/_/g,'/'));
+    const ts = parseInt(payload.split(':')[0], 10);
+    if (Date.now() - ts > 12 * 60 * 60 * 1000) { sessionStorage.removeItem('baru_token'); return null; }
+    return t;
+  } catch { return null; }
+}
+
+async function doLogin() {
+  const btn = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+  btn.disabled = true;
+  errEl.textContent = '';
+  const usuario = document.getElementById('login-user').value.trim();
+  const password = document.getElementById('login-pass').value;
+  try {
+    const res = await fetch('/api/baru-auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario, password }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    sessionStorage.setItem('baru_token', data.token);
+    _token = data.token;
+    showApp();
+  } catch (e) {
+    errEl.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function doLogout() {
+  sessionStorage.removeItem('baru_token');
+  _token = null;
+  document.getElementById('screen-app').style.display = 'none';
+  document.getElementById('screen-login').style.display = '';
+}
+
+function authHeaders() {
+  return { 'Authorization': 'Bearer ' + _token, 'Content-Type': 'application/json' };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FETCH HELPERS
+// ═══════════════════════════════════════════════════════════════
+async function fetchPartidas(estado) {
+  const res = await fetch('/api/baru-envios?estado=' + estado, { headers: authHeaders() });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Error');
+  return data.partidas || [];
+}
+
+async function fetchReporte() {
+  const res = await fetch(`/api/baru-reporte?periodo=${_reportePeriodo}&fecha=${_reporteFecha}`, { headers: authHeaders() });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Error');
+  _reportePartidas = data.partidas || [];
+  _reporteRango = data.rango;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// APP INIT
+// ═══════════════════════════════════════════════════════════════
+function showApp() {
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('screen-app').style.display = '';
+  loadTab(_tab);
+}
+
+async function loadTab(tab) {
+  _tab = tab;
+  showListView();
+
+  // Load counts
+  try {
+    const [pr, ep, co] = await Promise.all([
+      fetchPartidas('por_recibir'),
+      fetchPartidas('en_proceso'),
+      tab === 'completados' ? [] : fetchPartidas('completados'),
+    ]);
+    _counts.por_recibir = pr.length;
+    _counts.en_proceso = ep.length;
+    if (tab !== 'completados') _counts.completados = co.length;
+    if (tab === 'por_recibir') _partidas = pr;
+    else if (tab === 'en_proceso') _partidas = ep;
+    else _partidas = co;
+  } catch (e) {
+    _partidas = [];
+  }
+
+  renderTabs();
+
+  if (tab === 'completados') {
+    document.getElementById('export-bar').style.display = 'flex';
+    await loadReporte();
+    renderExportBar();
+    renderCompletados();
+  } else {
+    document.getElementById('export-bar').style.display = 'none';
+    renderCards();
+  }
+}
+
+function renderTabs() {
+  const el = document.getElementById('tabs');
+  const t = (id, label, count) =>
+    `<button class="tab${_tab===id?' active':''}" onclick="loadTab('${id}')">${label}<span class="tab-badge">${count}</span></button>`;
+  el.innerHTML = t('por_recibir','Por recibir',_counts.por_recibir) +
+                 t('en_proceso','En proceso',_counts.en_proceso) +
+                 t('completados','Completados',_counts.completados);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CARDS (por_recibir + en_proceso)
+// ═══════════════════════════════════════════════════════════════
+function renderCards() {
+  const el = document.getElementById('list-content');
+  if (!_partidas.length) { el.innerHTML = '<div class="empty">Sin partidas en esta categoría</div>'; return; }
+
+  el.innerHTML = _partidas.map(p => {
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const ret = p.fecha_retorno_estimada ? new Date(p.fecha_retorno_estimada + 'T00:00:00') : null;
+    const vencido = ret && ret < hoy;
+    const fmtFecha = d => d ? new Date(d).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit'}) : '';
+    const recibido = p.fecha_recepcion_proveedor;
+
+    return `<div class="card" onclick="openDetail('${p.id}')">
+      <div class="card-top">
+        <span class="card-envio">${esc(p.numero_envio||'—')}</span>
+        <span class="card-fecha">${fmtFecha(p.fecha_despacho)}</span>
+      </div>
+      <div class="card-mueble">${esc(p.mueble_nombre||'—')}</div>
+      <div class="card-meta">
+        ${p.obra?esc(p.obra)+' &middot; ':''}${p.cliente?esc(p.cliente)+' &middot; ':''}${p.bultos||1} bulto(s)
+        ${ret ? '<br>Retorno: '+fmtFecha(p.fecha_retorno_estimada) : ''}
+        ${vencido ? '<span class="badge-vencido">Vencido</span>' : ''}
+      </div>
+      ${recibido ? '<div class="badge-recibido">&#10003; Recibido</div>' : ''}
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COMPLETADOS (tabla + export)
+// ═══════════════════════════════════════════════════════════════
+async function loadReporte() {
+  try { await fetchReporte(); } catch(e) { _reportePartidas = []; }
+  _counts.completados = _reportePartidas.length;
+  renderTabs();
+}
+
+function renderExportBar() {
+  const el = document.getElementById('export-bar');
+  const rangoText = _reporteRango
+    ? fmtDateShort(_reporteRango.desde) + ' – ' + fmtDateShort(_reporteRango.hasta)
+    : '';
+  el.innerHTML = `
+    <button class="periodo-btn ${_reportePeriodo==='semana'?'active':''}" onclick="_reportePeriodo='semana';loadTab('completados')">Semana</button>
+    <button class="periodo-btn ${_reportePeriodo==='mes'?'active':''}" onclick="_reportePeriodo='mes';loadTab('completados')">Mes</button>
+    <button class="nav-btn" onclick="navReporte(-1)">&larr;</button>
+    <span class="rango-label">${rangoText}</span>
+    <button class="nav-btn" onclick="navReporte(1)">&rarr;</button>
+    <button class="export-btn" onclick="exportXLS()">&darr; XLS</button>
+    <button class="export-btn" onclick="window.print()">&darr; PDF</button>
+  `;
+}
+
+function navReporte(dir) {
+  const d = new Date(_reporteFecha + 'T12:00:00');
+  if (_reportePeriodo === 'semana') d.setDate(d.getDate() + dir * 7);
+  else d.setMonth(d.getMonth() + dir);
+  _reporteFecha = d.toISOString().split('T')[0];
+  loadTab('completados');
+}
+
+function renderCompletados() {
+  const el = document.getElementById('list-content');
+  if (!_reportePartidas.length) { el.innerHTML = '<div class="empty">Sin partidas completadas en este período</div>'; return; }
+
+  let totalM2 = 0;
+  let rows = '';
+  _reportePartidas.forEach(p => {
+    const items = p.baru_items || [];
+    items.forEach((it, i) => {
+      totalM2 += it.metros_cuadrados || 0;
+      rows += `<tr>
+        <td>${i===0?esc(p.numero_envio||''):''}</td>
+        <td>${i===0?esc(p.proyecto_num||''):''}</td>
+        <td>${i===0?esc(p.obra||''):''}</td>
+        <td>${i===0?esc(p.mueble_nombre||''):''}</td>
+        <td>${esc(it.tipo_lustre||'')}</td>
+        <td style="text-align:right;">${(it.metros_cuadrados||0).toFixed(2)}</td>
+        <td>${i===0?fmtDateShort(p.fecha_despacho):''}</td>
+        <td>${i===0?fmtDateShort(p.fecha_recepcion_proveedor):''}</td>
+        <td>${i===0?fmtDateShort(p.baru_completado_at):''}</td>
+      </tr>`;
+    });
+    if (!items.length) {
+      rows += `<tr>
+        <td>${esc(p.numero_envio||'')}</td><td>${esc(p.proyecto_num||'')}</td>
+        <td>${esc(p.obra||'')}</td><td>${esc(p.mueble_nombre||'')}</td>
+        <td colspan="2">—</td>
+        <td>${fmtDateShort(p.fecha_despacho)}</td><td>${fmtDateShort(p.fecha_recepcion_proveedor)}</td>
+        <td>${fmtDateShort(p.baru_completado_at)}</td>
+      </tr>`;
+    }
+  });
+
+  el.innerHTML = `
+    <table class="rep-table">
+      <thead><tr>
+        <th>ENV</th><th>Proyecto</th><th>Obra</th><th>Mueble</th>
+        <th>Tipo lustre</th><th style="text-align:right;">m²</th>
+        <th>Desp.</th><th>Recib.</th><th>Complet.</th>
+      </tr></thead>
+      <tbody>
+        ${rows}
+        <tr class="total">
+          <td colspan="5" style="text-align:right;">TOTAL</td>
+          <td style="text-align:right;">${totalM2.toFixed(2)}</td>
+          <td colspan="3"></td>
+        </tr>
+      </tbody>
+    </table>`;
+}
+
+function exportXLS() {
+  if (!_reportePartidas.length || typeof XLSX === 'undefined') return;
+  const rows = [['ENV','Proyecto','Obra','Mueble','Tipo lustre','m²','Despachado','Recibido','Completado']];
+  let totalM2 = 0;
+  _reportePartidas.forEach(p => {
+    (p.baru_items||[]).forEach(it => {
+      totalM2 += it.metros_cuadrados || 0;
+      rows.push([p.numero_envio,p.proyecto_num,p.obra,p.mueble_nombre,it.tipo_lustre,it.metros_cuadrados,
+        p.fecha_despacho||'',p.fecha_recepcion_proveedor||'',p.baru_completado_at||'']);
+    });
+  });
+  rows.push(['','','','','TOTAL',totalM2,'','','']);
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'BARU');
+  const rango = _reporteRango ? `${_reporteRango.desde}_${_reporteRango.hasta}` : '';
+  XLSX.writeFile(wb, `baru-reporte-${rango}.xlsx`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DETAIL VIEW
+// ═══════════════════════════════════════════════════════════════
+async function openDetail(id) {
+  try {
+    const res = await fetch('/api/baru-partida?id=' + id);
+    const data = await res.json();
+    if (!data.ok || !data.partida) return;
+    _detailPartida = data.partida;
+    _workItems = (_detailPartida.baru_items && _detailPartida.baru_items.length)
+      ? [..._detailPartida.baru_items]
+      : [{ tipo_lustre: '', metros_cuadrados: '' }];
+    renderDetail();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function showListView() {
+  document.getElementById('list-view').style.display = '';
+  document.getElementById('detail-view').style.display = 'none';
+}
+
+function renderDetail() {
+  document.getElementById('list-view').style.display = 'none';
+  const dv = document.getElementById('detail-view');
+  dv.style.display = '';
+
+  const p = _detailPartida;
+  const completado = !!p.baru_completado_at;
+  const recibido = !!p.fecha_recepcion_proveedor;
+
+  let bannerHtml = '';
+  if (completado) {
+    bannerHtml = `<div class="banner banner-green">&#10003; Completado el ${fmtDateFull(p.baru_completado_at)}</div>`;
+  } else if (recibido) {
+    bannerHtml = `<div class="banner banner-green">&#10003; Recibido por proveedor &middot; ${fmtDateFull(p.fecha_recepcion_proveedor)}</div>`;
+  }
+
+  let instruccionHtml = '';
+  if (p.instruccion_lustre) {
+    instruccionHtml = `
+      <div class="instruccion-block">
+        <div class="instruccion-label">Instrucción de lustre</div>
+        <div class="instruccion-text">${esc(p.instruccion_lustre)}</div>
+      </div>`;
+  }
+
+  let workHtml = '';
+  if (completado) {
+    // Read-only items
+    workHtml = `<div class="section-title">Trabajo registrado</div>`;
+    (p.baru_items || []).forEach((it, i) => {
+      workHtml += `<div class="item-card">
+        <div class="item-header"><span class="item-num">Ítem ${i+1}</span></div>
+        <div style="margin-bottom:6px;"><span class="field-label">Tipo de lustre</span><div style="font-family:var(--mono);font-size:12px;color:var(--yellow);margin-top:2px;">${esc(it.tipo_lustre)}</div></div>
+        <div><span class="field-label">Metros cuadrados</span><div style="font-family:var(--mono);font-size:12px;margin-top:2px;">${it.metros_cuadrados} m²</div></div>
+      </div>`;
+    });
+  } else {
+    // Editable form
+    workHtml = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span class="section-title" style="margin-bottom:0;">Registro de trabajo</span>
+      <button class="btn-add-item" onclick="addWorkItem()">+ Agregar ítem</button>
+    </div>
+    <div id="work-items"></div>
+    <button class="btn-completar" id="btn-completar" onclick="completarPartida()">&#10003; Marcar como completado</button>`;
+  }
+
+  dv.innerHTML = `
+    <button class="back-btn" onclick="showListView();loadTab(_tab)">&larr; Volver</button>
+    <div class="detail-header">
+      <span class="detail-envio">${esc(p.numero_envio||'')}</span>
+      <span class="detail-mueble">${esc(p.mueble_nombre||'—')}</span>
+    </div>
+    <div class="info-card">
+      <div class="info-row">
+        <div class="info-item"><div class="info-lbl">Obra</div><div class="info-val">${esc(p.obra||'—')}</div></div>
+        <div class="info-item"><div class="info-lbl">Cliente</div><div class="info-val">${esc(p.cliente||'—')}</div></div>
+        <div class="info-item"><div class="info-lbl">Bultos</div><div class="info-val">${p.bultos||1}</div></div>
+        <div class="info-item"><div class="info-lbl">Despachado</div><div class="info-val">${fmtDateFull(p.fecha_despacho)}</div></div>
+        <div class="info-item"><div class="info-lbl">Retorno est.</div><div class="info-val">${p.fecha_retorno_estimada||'—'}</div></div>
+      </div>
+    </div>
+    ${bannerHtml}
+    ${instruccionHtml}
+    <div class="separator"></div>
+    ${workHtml}
+  `;
+
+  if (!completado) renderWorkItems();
+}
+
+function renderWorkItems() {
+  const el = document.getElementById('work-items');
+  if (!el) return;
+  el.innerHTML = _workItems.map((item, i) => `
+    <div class="item-card">
+      <div class="item-header">
+        <span class="item-num">Ítem ${i+1}</span>
+        ${_workItems.length > 1 ? `<button class="item-remove" onclick="removeWorkItem(${i})">&#10005;</button>` : ''}
+      </div>
+      <div class="lustre-wrap">
+        <div class="field-label">Tipo de lustre</div>
+        <input class="lustre-input${item.tipo_lustre?' selected':''}" id="lustre-${i}"
+          value="${esc(item.tipo_lustre||'')}" placeholder="Escribir para filtrar..."
+          onfocus="openDropdown(${i})" oninput="filterDropdown(${i})" autocomplete="off">
+        <div class="lustre-dropdown" id="dd-${i}"></div>
+      </div>
+      <div class="field-label">Metros cuadrados</div>
+      <div class="m2-row">
+        <input class="m2-input" type="number" step="0.01" min="0" id="m2-${i}"
+          value="${item.metros_cuadrados||''}" placeholder="0.00"
+          onchange="_workItems[${i}].metros_cuadrados=parseFloat(this.value)||0">
+        <span class="m2-unit">m²</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function addWorkItem() {
+  _workItems.push({ tipo_lustre: '', metros_cuadrados: '' });
+  renderWorkItems();
+}
+
+function removeWorkItem(idx) {
+  _workItems.splice(idx, 1);
+  renderWorkItems();
+}
+
+function openDropdown(idx) {
+  filterDropdown(idx);
+  document.getElementById('dd-' + idx).classList.add('open');
+  // Close on outside click
+  setTimeout(() => {
+    const close = (e) => {
+      const dd = document.getElementById('dd-' + idx);
+      if (dd && !dd.contains(e.target) && e.target.id !== 'lustre-' + idx) {
+        dd.classList.remove('open');
+        document.removeEventListener('click', close);
+      }
+    };
+    document.addEventListener('click', close);
+  }, 10);
+}
+
+function filterDropdown(idx) {
+  const input = document.getElementById('lustre-' + idx);
+  const dd = document.getElementById('dd-' + idx);
+  const q = (input.value || '').toLowerCase();
+  const filtered = TIPOS_LUSTRE.filter(t => t.toLowerCase().includes(q));
+  dd.innerHTML = filtered.map(t =>
+    `<div class="lustre-option" onmousedown="pickLustre(${idx},'${t}')">${t}</div>`
+  ).join('');
+  dd.classList.add('open');
+}
+
+function pickLustre(idx, tipo) {
+  _workItems[idx].tipo_lustre = tipo;
+  const input = document.getElementById('lustre-' + idx);
+  input.value = tipo;
+  input.classList.add('selected');
+  document.getElementById('dd-' + idx).classList.remove('open');
+}
+
+async function completarPartida() {
+  const btn = document.getElementById('btn-completar');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = 'GUARDANDO...';
+
+  // Collect items from DOM
+  const items = _workItems.map((it, i) => ({
+    tipo_lustre: document.getElementById('lustre-' + i)?.value || it.tipo_lustre,
+    metros_cuadrados: parseFloat(document.getElementById('m2-' + i)?.value) || 0,
+  }));
+
+  // Validate
+  for (const it of items) {
+    if (!it.tipo_lustre) { alert('Completá el tipo de lustre de todos los ítems'); btn.disabled = false; btn.textContent = '\u2713 Marcar como completado'; return; }
+    if (!TIPOS_LUSTRE.includes(it.tipo_lustre)) { alert('Tipo de lustre no válido: ' + it.tipo_lustre); btn.disabled = false; btn.textContent = '\u2713 Marcar como completado'; return; }
+    if (it.metros_cuadrados <= 0) { alert('Los metros cuadrados deben ser mayores a 0'); btn.disabled = false; btn.textContent = '\u2713 Marcar como completado'; return; }
+  }
+
+  try {
+    const res = await fetch('/api/baru-completar', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ id: _detailPartida.id, items }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    _detailPartida.baru_completado_at = new Date().toISOString();
+    _detailPartida.baru_items = items;
+    renderDetail();
+  } catch (e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '\u2713 Marcar como completado';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════════
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function fmtDateShort(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit' });
+}
+function fmtDateFull(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════════
+_token = getToken();
+if (_token) showApp();
+</script>
+</body>
+</html>
