@@ -292,17 +292,16 @@ async function loadTab(tab) {
     const [pr, ep, co] = await Promise.all([
       fetchPartidas('por_recibir'),
       fetchPartidas('en_proceso'),
-      tab === 'completados' ? [] : fetchPartidas('completados'),
+      fetchPartidas('completados'),
     ]);
     _counts.por_recibir = pr.length;
     _counts.en_proceso = ep.length;
-    if (tab !== 'completados') _counts.completados = co.length;
+    _counts.completados = co.length;
     if (tab === 'por_recibir') _partidas = pr;
     else if (tab === 'en_proceso') _partidas = ep;
     else _partidas = co;
   } catch (e) {
     _partidas = [];
-    // Si el error indica sesión inválida, ya se hizo logout en fetchPartidas
     if (!_token) return;
   }
 
@@ -354,6 +353,7 @@ function renderCards() {
         ${vencido ? '<span class="badge-vencido">Vencido</span>' : ''}
       </div>
       ${recibido ? '<div class="badge-recibido">&#10003; Recibido</div>' : ''}
+      ${p.instruccion_lustre ? `<div style="margin-top:6px;border-left:2px solid var(--yellow);padding-left:8px;font-family:var(--mono);font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${esc(p.instruccion_lustre.length>80?p.instruccion_lustre.slice(0,80)+'...':p.instruccion_lustre)}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -362,8 +362,7 @@ function renderCards() {
 // COMPLETADOS (tabla + export)
 // ═══════════════════════════════════════════════════════════════
 async function loadReporte() {
-  try { await fetchReporte(); } catch(e) { _reportePartidas = []; }
-  _counts.completados = _reportePartidas.length;
+  try { await fetchReporte(); } catch(e) { _reportePartidas = []; console.error('[baru-reporte]', e.message); }
   renderTabs();
 }
 
@@ -532,7 +531,11 @@ function renderDetail() {
       <button class="btn-add-item" onclick="addWorkItem()">+ Agregar ítem</button>
     </div>
     <div id="work-items"></div>
-    <button class="btn-completar" id="btn-completar" onclick="completarPartida()">&#10003; Marcar como completado</button>`;
+    <div id="guardar-msg" style="font-family:var(--mono);font-size:10px;color:var(--green);text-align:center;margin-bottom:10px;min-height:14px;"></div>
+    <div style="display:flex;gap:10px;">
+      <button style="flex:1;padding:14px;border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:1px;background:transparent;color:var(--muted);transition:all .15s;" id="btn-guardar" onclick="guardarBorrador()" onmouseenter="this.style.borderColor='var(--yellow)';this.style.color='var(--yellow)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">GUARDAR</button>
+      <button class="btn-completar" style="flex:1;" id="btn-completar" onclick="completarPartida()">&#10003; COMPLETAR</button>
+    </div>`;
   }
 
   dv.innerHTML = `
@@ -629,6 +632,38 @@ function pickLustre(idx, tipo) {
   input.value = tipo;
   input.classList.add('selected');
   document.getElementById('dd-' + idx).classList.remove('open');
+}
+
+async function guardarBorrador() {
+  const btn = document.getElementById('btn-guardar');
+  const msg = document.getElementById('guardar-msg');
+  if (!btn || !_detailPartida) return;
+  btn.disabled = true;
+  if (msg) msg.textContent = '';
+
+  const items = _workItems.map((it, i) => ({
+    tipo_lustre: document.getElementById('lustre-' + i)?.value || it.tipo_lustre || '',
+    metros_cuadrados: parseFloat(document.getElementById('m2-' + i)?.value) || 0,
+  }));
+
+  try {
+    const res = await fetch('/api/baru-guardar-items', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ id: _detailPartida.id, items }),
+    });
+    if (res.status === 401) { doLogout(); return; }
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    _detailPartida.baru_items = items;
+    _workItems = [...items];
+    if (msg) msg.textContent = '\u2713 Guardado';
+    setTimeout(() => { if (msg) msg.textContent = ''; }, 3000);
+  } catch (e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function completarPartida() {
