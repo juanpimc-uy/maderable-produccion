@@ -37,7 +37,7 @@ export default async function handler(req) {
         .not('fecha_recepcion_proveedor', 'is', null)
         .is('baru_completado_at', null);
     } else if (estado === 'completados') {
-      query = query.not('baru_completado_at', 'is', null);
+      query = query.or('baru_completado_at.not.is.null,estado.eq.recibida');
     }
 
     const { data, error } = await query;

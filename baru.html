@@ -265,6 +265,25 @@ async function fetchPartidas(estado) {
   return data.partidas || [];
 }
 
+async function confirmarRecepcionPortal(id, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Confirmando...';
+  try {
+    const res = await fetch('/api/baru-confirmar-recepcion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    loadTab(_tab);
+  } catch (e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '\u2713 Confirmar recepción';
+  }
+}
+
 async function fetchReporte() {
   const res = await fetch(`/api/baru-reporte?periodo=${_reportePeriodo}&fecha=${_reporteFecha}`, { headers: authHeaders() });
   if (res.status === 401) { doLogout(); throw new Error('Sesión expirada'); }
@@ -353,6 +372,7 @@ function renderCards() {
         ${vencido ? '<span class="badge-vencido">Vencido</span>' : ''}
       </div>
       ${recibido ? '<div class="badge-recibido">&#10003; Recibido</div>' : ''}
+      ${!recibido && _tab === 'por_recibir' ? `<button onclick="event.stopPropagation();confirmarRecepcionPortal('${p.id}',this)" style="margin-top:8px;width:100%;padding:8px;border:1px solid var(--green);border-radius:5px;background:var(--green-dim);color:var(--green);font-family:var(--mono);font-size:10px;font-weight:700;cursor:pointer;transition:opacity .15s;" onmouseenter="this.style.opacity='.8'" onmouseleave="this.style.opacity='1'">&#10003; Confirmar recepción</button>` : ''}
       ${p.instruccion_lustre ? `<div style="margin-top:6px;border-left:2px solid var(--yellow);padding-left:8px;font-family:var(--mono);font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${esc(p.instruccion_lustre.length>80?p.instruccion_lustre.slice(0,80)+'...':p.instruccion_lustre)}</div>` : ''}
     </div>`;
   }).join('');
