@@ -1059,7 +1059,8 @@ async function cargarTodoDesdeSupabase() {
 
     // ── 2. EMPLEADOS ─────────────────────────────────────────────────────────
     try {
-      const rEmp = await fetch('/api/tiempos?action=empleados').then(r => r.json());
+      const empUrl = '/api/tiempos?action=empleados' + (_mostrarArchivados ? '&incluir_archivados=true' : '');
+      const rEmp = await fetch(empUrl).then(r => r.json());
       if (Array.isArray(rEmp.empleados) && rEmp.empleados.length) {
         const deSupabase = rEmp.empleados.map(e => ({
           id: e.id,
@@ -1076,6 +1077,8 @@ async function cargarTodoDesdeSupabase() {
           horario_entrada: e.horario_entrada || '08:00',
           horario_salida:  e.horario_salida  || '17:00',
           descanso_modalidad: e.descanso_modalidad || null,
+          archivado: e.archivado || false,
+          archivado_en: e.archivado_en || null,
         }));
         // merge: Supabase is source of truth; local-only employees shown but not re-synced here
         const nombresSupabase = new Set(deSupabase.map(e => e.nombre));
@@ -2995,13 +2998,16 @@ function _renderOpEstado() {
   SESIONES.forEach(s=>liveTimer(`t-op-${s.operarioId}`,s.inicio));
 }
 
+let _mostrarArchivados = false;
+
 function _renderOpGestion() {
   const _meId = window.AUTH.usuarioActual()?.id;
   const catColor = c => c==='directo'?'#4ade80':c==='indirecto'?'#a78bfa':c==='tecnico'?'#60a5fa':'#f59e0b';
   let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap;">
-    <div style="display:flex;gap:8px;">
+    <div style="display:flex;gap:8px;align-items:center;">
       <button class="btn btn-ghost btn-sm" onclick="cargarTodoDesdeSupabase()">↻ Recargar</button>
       ${window.AUTH.esAdmin() ? `<button class="btn btn-ghost btn-sm" onclick="syncTodosOperarios()">↑ Sincronizar todos</button>` : ''}
+      ${window.AUTH.esAdmin() ? `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-family:'Space Mono',monospace;font-size:9px;color:#555;letter-spacing:.5px;text-transform:uppercase;margin-left:8px;"><input type="checkbox" ${_mostrarArchivados?'checked':''} onchange="_toggleArchivados(this.checked)"> Archivados</label>` : ''}
     </div>
     ${window.AUTH.esAdmin() ? `<button class="btn btn-primary btn-sm" onclick="abrirModalOperario(null)">+ Nuevo</button>` : ''}
   </div>`;
@@ -3037,11 +3043,12 @@ function _renderOpGestion() {
       + (centrosExtra > 0 ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 4px;color:#444;">+${centrosExtra}</span>` : '')
       + (!centrosArr.length ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 7px;border-radius:3px;color:#333;background:#111;border:1px solid #1e1e1e;">—</span>` : '');
 
-    html+=`<div style="border-bottom:1px solid #141414;transition:background .1s;" onmouseenter="this.style.background='#141414'" onmouseleave="this.style.background='transparent'">
+    html+=`<div style="border-bottom:1px solid #141414;transition:background .1s;${op.archivado?'opacity:.5;':''}" onmouseenter="this.style.background='#141414'" onmouseleave="this.style.background='transparent'">
       <div style="display:grid;grid-template-columns:1.8fr 1fr 1fr 1.5fr 70px;align-items:center;padding:8px 12px;min-height:40px;">
         <div onclick="toggleOpHistorial('${op.id}')" style="cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none;min-width:0;">
           <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#555;flex-shrink:0;">${op.avatar||getIniciales(op.nombre)}</span>
           <span style="font-size:12px;font-weight:700;color:#ccc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${op.nombre}</span>
+          ${op.archivado ? `<span style="font-family:'Space Mono',monospace;font-size:8px;padding:1px 5px;border-radius:3px;background:#1e1e1e;color:#555;letter-spacing:.5px;text-transform:uppercase;flex-shrink:0;">ARCHIVADO</span>` : ''}
           <span style="font-size:11px;color:var(--muted);flex-shrink:0;">${exp?'▴':'▾'}</span>
         </div>
         <div style="font-size:10px;color:#555;">${op.rol_app||'operario'} · <span style="color:${catColor(op.categoria||'directo')};">${op.categoria||'directo'}</span></div>
@@ -3049,7 +3056,8 @@ function _renderOpGestion() {
         <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">${chipsHtml}</div>
         <div style="display:flex;gap:4px;justify-content:flex-end;">
           ${window.AUTH.esAdmin() ? `<button onclick="abrirModalOperario('${op.id}')" title="Editar" style="padding:3px 7px;height:26px;border:1px solid #1e1e1e;border-radius:4px;background:transparent;color:#333;cursor:pointer;font-size:12px;transition:all .15s;" onmouseenter="this.style.borderColor='#555';this.style.color='#888'" onmouseleave="this.style.borderColor='#1e1e1e';this.style.color='#333'">⚙</button>` : ''}
-          ${window.AUTH.esAdmin() ? `<button onclick="eliminarOperario('${op.id}')" title="Eliminar" style="padding:3px 7px;height:26px;border:1px solid #1e1e1e;border-radius:4px;background:transparent;color:#333;cursor:pointer;font-size:12px;transition:all .15s;" onmouseenter="this.style.borderColor='#e03030';this.style.color='#e03030'" onmouseleave="this.style.borderColor='#1e1e1e';this.style.color='#333'">🗑</button>` : ''}
+          ${window.AUTH.esAdmin() && !op.archivado ? `<button onclick="archivarOperario('${op.id}')" title="Archivar" style="padding:3px 7px;height:26px;border:1px solid #1e1e1e;border-radius:4px;background:transparent;color:#333;cursor:pointer;font-size:12px;transition:all .15s;" onmouseenter="this.style.borderColor='#555';this.style.color='#888'" onmouseleave="this.style.borderColor='#1e1e1e';this.style.color='#333'">📦</button>` : ''}
+          ${window.AUTH.esAdmin() && op.archivado ? `<button onclick="restaurarOperario('${op.id}')" title="Restaurar" style="padding:3px 7px;height:26px;border:1px solid #333;border-radius:4px;background:transparent;color:#FFD600;cursor:pointer;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;transition:all .15s;" onmouseenter="this.style.background='rgba(255,214,0,.1)'" onmouseleave="this.style.background='transparent'">RESTAURAR</button>` : ''}
         </div>
       </div>
       <div id="op-hist-${op.id}" style="display:${exp?'block':'none'};border-top:1px solid var(--border);">
@@ -3331,27 +3339,75 @@ function guardarOperario(opId) {
   _renderOpGestion();
 }
 
-async function eliminarOperario(opId) {
+async function archivarOperario(opId) {
   const op=OPERARIOS.find(o=>o.id===opId);
   if(!op)return;
-  const activas=SESIONES.filter(s=>s.operarioId===opId);
-  if(activas.length){alert(`No se puede eliminar a ${op.nombre}: tiene ${activas.length} sesión(es) activa(s).`);return;}
-  if(!confirm(`¿Eliminar a ${op.nombre}?\nEl historial de sesiones se conserva.`))return;
+  if(!confirm(`¿Archivar a ${op.nombre}?\nDejará de aparecer en el sistema pero su historial se conserva.`))return;
   const u = window.AUTH.usuarioActual();
   try {
-    const res = await fetch('/api/tiempos?action=eliminar-empleado', {
+    const res = await fetch('/api/tiempos?action=archivar-operario', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ admin_id: u.id, empleado_id: op.id }),
     });
     const d = await res.json();
-    if (!d.ok) { alert(d.error || 'No se pudo eliminar en Supabase'); return; }
+    if (!d.ok) { alert(d.error || 'No se pudo archivar'); return; }
   } catch(e) {
-    alert('Error de conexión al eliminar');
+    alert('Error de conexión al archivar');
     return;
   }
-  OPERARIOS.splice(OPERARIOS.findIndex(o=>o.id===opId),1);
+  if (_mostrarArchivados) {
+    op.archivado = true;
+    op.archivado_en = new Date().toISOString();
+  } else {
+    OPERARIOS.splice(OPERARIOS.findIndex(o=>o.id===opId),1);
+  }
   guardarOperariosLS();
+  _renderOpGestion();
+}
+
+async function restaurarOperario(opId) {
+  const op=OPERARIOS.find(o=>o.id===opId);
+  if(!op)return;
+  const u = window.AUTH.usuarioActual();
+  try {
+    const res = await fetch('/api/tiempos?action=restaurar-operario', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: u.id, empleado_id: op.id }),
+    });
+    const d = await res.json();
+    if (!d.ok) { alert(d.error || 'No se pudo restaurar'); return; }
+  } catch(e) {
+    alert('Error de conexión al restaurar');
+    return;
+  }
+  op.archivado = false;
+  op.archivado_en = null;
+  guardarOperariosLS();
+  _renderOpGestion();
+}
+
+async function _toggleArchivados(checked) {
+  _mostrarArchivados = checked;
+  // Recargar desde Supabase con o sin archivados
+  try {
+    const url = '/api/tiempos?action=empleados' + (checked ? '&incluir_archivados=true' : '');
+    const res = await fetch(url);
+    const d = await res.json();
+    if (d.empleados) {
+      OPERARIOS = d.empleados.map(e => ({
+        id: e.id, nombre: e.nombre, cedula: e.cedula, email: e.email,
+        rol_app: e.rol_app, categoria: e.categoria,
+        centros_autorizados: e.centros_autorizados,
+        horario_entrada: e.horario_entrada, horario_salida: e.horario_salida,
+        descanso_modalidad: e.descanso_modalidad, acceso_tiempos: e.acceso_tiempos,
+        pit_stop_minutos: e.pit_stop_minutos,
+        archivado: e.archivado || false, archivado_en: e.archivado_en || null,
+      }));
+      guardarOperariosLS();
+    }
+  } catch(e) { console.error('Error cargando empleados:', e); }
   _renderOpGestion();
 }
 

@@ -401,11 +401,13 @@ export default async function handler(req) {
 
     // ── GET empleados activos ─────────────────────────────────────────────
     if (action === 'empleados' && req.method === 'GET') {
-      const { data, error } = await supabase
+      const incluirArchivados = url.searchParams.get('incluir_archivados') === 'true';
+      let query = supabase
         .from('empleados')
-        .select('id,nombre,cedula,email,rol_app,categoria,centros_autorizados,horario_entrada,horario_salida,descanso_modalidad,acceso_tiempos,pit_stop_minutos')
-        .eq('activo', true)
-        .order('nombre');
+        .select('id,nombre,cedula,email,rol_app,categoria,centros_autorizados,horario_entrada,horario_salida,descanso_modalidad,acceso_tiempos,pit_stop_minutos,archivado,archivado_en')
+        .eq('activo', true);
+      if (!incluirArchivados) query = query.eq('archivado', false);
+      const { data, error } = await query.order('nombre');
       if (error) throw error;
       return ok({ empleados: data });
     }
@@ -530,6 +532,38 @@ export default async function handler(req) {
       return ok({ ok: true });
     }
 
+    // ── POST archivar operario (solo admin) ────────────────────────────────
+    if (action === 'archivar-operario' && req.method === 'POST') {
+      const { admin_id, empleado_id } = body;
+      if (!admin_id || !empleado_id) return err('admin_id y empleado_id requeridos', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin') {
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede archivar empleados' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      const { error } = await supabase.from('empleados')
+        .update({ archivado: true, archivado_en: new Date().toISOString() })
+        .eq('id', empleado_id);
+      if (error) throw error;
+      return ok({ ok: true });
+    }
+
+    // ── POST restaurar operario (solo admin) ─────────────────────────────
+    if (action === 'restaurar-operario' && req.method === 'POST') {
+      const { admin_id, empleado_id } = body;
+      if (!admin_id || !empleado_id) return err('admin_id y empleado_id requeridos', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin') {
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede restaurar empleados' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      const { error } = await supabase.from('empleados')
+        .update({ archivado: false, archivado_en: null })
+        .eq('id', empleado_id);
+      if (error) throw error;
+      return ok({ ok: true });
+    }
+
     // ── GET jornada de hoy para un empleado ──────────────────────────────
     if (action === 'jornada-hoy' && req.method === 'GET') {
       const empleado_id = url.searchParams.get('empleado_id');
@@ -598,7 +632,7 @@ export default async function handler(req) {
       const [{ data: jornadas }, { data: activos }, { data: todos }, { data: cnc_activo }] = await Promise.all([
         supabase.from('jornadas').select('*, empleados(id,nombre,categoria,centros_autorizados,horario_entrada)').eq('fecha', hoy),
         supabase.from('registros_trabajo').select('*').eq('estado', 'activo'),
-        supabase.from('empleados').select('id,nombre,categoria,horario_entrada').eq('activo', true),
+        supabase.from('empleados').select('id,nombre,categoria,horario_entrada').eq('activo', true).eq('archivado', false),
         supabase.from('registros_cnc').select('*').is('fin', null).order('creado_at', { ascending: false }).limit(10),
       ]);
       return ok({ jornadas, activos, todos_empleados: todos, cnc_activo });
@@ -614,7 +648,8 @@ export default async function handler(req) {
       const [empleadosRes, jornadasRes, activosRes, centrosRes] = await Promise.all([
         supabase.from('empleados')
           .select('id, nombre, activo, rol_app, horario_entrada')
-          .eq('activo', true),
+          .eq('activo', true)
+          .eq('archivado', false),
         supabase.from('jornadas')
           .select('id, empleado_id, entrada, salida')
           .eq('fecha', hoy),
@@ -804,7 +839,7 @@ export default async function handler(req) {
           .select('id, numero, nombre, obra, cliente, cliente_nombre, muebles')
           .eq('activo', true).order('nombre'),
         supabase.from('empleados')
-          .select('id, nombre').eq('activo', true),
+          .select('id, nombre').eq('activo', true).eq('archivado', false),
       ]);
 
       const jornada        = jornadaRes.data       || null;
@@ -1815,6 +1850,7 @@ export default async function handler(req) {
         .from('empleados')
         .select('id, nombre, email, categoria, rol_app, pin, password_hash, acceso_tiempos, centros_autorizados')
         .eq('email', email)
+        .eq('archivado', false)
         .in('rol_app', ['admin', 'oficina'])
         .limit(1)
         .maybeSingle();
@@ -1903,6 +1939,7 @@ export default async function handler(req) {
         .eq('cedula', cedula)
         .eq('pin', pin)
         .eq('activo', true)
+        .eq('archivado', false)
         .limit(1)
         .maybeSingle();
       if (error) throw error;
@@ -3411,7 +3448,7 @@ export default async function handler(req) {
       let empleadosRH = [];
       if ((callerRH.rol_app === 'admin' || callerRH.acceso_tiempos) && !efectivo_emp) {
         const { data: todosRH, error: tRHErr } = await supabase
-          .from('empleados').select('id, nombre').eq('activo', true);
+          .from('empleados').select('id, nombre').eq('activo', true).eq('archivado', false);
         if (tRHErr) throw tRHErr;
         empleadosRH = todosRH || [];
       } else {
