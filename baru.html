@@ -258,6 +258,7 @@ function authHeaders() {
 // ═══════════════════════════════════════════════════════════════
 async function fetchPartidas(estado) {
   const res = await fetch('/api/baru-envios?estado=' + estado, { headers: authHeaders() });
+  if (res.status === 401) { doLogout(); throw new Error('Sesión expirada'); }
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || 'Error');
   return data.partidas || [];
@@ -265,6 +266,7 @@ async function fetchPartidas(estado) {
 
 async function fetchReporte() {
   const res = await fetch(`/api/baru-reporte?periodo=${_reportePeriodo}&fecha=${_reporteFecha}`, { headers: authHeaders() });
+  if (res.status === 401) { doLogout(); throw new Error('Sesión expirada'); }
   const data = await res.json();
   if (!data.ok) throw new Error(data.error || 'Error');
   _reportePartidas = data.partidas || [];
@@ -299,6 +301,8 @@ async function loadTab(tab) {
     else _partidas = co;
   } catch (e) {
     _partidas = [];
+    // Si el error indica sesión inválida, ya se hizo logout en fetchPartidas
+    if (!_token) return;
   }
 
   renderTabs();

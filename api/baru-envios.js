@@ -24,7 +24,7 @@ export default async function handler(req) {
       .select('*')
       .eq('proveedor_nombre', 'BARU')
       .eq('archivada', false)
-      .order('created_at', { ascending: false });
+      .order('creado_at', { ascending: false });
 
     if (estado === 'por_recibir') {
       query = query
