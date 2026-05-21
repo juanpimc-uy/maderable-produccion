@@ -226,7 +226,7 @@ function _mostrarApp() {
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('screen-app').style.display = '';
   _cargar();
-  setInterval(_cargar, 60000);
+  setInterval(_cargar, 600000); // 10 min — evitar rate limit Zoho
 }
 
 // ── State ────────────────────────────────────────────────────────────────
@@ -254,11 +254,29 @@ function _setFilter(f) {
 }
 
 // ── Fetch ────────────────────────────────────────────────────────────────
+let _rateLimitUntil = 0;
+
 async function _cargar() {
+  // Si estamos en rate limit, no reintentar
+  if (_rateLimitUntil > Date.now()) return;
+
   _setDot('loading');
   try {
-    const r = await fetch('/api/recepciones?action=listar-ocs').then(r => r.json());
-    if (!r.ok) throw new Error(r.error || 'Error');
+    const res = await fetch('/api/recepciones?action=listar-ocs');
+    const r = await res.json();
+    if (!r.ok) {
+      // Detectar rate limit de Zoho (code 45 en detalle o status 429/502)
+      const detalle = r.detalle || '';
+      const isRateLimit = (res.status === 429) ||
+        (r.error === 'zoho_error' && (detalle.includes('"code":45') || detalle.includes('rate limit') || detalle.includes('Rate Limit')));
+      if (isRateLimit) {
+        _setDot('error');
+        _rateLimitUntil = Date.now() + 300000; // 5 minutos
+        _mostrarRateLimit();
+        return;
+      }
+      throw new Error(r.error === 'zoho_error' ? 'Error de conexión con Zoho' : (r.error || 'Error'));
+    }
     _ocs = r.ocs || [];
     _setDot('ok');
     _render();
@@ -271,6 +289,33 @@ async function _cargar() {
         <button class="retry-btn" onclick="_cargar()">Reintentar</button>
       </div>`;
   }
+}
+
+function _mostrarRateLimit() {
+  const el = document.getElementById('list');
+  const updateCountdown = () => {
+    const remaining = Math.max(0, _rateLimitUntil - Date.now());
+    const mins = Math.floor(remaining / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    const timeStr = `${mins}:${String(secs).padStart(2, '0')}`;
+    if (remaining <= 0) {
+      el.innerHTML = `
+        <div class="empty">
+          Límite de API superado<br>
+          <button class="retry-btn" onclick="_cargar()">Reintentar ahora</button>
+        </div>`;
+      return;
+    }
+    el.innerHTML = `
+      <div class="empty">
+        <span style="font-size:13px;color:#f59e0b;">⚠ Límite de API de Zoho alcanzado</span><br>
+        <span style="font-size:10px;color:#555;margin-top:6px;display:block;">Esperá unos minutos antes de reintentar</span><br>
+        <span style="font-family:'Space Mono',monospace;font-size:16px;color:#888;margin-top:8px;display:block;">${timeStr}</span><br>
+        <button class="retry-btn" disabled style="opacity:.4;cursor:not-allowed;">Reintentar (${timeStr})</button>
+      </div>`;
+    setTimeout(updateCountdown, 1000);
+  };
+  updateCountdown();
 }
 
 // ── Render ────────────────────────────────────────────────────────────────
