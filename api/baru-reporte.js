@@ -49,7 +49,7 @@ export default async function handler(req) {
   try {
     const { data, error } = await supabase
       .from('partidas_terceros')
-      .select('numero_envio, proyecto_num, obra, cliente, mueble_nombre, baru_items, fecha_despacho, fecha_recepcion_proveedor, baru_completado_at')
+      .select('numero_envio, proyecto_num, obra, cliente, mueble_nombre, baru_items, fecha_despacho, fecha_recepcion_proveedor, baru_completado_at, fecha_recepcion, estado_recep')
       .eq('proveedor_nombre', 'BARU')
       .gte('baru_completado_at', rango.desde + 'T00:00:00')
       .lte('baru_completado_at', rango.hasta + 'T23:59:59')

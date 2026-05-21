@@ -406,6 +406,8 @@ function renderCompletados() {
         <td>${i===0?fmtDateShort(p.fecha_despacho):''}</td>
         <td>${i===0?fmtDateShort(p.fecha_recepcion_proveedor):''}</td>
         <td>${i===0?fmtDateShort(p.baru_completado_at):''}</td>
+        <td>${i===0?fmtDateShort(p.fecha_recepcion):''}</td>
+        <td>${i===0?fmtEstadoRecep(p.estado_recep):''}</td>
       </tr>`;
     });
     if (!items.length) {
@@ -415,6 +417,8 @@ function renderCompletados() {
         <td colspan="2">—</td>
         <td>${fmtDateShort(p.fecha_despacho)}</td><td>${fmtDateShort(p.fecha_recepcion_proveedor)}</td>
         <td>${fmtDateShort(p.baru_completado_at)}</td>
+        <td>${fmtDateShort(p.fecha_recepcion)}</td>
+        <td>${fmtEstadoRecep(p.estado_recep)}</td>
       </tr>`;
     }
   });
@@ -425,13 +429,14 @@ function renderCompletados() {
         <th>ENV</th><th>Proyecto</th><th>Obra</th><th>Mueble</th>
         <th>Tipo lustre</th><th style="text-align:right;">m²</th>
         <th>Desp.</th><th>Recib.</th><th>Complet.</th>
+        <th>Recep. Maderable</th><th>Estado</th>
       </tr></thead>
       <tbody>
         ${rows}
         <tr class="total">
           <td colspan="5" style="text-align:right;">TOTAL</td>
           <td style="text-align:right;">${totalM2.toFixed(2)}</td>
-          <td colspan="3"></td>
+          <td colspan="5"></td>
         </tr>
       </tbody>
     </table>`;
@@ -439,16 +444,18 @@ function renderCompletados() {
 
 function exportXLS() {
   if (!_reportePartidas.length || typeof XLSX === 'undefined') return;
-  const rows = [['ENV','Proyecto','Obra','Mueble','Tipo lustre','m²','Despachado','Recibido','Completado']];
+  const estadoTexto = e => e==='ok'?'Conforme':e==='obs'?'Con observaciones':e==='rehacer'?'A rehacer':'—';
+  const rows = [['ENV','Proyecto','Obra','Mueble','Tipo lustre','m²','Despachado','Recibido','Completado','Recep. Maderable','Estado']];
   let totalM2 = 0;
   _reportePartidas.forEach(p => {
     (p.baru_items||[]).forEach(it => {
       totalM2 += it.metros_cuadrados || 0;
       rows.push([p.numero_envio,p.proyecto_num,p.obra,p.mueble_nombre,it.tipo_lustre,it.metros_cuadrados,
-        p.fecha_despacho||'',p.fecha_recepcion_proveedor||'',p.baru_completado_at||'']);
+        p.fecha_despacho||'',p.fecha_recepcion_proveedor||'',p.baru_completado_at||'',
+        p.fecha_recepcion||'',estadoTexto(p.estado_recep)]);
     });
   });
-  rows.push(['','','','','TOTAL',totalM2,'','','']);
+  rows.push(['','','','','TOTAL',totalM2,'','','','','']);
   const ws = XLSX.utils.aoa_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'BARU');
@@ -660,6 +667,12 @@ async function completarPartida() {
 // UTILS
 // ═══════════════════════════════════════════════════════════════
 function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function fmtEstadoRecep(e) {
+  if (e === 'ok')      return '<span style="color:var(--green);">&#10003; Conforme</span>';
+  if (e === 'obs')     return '<span style="color:var(--yellow);">&#9888; Con observaciones</span>';
+  if (e === 'rehacer') return '<span style="color:var(--red);">&#10007; A rehacer</span>';
+  return '—';
+}
 function fmtDateShort(d) {
   if (!d) return '—';
   const dt = new Date(d);
