@@ -1730,16 +1730,15 @@ function renderProyectos() {
       <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;cursor:pointer;transition:border-color .2s;${isArchived?'opacity:0.6;':''}"
         onmouseenter="this.style.borderColor='var(--amber)'" onmouseleave="this.style.borderColor='var(--border)'"
         onclick="abrirDetallePr('${pr.id}')">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${pr.clienteNombre}</div>
-            ${archBadge}
-          </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <span style="font-family:'Space Mono',monospace;font-size:11px;color:#999;background:#111;border:1px solid #2e2e2e;border-radius:3px;padding:3px 10px;letter-spacing:1px;">${pr.numero || ''}</span>
+          ${archBadge}
           ${isArchived
             ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;" onclick="restaurarProyecto('${pr.id}',event)">↩ Restaurar</button>`
             : `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;color:var(--muted);" onclick="archivarProyecto('${pr.id}',event)">Archivar</button>`}
         </div>
-        <div style="font-size:18px;font-weight:700;margin-bottom:14px;">${pr.nombre}</div>
+        <div style="font-size:15px;font-weight:600;color:#ccc;margin-bottom:3px;">${pr.clienteNombre}</div>
+        <div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:14px;">${pr.nombre}</div>
         <div style="margin-bottom:12px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
             <span class="mono" style="font-size:10px;color:var(--muted);">HORAS ${fmtH(hA)} / ${fmtH(hE)}</span>
@@ -1749,9 +1748,9 @@ function renderProyectos() {
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           ${pill(pr.items.length+' ítems','var(--blue)')}
-          ${pill(matP+' mat. pend.',matP>0?'var(--red)':'var(--green)')}
-          ${pill(inv+' inventario','var(--teal)')}
-          ${pill(des+' despachados','var(--purple)')}
+          ${matP > 0 ? pill(matP+' mat. pend.','var(--red)') : ''}
+          ${inv > 0 ? pill(inv+' inventario','var(--teal)') : ''}
+          ${des > 0 ? pill(des+' despachados','var(--purple)') : ''}
         </div>
       </div>`;
   }
