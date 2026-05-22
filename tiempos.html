@@ -382,6 +382,7 @@ table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
         <input type="date" id="op-hasta" class="ctrl-input">
       </div>
       <button class="btn-load" onclick="_tCargarOperario()">CARGAR</button>
+      <button class="btn-export" id="btn-export-op-csv" style="display:none;" onclick="_tExportOpCSV()">↓ CSV</button>
     </div>
     <div id="operario-result"></div>
   </div>
@@ -1429,11 +1430,16 @@ async function _tCargarOperario() {
     const res  = await _tFetch(url);
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || 'Error');
+    _tOpData = json;
     _tRenderOperario(json);
+    const csvBtn = document.getElementById('btn-export-op-csv');
+    if (csvBtn) csvBtn.style.display = '';
   } catch(e) {
     result.innerHTML = `<p class="empty-msg">Error: ${e.message}</p>`;
   }
 }
+
+let _tOpData = null;
 
 function _tRenderOperario(data) {
   const result = document.getElementById('operario-result');
@@ -1469,6 +1475,7 @@ ${data.dias.map(dia => {
       <span class="day-card-title">${fmtDate(dia.fecha)}</span>
       <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-left:12px;">${fmtHM(dia.total_minutos)}</span>
       ${hayActivo ? '<span class="badge-activo" style="margin-left:8px;">ACTIVO</span>' : ''}
+      ${dia.tardanza_min > 0 ? `<span style="font-family:'Space Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.25);margin-left:6px;">${dia.tardanza_min}m tarde</span>` : ''}
     </div>
     <span class="chevron">▼</span>
   </div>
@@ -1541,10 +1548,23 @@ async function _tGenerarReporte() {
   }
 }
 
-function _fmtTimeLocal(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+function _fmtTimeLocal(val) {
+  if (!val) return '—';
+  // If already HH:MM string from backend, return as-is
+  if (/^\d{2}:\d{2}$/.test(val)) return val;
+  // Otherwise parse ISO and convert to UY (UTC-3)
+  const d = new Date(new Date(val).getTime() - 3*60*60*1000);
+  return `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;
+}
+
+let _repSemExpanded = {}; // 'empIdx-semIdx' → true
+
+function _tToggleRepSem(key) {
+  _repSemExpanded[key] = !_repSemExpanded[key];
+  const el = document.getElementById('rep-det-' + key);
+  if (el) el.style.display = _repSemExpanded[key] ? '' : 'none';
+  const chev = document.getElementById('rep-chev-' + key);
+  if (chev) chev.textContent = _repSemExpanded[key] ? '▴' : '▾';
 }
 
 function _tRenderReporte(data, anio, mes) {
@@ -1554,6 +1574,7 @@ function _tRenderReporte(data, anio, mes) {
     result.innerHTML = '<p class="empty-msg">Sin datos para ese período.</p>';
     return;
   }
+  _repSemExpanded = {};
 
   const periodoLabel = `${String(mes).padStart(2,'0')}/${anio}`;
   const ph = document.getElementById('print-header');
@@ -1564,35 +1585,60 @@ function _tRenderReporte(data, anio, mes) {
   PERÍODO ${periodoLabel} &nbsp;·&nbsp; ${data.desde} → ${data.hasta}
 </div>`;
 
-  emps.forEach((emp, idx) => {
-    if (idx > 0) html += '<div style="height:20px;"></div>';
+  emps.forEach((emp, ei) => {
+    if (ei > 0) html += '<div style="height:20px;"></div>';
     html += `<div class="mono" style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;">${emp.nombre}</div>`;
     html += `<table class="rep-table">
 <thead><tr>
-  <th>SEMANA</th><th>ENTRADA</th><th>SALIDA</th><th>DESCANSO</th>
+  <th></th><th>SEMANA</th><th>ENTRADA</th><th>SALIDA</th><th>DESCANSO</th>
   <th>HORAS NETAS</th><th>EXTRAS</th><th>TARDE</th><th>AUSENCIAS</th>
 </tr></thead><tbody>`;
 
-    emp.semanas.forEach(s => {
-      html += `<tr>
+    emp.semanas.forEach((s, si) => {
+      const key = `${ei}-${si}`;
+      html += `<tr style="cursor:pointer;" onclick="_tToggleRepSem('${key}')">
+        <td class="mono" style="font-size:10px;color:var(--muted);width:14px;" id="rep-chev-${key}">▾</td>
         <td class="mono" style="font-size:11px;color:var(--muted);">${fmtDate(s.semana_inicio)}–${fmtDate(s.semana_fin)}</td>
-        <td class="mono">${_fmtTimeLocal(s.entrada)}</td>
-        <td class="mono">${_fmtTimeLocal(s.salida)}</td>
+        <td class="mono">${s.entrada || '—'}</td>
+        <td class="mono">${s.salida || '—'}</td>
         <td class="mono">${s.descanso_total_min ? s.descanso_total_min + 'm' : '—'}</td>
         <td class="mono">${fmtHM(s.horas_netas_min)}</td>
         <td>${s.extras_minutos > 0 ? `<span class="extras-pos">${fmtHM(s.extras_minutos)}</span>` : '—'}</td>
         <td class="mono">${s.minutos_tarde_semana > 0 ? s.minutos_tarde_semana + 'm' : '—'}</td>
         <td class="mono">${s.ausencias > 0 ? s.ausencias : '—'}</td>
       </tr>`;
+      // Detalle diario (colapsado por defecto)
+      html += `<tr id="rep-det-${key}" style="display:none;"><td colspan="9" style="padding:0;">
+        <table style="width:100%;border-collapse:collapse;background:#161616;">
+          <thead><tr>
+            <th style="text-align:left;font-size:8px;color:var(--muted);padding:4px 12px;">FECHA</th>
+            <th style="text-align:left;font-size:8px;color:var(--muted);padding:4px 6px;">ENTRADA</th>
+            <th style="text-align:left;font-size:8px;color:var(--muted);padding:4px 6px;">SALIDA</th>
+            <th style="text-align:left;font-size:8px;color:var(--muted);padding:4px 6px;">TARDE</th>
+            <th style="text-align:center;font-size:8px;color:var(--muted);padding:4px 6px;">AUSENTE</th>
+            <th style="text-align:right;font-size:8px;color:var(--muted);padding:4px 12px;">EXTRAS DÍA</th>
+          </tr></thead><tbody>`;
+      (s.dias || []).forEach(d => {
+        html += `<tr style="font-size:10px;border-bottom:1px solid #1e1e1e;">
+          <td style="padding:3px 12px;" class="mono">${fmtDate(d.fecha)}</td>
+          <td style="padding:3px 6px;" class="mono">${d.ausente ? '—' : (d.entrada || '—')}</td>
+          <td style="padding:3px 6px;" class="mono">${d.ausente ? '—' : (d.salida || '—')}</td>
+          <td style="padding:3px 6px;" class="mono">${d.tarde_min > 0 ? d.tarde_min + 'm' : '—'}</td>
+          <td style="padding:3px 6px;text-align:center;">${d.ausente ? '<span style="color:var(--red);">✗</span>' : ''}</td>
+          <td style="padding:3px 12px;text-align:right;" class="mono">${d.extras_dia_min > 0 ? fmtHM(d.extras_dia_min) : '—'}</td>
+        </tr>`;
+      });
+      html += `</tbody></table></td></tr>`;
     });
 
     const rm = emp.resumen_mensual || {};
     html += `<tr class="rep-total">
+      <td></td>
       <td class="mono" style="color:var(--muted);">TOTAL</td>
       <td></td><td></td><td></td>
       <td class="mono">${fmtHM(rm.total_horas_min || emp.total_minutos)}</td>
       <td>${(rm.total_extras_min || emp.total_extras_minutos) > 0 ? `<span class="extras-pos">${fmtHM(rm.total_extras_min || emp.total_extras_minutos)}</span>` : '—'}</td>
-      <td class="mono">${(rm.total_minutos_tarde || 0) > 0 ? (rm.total_minutos_tarde) + 'm' : '—'}</td>
+      <td class="mono">${(rm.total_minutos_tarde || 0) > 0 ? rm.total_minutos_tarde + 'm' : '—'}</td>
       <td class="mono">${(rm.total_ausencias || 0) > 0 ? rm.total_ausencias : '—'}</td>
     </tr>`;
 
@@ -1645,6 +1691,29 @@ function _tExportExcel() {
 function _tExportPDF() {
   if (!_tReportData) return;
   window.print();
+}
+
+function _tExportOpCSV() {
+  if (!_tOpData || !_tOpData.dias) return;
+  const sep = ';';
+  const lines = ['Fecha;Entrada;Salida;Descanso (min);Horas netas (h);Tarde (min);Ausente'];
+  _tOpData.dias.forEach(d => {
+    const ent = d.jornada?.entrada ? _fmtTimeLocal(d.jornada.entrada) : '—';
+    const sal = d.jornada?.salida  ? _fmtTimeLocal(d.jornada.salida)  : '—';
+    const desc = d.jornada?.descanso_minutos || 0;
+    const horas = +(d.total_minutos / 60).toFixed(2);
+    const tarde = d.tardanza_min || 0;
+    lines.push([d.fecha, ent, sal, desc, horas, tarde, ''].join(sep));
+  });
+  const csv = lines.join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const nombre = (_tOpData.nombre || 'empleado').replace(/\s+/g, '-').toLowerCase();
+  const desde = document.getElementById('op-desde').value;
+  const hasta = document.getElementById('op-hasta').value;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `horas-${nombre}-${desde}-${hasta}.csv`;
+  a.click();
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
