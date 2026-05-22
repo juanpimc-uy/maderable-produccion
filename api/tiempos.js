@@ -114,6 +114,58 @@ class ApiError extends Error {
 }
 
 // ── Constantes compartidas ─────────────────────────────────────────────────
+const ANOMALIA_MAX_HORAS = 11;
+const DESCANSO_INICIO_UTC = 15; // 12:00 UY = 15:00 UTC
+const DESCANSO_FIN_UTC    = 16; // 13:00 UY = 16:00 UTC
+
+// ── Helpers: anomalía + descanso ──────────────────────────────────────────
+function _detectarAnomalia(r, ahora) {
+  const ini = new Date(r.inicio);
+  const fin = r.fin ? new Date(r.fin) : (r.estado === 'activo' ? ahora : ini);
+  const durMin = Math.max(0, fin - ini) / 60000;
+  // Cruza medianoche
+  if (r.fin && ini.toISOString().split('T')[0] !== new Date(r.fin).toISOString().split('T')[0]) return true;
+  // Sin fin y lleva > 11h
+  if (!r.fin && durMin > ANOMALIA_MAX_HORAS * 60) return true;
+  // Duración > 11h
+  if (durMin > ANOMALIA_MAX_HORAS * 60) return true;
+  return false;
+}
+
+function _calcDescansoOverlapMin(r, ahora) {
+  const ini = new Date(r.inicio);
+  const fin = r.fin ? new Date(r.fin) : (r.estado === 'activo' ? ahora : ini);
+  // Ventana de descanso del día del inicio de la sesión (12:00-13:00 UY = 15:00-16:00 UTC)
+  const diaStr = ini.toISOString().split('T')[0];
+  const descInicio = new Date(diaStr + 'T' + String(DESCANSO_INICIO_UTC).padStart(2,'0') + ':00:00Z');
+  const descFin    = new Date(diaStr + 'T' + String(DESCANSO_FIN_UTC).padStart(2,'0') + ':00:00Z');
+  const overlapStart = Math.max(ini.getTime(), descInicio.getTime());
+  const overlapEnd   = Math.min(fin.getTime(), descFin.getTime());
+  return Math.max(0, (overlapEnd - overlapStart) / 60000);
+}
+
+function _procesarSesiones(sesiones, ahora, descansoModalidad, tomoDescanso) {
+  const aplicarDescanso = descansoModalidad === 'no_paga_60' && (tomoDescanso !== false);
+  let totalMs = 0;
+  const processed = sesiones.map(r => {
+    const ini = new Date(r.inicio);
+    const fin = r.fin ? new Date(r.fin) : (r.estado === 'activo' ? ahora : ini);
+    let durMs = Math.max(0, fin - ini);
+    const anomalia = r.anomalia || _detectarAnomalia(r, ahora);
+    const anomalia_aprobada = r.anomalia_aprobada ?? null;
+    // Descontar descanso si aplica
+    let descantoDescMin = 0;
+    if (aplicarDescanso) {
+      descantoDescMin = _calcDescansoOverlapMin(r, ahora);
+      durMs -= descantoDescMin * 60000;
+      if (durMs < 0) durMs = 0;
+    }
+    const cuentaEnTotal = !anomalia || anomalia_aprobada === true;
+    if (cuentaEnTotal) totalMs += durMs;
+    return { ...r, anomalia, anomalia_aprobada, duracion_min: Math.round(durMs / 60000), cuenta_en_total: cuentaEnTotal };
+  });
+  return { sesiones: processed, total_minutos: Math.round(totalMs / 60000) };
+}
 
 // ── Helpers unificados ─────────────────────────────────────────────────────
 
@@ -3281,6 +3333,24 @@ export default async function handler(req) {
       return ok({ ok: true, empleado: data });
     }
 
+    // ── POST aprobar-anomalia ────────────────────────────────────────────
+    if (action === 'aprobar-anomalia' && req.method === 'POST') {
+      const { sesion_id, aprobada, caller_id } = body;
+      if (!sesion_id) return err('sesion_id requerido', 400);
+      if (aprobada === undefined) return err('aprobada requerido (true/false)', 400);
+      if (!caller_id) return err('caller_id requerido', 400);
+      const { data: callerAn } = await supabase
+        .from('empleados').select('rol_app').eq('id', caller_id).maybeSingle();
+      if (!callerAn || callerAn.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede aprobar anomalías' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      const { error } = await supabase.from('registros_trabajo')
+        .update({ anomalia: true, anomalia_aprobada: !!aprobada })
+        .eq('id', sesion_id);
+      if (error) throw error;
+      return ok({ ok: true });
+    }
+
     // ── GET sesiones-dia ──────────────────────────────────────────────────
     if (action === 'sesiones-dia' && req.method === 'GET') {
       const fecha     = url.searchParams.get('fecha');
@@ -3316,12 +3386,12 @@ export default async function handler(req) {
 
       const [{ data: registrosSD, error: rSDErr }, { data: empleadosSD, error: eSDErr }] = await Promise.all([
         supabase.from('registros_trabajo')
-          .select('id, jornada_id, inicio, fin, centro, proyecto_id, proyecto_nombre, item_id, item_nombre, estado')
+          .select('id, jornada_id, inicio, fin, centro, proyecto_id, proyecto_nombre, item_id, item_nombre, estado, anomalia, anomalia_aprobada')
           .in('jornada_id', jornadaIdsSD)
           .eq('eliminada', false)
           .order('inicio', { ascending: true }),
         supabase.from('empleados')
-          .select('id, nombre, descanso_modalidad')
+          .select('id, nombre, descanso_modalidad, rol_app')
           .in('id', empleadoIdsSD),
       ]);
       if (rSDErr) throw rSDErr;
@@ -3339,19 +3409,17 @@ export default async function handler(req) {
       return ok({
         ok: true, fecha,
         empleados: jornadasSD.map(j => {
-          const sesiones = regsMapSD[j.id] || [];
-          const totalMs  = sesiones.reduce((acc, r) => {
-            const ini = new Date(r.inicio);
-            const fin = r.fin ? new Date(r.fin) : (r.estado === 'activo' ? ahoraSD : ini);
-            return acc + Math.max(0, fin - ini);
-          }, 0);
+          const emp = empMapSD[j.empleado_id] || {};
+          const raw = regsMapSD[j.id] || [];
+          const tomoDescanso = j.tomo_descanso ?? true;
+          const { sesiones, total_minutos } = _procesarSesiones(raw, ahoraSD, emp.descanso_modalidad, tomoDescanso);
           return {
             empleado_id:        j.empleado_id,
-            nombre:             empMapSD[j.empleado_id]?.nombre || '',
-            descanso_modalidad: empMapSD[j.empleado_id]?.descanso_modalidad || null,
-            jornada:            { id: j.id, entrada: j.entrada, salida: j.salida, descanso_minutos: j.descanso_minutos },
+            nombre:             emp.nombre || '',
+            descanso_modalidad: emp.descanso_modalidad || null,
+            jornada:            { id: j.id, entrada: j.entrada, salida: j.salida, descanso_minutos: j.descanso_minutos, tomo_descanso: tomoDescanso },
             sesiones,
-            total_minutos: Math.round(totalMs / 60000),
+            total_minutos,
           };
         }),
       });
@@ -3405,7 +3473,7 @@ export default async function handler(req) {
       const jornadaIdsSE = jornadasSE.map(j => j.id);
       const { data: registrosSE, error: rSEErr } = await supabase
         .from('registros_trabajo')
-        .select('id, jornada_id, inicio, fin, centro, proyecto_id, proyecto_nombre, item_id, item_nombre, estado')
+        .select('id, jornada_id, inicio, fin, centro, proyecto_id, proyecto_nombre, item_id, item_nombre, estado, anomalia, anomalia_aprobada')
         .in('jornada_id', jornadaIdsSE)
         .eq('eliminada', false)
         .order('inicio', { ascending: true });
@@ -3421,17 +3489,14 @@ export default async function handler(req) {
       return ok({
         ok: true, empleado_id, nombre: empNombreSE, descanso_modalidad: empDescansoModalidadSE,
         dias: jornadasSE.map(j => {
-          const sesiones = regsMapSE[j.id] || [];
-          const totalMs  = sesiones.reduce((acc, r) => {
-            const ini = new Date(r.inicio);
-            const fin = r.fin ? new Date(r.fin) : (r.estado === 'activo' ? ahoraSE : ini);
-            return acc + Math.max(0, fin - ini);
-          }, 0);
+          const raw = regsMapSE[j.id] || [];
+          const tomoDescanso = j.tomo_descanso ?? true;
+          const { sesiones, total_minutos } = _procesarSesiones(raw, ahoraSE, empDescansoModalidadSE, tomoDescanso);
           return {
             fecha:         j.fecha,
-            jornada:       { id: j.id, entrada: j.entrada, salida: j.salida, descanso_minutos: j.descanso_minutos },
+            jornada:       { id: j.id, entrada: j.entrada, salida: j.salida, descanso_minutos: j.descanso_minutos, tomo_descanso: tomoDescanso },
             sesiones,
-            total_minutos: Math.round(totalMs / 60000),
+            total_minutos,
           };
         }),
       });
@@ -3484,20 +3549,36 @@ export default async function handler(req) {
         return ok({ ok: true, desde, hasta, empleados: [] });
 
       const empleadoIdsRH = empleadosRH.map(e => e.id);
-      const { data: registrosRH, error: rRHErr } = await supabase
-        .from('registros_trabajo')
-        .select('id, empleado_id, inicio, fin')
-        .in('empleado_id', empleadoIdsRH)
-        .eq('estado', 'finalizado')
-        .eq('eliminada', false)
-        .gte('inicio', desde + 'T00:00:00.000Z')
-        .lte('inicio', hasta + 'T23:59:59.999Z')
-        .order('inicio', { ascending: true });
-      if (rRHErr) throw rRHErr;
 
-      function _rhIsoMonday(ts) {
-        const d = new Date(ts);
-        const day = d.getUTCDay(); // 0=Dom, 1=Lun, ..., 6=Sáb
+      // Fetch registros + jornadas en paralelo
+      const [{ data: registrosRH, error: rRHErr }, { data: jornadasRH, error: jRHErr }, { data: empsFullRH, error: efRHErr }] = await Promise.all([
+        supabase.from('registros_trabajo')
+          .select('id, empleado_id, inicio, fin, estado, anomalia, anomalia_aprobada')
+          .in('empleado_id', empleadoIdsRH)
+          .in('estado', ['finalizado', 'activo', 'pausado'])
+          .eq('eliminada', false)
+          .gte('inicio', desde + 'T00:00:00.000Z')
+          .lte('inicio', hasta + 'T23:59:59.999Z')
+          .order('inicio', { ascending: true }),
+        supabase.from('jornadas')
+          .select('id, empleado_id, fecha, entrada, salida, descanso_minutos, tomo_descanso')
+          .in('empleado_id', empleadoIdsRH)
+          .gte('fecha', desde)
+          .lte('fecha', hasta)
+          .order('fecha', { ascending: true }),
+        supabase.from('empleados')
+          .select('id, rol_app, descanso_modalidad, horario_entrada')
+          .in('id', empleadoIdsRH),
+      ]);
+      if (rRHErr) throw rRHErr;
+      if (jRHErr) throw jRHErr;
+      if (efRHErr) throw efRHErr;
+
+      const empFullMap = Object.fromEntries((empsFullRH || []).map(e => [e.id, e]));
+
+      function _rhIsoMonday(dateStr) {
+        const d = new Date(dateStr + 'T12:00:00Z');
+        const day = d.getUTCDay();
         const offset = day === 0 ? 6 : day - 1;
         d.setUTCDate(d.getUTCDate() - offset);
         return d.toISOString().split('T')[0];
@@ -3507,33 +3588,136 @@ export default async function handler(req) {
         d.setUTCDate(d.getUTCDate() + 6);
         return d.toISOString().split('T')[0];
       }
+      function _rhDiasHabiles(mondayStr, sundayStr, desdeStr, hastaStr) {
+        // Lun-Vie dentro del rango [desde, hasta] intersectado con [monday, sunday]
+        const start = new Date(Math.max(new Date(mondayStr + 'T00:00:00Z'), new Date(desdeStr + 'T00:00:00Z')));
+        const end   = new Date(Math.min(new Date(sundayStr + 'T00:00:00Z'), new Date(hastaStr + 'T00:00:00Z')));
+        let count = 0;
+        const d = new Date(start);
+        while (d <= end) { const dow = d.getUTCDay(); if (dow >= 1 && dow <= 5) count++; d.setUTCDate(d.getUTCDate() + 1); }
+        return count;
+      }
 
+      // Agrupar por empleado
       const regsPorEmpRH = {};
       (registrosRH || []).forEach(r => {
         if (!regsPorEmpRH[r.empleado_id]) regsPorEmpRH[r.empleado_id] = [];
         regsPorEmpRH[r.empleado_id].push(r);
       });
+      const jorsPorEmpRH = {};
+      (jornadasRH || []).forEach(j => {
+        if (!jorsPorEmpRH[j.empleado_id]) jorsPorEmpRH[j.empleado_id] = [];
+        jorsPorEmpRH[j.empleado_id].push(j);
+      });
+
+      const ahoraRH = new Date();
 
       return ok({
         ok: true, desde, hasta,
         empleados: empleadosRH.map(emp => {
           const regs = regsPorEmpRH[emp.id] || [];
-          const semanasMap = {};
-          regs.forEach(r => {
-            if (!r.fin) return;
-            const monday = _rhIsoMonday(r.inicio);
-            if (!semanasMap[monday]) semanasMap[monday] = 0;
-            semanasMap[monday] += Math.max(0, Math.round((new Date(r.fin) - new Date(r.inicio)) / 60000));
+          const jors = jorsPorEmpRH[emp.id] || [];
+          const empFull = empFullMap[emp.id] || {};
+          const esOperario = empFull.rol_app === 'operario';
+          const horarioEntrada = empFull.horario_entrada || (esOperario ? '07:30' : '09:00');
+
+          // Agrupar jornadas y registros por semana
+          const semanasMap = {}; // monday → { regs:[], jors:[], fechasConJornada: Set }
+
+          jors.forEach(j => {
+            const monday = _rhIsoMonday(j.fecha);
+            if (!semanasMap[monday]) semanasMap[monday] = { regs: [], jors: [], fechasConJornada: new Set() };
+            semanasMap[monday].jors.push(j);
+            semanasMap[monday].fechasConJornada.add(j.fecha);
           });
-          const semanas = Object.keys(semanasMap).sort().map(monday => ({
-            semana_inicio:  monday,
-            semana_fin:     _rhIsoSunday(monday),
-            total_minutos:  semanasMap[monday],
-            extras_minutos: Math.max(0, semanasMap[monday] - 2700),
-          }));
-          const total_minutos        = semanas.reduce((acc, s) => acc + s.total_minutos, 0);
+          regs.forEach(r => {
+            const monday = _rhIsoMonday(new Date(r.inicio).toISOString().split('T')[0]);
+            if (!semanasMap[monday]) semanasMap[monday] = { regs: [], jors: [], fechasConJornada: new Set() };
+            semanasMap[monday].regs.push(r);
+          });
+
+          const semanas = Object.keys(semanasMap).sort().map(monday => {
+            const sunday = _rhIsoSunday(monday);
+            const sw = semanasMap[monday];
+
+            // Entrada más temprana / salida más tardía
+            let entradaMin = null, salidaMax = null;
+            let descansoTotalMin = 0;
+            let tardanzaTotalMin = 0;
+
+            sw.jors.forEach(j => {
+              if (j.entrada) {
+                const e = new Date(j.entrada);
+                if (!entradaMin || e < entradaMin) entradaMin = e;
+              }
+              if (j.salida) {
+                const s = new Date(j.salida);
+                if (!salidaMax || s > salidaMax) salidaMax = s;
+              }
+              descansoTotalMin += j.descanso_minutos || 0;
+
+              // Tardanza: comparar hora de entrada con horario esperado
+              if (j.entrada) {
+                const entH = new Date(j.entrada);
+                const [hh, mm] = horarioEntrada.split(':').map(Number);
+                const esperado = new Date(j.fecha + 'T' + String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0') + ':00-03:00');
+                const diffMin = Math.max(0, Math.round((entH - esperado) / 60000));
+                if (diffMin > 0) tardanzaTotalMin += diffMin;
+              }
+            });
+
+            // Horas netas: usar _procesarSesiones por jornada para descontar descanso + anomalías
+            let horasNetasMin = 0;
+            // Agrupar regs por jornada_id para aplicar descanso correctamente
+            const regsByJor = {};
+            sw.regs.forEach(r => {
+              const jid = r.jornada_id || '_none';
+              if (!regsByJor[jid]) regsByJor[jid] = [];
+              regsByJor[jid].push(r);
+            });
+            for (const [jid, jRegs] of Object.entries(regsByJor)) {
+              const jornada = sw.jors.find(j => j.id === jid);
+              const tomoDescanso = jornada?.tomo_descanso ?? true;
+              const { total_minutos } = _procesarSesiones(jRegs, ahoraRH, empFull.descanso_modalidad, tomoDescanso);
+              horasNetasMin += total_minutos;
+            }
+
+            const extrasMin = Math.max(0, horasNetasMin - 45 * 60);
+
+            // Ausencias: días hábiles sin jornada
+            const diasHabiles = _rhDiasHabiles(monday, sunday, desde, hasta);
+            const ausencias = Math.max(0, diasHabiles - sw.fechasConJornada.size);
+
+            return {
+              semana_inicio: monday,
+              semana_fin: sunday,
+              entrada: entradaMin ? entradaMin.toISOString() : null,
+              salida: salidaMax ? salidaMax.toISOString() : null,
+              descanso_total_min: descansoTotalMin,
+              horas_netas_min: horasNetasMin,
+              total_minutos: horasNetasMin,
+              extras_minutos: extrasMin,
+              minutos_tarde_semana: tardanzaTotalMin,
+              ausencias,
+            };
+          });
+
+          const total_minutos        = semanas.reduce((acc, s) => acc + s.horas_netas_min, 0);
           const total_extras_minutos = semanas.reduce((acc, s) => acc + s.extras_minutos, 0);
-          return { empleado_id: emp.id, nombre: emp.nombre, semanas, total_minutos, total_extras_minutos };
+          const total_minutos_tarde  = semanas.reduce((acc, s) => acc + s.minutos_tarde_semana, 0);
+          const total_ausencias      = semanas.reduce((acc, s) => acc + s.ausencias, 0);
+
+          return {
+            empleado_id: emp.id, nombre: emp.nombre,
+            semanas,
+            total_minutos, total_extras_minutos,
+            resumen_mensual: {
+              total_horas_min: total_minutos,
+              total_extras_min: total_extras_minutos,
+              total_minutos_tarde,
+              total_ausencias,
+            },
+          };
         }),
       });
     }
