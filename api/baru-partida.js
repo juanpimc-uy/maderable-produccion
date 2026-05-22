@@ -19,7 +19,7 @@ export default async function handler(req) {
   try {
     const { data, error } = await supabase
       .from('partidas_terceros')
-      .select('id, numero_envio, mueble_nombre, mueble_codigo, obra, cliente, bultos, fecha_despacho, fecha_retorno_estimada, instruccion_lustre, fecha_recepcion_proveedor, estado, proveedor_nombre')
+      .select('id, numero_envio, mueble_nombre, mueble_codigo, obra, cliente, bultos, fecha_despacho, fecha_retorno_estimada, instruccion_lustre, fecha_recepcion_proveedor, estado, proveedor_nombre, baru_items, baru_completado_at')
       .eq('id', id)
       .maybeSingle();
 
