@@ -7,9 +7,6 @@
 <script src="/js/supabase-config.js"></script>
 <script src="/js/auth.js"></script>
 <title>Maderable · Tiempos</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
 :root {
@@ -197,6 +194,37 @@ table.ses-table tr:not(.row-modified){border-left:3px solid transparent;}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
 @keyframes spin{to{transform:rotate(360deg)}}
 .add-row-tr td{background:rgba(255,214,0,.04);}
+/* ── Filter chips ──────────────────────────────────────────────── */
+.filter-bar{display:flex;gap:4px;margin-bottom:16px;}
+.filter-chip{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.5px;padding:5px 14px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;text-transform:uppercase;}
+.filter-chip:hover{border-color:var(--accent);color:var(--accent);}
+.filter-chip.active{background:var(--accent);color:#000;border-color:var(--accent);}
+/* ── Anomaly ────────────────────────────────────────────────────── */
+tr.anomalia-row{background:#2a1f1f !important;}
+tr.anomalia-row:hover{background:#332222 !important;}
+.badge-anomalia{font-family:'Space Mono',monospace;font-size:8px;padding:2px 5px;border-radius:3px;letter-spacing:.5px;text-transform:uppercase;margin-left:4px;}
+.badge-anomalia.pendiente{background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.25);}
+.badge-anomalia.aprobada{background:rgba(61,214,140,.12);color:var(--green);border:1px solid rgba(61,214,140,.25);}
+.badge-anomalia.rechazada{background:rgba(240,92,92,.12);color:var(--red);border:1px solid rgba(240,92,92,.25);}
+.dur-tachada{text-decoration:line-through;color:var(--muted);}
+.btn-aprobar,.btn-rechazar{font-family:'Space Mono',monospace;font-size:8px;padding:2px 6px;border-radius:3px;border:none;cursor:pointer;margin-left:2px;transition:opacity .15s;}
+.btn-aprobar{background:rgba(61,214,140,.15);color:var(--green);}
+.btn-rechazar{background:rgba(240,92,92,.15);color:var(--red);}
+.btn-aprobar:hover,.btn-rechazar:hover{opacity:.7;}
+.descuento-info{font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-top:1px;}
+/* ── Print ──────────────────────────────────────────────────────── */
+@media print{
+  body{background:#fff !important;color:#000 !important;}
+  .shell{display:block !important;}
+  .sidebar,.tabs-bar,.ctrl-bar,.filter-bar,.export-bar,#btn-guardar-fijo,.btn-eliminar,.btn-add-ses{display:none !important;}
+  .main,.content{overflow:visible !important;}
+  .rep-table th,.rep-table td{color:#000 !important;border-color:#ccc !important;}
+  .rep-table{font-size:10px !important;}
+  .rep-total td{background:#eee !important;}
+  .extras-pos{color:#c00 !important;}
+  #print-header{display:block !important;}
+}
+#print-header{display:none;text-align:center;font-family:'Space Mono',monospace;font-size:14px;font-weight:700;margin-bottom:16px;}
 
 /* ── Session edit modal ─────────────────────────────────────────── */
 .modal-overlay{
@@ -317,6 +345,15 @@ table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
     <button class="tab-btn" onclick="_tTab('reporte')">REPORTE</button>
   </div>
 
+  <!-- ── FILTER CHIPS ── -->
+  <div class="filter-bar" id="filter-bar">
+    <button class="filter-chip active" onclick="_tSetFiltroRol('todos')">TODOS</button>
+    <button class="filter-chip" onclick="_tSetFiltroRol('planta')">PLANTA</button>
+    <button class="filter-chip" onclick="_tSetFiltroRol('oficina')">OFICINA</button>
+  </div>
+
+  <div id="print-header">MADERABLE — REPORTE DE HORAS</div>
+
   <!-- ═══ TAB 1: POR DÍA ══════════════════════════════════════════════ -->
   <div id="panel-dia" class="tab-panel active">
     <div class="ctrl-bar">
@@ -375,11 +412,11 @@ table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
       </div>
       <button class="btn-load" onclick="_tGenerarReporte()">GENERAR</button>
     </div>
-    <div id="reporte-result"></div>
     <div class="export-bar">
-      <button class="btn-export" id="btn-export-excel" disabled onclick="_tExportExcel()">↓ EXPORTAR EXCEL</button>
       <button class="btn-export" id="btn-export-pdf"   disabled onclick="_tExportPDF()">↓ EXPORTAR PDF</button>
+      <button class="btn-export" id="btn-export-excel" disabled onclick="_tExportExcel()">↓ EXPORTAR EXCEL</button>
     </div>
+    <div id="reporte-result"></div>
   </div>
 
 </div><!-- /content -->
@@ -460,6 +497,37 @@ let _tReportData = null;
 // change tracking
 const _tSesChanges = new Map();   // sid → {field: value}
 const _tJorChanges = new Map();   // jid → {field: value}
+
+// ── Filtro rol ───────────────────────────────────────────────────────────
+let _tFiltroRol = localStorage.getItem('tiempos_filtro_rol') || 'todos'; // 'todos' | 'planta' | 'oficina'
+
+function _tSetFiltroRol(rol) {
+  _tFiltroRol = rol;
+  localStorage.setItem('tiempos_filtro_rol', rol);
+  document.querySelectorAll('.filter-chip').forEach(b => b.classList.toggle('active', b.textContent.trim().toLowerCase() === rol));
+  // Refresh active view
+  const activeTab = document.querySelector('.tab-btn.active')?.textContent?.trim();
+  if (activeTab === 'POR DÍA') _tCargarDia();
+  else if (activeTab === 'POR OPERARIO') _tFilterOpSelect();
+  // Reporte no auto-refresh — el usuario clickea GENERAR
+}
+
+function _tPassFiltro(emp) {
+  if (_tFiltroRol === 'todos') return true;
+  const rol = emp.rol_app || emp._rol_app || '';
+  if (_tFiltroRol === 'planta') return rol === 'operario';
+  if (_tFiltroRol === 'oficina') return rol === 'admin' || rol === 'oficina';
+  return true;
+}
+
+function _tFilterOpSelect() {
+  // Re-filter the op-emp-select dropdown
+  const sel = document.getElementById('op-emp-select');
+  if (!sel) return;
+  const current = sel.value;
+  const filtered = _empListT.filter(e => _tPassFiltro(e));
+  sel.innerHTML = filtered.map(e => `<option value="${e.id}"${e.id===current?' selected':''}>${e.nombre}</option>`).join('');
+}
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 (function _auth() {
@@ -560,6 +628,9 @@ async function _tInit() {
     }).join('');
   } catch(e) { console.warn('[tiempos] proyectos:', e.message); }
 
+  // Set active filter chip from localStorage
+  document.querySelectorAll('.filter-chip').forEach(b => b.classList.toggle('active', b.textContent.trim().toLowerCase() === _tFiltroRol));
+
   // Load employees for selects (admin only)
   if (_tIsAdmin) {
     try {
@@ -571,7 +642,7 @@ async function _tInit() {
       const opFilter = _tUser.rol_app === 'admin'
         ? _empListT
         : _empListT.filter(e => e.rol_app === 'operario' || e.id === _tUser.id);
-      opFilter.forEach(e => {
+      opFilter.filter(e => _tPassFiltro(e)).forEach(e => {
         opSel.innerHTML  += `<option value="${e.id}">${e.nombre}</option>`;
       });
       opFilter.forEach(e => {
@@ -725,10 +796,33 @@ function _tSesionTable(sesiones, jornadaId, empNombre, empleadoId, fecha) {
       ? '<span class="en-curso">EN CURSO</span>'
       : `<span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">${s.estado}</span>`;
 
+    // Anomaly badge
+    let anomBadge = '';
+    let durClass = '';
+    let anomBtns = '';
+    if (s.anomalia) {
+      if (s.anomalia_aprobada === true) {
+        anomBadge = '<span class="badge-anomalia aprobada">✓ APROBADA</span>';
+      } else if (s.anomalia_aprobada === false) {
+        anomBadge = '<span class="badge-anomalia rechazada">✗ RECHAZADA</span>';
+        durClass = 'dur-tachada';
+      } else {
+        anomBadge = '<span class="badge-anomalia pendiente">⚠ ANOMALÍA</span>';
+        durClass = 'dur-tachada';
+        if (_tUser?.rol_app === 'admin') {
+          anomBtns = `<button class="btn-aprobar" onclick="event.stopPropagation();_tAprobarAnomalia('${s.id}',true)">✓</button><button class="btn-rechazar" onclick="event.stopPropagation();_tAprobarAnomalia('${s.id}',false)">✗</button>`;
+        }
+      }
+    }
+    const durLabel = s.duracion_min != null ? `<span class="${durClass}">${fmtHM(s.duracion_min)}</span>` : '';
+    const descInfo = s.duracion_min != null && s.cuenta_en_total !== undefined && !s.cuenta_en_total ? '' : '';
+
+    const rowClass = s.anomalia ? ' anomalia-row' : '';
+
     return `
-<tr data-sid="${s.id}" data-jid="${jornadaId}" onclick="_tModalOpen('${s.id}','${jornadaId}'${empNombre ? `,'${empNombre.replace(/'/g,"\\'")}'` : ''})">
+<tr data-sid="${s.id}" data-jid="${jornadaId}" class="${rowClass}" onclick="_tModalOpen('${s.id}','${jornadaId}'${empNombre ? `,'${empNombre.replace(/'/g,"\\'")}'` : ''})">
   <td class="mono" style="font-size:12px;">${fmtTime(s.inicio)}</td>
-  <td class="mono" style="font-size:12px;">${sinFin && activo ? '' : fmtTime(s.fin)} ${estadoBadge}</td>
+  <td class="mono" style="font-size:12px;">${sinFin && activo ? '' : fmtTime(s.fin)} ${estadoBadge} ${durLabel} ${anomBadge} ${anomBtns}</td>
   <td style="font-size:11px;">${centroLabel}</td>
   <td style="font-size:11px;color:var(--muted);">${proyLabel}</td>
   <td style="font-size:11px;color:var(--muted);">${s.item_nombre||''}</td>
@@ -1108,6 +1202,20 @@ function _tReloadCurrentView() {
   else if (activeTab === 'POR OPERARIO') _tCargarOperario();
 }
 
+// ── Aprobar/rechazar anomalía ─────────────────────────────────────────────
+async function _tAprobarAnomalia(sesionId, aprobada) {
+  try {
+    const res = await _tFetch('/api/tiempos?action=aprobar-anomalia', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ sesion_id: sesionId, aprobada, caller_id: CALLER_ID }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Error');
+    _tReloadCurrentView();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
 // ── Eliminar sesión ───────────────────────────────────────────────────────
 async function _tEliminarSesion(sid, btn) {
   if (!confirm('¿Eliminar esta sesión? No se puede deshacer.')) return;
@@ -1227,11 +1335,12 @@ async function _tCargarDia() {
 
 function _tRenderDia(data) {
   const result = document.getElementById('dia-result');
-  if (!data.empleados || data.empleados.length === 0) {
+  const emps = (data.empleados || []).filter(emp => _tPassFiltro(emp));
+  if (emps.length === 0) {
     result.innerHTML = '<p class="empty-msg">Sin jornadas ese día.</p>';
     return;
   }
-  result.innerHTML = data.empleados.map(emp => {
+  result.innerHTML = emps.map(emp => {
     const hayActivo = emp.sesiones.some(s => s.estado === 'activo');
     const badge = hayActivo
       ? '<span class="badge-activo">ACTIVO 🟢</span>'
@@ -1432,51 +1541,64 @@ async function _tGenerarReporte() {
   }
 }
 
+function _fmtTimeLocal(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
 function _tRenderReporte(data, anio, mes) {
   const result = document.getElementById('reporte-result');
-  if (!data.empleados || data.empleados.length === 0) {
+  const emps = (data.empleados || []).filter(emp => _tPassFiltro({ rol_app: emp._rol_app || '' }));
+  if (emps.length === 0) {
     result.innerHTML = '<p class="empty-msg">Sin datos para ese período.</p>';
     return;
   }
 
+  const periodoLabel = `${String(mes).padStart(2,'0')}/${anio}`;
+  const ph = document.getElementById('print-header');
+  if (ph) ph.textContent = `MADERABLE \u2014 REPORTE DE HORAS \u2014 ${periodoLabel}`;
+
   let html = `
 <div class="mono" style="font-size:10px;color:var(--muted);margin-bottom:16px;letter-spacing:1px;">
-  PERÍODO ${String(mes).padStart(2,'0')}/${anio} &nbsp;·&nbsp; ${data.desde} → ${data.hasta}
-</div>
-<table class="rep-table">
-<thead><tr>
-  <th>EMPLEADO</th><th>SEMANA</th><th>HORAS</th><th>EXTRAS</th>
-</tr></thead>
-<tbody>`;
+  PERÍODO ${periodoLabel} &nbsp;·&nbsp; ${data.desde} → ${data.hasta}
+</div>`;
 
-  data.empleados.forEach((emp, idx) => {
-    if (idx > 0) {
-      html += `<tr class="rep-sep"><td colspan="4"></td></tr>`;
-    }
+  emps.forEach((emp, idx) => {
+    if (idx > 0) html += '<div style="height:20px;"></div>';
+    html += `<div class="mono" style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;">${emp.nombre}</div>`;
+    html += `<table class="rep-table">
+<thead><tr>
+  <th>SEMANA</th><th>ENTRADA</th><th>SALIDA</th><th>DESCANSO</th>
+  <th>HORAS NETAS</th><th>EXTRAS</th><th>TARDE</th><th>AUSENCIAS</th>
+</tr></thead><tbody>`;
+
     emp.semanas.forEach(s => {
-      const extrasHTML = s.extras_minutos > 0
-        ? `<span class="extras-pos">${fmtHM(s.extras_minutos)}</span>`
-        : '—';
       html += `<tr>
-        <td class="mono" style="font-size:12px;">${emp.nombre}</td>
         <td class="mono" style="font-size:11px;color:var(--muted);">${fmtDate(s.semana_inicio)}–${fmtDate(s.semana_fin)}</td>
-        <td class="mono">${fmtHM(s.total_minutos)}</td>
-        <td>${extrasHTML}</td>
+        <td class="mono">${_fmtTimeLocal(s.entrada)}</td>
+        <td class="mono">${_fmtTimeLocal(s.salida)}</td>
+        <td class="mono">${s.descanso_total_min ? s.descanso_total_min + 'm' : '—'}</td>
+        <td class="mono">${fmtHM(s.horas_netas_min)}</td>
+        <td>${s.extras_minutos > 0 ? `<span class="extras-pos">${fmtHM(s.extras_minutos)}</span>` : '—'}</td>
+        <td class="mono">${s.minutos_tarde_semana > 0 ? s.minutos_tarde_semana + 'm' : '—'}</td>
+        <td class="mono">${s.ausencias > 0 ? s.ausencias : '—'}</td>
       </tr>`;
     });
-    // Total row
-    const totExtrasHTML = emp.total_extras_minutos > 0
-      ? `<span class="extras-pos">${fmtHM(emp.total_extras_minutos)}</span>`
-      : '—';
+
+    const rm = emp.resumen_mensual || {};
     html += `<tr class="rep-total">
-      <td class="mono" style="font-size:12px;">${emp.nombre}</td>
       <td class="mono" style="color:var(--muted);">TOTAL</td>
-      <td class="mono">${fmtHM(emp.total_minutos)}</td>
-      <td>${totExtrasHTML}</td>
+      <td></td><td></td><td></td>
+      <td class="mono">${fmtHM(rm.total_horas_min || emp.total_minutos)}</td>
+      <td>${(rm.total_extras_min || emp.total_extras_minutos) > 0 ? `<span class="extras-pos">${fmtHM(rm.total_extras_min || emp.total_extras_minutos)}</span>` : '—'}</td>
+      <td class="mono">${(rm.total_minutos_tarde || 0) > 0 ? (rm.total_minutos_tarde) + 'm' : '—'}</td>
+      <td class="mono">${(rm.total_ausencias || 0) > 0 ? rm.total_ausencias : '—'}</td>
     </tr>`;
+
+    html += '</tbody></table>';
   });
 
-  html += '</tbody></table>';
   result.innerHTML = html;
 }
 
@@ -1484,65 +1606,45 @@ function _tRenderReporte(data, anio, mes) {
 // EXPORT
 // ═══════════════════════════════════════════════════════════════════════════
 function _tExportExcel() {
-  if (!_tReportData || typeof XLSX === 'undefined') return;
+  if (!_tReportData) return;
   const mes  = String(document.getElementById('rep-mes').value).padStart(2,'0');
   const anio = document.getElementById('rep-anio').value;
-  const rows = [['Empleado','Semana desde','Semana hasta','Horas totales','Horas extras']];
-  _tReportData.empleados.forEach(emp => {
+  const sep = ';';
+  const lines = ['Empleado;Semana desde;Semana hasta;Entrada;Salida;Descanso (min);Horas netas (h);Extras (h);Tarde (min);Ausencias'];
+  const emps = (_tReportData.empleados || []).filter(emp => _tPassFiltro({ rol_app: emp._rol_app || '' }));
+  emps.forEach(emp => {
     emp.semanas.forEach(s => {
-      rows.push([
-        emp.nombre,
-        s.semana_inicio,
-        s.semana_fin,
-        +(s.total_minutos / 60).toFixed(2),
+      lines.push([
+        emp.nombre, s.semana_inicio, s.semana_fin,
+        _fmtTimeLocal(s.entrada), _fmtTimeLocal(s.salida),
+        s.descanso_total_min || 0,
+        +(s.horas_netas_min / 60).toFixed(2),
         +(s.extras_minutos / 60).toFixed(2),
-      ]);
+        s.minutos_tarde_semana || 0,
+        s.ausencias || 0,
+      ].join(sep));
     });
-    rows.push([emp.nombre,'TOTAL','',+(emp.total_minutos/60).toFixed(2),+(emp.total_extras_minutos/60).toFixed(2)]);
+    const rm = emp.resumen_mensual || {};
+    lines.push([
+      emp.nombre, 'TOTAL', '',
+      '', '', '',
+      +((rm.total_horas_min || emp.total_minutos) / 60).toFixed(2),
+      +((rm.total_extras_min || emp.total_extras_minutos) / 60).toFixed(2),
+      rm.total_minutos_tarde || 0,
+      rm.total_ausencias || 0,
+    ].join(sep));
   });
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Tiempos');
-  XLSX.writeFile(wb, `reporte-tiempos-${anio}-${mes}.xlsx`);
+  const csv = lines.join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `reporte-horas-${anio}-${mes}.csv`;
+  a.click();
 }
 
 function _tExportPDF() {
-  if (!_tReportData || !window.jspdf) return;
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  const mes  = String(document.getElementById('rep-mes').value).padStart(2,'0');
-  const anio = document.getElementById('rep-anio').value;
-
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(14);
-  doc.text('MADERABLE \u2014 REPORTE DE TIEMPOS', 14, 20);
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(10);
-  doc.text(`Per\u00edodo: ${anio}-${mes}`, 14, 28);
-
-  const head = [['EMPLEADO','SEMANA','HORAS','EXTRAS']];
-  const body = [];
-  _tReportData.empleados.forEach((emp, idx) => {
-    emp.semanas.forEach(s => {
-      body.push([
-        emp.nombre,
-        `${fmtDate(s.semana_inicio)}\u2013${fmtDate(s.semana_fin)}`,
-        fmtHM(s.total_minutos),
-        s.extras_minutos > 0 ? fmtHM(s.extras_minutos) : '\u2014',
-      ]);
-    });
-    body.push([emp.nombre,'TOTAL',fmtHM(emp.total_minutos),emp.total_extras_minutos > 0 ? fmtHM(emp.total_extras_minutos) : '\u2014']);
-  });
-
-  doc.autoTable({
-    head, body,
-    startY: 34,
-    styles: { fontSize: 9, cellPadding: 4 },
-    headStyles: { fillColor: [255, 214, 0], textColor: [0,0,0], fontStyle: 'bold' },
-    rowPageBreak: 'avoid',
-  });
-
-  doc.save(`reporte-tiempos-${anio}-${mes}.pdf`);
+  if (!_tReportData) return;
+  window.print();
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────

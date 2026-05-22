@@ -3416,6 +3416,7 @@ export default async function handler(req) {
           return {
             empleado_id:        j.empleado_id,
             nombre:             emp.nombre || '',
+            rol_app:            emp.rol_app || 'operario',
             descanso_modalidad: emp.descanso_modalidad || null,
             jornada:            { id: j.id, entrada: j.entrada, salida: j.salida, descanso_minutos: j.descanso_minutos, tomo_descanso: tomoDescanso },
             sesiones,
@@ -3709,6 +3710,7 @@ export default async function handler(req) {
 
           return {
             empleado_id: emp.id, nombre: emp.nombre,
+            _rol_app: empFull.rol_app || 'operario',
             semanas,
             total_minutos, total_extras_minutos,
             resumen_mensual: {
