@@ -436,7 +436,7 @@ function renderCompletados() {
     const items = p.baru_items || [];
     items.forEach((it, i) => {
       totalM2 += it.metros_cuadrados || 0;
-      rows += `<tr>
+      rows += `<tr style="cursor:pointer;" onclick="openDetail('${p.id}')" onmouseenter="this.style.background='rgba(255,214,0,.04)'" onmouseleave="this.style.background=''">
         <td>${i===0?esc(p.numero_envio||''):''}</td>
         <td>${i===0?esc(p.proyecto_num||''):''}</td>
         <td>${i===0?esc(p.obra||''):''}</td>
@@ -451,7 +451,7 @@ function renderCompletados() {
       </tr>`;
     });
     if (!items.length) {
-      rows += `<tr>
+      rows += `<tr style="cursor:pointer;" onclick="openDetail('${p.id}')" onmouseenter="this.style.background='rgba(255,214,0,.04)'" onmouseleave="this.style.background=''">
         <td>${esc(p.numero_envio||'')}</td><td>${esc(p.proyecto_num||'')}</td>
         <td>${esc(p.obra||'')}</td><td>${esc(p.mueble_nombre||'')}</td>
         <td colspan="2">—</td>

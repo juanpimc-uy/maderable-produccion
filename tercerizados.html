@@ -585,6 +585,7 @@ async function abrirNuevaPartida() {
         </div>
       </div>
       <div class="field"><label>Nombre mueble</label><input id="nueva-nombre" placeholder="Descripción"/></div>
+      <div class="field"><label>Bultos</label><input type="number" id="nueva-bultos" min="1" value="1" style="width:100px;"/></div>
       <div style="display:flex;gap:8px;">
         <button class="btn-sm primary" onclick="confirmarNueva()">Agregar</button>
         <button class="btn-sm" onclick="document.body.removeChild(document.getElementById('overlay-nueva'))">Cancelar</button>
@@ -668,6 +669,7 @@ function confirmarNueva() {
     muebleCodigo: muebleParts[0] || '',
     muebleNombre: document.getElementById('nueva-nombre')?.value || muebleParts[1] || '',
     proveedorNombre: provSel,
+    bultos: parseInt(document.getElementById('nueva-bultos')?.value) || 1,
     estado:'en_taller', partes:'', fechaDespacho:'', fechaRecepcion:'', estadoRecep:'', obs:'', nota:''
   };
   if (!nueva.muebleNombre) { alert('Completá el nombre del mueble'); return; }
