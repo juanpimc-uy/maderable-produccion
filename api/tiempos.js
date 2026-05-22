@@ -2038,7 +2038,7 @@ export default async function handler(req) {
               activo: activoBody } = body;
       const { data, error } = await supabase.from('proyectos_cache')
         .upsert({
-          id, nombre: nombre || numero || obra, numero, obra,
+          id, nombre: nombre || obra || numero, numero, obra,
           cliente: clienteNombre, cliente_nombre: clienteNombre,
           fecha_inicio: fechaInicio, fecha_entrega: fechaEntrega,
           notas, estado: estado || 'en_produccion',
