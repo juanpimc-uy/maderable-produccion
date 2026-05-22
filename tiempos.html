@@ -700,11 +700,13 @@ async function _tGuardarTodo() {
 
 // ── Session data store (for modal access to adjacent sessions) ───────────
 const _tSessionsByJornada = new Map(); // jornadaId → [{...session}]
+const _tEmpleadoByJornada = new Map(); // jornadaId → empleado_id
 
 // ── Shared session table renderer ─────────────────────────────────────────
-function _tSesionTable(sesiones, jornadaId, empNombre) {
+function _tSesionTable(sesiones, jornadaId, empNombre, empleadoId) {
   // Store session data for modal
   _tSessionsByJornada.set(jornadaId, sesiones);
+  if (empleadoId) _tEmpleadoByJornada.set(jornadaId, empleadoId);
 
   const rows = sesiones.map(s => {
     const activo  = s.estado === 'activo';
@@ -984,7 +986,7 @@ async function _tModalConfirmNuevaTarea() {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
-        empleado_id:     _modalSesion.empleado_id,
+        empleado_id:     _tEmpleadoByJornada.get(_modalJornadaId) || _modalSesion?.empleado_id,
         jornada_id:      _modalJornadaId,
         proyecto_id:     _modalNTProyId  || null,
         proyecto_nombre: _modalNTProyNom || null,
@@ -1260,7 +1262,7 @@ function _tRenderDia(data) {
       </div>
       ${_tomoDescD}
     </div>
-    ${_tSesionTable(emp.sesiones, jornada.id, emp.nombre)}
+    ${_tSesionTable(emp.sesiones, jornada.id, emp.nombre, emp.empleado_id)}
   </div>
 </div>`;
   }).join('');
@@ -1363,7 +1365,7 @@ ${data.dias.map(dia => {
       </div>
       ${_tomoDescO}
     </div>
-    ${_tSesionTable(dia.sesiones, jornada.id, data.nombre)}
+    ${_tSesionTable(dia.sesiones, jornada.id, data.nombre, data.empleado_id)}
   </div>
 </div>`;
 }).join('')}`;

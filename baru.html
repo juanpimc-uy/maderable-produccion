@@ -204,12 +204,12 @@ let _workItems = []; // items de trabajo en detalle
 // AUTH
 // ═══════════════════════════════════════════════════════════════
 function getToken() {
-  const t = sessionStorage.getItem('baru_token');
+  const t = localStorage.getItem('baru_token');
   if (!t) return null;
   try {
     const payload = atob(t.replace(/-/g,'+').replace(/_/g,'/'));
     const ts = parseInt(payload.split(':')[0], 10);
-    if (Date.now() - ts > 12 * 60 * 60 * 1000) { sessionStorage.removeItem('baru_token'); return null; }
+    if (Date.now() - ts > 12 * 60 * 60 * 1000) { localStorage.removeItem('baru_token'); return null; }
     return t;
   } catch { return null; }
 }
@@ -229,7 +229,7 @@ async function doLogin() {
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Error');
-    sessionStorage.setItem('baru_token', data.token);
+    localStorage.setItem('baru_token', data.token);
     _token = data.token;
     showApp();
   } catch (e) {
@@ -240,7 +240,7 @@ async function doLogin() {
 }
 
 function doLogout() {
-  sessionStorage.removeItem('baru_token');
+  localStorage.removeItem('baru_token');
   _token = null;
   document.getElementById('screen-app').style.display = 'none';
   document.getElementById('screen-login').style.display = '';

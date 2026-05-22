@@ -1331,13 +1331,31 @@ export default async function handler(req) {
 
       const inicioISO  = new Date(inicio).toISOString();
       const finChequeo = fin ? new Date(fin).toISOString() : '9999-12-31T23:59:59Z';
+
+      // Cerrar sesiones abiertas (fin IS NULL) del mismo empleado antes de insertar
+      const { data: abiertasAg } = await supabase
+        .from('registros_trabajo')
+        .select('id')
+        .eq('empleado_id', jornAg.empleado_id)
+        .eq('eliminada', false)
+        .is('fin', null)
+        .in('estado', ['activo', 'pausado']);
+      if (abiertasAg && abiertasAg.length > 0) {
+        const idsAbiertas = abiertasAg.map(r => r.id);
+        await supabase.from('registros_trabajo')
+          .update({ fin: inicioISO, estado: 'pausado' })
+          .in('id', idsAbiertas);
+      }
+
+      // Verificar solapamiento solo con sesiones finalizadas (que tienen fin definido)
       const { data: solapadosAg } = await supabase
         .from('registros_trabajo')
         .select('id, inicio, fin')
         .eq('empleado_id', jornAg.empleado_id)
         .eq('eliminada', false)
+        .not('fin', 'is', null)
         .lt('inicio', finChequeo)
-        .or(`fin.is.null,fin.gt.${inicioISO}`);
+        .gt('fin', inicioISO);
       if (solapadosAg && solapadosAg.length > 0) {
         const s = solapadosAg[0];
         return new Response(JSON.stringify({
