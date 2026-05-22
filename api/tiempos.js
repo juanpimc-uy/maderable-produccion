@@ -2496,8 +2496,13 @@ export default async function handler(req) {
       }});
     }
 
-    // ── GET tipos-cambio ─────────────────────────────────────────────────
+    // ── GET tipos-cambio (solo admin) ──────────────────────────────────
     if (action === 'tipos-cambio' && req.method === 'GET') {
+      const adminIdTC = url.searchParams.get('admin_id');
+      if (!adminIdTC) return err('admin_id requerido', 401);
+      const { data: callerTC } = await supabase.from('empleados').select('rol_app').eq('id', adminIdTC).maybeSingle();
+      if (!callerTC || callerTC.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Acceso denegado' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       const { data, error } = await supabase
         .from('tipo_cambio')
         .select('id, moneda_origen, moneda_destino, valor, actualizado_en')
@@ -2529,8 +2534,13 @@ export default async function handler(req) {
       return ok({ ok: true, tipo_cambio: data });
     }
 
-    // ── GET tarifas-horarias ──────────────────────────────────────────────
+    // ── GET tarifas-horarias (solo admin) ─────────────────────────────────
     if (action === 'tarifas-horarias' && req.method === 'GET') {
+      const adminIdTH = url.searchParams.get('admin_id');
+      if (!adminIdTH) return err('admin_id requerido', 401);
+      const { data: callerTH } = await supabase.from('empleados').select('rol_app').eq('id', adminIdTH).maybeSingle();
+      if (!callerTH || callerTH.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Acceso denegado' }), { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       const { data, error } = await supabase
         .from('tarifas_horarias')
         .select('categoria, monto_usd, actualizado_en')

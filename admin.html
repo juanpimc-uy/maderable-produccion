@@ -98,6 +98,10 @@
   .nota-box { background:rgba(91,141,239,.08); border:1px solid rgba(91,141,239,.25); border-radius:6px; padding:10px 12px; font-size:12px; color:var(--blue); line-height:1.5; margin-top:8px; }
   /* back btn */
   .back-btn { background:var(--faint); border:none; color:var(--muted); border-radius:5px; padding:6px 12px; cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; }
+  /* ── Ajustes tabs ── */
+  .ajuste-tab{font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:1px;padding:8px 16px;background:transparent;border:none;border-bottom:2px solid transparent;color:#666;cursor:pointer;transition:color .2s,border-color .2s;margin-bottom:-1px;}
+  .ajuste-tab:hover{color:#ccc;}
+  .ajuste-tab.active{color:#FFD600;border-bottom-color:#FFD600;}
   /* ── Ajustes / Fórmula ── */
   .coef-grid-f{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:12px;}
   .coef-box-f{background:var(--faint);border:1px solid var(--border);border-radius:8px;padding:16px 10px;text-align:center;}
@@ -649,8 +653,17 @@
 
     <!-- ══ AJUSTES ════════════════════════════════════════════════════════ -->
     <div class="view" id="v-ajustes">
-      <!-- Fórmula de tiempos — solo admin -->
-      <div id="ajustes-formula-section" style="display:none;">
+      <!-- Tab bar -->
+      <div id="ajustes-tabs" style="display:flex;gap:4px;margin-bottom:24px;border-bottom:1px solid #2e2e2e;padding-bottom:0;">
+        <button class="ajuste-tab active" data-tab="formula" onclick="switchAjusteTab('formula')">Fórmula</button>
+        <button class="ajuste-tab" data-tab="tarifas" onclick="switchAjusteTab('tarifas')">Tarifas</button>
+        <button class="ajuste-tab" data-tab="centros" onclick="switchAjusteTab('centros')">Centros</button>
+        <button class="ajuste-tab" data-tab="tc" onclick="switchAjusteTab('tc')">Tipo de cambio</button>
+        <button class="ajuste-tab" data-tab="lustre" onclick="switchAjusteTab('lustre')">Lustre</button>
+      </div>
+      <!-- Fórmula de tiempos -->
+      <div data-ajuste-panel="formula">
+      <div id="ajustes-formula-section">
         <div class="sub-tabs"><button class="sub-tab active">Fórmula de tiempos</button></div>
         <div class="ok-banner-f" id="ok-banner-f">✓ Fórmula guardada correctamente.</div>
         <div style="background:rgba(91,141,239,.06);border:1px solid rgba(91,141,239,.2);border-radius:8px;padding:14px 18px;font-size:13px;color:var(--blue);margin-bottom:20px;line-height:1.6;">
@@ -687,9 +700,11 @@
           <button class="btn btn-primary" onclick="fGuardar()">✓ Guardar Fórmula</button>
         </div>
       </div>
+      </div><!-- /panel formula -->
 
-      <!-- Tarifas horarias — solo admin -->
-      <div id="ajustes-tarifas-section" style="display:none;margin-top:28px;">
+      <!-- Tarifas horarias -->
+      <div data-ajuste-panel="tarifas" style="display:none;">
+      <div id="ajustes-tarifas-section">
         <div class="card">
           <div class="sec-title" style="margin-bottom:4px;">Tarifas horarias ($/h en USD)</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
@@ -700,9 +715,11 @@
           <div id="tarifas-toast" style="font-size:11px;color:var(--green);margin-top:8px;min-height:16px;"></div>
         </div>
       </div>
+      </div><!-- /panel tarifas -->
 
-      <!-- Centros — solo admin -->
-      <div id="ajustes-centros-section" style="display:none;margin-top:16px;">
+      <!-- Centros -->
+      <div data-ajuste-panel="centros" style="display:none;">
+      <div id="ajustes-centros-section">
         <div class="card">
           <div class="sec-title">
             CENTROS
@@ -716,9 +733,11 @@
           </div>
         </div>
       </div>
+      </div><!-- /panel centros -->
 
-      <!-- Tipo de cambio — solo admin -->
-      <div id="ajustes-tc-section" style="display:none;margin-top:16px;">
+      <!-- Tipo de cambio -->
+      <div data-ajuste-panel="tc" style="display:none;">
+      <div id="ajustes-tc-section">
         <div class="card">
           <div class="sec-title" style="margin-bottom:4px;">TIPO DE CAMBIO</div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
@@ -741,8 +760,11 @@
           <div id="tc-toast" style="font-size:11px;color:var(--green);margin-top:8px;min-height:16px;"></div>
         </div>
       </div>
-      <!-- Tipos de lustre — solo admin -->
-      <div id="ajustes-lustre-section" style="display:none;margin-top:16px;">
+      </div><!-- /panel tc -->
+
+      <!-- Tipos de lustre -->
+      <div data-ajuste-panel="lustre" style="display:none;">
+      <div id="ajustes-lustre-section">
         <div class="card">
           <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center;">
             TIPOS DE LUSTRE
@@ -757,6 +779,7 @@
           <div id="lustre-toast" style="font-size:11px;color:var(--green);margin-top:8px;min-height:16px;"></div>
         </div>
       </div>
+      </div><!-- /panel lustre -->
     </div>
 
     <!-- ══ MI CUENTA ══════════════════════════════════════════════════════ -->
@@ -1471,7 +1494,7 @@ function renderView(v) {
   if(v==='operarios')  renderOperarios();
   if(v==='tiempos')    renderTiempos();
   if(v==='materiales') renderMateriales();
-  if(v==='ajustes')    { fInit(); tarifasInit(); tcInit(); centrosAjustesInit(); lustreTiposInit(); }
+  if(v==='ajustes')    { _initAjustes(); }
   if(v==='mi-cuenta')  renderMiCuenta();
 }
 
@@ -4318,10 +4341,23 @@ function fRenderTable(){
   if(t)t.innerHTML=html;
 }
 
+function _initAjustes() {
+  const u = window.AUTH.usuarioActual();
+  if (!u || u.rol_app !== 'admin') { navTo('dashboard'); return; }
+  fInit(); tarifasInit(); tcInit(); centrosAjustesInit(); lustreTiposInit();
+  switchAjusteTab('formula');
+}
+
+function switchAjusteTab(tab) {
+  document.querySelectorAll('.ajuste-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('[data-ajuste-panel]').forEach(p => {
+    p.style.display = p.dataset.ajustePanel === tab ? '' : 'none';
+  });
+}
+
 function fInit(){
   const u = window.AUTH.usuarioActual();
   const sec = document.getElementById('ajustes-formula-section');
-  if (!u || u.rol_app !== 'admin') { if (sec) sec.style.display = 'none'; return; }
   if (sec) sec.style.display = '';
   const COEF=JSON.parse(localStorage.getItem('coef')||JSON.stringify(F_COEF_DEF));
   const DIF=JSON.parse(localStorage.getItem('dif')||JSON.stringify(F_DIF_DEF));
@@ -4368,14 +4404,13 @@ async function tarifasInit(force = false) {
   const u = window.AUTH.usuarioActual();
   const sec = document.getElementById('ajustes-tarifas-section');
   if (!sec) return;
-  if (!u || u.rol_app !== 'admin') { sec.style.display = 'none'; return; }
   sec.style.display = '';
   const grid = document.getElementById('tarifas-grid');
   if (!grid) return;
   if (!force && grid.dataset.loaded === '1') return;
   grid.innerHTML = '<div style="font-size:12px;color:var(--muted);grid-column:1/-1;">Cargando…</div>';
   try {
-    const r = await fetch('/api/tiempos?action=tarifas-horarias');
+    const r = await fetch('/api/tiempos?action=tarifas-horarias&admin_id=' + u.id);
     const data = await r.json();
     if (!r.ok || !data.tarifas) throw new Error(data.error || 'Error');
     grid.innerHTML = data.tarifas.map(t => `
@@ -4476,7 +4511,6 @@ async function tcInit(force = false) {
   const u = window.AUTH.usuarioActual();
   const sec = document.getElementById('ajustes-tc-section');
   if (!sec) return;
-  if (!u || u.rol_app !== 'admin') { sec.style.display = 'none'; return; }
   sec.style.display = '';
   const wrapper = document.getElementById('tc-wrapper');
   if (!wrapper) return;
@@ -4487,7 +4521,7 @@ async function tcInit(force = false) {
   const toast = document.getElementById('tc-toast');
   if (toast) { toast.textContent = ''; toast.style.color = 'var(--green)'; }
   try {
-    const r = await fetch('/api/tiempos?action=tipos-cambio');
+    const r = await fetch('/api/tiempos?action=tipos-cambio&admin_id=' + u.id);
     const data = await r.json();
     if (!r.ok || !data.tipos_cambio) throw new Error(data.error || 'Error');
     const fila = data.tipos_cambio.find(t => t.moneda_origen === 'UYU' && t.moneda_destino === 'USD');
@@ -4571,7 +4605,6 @@ async function centrosAjustesInit(force = false) {
   const u = window.AUTH.usuarioActual();
   const sec = document.getElementById('ajustes-centros-section');
   if (!sec) return;
-  if (!u || u.rol_app !== 'admin') { sec.style.display = 'none'; return; }
   sec.style.display = '';
   const wrap = document.getElementById('centros-ajustes-wrap');
   if (!wrap) return;
@@ -6130,7 +6163,6 @@ let _lustreTipos = [];
 async function lustreTiposInit() {
   const u = window.AUTH.usuarioActual();
   const sec = document.getElementById('ajustes-lustre-section');
-  if (!u || u.rol_app !== 'admin') { if (sec) sec.style.display = 'none'; return; }
   if (sec) sec.style.display = '';
   try {
     const r = await fetch('/api/lustre-tipos').then(r => r.json());
