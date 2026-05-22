@@ -234,6 +234,7 @@ let _ocs = [];
 let _filter = 'todas';
 let _currentOc = null;
 let _currentItems = null;
+let _rateLimitUntil = 0;
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 function _fmtDate(iso) {
@@ -254,8 +255,6 @@ function _setFilter(f) {
 }
 
 // ── Fetch ────────────────────────────────────────────────────────────────
-let _rateLimitUntil = 0;
-
 async function _cargar() {
   // Si estamos en rate limit, no reintentar
   if (_rateLimitUntil > Date.now()) return;
