@@ -90,7 +90,13 @@ function renderPartida() {
 
   let actionHtml = '';
   if (!yaRecibida) {
-    actionHtml = `<button class="btn-confirmar" id="btn-confirmar" onclick="confirmarRecepcion()">&#10003; Confirmar recepción</button>`;
+    const hoyStr = new Date().toISOString().split('T')[0];
+    actionHtml = `
+      <div style="margin-bottom:12px;">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Fecha de recepción</div>
+        <input type="date" id="recep-fecha" value="${hoyStr}" style="width:100%;background:#1e1e1e;border:1px solid #333;border-radius:6px;padding:10px 12px;color:#f0f0f0;font-family:'Space Mono',monospace;font-size:13px;outline:none;">
+      </div>
+      <button class="btn-confirmar" id="btn-confirmar" onclick="confirmarRecepcion()">&#10003; Confirmar recepción</button>`;
   }
 
   el.innerHTML = `
@@ -114,15 +120,16 @@ async function confirmarRecepcion() {
   btn.disabled = true;
   btn.textContent = 'CONFIRMANDO...';
 
+  const fecha = document.getElementById('recep-fecha')?.value || null;
   try {
     const res = await fetch('/api/baru-confirmar-recepcion', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: _partida.id }),
+      body: JSON.stringify({ id: _partida.id, fecha }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Error');
-    _partida.fecha_recepcion_proveedor = new Date().toISOString();
+    _partida.fecha_recepcion_proveedor = fecha ? fecha + 'T12:00:00' : new Date().toISOString();
     renderPartida();
   } catch (e) {
     btn.disabled = false;

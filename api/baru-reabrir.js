@@ -1,6 +1,6 @@
-// api/baru-confirmar-recepcion.js — POST confirmación pública (página QR)
+// api/baru-reabrir.js — POST reabrir partida completada (volver a en proceso)
 import { createClient } from '@supabase/supabase-js';
-import { ok, err, options } from './_baru-auth-helper.js';
+import { verificarToken, ok, err, options } from './_baru-auth-helper.js';
 export const config = { runtime: 'edge' };
 
 const supabase = createClient(
@@ -12,19 +12,18 @@ export default async function handler(req) {
   if (req.method === 'OPTIONS') return options();
   if (req.method !== 'POST') return err('Method not allowed', 405);
 
-  try {
-    const { id, fecha } = await req.json();
-    if (!id) return err('id requerido', 400);
+  const valid = await verificarToken(req.headers.get('authorization'));
+  if (!valid) return err('Token inválido o expirado', 401);
 
-    const fechaRecepcion = fecha
-      ? new Date(fecha + 'T12:00:00').toISOString()
-      : new Date().toISOString();
+  try {
+    const { id } = await req.json();
+    if (!id) return err('id requerido', 400);
 
     const { error } = await supabase
       .from('partidas_terceros')
-      .update({ fecha_recepcion_proveedor: fechaRecepcion })
+      .update({ baru_completado_at: null })
       .eq('id', id)
-      .is('fecha_recepcion_proveedor', null);
+      .eq('proveedor_nombre', 'BARU');
 
     if (error) throw error;
     return ok({ ok: true });

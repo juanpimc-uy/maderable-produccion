@@ -265,14 +265,21 @@ async function fetchPartidas(estado) {
   return data.partidas || [];
 }
 
+function _toggleRecepForm(btn) {
+  const form = btn.parentElement.querySelector('.recep-form');
+  if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
 async function confirmarRecepcionPortal(id, btn) {
   btn.disabled = true;
-  btn.textContent = 'Confirmando...';
+  btn.textContent = '...';
+  const fechaInput = btn.parentElement.querySelector('.recep-fecha');
+  const fecha = fechaInput?.value || null;
   try {
     const res = await fetch('/api/baru-confirmar-recepcion', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ id, fecha }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Error');
@@ -280,7 +287,7 @@ async function confirmarRecepcionPortal(id, btn) {
   } catch (e) {
     alert('Error: ' + e.message);
     btn.disabled = false;
-    btn.textContent = '\u2713 Confirmar recepción';
+    btn.textContent = 'OK';
   }
 }
 
@@ -372,7 +379,16 @@ function renderCards() {
         ${vencido ? '<span class="badge-vencido">Vencido</span>' : ''}
       </div>
       ${recibido ? '<div class="badge-recibido">&#10003; Recibido</div>' : ''}
-      ${!recibido && _tab === 'por_recibir' ? `<button onclick="event.stopPropagation();confirmarRecepcionPortal('${p.id}',this)" style="margin-top:8px;width:100%;padding:8px;border:1px solid var(--green);border-radius:5px;background:var(--green-dim);color:var(--green);font-family:var(--mono);font-size:10px;font-weight:700;cursor:pointer;transition:opacity .15s;" onmouseenter="this.style.opacity='.8'" onmouseleave="this.style.opacity='1'">&#10003; Confirmar recepción</button>` : ''}
+      ${!recibido && _tab === 'por_recibir' ? `<div style="margin-top:8px;" onclick="event.stopPropagation()">
+        <button onclick="_toggleRecepForm(this)" style="width:100%;padding:8px;border:1px solid var(--green);border-radius:5px;background:var(--green-dim);color:var(--green);font-family:var(--mono);font-size:10px;font-weight:700;cursor:pointer;transition:opacity .15s;">&#10003; Confirmar recepción</button>
+        <div class="recep-form" style="display:none;margin-top:6px;background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:10px;">
+          <div style="font-family:var(--mono);font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Fecha de recepción</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="date" class="recep-fecha" value="${new Date().toISOString().split('T')[0]}" style="flex:1;background:#111;border:1px solid var(--border);border-radius:4px;padding:6px 8px;color:var(--text);font-family:var(--mono);font-size:11px;outline:none;">
+            <button onclick="confirmarRecepcionPortal('${p.id}',this)" style="padding:6px 12px;border:none;border-radius:4px;background:var(--green);color:#000;font-family:var(--mono);font-size:10px;font-weight:700;cursor:pointer;">OK</button>
+          </div>
+        </div>
+      </div>` : ''}
       ${p.instruccion_lustre ? `<div style="margin-top:6px;border-left:2px solid var(--yellow);padding-left:8px;font-family:var(--mono);font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">${esc(p.instruccion_lustre.length>80?p.instruccion_lustre.slice(0,80)+'...':p.instruccion_lustre)}</div>` : ''}
     </div>`;
   }).join('');
@@ -472,12 +488,19 @@ function exportXLS() {
   const rows = [['ENV','Proyecto','Obra','Mueble','Tipo lustre','m²','Despachado','Recibido','Completado','Recep. Maderable','Estado']];
   let totalM2 = 0;
   _reportePartidas.forEach(p => {
-    (p.baru_items||[]).forEach(it => {
-      totalM2 += it.metros_cuadrados || 0;
-      rows.push([p.numero_envio,p.proyecto_num,p.obra,p.mueble_nombre,it.tipo_lustre,it.metros_cuadrados,
+    const items = p.baru_items || [];
+    if (items.length) {
+      items.forEach(it => {
+        totalM2 += it.metros_cuadrados || 0;
+        rows.push([p.numero_envio,p.proyecto_num,p.obra,p.mueble_nombre,it.tipo_lustre,it.metros_cuadrados,
+          p.fecha_despacho||'',p.fecha_recepcion_proveedor||'',p.baru_completado_at||'',
+          p.fecha_recepcion||'',estadoTexto(p.estado_recep)]);
+      });
+    } else {
+      rows.push([p.numero_envio,p.proyecto_num,p.obra,p.mueble_nombre,'','',
         p.fecha_despacho||'',p.fecha_recepcion_proveedor||'',p.baru_completado_at||'',
         p.fecha_recepcion||'',estadoTexto(p.estado_recep)]);
-    });
+    }
   });
   rows.push(['','','','','TOTAL',totalM2,'','','','','']);
   const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -535,15 +558,17 @@ function renderDetail() {
 
   let workHtml = '';
   if (completado) {
-    // Read-only items
-    workHtml = `<div class="section-title">Trabajo registrado</div>`;
-    (p.baru_items || []).forEach((it, i) => {
-      workHtml += `<div class="item-card">
-        <div class="item-header"><span class="item-num">Ítem ${i+1}</span></div>
-        <div style="margin-bottom:6px;"><span class="field-label">Tipo de lustre</span><div style="font-family:var(--mono);font-size:12px;color:var(--yellow);margin-top:2px;">${esc(it.tipo_lustre)}</div></div>
-        <div><span class="field-label">Metros cuadrados</span><div style="font-family:var(--mono);font-size:12px;margin-top:2px;">${it.metros_cuadrados} m²</div></div>
-      </div>`;
-    });
+    // Editable items (completado)
+    workHtml = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span class="section-title" style="margin-bottom:0;">Trabajo registrado</span>
+      <button class="btn-add-item" onclick="addWorkItem()">+ Agregar ítem</button>
+    </div>
+    <div id="work-items"></div>
+    <div id="guardar-msg" style="font-family:var(--mono);font-size:10px;color:var(--green);text-align:center;margin-bottom:10px;min-height:14px;"></div>
+    <div style="display:flex;gap:10px;">
+      <button style="flex:1;padding:14px;border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:1px;background:transparent;color:var(--muted);transition:all .15s;" id="btn-guardar" onclick="guardarBorrador()" onmouseenter="this.style.borderColor='var(--yellow)';this.style.color='var(--yellow)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">GUARDAR CAMBIOS</button>
+      <button style="flex:1;padding:14px;border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:1px;background:transparent;color:var(--muted);transition:all .15s;" id="btn-reabrir" onclick="reabrirPartida()" onmouseenter="this.style.borderColor='var(--yellow)';this.style.color='var(--yellow)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">VOLVER A EN PROCESO</button>
+    </div>`;
   } else {
     // Editable form
     workHtml = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
@@ -579,7 +604,7 @@ function renderDetail() {
     ${workHtml}
   `;
 
-  if (!completado) renderWorkItems();
+  renderWorkItems();
 }
 
 function renderWorkItems() {
@@ -683,6 +708,28 @@ async function guardarBorrador() {
     alert('Error: ' + e.message);
   } finally {
     btn.disabled = false;
+  }
+}
+
+async function reabrirPartida() {
+  if (!_detailPartida) return;
+  if (!confirm('¿Volver esta partida a "en proceso"? Se quitará la marca de completado.')) return;
+  const btn = document.getElementById('btn-reabrir');
+  if (btn) { btn.disabled = true; btn.textContent = 'REABRIENDO...'; }
+  try {
+    const res = await fetch('/api/baru-reabrir', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ id: _detailPartida.id }),
+    });
+    if (res.status === 401) { doLogout(); return; }
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    _detailPartida.baru_completado_at = null;
+    renderDetail();
+  } catch (e) {
+    alert('Error: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'VOLVER A EN PROCESO'; }
   }
 }
 
