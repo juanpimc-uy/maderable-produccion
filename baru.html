@@ -610,7 +610,7 @@ function renderDetail() {
         <div class="info-item"><div class="info-lbl">Cliente</div><div class="info-val">${esc(p.cliente||'—')}</div></div>
         <div class="info-item"><div class="info-lbl">Bultos</div><div class="info-val">${p.bultos||1}</div></div>
         <div class="info-item"><div class="info-lbl">Despachado</div><div class="info-val">${fmtDateFull(p.fecha_despacho)}</div></div>
-        <div class="info-item"><div class="info-lbl">Retorno est.</div><div class="info-val">${p.fecha_retorno_estimada||'—'}</div></div>
+        <div class="info-item"><div class="info-lbl">Retorno est.</div><div class="info-val"><input type="date" id="detail-retorno" value="${p.fecha_retorno_estimada||''}" style="background:transparent;border:1px solid transparent;border-radius:3px;padding:2px 4px;color:var(--text);font-size:12px;font-family:var(--mono);outline:none;width:120px;" onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='transparent';_guardarRetorno(this.value)"></div></div>
       </div>
     </div>
     ${bannerHtml}
@@ -726,6 +726,21 @@ async function guardarBorrador() {
   }
 }
 
+async function _guardarRetorno(fecha) {
+  if (!_detailPartida) return;
+  try {
+    const res = await fetch('/api/baru-actualizar-retorno', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ id: _detailPartida.id, fecha_retorno_estimada: fecha || null }),
+    });
+    if (res.status === 401) { doLogout(); return; }
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || 'Error');
+    _detailPartida.fecha_retorno_estimada = fecha || null;
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
 async function reabrirPartida() {
   if (!_detailPartida) return;
   if (!confirm('¿Volver esta partida a "en proceso"? Se quitará la marca de completado.')) return;
@@ -761,11 +776,13 @@ async function completarPartida() {
   }));
 
   // Validate
+  const msg = document.getElementById('guardar-msg');
   for (const it of items) {
-    if (!it.tipo_lustre) { alert('Completá el tipo de lustre de todos los ítems'); btn.disabled = false; btn.textContent = '\u2713 Marcar como completado'; return; }
-    if (!TIPOS_LUSTRE.includes(it.tipo_lustre)) { alert('Tipo de lustre no válido: ' + it.tipo_lustre); btn.disabled = false; btn.textContent = '\u2713 Marcar como completado'; return; }
-    if (it.metros_cuadrados <= 0) { alert('Los metros cuadrados deben ser mayores a 0'); btn.disabled = false; btn.textContent = '\u2713 Marcar como completado'; return; }
+    if (!it.tipo_lustre) { if(msg){msg.style.color='var(--red)';msg.textContent='Completá el tipo de lustre de todos los ítems';} btn.disabled=false; btn.textContent='\u2713 Marcar como completado'; return; }
+    if (!TIPOS_LUSTRE.includes(it.tipo_lustre)) { if(msg){msg.style.color='var(--red)';msg.textContent='Tipo de lustre no válido: '+it.tipo_lustre;} btn.disabled=false; btn.textContent='\u2713 Marcar como completado'; return; }
+    if (it.metros_cuadrados <= 0) { if(msg){msg.style.color='var(--red)';msg.textContent='Los metros cuadrados deben ser mayores a 0';} btn.disabled=false; btn.textContent='\u2713 Marcar como completado'; return; }
   }
+  if(msg){msg.style.color='var(--green)';msg.textContent='';}
 
   try {
     const res = await fetch('/api/baru-completar', {

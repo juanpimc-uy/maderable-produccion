@@ -284,7 +284,7 @@ function cardHtml(p, col) {
         const ret = new Date(p.fechaRetornoEstimada + 'T00:00:00');
         const atrasada = ret < hoy;
         const fmtRet = ret.toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit'});
-        return `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);">Retorno: ${fmtRet}</span><span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;letter-spacing:1px;text-transform:uppercase;${atrasada?'background:#2a0a0a;color:#ef5350;border:1px solid #3a1a1a;':'background:#0a2a0a;color:#4caf50;border:1px solid #1a3a1a;'}">${atrasada?'ATRASADA':'VIGENTE'}</span>`;
+        return `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);">Retorno: ${fmtRet}</span><span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;letter-spacing:1px;text-transform:uppercase;${atrasada?'background:#2a0a0a;color:#ef5350;border:1px solid #3a1a1a;':'background:#0a2a0a;color:#4caf50;border:1px solid #1a3a1a;'}">${atrasada?'ATRASADA':'VIGENTE'}</span>${p.retorno_modificado_baru?'<span style="font-family:\\'JetBrains Mono\\',monospace;font-size:8px;padding:2px 5px;border-radius:3px;background:#1f1a00;color:#f59e0b;border:1px solid #3a2f00;margin-left:4px;">✎ Modif. proveedor</span>':''}`;
       })() : ''}
       ${col === 'prov' && p.fechaDespacho ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#888;">\u2192 Despachado \u00b7 ${new Date(p.fechaDespacho + (p.fechaDespacho.includes('T') ? '' : 'T12:00:00')).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>` : ''}
       ${col === 'prov' && p.fechaRecepcionProveedor ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#4caf50;">\u2713 Recibido por proveedor \u00b7 ${new Date(p.fechaRecepcionProveedor).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>` : ''}
@@ -497,6 +497,7 @@ function confirmarRecepcion() {
   p.fechaRecepcion = document.getElementById('recv-fecha').value;
   p.estadoRecep = document.getElementById('recv-estado').value;
   p.obs = document.getElementById('recv-obs').value;
+  p.retorno_modificado_baru = false;
   guardarPartidas([p.id]); cerrarModal('recv'); render();
 }
 

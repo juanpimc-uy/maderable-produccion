@@ -2138,6 +2138,7 @@ export default async function handler(req) {
         proveedorNombre: p.proveedor_nombre || '',
         instruccion_lustre: p.instruccion_lustre || '',
         baru_completado_at: p.baru_completado_at || null,
+        retorno_modificado_baru: p.retorno_modificado_baru || false,
       })) });
     }
 
@@ -2145,7 +2146,7 @@ export default async function handler(req) {
     if (action === 'guardar-partida' && req.method === 'POST') {
       const { id, tipo, proyectoNum, obra, cliente, muebleCodigo, muebleNombre,
               estado, partes, tipoDespacho, fechaDespacho, fechaRecepcion,
-              estadoRecep, obs, nota, bultos, numero_envio, fechaRetornoEstimada, proveedorNombre } = body;
+              estadoRecep, obs, nota, bultos, numero_envio, fechaRetornoEstimada, proveedorNombre, retorno_modificado_baru } = body;
       // Asignar ENV al crear (si no tiene numero_envio y es registro nuevo)
       let envioFinal = numero_envio || null;
       if (!envioFinal && id) {
@@ -2170,6 +2171,7 @@ export default async function handler(req) {
                   bultos: bultos || 0, numero_envio: envioFinal,
                   proveedor_nombre: proveedorNombre || null };
       if (fechaRetornoEstimada) row.fecha_retorno_estimada = fechaRetornoEstimada;
+      if (retorno_modificado_baru !== undefined) row.retorno_modificado_baru = !!retorno_modificado_baru;
       const { data, error } = await supabase.from('partidas_terceros')
         .upsert(row, { onConflict: 'id' })
         .select().single();
