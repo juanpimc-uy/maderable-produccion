@@ -166,9 +166,10 @@ async function _iniciarTareaImpl(sb, {
   empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre,
   _jornada_id = null,   // pasar directamente para wrappers legacy (planta)
   _autoJornada = false, // auto-upsert jornada para wrappers legacy (oficina)
+  _inicio = null,       // inicio explícito (opcional, para edición desde tiempos)
 }) {
   const hoy  = new Date().toISOString().split('T')[0];
-  const ahora = new Date().toISOString();
+  const ahora = _inicio || new Date().toISOString();
 
   // 1. Verificar empleado activo y obtener rol + centros autorizados
   const { data: emp } = await sb.from('empleados')
@@ -572,10 +573,11 @@ export default async function handler(req) {
     // ── POST iniciar tarea (wrapper → _iniciarTareaImpl) ──────────────────
     if (action === 'iniciar-tarea' && req.method === 'POST') {
       const { empleado_id, jornada_id, proyecto_id, proyecto_nombre,
-              item_id, item_nombre, centro } = body;
+              item_id, item_nombre, centro, inicio } = body;
       const result = await _iniciarTareaImpl(supabase, {
         empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre,
-        _jornada_id: jornada_id, // usa el jornada_id que manda planta directamente
+        _jornada_id: jornada_id,
+        _inicio: inicio || null,
       });
       return ok(result);
     }

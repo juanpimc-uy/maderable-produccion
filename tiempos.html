@@ -701,12 +701,14 @@ async function _tGuardarTodo() {
 // ── Session data store (for modal access to adjacent sessions) ───────────
 const _tSessionsByJornada = new Map(); // jornadaId → [{...session}]
 const _tEmpleadoByJornada = new Map(); // jornadaId → empleado_id
+const _tFechaByJornada    = new Map(); // jornadaId → 'YYYY-MM-DD'
 
 // ── Shared session table renderer ─────────────────────────────────────────
-function _tSesionTable(sesiones, jornadaId, empNombre, empleadoId) {
+function _tSesionTable(sesiones, jornadaId, empNombre, empleadoId, fecha) {
   // Store session data for modal
   _tSessionsByJornada.set(jornadaId, sesiones);
   if (empleadoId) _tEmpleadoByJornada.set(jornadaId, empleadoId);
+  if (fecha) _tFechaByJornada.set(jornadaId, fecha);
 
   const rows = sesiones.map(s => {
     const activo  = s.estado === 'activo';
@@ -850,6 +852,10 @@ function _tModalOpen(sesionId, jornadaId, empNombre) {
           <input class="modal-input" type="text" id="modal-nt-proyecto" placeholder="Buscar proyecto..." autocomplete="off" oninput="_tModalNTProySearch(this.value)">
           <div class="proy-results" id="modal-nt-proy-results"></div>
         </div>
+        <div style="margin-top:10px;">
+          <span class="modal-label" style="font-size:8px;">INICIO</span>
+          <input type="time" id="modal-nt-inicio" step="60" style="background:var(--card);border:1px solid var(--border);border-radius:5px;padding:6px 8px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+        </div>
         <div class="mini-form-row">
           <button class="modal-btn modal-btn-primary" onclick="_tModalConfirmNuevaTarea()" style="font-size:10px;padding:6px 14px;">INICIAR TAREA</button>
         </div>
@@ -948,7 +954,15 @@ let _modalNTProyNom = null;
 
 function _tModalToggleNuevaTarea() {
   const mf = document.getElementById('modal-mini-form');
-  if (mf) mf.classList.toggle('open');
+  if (mf) {
+    mf.classList.toggle('open');
+    // Default: hora actual
+    const inp = document.getElementById('modal-nt-inicio');
+    if (inp && !inp.value) {
+      const now = new Date();
+      inp.value = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+    }
+  }
 }
 function _tModalSelNTCentro(el) {
   el.closest('.centro-chips').querySelectorAll('.centro-chip').forEach(c => c.classList.remove('selected'));
@@ -981,6 +995,10 @@ async function _tModalConfirmNuevaTarea() {
   if (!_modalNTCentro) { alert('Seleccioná un centro'); return; }
   const errEl = document.getElementById('modal-error');
   errEl.style.display = 'none';
+  // Construir inicio con fecha de jornada + hora del input
+  const ntTime = document.getElementById('modal-nt-inicio')?.value;
+  const fecha = _tFechaByJornada.get(_modalJornadaId) || todayStr();
+  const inicioISO = ntTime ? new Date(`${fecha}T${ntTime}:00`).toISOString() : null;
   try {
     const res = await _tFetch('/api/tiempos?action=iniciar-tarea', {
       method: 'POST',
@@ -991,6 +1009,7 @@ async function _tModalConfirmNuevaTarea() {
         proyecto_id:     _modalNTProyId  || null,
         proyecto_nombre: _modalNTProyNom || null,
         centro:          _modalNTCentro,
+        inicio:          inicioISO,
       }),
     });
     const json = await res.json();
@@ -1122,8 +1141,8 @@ function _tAgregarSesion(jornadaId, btn) {
   const tr = document.createElement('tr');
   tr.className = 'add-row-tr';
   tr.innerHTML = `
-    <td><input class="ses-input" type="datetime-local" id="add-inicio-${jornadaId}"></td>
-    <td><input class="ses-input" type="datetime-local" id="add-fin-${jornadaId}"></td>
+    <td><input class="ses-input" type="time" id="add-inicio-${jornadaId}" step="60"></td>
+    <td><input class="ses-input" type="time" id="add-fin-${jornadaId}" step="60"></td>
     <td><select class="ses-select" id="add-centro-${jornadaId}"><option value="">—</option>${centroOpts}</select></td>
     <td><input class="ses-input" type="text" id="add-proy-${jornadaId}" list="proyectos-dl" placeholder="proyecto…"></td>
     <td><input class="ses-input" type="text" id="add-mueble-${jornadaId}" placeholder="mueble…"></td>
@@ -1140,14 +1159,19 @@ function _tAgregarSesion(jornadaId, btn) {
 
 async function _tConfirmarAgregar(jid, btn) {
   btn.disabled = true;
-  const inicio  = document.getElementById(`add-inicio-${jid}`)?.value;
-  const fin     = document.getElementById(`add-fin-${jid}`)?.value;
-  const centro  = document.getElementById(`add-centro-${jid}`)?.value;
-  const proyVal = document.getElementById(`add-proy-${jid}`)?.value || '';
-  const mueble  = document.getElementById(`add-mueble-${jid}`)?.value || '';
-  const estado  = document.getElementById(`add-estado-${jid}`)?.value;
+  const inicioTime = document.getElementById(`add-inicio-${jid}`)?.value;
+  const finTime    = document.getElementById(`add-fin-${jid}`)?.value;
+  const centro     = document.getElementById(`add-centro-${jid}`)?.value;
+  const proyVal    = document.getElementById(`add-proy-${jid}`)?.value || '';
+  const mueble     = document.getElementById(`add-mueble-${jid}`)?.value || '';
+  const estado     = document.getElementById(`add-estado-${jid}`)?.value;
 
-  if (!inicio || !centro) { alert('Inicio y centro son obligatorios'); btn.disabled = false; return; }
+  if (!inicioTime || !centro) { alert('Inicio y centro son obligatorios'); btn.disabled = false; return; }
+
+  // Construir datetime completo: fecha de la jornada + time ingresado
+  const fecha = _tFechaByJornada.get(jid) || todayStr();
+  const inicio = new Date(`${fecha}T${inicioTime}:00`).toISOString();
+  const fin    = finTime ? new Date(`${fecha}T${finTime}:00`).toISOString() : null;
 
   const opt = _proyectosT.find(p => {
     const label = [p.numero, p.nombre].filter(Boolean).join(' · ');
@@ -1160,8 +1184,8 @@ async function _tConfirmarAgregar(jid, btn) {
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         jornada_id: jid, caller_id: CALLER_ID,
-        inicio: fromLocalDT(inicio),
-        fin:    fin ? fromLocalDT(fin) : null,
+        inicio,
+        fin,
         centro,
         estado: estado || 'finalizado',
         proyecto_id:    opt ? opt.id   : null,
@@ -1262,7 +1286,7 @@ function _tRenderDia(data) {
       </div>
       ${_tomoDescD}
     </div>
-    ${_tSesionTable(emp.sesiones, jornada.id, emp.nombre, emp.empleado_id)}
+    ${_tSesionTable(emp.sesiones, jornada.id, emp.nombre, emp.empleado_id, data.fecha)}
   </div>
 </div>`;
   }).join('');
@@ -1365,7 +1389,7 @@ ${data.dias.map(dia => {
       </div>
       ${_tomoDescO}
     </div>
-    ${_tSesionTable(dia.sesiones, jornada.id, data.nombre, data.empleado_id)}
+    ${_tSesionTable(dia.sesiones, jornada.id, data.nombre, data.empleado_id, dia.fecha)}
   </div>
 </div>`;
 }).join('')}`;
