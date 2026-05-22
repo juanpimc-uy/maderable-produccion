@@ -1590,7 +1590,7 @@ function _tRenderReporte(data, anio, mes) {
     html += `<div class="mono" style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;">${emp.nombre}</div>`;
     html += `<table class="rep-table">
 <thead><tr>
-  <th></th><th>SEMANA</th><th>ENTRADA</th><th>SALIDA</th><th>DESCANSO</th>
+  <th></th><th>SEMANA</th>
   <th>HORAS NETAS</th><th>EXTRAS</th><th>TARDE</th><th>AUSENCIAS</th>
 </tr></thead><tbody>`;
 
@@ -1599,16 +1599,13 @@ function _tRenderReporte(data, anio, mes) {
       html += `<tr style="cursor:pointer;" onclick="_tToggleRepSem('${key}')">
         <td class="mono" style="font-size:10px;color:var(--muted);width:14px;" id="rep-chev-${key}">▾</td>
         <td class="mono" style="font-size:11px;color:var(--muted);">${fmtDate(s.semana_inicio)}–${fmtDate(s.semana_fin)}</td>
-        <td class="mono">${s.entrada || '—'}</td>
-        <td class="mono">${s.salida || '—'}</td>
-        <td class="mono">${s.descanso_total_min ? s.descanso_total_min + 'm' : '—'}</td>
         <td class="mono">${fmtHM(s.horas_netas_min)}</td>
         <td>${s.extras_minutos > 0 ? `<span class="extras-pos">${fmtHM(s.extras_minutos)}</span>` : '—'}</td>
         <td class="mono">${s.minutos_tarde_semana > 0 ? s.minutos_tarde_semana + 'm' : '—'}</td>
         <td class="mono">${s.ausencias > 0 ? s.ausencias : '—'}</td>
       </tr>`;
       // Detalle diario (colapsado por defecto)
-      html += `<tr id="rep-det-${key}" style="display:none;"><td colspan="9" style="padding:0;">
+      html += `<tr id="rep-det-${key}" style="display:none;"><td colspan="6" style="padding:0;">
         <table style="width:100%;border-collapse:collapse;background:#161616;">
           <thead><tr>
             <th style="text-align:left;font-size:8px;color:var(--muted);padding:4px 12px;">FECHA</th>
@@ -1635,7 +1632,6 @@ function _tRenderReporte(data, anio, mes) {
     html += `<tr class="rep-total">
       <td></td>
       <td class="mono" style="color:var(--muted);">TOTAL</td>
-      <td></td><td></td><td></td>
       <td class="mono">${fmtHM(rm.total_horas_min || emp.total_minutos)}</td>
       <td>${(rm.total_extras_min || emp.total_extras_minutos) > 0 ? `<span class="extras-pos">${fmtHM(rm.total_extras_min || emp.total_extras_minutos)}</span>` : '—'}</td>
       <td class="mono">${(rm.total_minutos_tarde || 0) > 0 ? rm.total_minutos_tarde + 'm' : '—'}</td>

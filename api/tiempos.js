@@ -132,7 +132,9 @@ function _tardanzaMin(entradaISO, horarioEntrada) {
   const entMin = entUY.getUTCHours() * 60 + entUY.getUTCMinutes();
   const [hh, mm] = horarioEntrada.split(':').map(Number);
   const horMin = hh * 60 + mm;
-  return Math.max(0, entMin - horMin);
+  const tardanza = Math.max(0, entMin - horMin);
+  console.log('[tardanza]', { horario_entrada: horarioEntrada, entrada_local_hhmm: String(entUY.getUTCHours()).padStart(2,'0')+':'+String(entUY.getUTCMinutes()).padStart(2,'0'), entMin, horMin, tardanza });
+  return tardanza;
 }
 
 // ── Helpers: anomalía + descanso ──────────────────────────────────────────
