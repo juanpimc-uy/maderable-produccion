@@ -2574,17 +2574,34 @@ export default async function handler(req) {
       if (cdErr) throw cdErr;
       const costos_directos = costosDir || [];
       const costos_directos_total_usd = costos_directos.reduce((a, r) => a + Number(r.monto_usd), 0);
+      // Tercerizados (partidas con monto_usd)
+      let tercerizados_items = [];
+      let tercerizados_total_usd = 0;
+      if (pr.numero) {
+        const { data: tercData, error: tercErr } = await supabase
+          .from('partidas_terceros')
+          .select('id, numero_envio, proveedor_nombre, mueble_nombre, monto_usd, baru_completado_at')
+          .eq('proyecto_num', pr.numero)
+          .eq('archivada', false)
+          .not('monto_usd', 'is', null)
+          .gt('monto_usd', 0);
+        if (tercErr) throw tercErr;
+        tercerizados_items = tercData || [];
+        tercerizados_total_usd = tercerizados_items.reduce((a, r) => a + Number(r.monto_usd), 0);
+      }
       // Totales redondeados primero para que la suma sea consistente con los parciales mostrados
       const mo_total_usd_round = Math.round(mo_total_usd * 100) / 100;
       const mat_total_usd_round = Math.round(mat_total_usd * 100) / 100;
       const cd_total_usd_round = Math.round(costos_directos_total_usd * 100) / 100;
-      const total_proyecto_usd = Math.round((mo_total_usd_round + mat_total_usd_round + cd_total_usd_round) * 100) / 100;
+      const terc_total_usd_round = Math.round(tercerizados_total_usd * 100) / 100;
+      const total_proyecto_usd = Math.round((mo_total_usd_round + mat_total_usd_round + cd_total_usd_round + terc_total_usd_round) * 100) / 100;
       return ok({
         ok: true,
         proyecto: { id: pr.id, codigo: pr.numero, nombre: pr.nombre || pr.obra, cliente_nombre: pr.cliente_nombre },
         mano_obra: { por_categoria, total_horas: Math.round(total_horas * 100) / 100, total_usd: mo_total_usd_round },
         materiales: { items: matItems, total_usd: mat_total_usd_round },
         costos_directos: { items: costos_directos, total_usd: cd_total_usd_round },
+        tercerizados: { items: tercerizados_items, total_usd: terc_total_usd_round },
         total_proyecto_usd,
         sin_costear: { registros_sin_categoria, materiales_sin_costo },
       });

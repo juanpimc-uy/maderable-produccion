@@ -185,13 +185,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 // ═══════════════════════════════════════════════════════════════
 // TYPES & CONSTANTS
 // ═══════════════════════════════════════════════════════════════
-const TIPOS_LUSTRE = [
-  'LUSTRE 5%','LUSTRE EMP.','LACA BLANCO','LACA COLOR >3m2',
-  'LACA BLANCO RUTEADO','LACA COLOR RUTEADO','LITRO DE PINTURA COLOR',
-  'ROBLE PORO ABIERTO BLANCO','ROBLE PORO ABIERTO COLOR',
-  'OTRAS PATINAS','LACA METALIZADA BR 20',
-  'LACA MET. BR 100 S/PULIR','LACA MET. BR 100 PULIDO',
-];
+// Fallback — se sobreescribe con datos de /api/lustre-tipos al cargar
+let TIPOS_LUSTRE = [];
+let _tiposLustre = []; // [{id, nombre, precio_usd_m2}]
 
 let _token = null;
 let _tab = 'por_recibir';
@@ -303,9 +299,18 @@ async function fetchReporte() {
 // ═══════════════════════════════════════════════════════════════
 // APP INIT
 // ═══════════════════════════════════════════════════════════════
-function showApp() {
+async function showApp() {
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('screen-app').style.display = 'block';
+  // Cargar tipos de lustre desde DB
+  try {
+    const r = await fetch('/api/lustre-tipos');
+    const d = await r.json();
+    if (d.ok && d.tipos) {
+      _tiposLustre = d.tipos;
+      TIPOS_LUSTRE = d.tipos.map(t => t.nombre);
+    }
+  } catch(e) { console.warn('[lustre-tipos]', e.message); }
   loadTab(_tab);
 }
 
@@ -431,11 +436,15 @@ function renderCompletados() {
   if (!_reportePartidas.length) { el.innerHTML = '<div class="empty">Sin partidas completadas en este período</div>'; return; }
 
   let totalM2 = 0;
+  let totalUSD = 0;
   let rows = '';
   _reportePartidas.forEach(p => {
     const items = p.baru_items || [];
     items.forEach((it, i) => {
       totalM2 += it.metros_cuadrados || 0;
+      const precio = it.precio_usd_m2 || 0;
+      const subtotal = Math.round((it.metros_cuadrados || 0) * precio * 100) / 100;
+      totalUSD += subtotal;
       rows += `<tr style="cursor:pointer;" onclick="openDetail('${p.id}')" onmouseenter="this.style.background='rgba(255,214,0,.04)'" onmouseleave="this.style.background=''">
         <td>${i===0?esc(p.numero_envio||''):''}</td>
         <td>${i===0?esc(p.proyecto_num||''):''}</td>
@@ -443,6 +452,7 @@ function renderCompletados() {
         <td>${i===0?esc(p.mueble_nombre||''):''}</td>
         <td>${esc(it.tipo_lustre||'')}</td>
         <td style="text-align:right;">${(it.metros_cuadrados||0).toFixed(2)}</td>
+        <td style="text-align:right;">${precio > 0 ? subtotal.toFixed(2) : '—'}</td>
         <td>${i===0?fmtDateShort(p.fecha_despacho):''}</td>
         <td>${i===0?fmtDateShort(p.fecha_recepcion_proveedor):''}</td>
         <td>${i===0?fmtDateShort(p.baru_completado_at):''}</td>
@@ -454,7 +464,7 @@ function renderCompletados() {
       rows += `<tr style="cursor:pointer;" onclick="openDetail('${p.id}')" onmouseenter="this.style.background='rgba(255,214,0,.04)'" onmouseleave="this.style.background=''">
         <td>${esc(p.numero_envio||'')}</td><td>${esc(p.proyecto_num||'')}</td>
         <td>${esc(p.obra||'')}</td><td>${esc(p.mueble_nombre||'')}</td>
-        <td colspan="2">—</td>
+        <td colspan="2">—</td><td>—</td>
         <td>${fmtDateShort(p.fecha_despacho)}</td><td>${fmtDateShort(p.fecha_recepcion_proveedor)}</td>
         <td>${fmtDateShort(p.baru_completado_at)}</td>
         <td>${fmtDateShort(p.fecha_recepcion)}</td>
@@ -462,12 +472,13 @@ function renderCompletados() {
       </tr>`;
     }
   });
+  totalUSD = Math.round(totalUSD * 100) / 100;
 
   el.innerHTML = `
     <table class="rep-table">
       <thead><tr>
         <th>ENV</th><th>Proyecto</th><th>Obra</th><th>Mueble</th>
-        <th>Tipo lustre</th><th style="text-align:right;">m²</th>
+        <th>Tipo lustre</th><th style="text-align:right;">m²</th><th style="text-align:right;">USD</th>
         <th>Desp.</th><th>Recib.</th><th>Complet.</th>
         <th>Recep. Maderable</th><th>Estado</th>
       </tr></thead>
@@ -476,6 +487,7 @@ function renderCompletados() {
         <tr class="total">
           <td colspan="5" style="text-align:right;">TOTAL</td>
           <td style="text-align:right;">${totalM2.toFixed(2)}</td>
+          <td style="text-align:right;">${totalUSD > 0 ? totalUSD.toFixed(2) : '—'}</td>
           <td colspan="5"></td>
         </tr>
       </tbody>
@@ -485,24 +497,27 @@ function renderCompletados() {
 function exportXLS() {
   if (!_reportePartidas.length || typeof XLSX === 'undefined') return;
   const estadoTexto = e => e==='ok'?'Conforme':e==='obs'?'Con observaciones':e==='rehacer'?'A rehacer':'—';
-  const rows = [['ENV','Proyecto','Obra','Mueble','Tipo lustre','m²','Despachado','Recibido','Completado','Recep. Maderable','Estado']];
-  let totalM2 = 0;
+  const rows = [['ENV','Proyecto','Obra','Mueble','Tipo lustre','m²','USD','Despachado','Recibido','Completado','Recep. Maderable','Estado']];
+  let totalM2 = 0, totalUSD = 0;
   _reportePartidas.forEach(p => {
     const items = p.baru_items || [];
     if (items.length) {
       items.forEach(it => {
         totalM2 += it.metros_cuadrados || 0;
-        rows.push([p.numero_envio,p.proyecto_num,p.obra,p.mueble_nombre,it.tipo_lustre,it.metros_cuadrados,
+        const precio = it.precio_usd_m2 || 0;
+        const sub = Math.round((it.metros_cuadrados||0) * precio * 100) / 100;
+        totalUSD += sub;
+        rows.push([p.numero_envio,p.proyecto_num,p.obra,p.mueble_nombre,it.tipo_lustre,it.metros_cuadrados,sub,
           p.fecha_despacho||'',p.fecha_recepcion_proveedor||'',p.baru_completado_at||'',
           p.fecha_recepcion||'',estadoTexto(p.estado_recep)]);
       });
     } else {
-      rows.push([p.numero_envio,p.proyecto_num,p.obra,p.mueble_nombre,'','',
+      rows.push([p.numero_envio,p.proyecto_num,p.obra,p.mueble_nombre,'','','',
         p.fecha_despacho||'',p.fecha_recepcion_proveedor||'',p.baru_completado_at||'',
         p.fecha_recepcion||'',estadoTexto(p.estado_recep)]);
     }
   });
-  rows.push(['','','','','TOTAL',totalM2,'','','','','']);
+  rows.push(['','','','','TOTAL',totalM2,Math.round(totalUSD*100)/100,'','','','','']);
   const ws = XLSX.utils.aoa_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'BARU');

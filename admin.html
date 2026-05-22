@@ -741,6 +741,22 @@
           <div id="tc-toast" style="font-size:11px;color:var(--green);margin-top:8px;min-height:16px;"></div>
         </div>
       </div>
+      <!-- Tipos de lustre — solo admin -->
+      <div id="ajustes-lustre-section" style="display:none;margin-top:16px;">
+        <div class="card">
+          <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center;">
+            TIPOS DE LUSTRE
+            <button class="btn btn-primary btn-sm" onclick="_lustreAddRow()">+ AGREGAR TIPO</button>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
+            Catálogo de tipos de lustre para el portal BARU. El precio se snapshottea al completar cada partida.
+          </div>
+          <div id="lustre-tipos-wrap">
+            <div style="font-size:12px;color:var(--muted);">Cargando…</div>
+          </div>
+          <div id="lustre-toast" style="font-size:11px;color:var(--green);margin-top:8px;min-height:16px;"></div>
+        </div>
+      </div>
     </div>
 
     <!-- ══ MI CUENTA ══════════════════════════════════════════════════════ -->
@@ -1455,7 +1471,7 @@ function renderView(v) {
   if(v==='operarios')  renderOperarios();
   if(v==='tiempos')    renderTiempos();
   if(v==='materiales') renderMateriales();
-  if(v==='ajustes')    { fInit(); tarifasInit(); tcInit(); centrosAjustesInit(); }
+  if(v==='ajustes')    { fInit(); tarifasInit(); tcInit(); centrosAjustesInit(); lustreTiposInit(); }
   if(v==='mi-cuenta')  renderMiCuenta();
 }
 
@@ -6105,6 +6121,123 @@ function _cdCerrar() {
   clearTimeout(_cdDebounce);
   _cdItem = null;
   _cdOcData = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AJUSTES — TIPOS DE LUSTRE
+// ═══════════════════════════════════════════════════════════════════════════
+let _lustreTipos = [];
+
+async function lustreTiposInit() {
+  const u = window.AUTH.usuarioActual();
+  const sec = document.getElementById('ajustes-lustre-section');
+  if (!u || u.rol_app !== 'admin') { if (sec) sec.style.display = 'none'; return; }
+  if (sec) sec.style.display = '';
+  try {
+    const r = await fetch('/api/lustre-tipos').then(r => r.json());
+    // Fetch all (including inactive) via sbFetch for admin
+    const all = await window.sbFetch('lustre_tipos?order=orden');
+    _lustreTipos = all || [];
+    _renderLustreTipos();
+  } catch(e) {
+    document.getElementById('lustre-tipos-wrap').innerHTML = '<span style="color:var(--red);font-size:11px;">Error: '+e.message+'</span>';
+  }
+}
+
+function _renderLustreTipos() {
+  const wrap = document.getElementById('lustre-tipos-wrap');
+  if (!_lustreTipos.length) { wrap.innerHTML = '<span style="color:var(--muted);font-size:11px;">Sin tipos de lustre</span>'; return; }
+  let html = `<div style="display:grid;grid-template-columns:2fr 1fr 60px 80px;gap:0;font-size:11px;">
+    <div style="padding:6px 8px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;border-bottom:1px solid var(--border);">NOMBRE</div>
+    <div style="padding:6px 8px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;border-bottom:1px solid var(--border);">USD/m²</div>
+    <div style="padding:6px 8px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;border-bottom:1px solid var(--border);">ACTIVO</div>
+    <div style="padding:6px 8px;border-bottom:1px solid var(--border);"></div>`;
+  _lustreTipos.forEach(t => {
+    const actColor = t.activo ? 'var(--green)' : 'var(--muted)';
+    html += `
+    <div style="padding:6px 8px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;${t.activo?'':'opacity:.5;'}">
+      <span style="font-size:12px;color:var(--text);">${t.nombre}</span>
+    </div>
+    <div style="padding:6px 8px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;${t.activo?'':'opacity:.5;'}">
+      <input type="number" step="0.01" min="0" value="${Number(t.precio_usd_m2)||0}" style="width:80px;background:transparent;border:1px solid var(--border);border-radius:3px;padding:3px 6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;outline:none;" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='var(--border)';_lustreUpdatePrecio(${t.id},this.value)">
+    </div>
+    <div style="padding:6px 8px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;justify-content:center;">
+      <input type="checkbox" ${t.activo?'checked':''} onchange="_lustreToggleActivo(${t.id},this.checked)" style="cursor:pointer;">
+    </div>
+    <div style="padding:6px 8px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;justify-content:flex-end;">
+      <button onclick="_lustreDelete(${t.id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;transition:color .15s;" onmouseenter="this.style.color='var(--red)'" onmouseleave="this.style.color='var(--muted)'" title="Eliminar">✕</button>
+    </div>`;
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+
+async function _lustreUpdatePrecio(id, val) {
+  const u = window.AUTH.usuarioActual();
+  try {
+    const r = await fetch('/api/admin-lustre-tipos', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'update', admin_id:u.id, id, precio_usd_m2:parseFloat(val)||0 }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    _lustreToast('Precio actualizado');
+    const t = _lustreTipos.find(x=>x.id===id);
+    if (t) t.precio_usd_m2 = parseFloat(val)||0;
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+async function _lustreToggleActivo(id, activo) {
+  const u = window.AUTH.usuarioActual();
+  try {
+    const r = await fetch('/api/admin-lustre-tipos', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'update', admin_id:u.id, id, activo }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    const t = _lustreTipos.find(x=>x.id===id);
+    if (t) t.activo = activo;
+    _renderLustreTipos();
+    _lustreToast(activo ? 'Activado' : 'Desactivado');
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+async function _lustreDelete(id) {
+  if (!confirm('¿Eliminar este tipo de lustre?')) return;
+  const u = window.AUTH.usuarioActual();
+  try {
+    const r = await fetch('/api/admin-lustre-tipos', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'delete', admin_id:u.id, id }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    _lustreTipos = _lustreTipos.filter(x=>x.id!==id);
+    _renderLustreTipos();
+    _lustreToast('Eliminado');
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+async function _lustreAddRow() {
+  const nombre = prompt('Nombre del tipo de lustre:');
+  if (!nombre || !nombre.trim()) return;
+  const u = window.AUTH.usuarioActual();
+  try {
+    const r = await fetch('/api/admin-lustre-tipos', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'create', admin_id:u.id, nombre:nombre.trim(), precio_usd_m2:0 }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    await lustreTiposInit(); // reload
+    _lustreToast('Tipo agregado');
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+function _lustreToast(msg) {
+  const el = document.getElementById('lustre-toast');
+  if (el) { el.textContent = '✓ ' + msg; setTimeout(() => { el.textContent = ''; }, 3000); }
 }
 
 navTo('proyectos');

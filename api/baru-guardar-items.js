@@ -8,14 +8,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || ''
 );
 
-const TIPOS_VALIDOS = [
-  'LUSTRE 5%', 'LUSTRE EMP.', 'LACA BLANCO', 'LACA COLOR >3m2',
-  'LACA BLANCO RUTEADO', 'LACA COLOR RUTEADO', 'LITRO DE PINTURA COLOR',
-  'ROBLE PORO ABIERTO BLANCO', 'ROBLE PORO ABIERTO COLOR',
-  'OTRAS PATINAS', 'LACA METALIZADA BR 20',
-  'LACA MET. BR 100 S/PULIR', 'LACA MET. BR 100 PULIDO',
-];
-
 export default async function handler(req) {
   if (req.method === 'OPTIONS') return options();
   if (req.method !== 'POST') return err('Method not allowed', 405);
@@ -28,16 +20,27 @@ export default async function handler(req) {
     if (!id) return err('id requerido', 400);
     if (!Array.isArray(items)) return err('items debe ser un array', 400);
 
-    // Validar items que tengan datos (permitir items parcialmente vacíos en borrador)
+    // Cargar precios desde DB
+    const { data: tiposDB } = await supabase
+      .from('lustre_tipos').select('nombre, precio_usd_m2').eq('activo', true);
+    const precioMap = Object.fromEntries((tiposDB || []).map(t => [t.nombre, Number(t.precio_usd_m2) || 0]));
+
+    // Validar y enriquecer con precio snapshot
     for (const item of items) {
-      if (item.tipo_lustre && !TIPOS_VALIDOS.includes(item.tipo_lustre)) {
+      if (item.tipo_lustre && !precioMap.hasOwnProperty(item.tipo_lustre)) {
         return err(`Tipo de lustre no válido: ${item.tipo_lustre}`, 400);
       }
     }
 
+    const enrichedItems = items.map(it => ({
+      tipo_lustre: it.tipo_lustre || '',
+      metros_cuadrados: it.metros_cuadrados || 0,
+      precio_usd_m2: it.tipo_lustre ? (precioMap[it.tipo_lustre] || 0) : 0,
+    }));
+
     const { error } = await supabase
       .from('partidas_terceros')
-      .update({ baru_items: items })
+      .update({ baru_items: enrichedItems })
       .eq('id', id)
       .eq('proveedor_nombre', 'BARU');
 

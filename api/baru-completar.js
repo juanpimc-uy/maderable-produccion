@@ -8,14 +8,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || ''
 );
 
-const TIPOS_VALIDOS = [
-  'LUSTRE 5%', 'LUSTRE EMP.', 'LACA BLANCO', 'LACA COLOR >3m2',
-  'LACA BLANCO RUTEADO', 'LACA COLOR RUTEADO', 'LITRO DE PINTURA COLOR',
-  'ROBLE PORO ABIERTO BLANCO', 'ROBLE PORO ABIERTO COLOR',
-  'OTRAS PATINAS', 'LACA METALIZADA BR 20',
-  'LACA MET. BR 100 S/PULIR', 'LACA MET. BR 100 PULIDO',
-];
-
 export default async function handler(req) {
   if (req.method === 'OPTIONS') return options();
   if (req.method !== 'POST') return err('Method not allowed', 405);
@@ -28,11 +20,17 @@ export default async function handler(req) {
     if (!id) return err('id requerido', 400);
     if (!Array.isArray(items) || items.length === 0) return err('items debe ser un array no vacío', 400);
 
+    // Cargar tipos válidos desde DB
+    const { data: tiposDB } = await supabase
+      .from('lustre_tipos').select('nombre, precio_usd_m2').eq('activo', true);
+    const precioMap = Object.fromEntries((tiposDB || []).map(t => [t.nombre, Number(t.precio_usd_m2) || 0]));
+    const nombresValidos = new Set(Object.keys(precioMap));
+
     for (const item of items) {
       if (!item.tipo_lustre || typeof item.tipo_lustre !== 'string' || !item.tipo_lustre.trim()) {
         return err('Cada item debe tener tipo_lustre', 400);
       }
-      if (!TIPOS_VALIDOS.includes(item.tipo_lustre)) {
+      if (!nombresValidos.has(item.tipo_lustre)) {
         return err(`Tipo de lustre no válido: ${item.tipo_lustre}`, 400);
       }
       if (typeof item.metros_cuadrados !== 'number' || item.metros_cuadrados <= 0) {
@@ -40,17 +38,28 @@ export default async function handler(req) {
       }
     }
 
+    // Enriquecer items con precio snapshot y calcular total
+    let total_usd = 0;
+    const enrichedItems = items.map(it => {
+      const precio = precioMap[it.tipo_lustre] || 0;
+      const subtotal = Math.round(it.metros_cuadrados * precio * 100) / 100;
+      total_usd += subtotal;
+      return { tipo_lustre: it.tipo_lustre, metros_cuadrados: it.metros_cuadrados, precio_usd_m2: precio };
+    });
+    total_usd = Math.round(total_usd * 100) / 100;
+
     const { error } = await supabase
       .from('partidas_terceros')
       .update({
-        baru_items: items,
+        baru_items: enrichedItems,
         baru_completado_at: new Date().toISOString(),
+        monto_usd: total_usd,
       })
       .eq('id', id)
       .eq('proveedor_nombre', 'BARU');
 
     if (error) throw error;
-    return ok({ ok: true });
+    return ok({ ok: true, total_usd });
   } catch (e) {
     return err(e.message, 500);
   }
