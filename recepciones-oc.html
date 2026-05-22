@@ -206,6 +206,13 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 </div>
 
 <script>
+// ── Globals (deben estar antes de cualquier llamada) ─────────────────────
+let _ocs = [];
+let _filter = 'todas';
+let _currentOc = null;
+let _currentItems = null;
+let _rateLimitUntil = 0;
+
 // ── Auth ─────────────────────────────────────────────────────────────────
 const PASS = 'maderable2024';
 if (localStorage.getItem('oc_session') === 'ok') _mostrarApp();
@@ -228,13 +235,6 @@ function _mostrarApp() {
   _cargar();
   setInterval(_cargar, 600000); // 10 min — evitar rate limit Zoho
 }
-
-// ── State ────────────────────────────────────────────────────────────────
-let _ocs = [];
-let _filter = 'todas';
-let _currentOc = null;
-let _currentItems = null;
-let _rateLimitUntil = 0;
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 function _fmtDate(iso) {
