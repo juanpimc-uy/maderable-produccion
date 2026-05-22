@@ -6156,7 +6156,7 @@ function _renderLustreTipos() {
     const actColor = t.activo ? 'var(--green)' : 'var(--muted)';
     html += `
     <div style="padding:6px 8px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;${t.activo?'':'opacity:.5;'}">
-      <span style="font-size:12px;color:var(--text);">${t.nombre}</span>
+      <input type="text" value="${(t.nombre||'').replace(/"/g,'&quot;')}" style="width:100%;background:transparent;border:1px solid transparent;border-radius:3px;padding:3px 6px;color:var(--text);font-size:12px;outline:none;" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='transparent';_lustreUpdateNombre(${t.id},this.value)" onkeydown="if(event.key==='Enter')this.blur()">
     </div>
     <div style="padding:6px 8px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;${t.activo?'':'opacity:.5;'}">
       <input type="number" step="0.01" min="0" value="${Number(t.precio_usd_m2)||0}" style="width:80px;background:transparent;border:1px solid var(--border);border-radius:3px;padding:3px 6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;outline:none;" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='var(--border)';_lustreUpdatePrecio(${t.id},this.value)">
@@ -6170,6 +6170,23 @@ function _renderLustreTipos() {
   });
   html += '</div>';
   wrap.innerHTML = html;
+}
+
+async function _lustreUpdateNombre(id, val) {
+  const nombre = (val||'').trim();
+  if (!nombre) return;
+  const u = window.AUTH.usuarioActual();
+  try {
+    const r = await fetch('/api/admin-lustre-tipos', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'update', admin_id:u.id, id, nombre }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    const t = _lustreTipos.find(x=>x.id===id);
+    if (t) t.nombre = nombre;
+    _lustreToast('Nombre actualizado');
+  } catch(e) { alert('Error: '+e.message); }
 }
 
 async function _lustreUpdatePrecio(id, val) {
