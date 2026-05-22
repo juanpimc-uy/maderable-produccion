@@ -249,7 +249,11 @@ function cardHtml(p, col) {
   if (col === 'taller') {
     actions = `<button class="btn-sm primary" onclick="abrirDespacho('${p.id}')">→ Despachar</button>`;
   } else if (col === 'prov') {
-    actions = `<button class="btn-sm success" onclick="abrirRecepcion('${p.id}')">✓ Recibir</button>`;
+    const esBaru = (p.proveedorNombre||'').toUpperCase().includes('BARU');
+    const baruPendiente = esBaru && !p.baru_completado_at;
+    actions = baruPendiente
+      ? `<button class="btn-sm" disabled style="opacity:.4;cursor:not-allowed;" title="BARU no completó el trabajo aún">✓ Recibir</button>`
+      : `<button class="btn-sm success" onclick="abrirRecepcion('${p.id}')">✓ Recibir</button>`;
   }
   // Etiquetas + archivar en todas las columnas
   const etqBtn = `<button class="btn-sm" onclick="imprimirEtiquetas('${p.id}')" style="border-color:#333;color:#aaa;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='#333';this.style.color='#aaa'">\u{1F5A8}</button>`;
