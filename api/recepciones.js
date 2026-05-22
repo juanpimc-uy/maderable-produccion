@@ -1,29 +1,12 @@
 // api/recepciones.js — Gestión de recepciones de OC (Zoho + Supabase)
 import { createClient } from '@supabase/supabase-js';
+import { getZohoToken } from './_zoho-token-cache.js';
 export const config = { runtime: 'edge' };
 
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://xhfeurinovvsbgobkidy.supabase.co',
   process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || ''
 );
-
-// ── Zoho token cache ─────────────────────────────────────────────────────
-let _zohoToken = null;
-let _zohoTokenExpiry = 0;
-async function getZohoToken() {
-  if (_zohoToken && _zohoTokenExpiry > Date.now() + 60000) return _zohoToken;
-  const params = new URLSearchParams();
-  params.append('client_id',     process.env.ZOHO_CLIENT_ID);
-  params.append('client_secret', process.env.ZOHO_CLIENT_SECRET);
-  params.append('refresh_token', process.env.ZOHO_REFRESH_TOKEN);
-  params.append('grant_type',    'refresh_token');
-  const res  = await fetch('https://accounts.zoho.com/oauth/v2/token', { method: 'POST', body: params });
-  const data = await res.json();
-  if (!data.access_token) throw new Error('No se pudo obtener token de Zoho: ' + (data.error || JSON.stringify(data)));
-  _zohoToken       = data.access_token;
-  _zohoTokenExpiry = Date.now() + ((data.expires_in || 3600) * 1000);
-  return _zohoToken;
-}
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 const CORS = {

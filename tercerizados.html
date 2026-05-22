@@ -6,7 +6,6 @@
 <script src="/js/supabase-config.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maderable · Tercerizados</title>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
   :root{
@@ -132,20 +131,6 @@
     </div>
   </div>
 
-  <!-- REPORTE BARU (solo admin, solo tab BARU) -->
-  <div id="baru-reporte-panel" style="display:none;border-top:1px solid var(--border);padding:16px 20px;max-height:50vh;overflow-y:auto;">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
-      <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">REPORTE BARU</span>
-      <button id="baru-rep-sem" class="btn-sm primary" onclick="_baruRepPeriodo='semana';_cargarBaruReporte()">Semana</button>
-      <button id="baru-rep-mes" class="btn-sm" onclick="_baruRepPeriodo='mes';_cargarBaruReporte()">Mes</button>
-      <button class="btn-sm" onclick="_navBaruReporte(-1)">←</button>
-      <span id="baru-rep-rango" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text);"></span>
-      <button class="btn-sm" onclick="_navBaruReporte(1)">→</button>
-      <button class="btn-sm" onclick="_exportBaruXLS()" style="margin-left:auto;">↓ XLS</button>
-      <button class="btn-sm" onclick="document.getElementById('baru-reporte-panel').style.display='none'">✕</button>
-    </div>
-    <div id="baru-rep-content"></div>
-  </div>
 
 </div><!-- /main -->
 </div><!-- /shell -->
@@ -320,7 +305,7 @@ function renderChips() {
   // Botón reporte BARU (admin only, solo cuando filtro BARU activo)
   const sess = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}'); } catch(e) { return {}; } })();
   if (sess.rol_app === 'admin' && filtroProveedor.toUpperCase().includes('BARU')) {
-    html += ` <span class="chip" onclick="_mostrarBaruReporte()" style="margin-left:8px;">📊 Reporte</span>`;
+    html += ` <span class="chip" onclick="window.open('/baru.html?tab=completados','_blank')" style="margin-left:8px;">📊 Reporte</span>`;
   }
   el.innerHTML = html;
 }
@@ -979,120 +964,6 @@ async function _guardarConfigProvs() {
 function abrirModal(id) { document.getElementById('overlay-'+id)?.classList.add('open'); }
 function cerrarModal(id) { document.getElementById('overlay-'+id)?.classList.remove('open'); }
 function hoy() { return new Date().toISOString().split('T')[0]; }
-
-// ══════════════════════════════════════════════════════════════════════════
-// REPORTE BARU (admin only)
-// ══════════════════════════════════════════════════════════════════════════
-let _baruRepPeriodo = 'semana';
-let _baruRepFecha = hoy();
-let _baruRepData = [];
-let _baruRepRango = null;
-
-function _mostrarBaruReporte() {
-  const panel = document.getElementById('baru-reporte-panel');
-  panel.style.display = '';
-  _cargarBaruReporte();
-}
-
-function _getWeekRange(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00');
-  const day = d.getDay();
-  const diffToMon = day === 0 ? -6 : 1 - day;
-  const monday = new Date(d); monday.setDate(d.getDate() + diffToMon);
-  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
-  return { desde: monday.toISOString().split('T')[0], hasta: sunday.toISOString().split('T')[0] };
-}
-function _getMonthRange(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00');
-  const first = new Date(d.getFullYear(), d.getMonth(), 1);
-  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  return { desde: first.toISOString().split('T')[0], hasta: last.toISOString().split('T')[0] };
-}
-
-async function _cargarBaruReporte() {
-  document.getElementById('baru-rep-sem').className = 'btn-sm' + (_baruRepPeriodo==='semana'?' primary':'');
-  document.getElementById('baru-rep-mes').className = 'btn-sm' + (_baruRepPeriodo==='mes'?' primary':'');
-  document.getElementById('baru-rep-content').innerHTML = '<span style="font-size:11px;color:var(--muted);">Cargando...</span>';
-  try {
-    _baruRepRango = _baruRepPeriodo === 'mes' ? _getMonthRange(_baruRepFecha) : _getWeekRange(_baruRepFecha);
-    const data = await window.sbFetch(
-      `partidas_terceros?proveedor_nombre=eq.BARU&baru_completado_at=gte.${_baruRepRango.desde}T00:00:00&baru_completado_at=lte.${_baruRepRango.hasta}T23:59:59&select=numero_envio,proyecto_num,obra,cliente,mueble_nombre,baru_items,fecha_despacho,fecha_recepcion_proveedor,baru_completado_at,fecha_recepcion,estado_recep&order=baru_completado_at`
-    );
-    _baruRepData = data || [];
-    _renderBaruReporte();
-  } catch(e) {
-    document.getElementById('baru-rep-content').innerHTML = `<span style="font-size:11px;color:var(--red);">Error: ${e.message}</span>`;
-  }
-}
-
-function _navBaruReporte(dir) {
-  const d = new Date(_baruRepFecha + 'T12:00:00');
-  if (_baruRepPeriodo === 'semana') d.setDate(d.getDate() + dir * 7);
-  else d.setMonth(d.getMonth() + dir);
-  _baruRepFecha = d.toISOString().split('T')[0];
-  _cargarBaruReporte();
-}
-
-function _renderBaruReporte() {
-  const el = document.getElementById('baru-rep-content');
-  const fmtD = s => { if (!s) return '—'; const d=new Date(s); return d.toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit'}); };
-  const estadoTxt = e => e==='ok'?'✓ Conforme':e==='obs'?'⚠ Obs.':e==='rehacer'?'✗ Rehacer':'—';
-  const rangoEl = document.getElementById('baru-rep-rango');
-  if (_baruRepRango) rangoEl.textContent = fmtD(_baruRepRango.desde) + ' – ' + fmtD(_baruRepRango.hasta);
-  if (!_baruRepData.length) { el.innerHTML = '<span style="font-size:11px;color:var(--muted);">Sin partidas completadas en este período</span>'; return; }
-  let totalM2 = 0;
-  let rows = '';
-  _baruRepData.forEach(p => {
-    (p.baru_items||[]).forEach((it,i) => {
-      totalM2 += it.metros_cuadrados || 0;
-      rows += `<tr style="font-size:10px;">
-        <td style="padding:4px 6px;">${i===0?(p.numero_envio||''):''}</td>
-        <td style="padding:4px 6px;">${i===0?(p.mueble_nombre||''):''}</td>
-        <td style="padding:4px 6px;">${i===0?(p.proyecto_num||''):''}</td>
-        <td style="padding:4px 6px;">${it.tipo_lustre||''}</td>
-        <td style="padding:4px 6px;text-align:right;">${(it.metros_cuadrados||0).toFixed(2)}</td>
-        <td style="padding:4px 6px;">${i===0?fmtD(p.baru_completado_at):''}</td>
-        <td style="padding:4px 6px;">${i===0?estadoTxt(p.estado_recep):''}</td>
-      </tr>`;
-    });
-  });
-  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:10px;">
-    <thead><tr style="border-bottom:1px solid var(--border);">
-      <th style="padding:4px 6px;text-align:left;font-size:9px;color:var(--muted);letter-spacing:.5px;">ENV</th>
-      <th style="padding:4px 6px;text-align:left;font-size:9px;color:var(--muted);">MUEBLE</th>
-      <th style="padding:4px 6px;text-align:left;font-size:9px;color:var(--muted);">PROYECTO</th>
-      <th style="padding:4px 6px;text-align:left;font-size:9px;color:var(--muted);">TIPO LUSTRE</th>
-      <th style="padding:4px 6px;text-align:right;font-size:9px;color:var(--muted);">M²</th>
-      <th style="padding:4px 6px;text-align:left;font-size:9px;color:var(--muted);">COMPLETADO</th>
-      <th style="padding:4px 6px;text-align:left;font-size:9px;color:var(--muted);">ESTADO</th>
-    </tr></thead>
-    <tbody>${rows}
-      <tr style="border-top:2px solid var(--border);font-weight:700;">
-        <td colspan="4" style="padding:4px 6px;text-align:right;">TOTAL</td>
-        <td style="padding:4px 6px;text-align:right;">${totalM2.toFixed(2)}</td>
-        <td colspan="2"></td>
-      </tr>
-    </tbody></table>`;
-}
-
-function _exportBaruXLS() {
-  if (!_baruRepData.length || typeof XLSX === 'undefined') { alert('Sin datos o SheetJS no cargado'); return; }
-  const estadoTxt = e => e==='ok'?'Conforme':e==='obs'?'Con observaciones':e==='rehacer'?'A rehacer':'—';
-  const rows = [['ENV','Mueble','Proyecto','Tipo lustre','m²','Completado','Estado']];
-  let totalM2 = 0;
-  _baruRepData.forEach(p => {
-    (p.baru_items||[]).forEach(it => {
-      totalM2 += it.metros_cuadrados || 0;
-      rows.push([p.numero_envio,p.mueble_nombre,p.proyecto_num,it.tipo_lustre,it.metros_cuadrados,p.baru_completado_at||'',estadoTxt(p.estado_recep)]);
-    });
-  });
-  rows.push(['','','','TOTAL',totalM2,'','']);
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'BARU');
-  const rango = _baruRepRango ? `${_baruRepRango.desde}_${_baruRepRango.hasta}` : '';
-  XLSX.writeFile(wb, `baru-reporte-${rango}.xlsx`);
-}
 
 // ══════════════════════════════════════════════════════════════════════════
 // BOOT

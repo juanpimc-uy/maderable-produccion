@@ -810,6 +810,8 @@ function fmtDateFull(d) {
 // BOOT
 // ═══════════════════════════════════════════════════════════════
 _token = getToken();
+const _urlTab = new URLSearchParams(location.search).get('tab');
+if (_urlTab === 'completados' || _urlTab === 'por_recibir' || _urlTab === 'en_proceso') _tab = _urlTab;
 if (_token) showApp();
 </script>
 </body>
