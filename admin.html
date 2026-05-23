@@ -674,6 +674,7 @@
         <button class="ajuste-tab" data-tab="tc" onclick="switchAjusteTab('tc')">Tipo de cambio</button>
         <button class="ajuste-tab" data-tab="lustre" onclick="switchAjusteTab('lustre')">Lustre</button>
         <button class="ajuste-tab" data-tab="cuenta" onclick="switchAjusteTab('cuenta')">Mi cuenta</button>
+        <button class="ajuste-tab" data-tab="backup" onclick="switchAjusteTab('backup')">Backup</button>
       </div>
       <!-- Fórmula de tiempos -->
       <div data-ajuste-panel="formula">
@@ -798,6 +799,18 @@
       <!-- Mi cuenta -->
       <div data-ajuste-panel="cuenta" style="display:none;">
         <div id="mi-cuenta-contenido"></div>
+      </div>
+
+      <div data-ajuste-panel="backup" style="display:none;">
+        <div class="sec-title">BACKUP DE DATOS</div>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:16px;">
+          Exporta todas las tablas críticas a un archivo JSON descargable.
+          El backup automático corre cada domingo a las 7am.
+        </p>
+        <button class="btn btn-primary" onclick="generarBackupManual()" id="btn-backup">
+          Generar backup ahora
+        </button>
+        <div id="backup-status" style="margin-top:12px;font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);"></div>
       </div>
     </div>
 
@@ -4390,6 +4403,32 @@ function switchAjusteTab(tab) {
   document.querySelectorAll('[data-ajuste-panel]').forEach(p => {
     p.style.display = p.dataset.ajustePanel === tab ? '' : 'none';
   });
+}
+
+async function generarBackupManual() {
+  const btn = document.getElementById('btn-backup');
+  const status = document.getElementById('backup-status');
+  btn.disabled = true;
+  btn.textContent = 'Generando...';
+  status.textContent = '';
+  try {
+    const res = await fetch('/api/backup', {
+      headers: { 'Authorization': currentUser?.supabaseKey || '' }
+    });
+    const data = await res.json();
+    if (data.ok) {
+      status.textContent = `✓ Backup generado: ${data.archivo} (${data.registros.toLocaleString()} registros). Revisá tu email para el link de descarga.`;
+      status.style.color = '#4ade80';
+    } else {
+      status.textContent = 'Error: ' + (data.error || 'desconocido');
+      status.style.color = '#ef4444';
+    }
+  } catch(e) {
+    status.textContent = 'Error de red: ' + e.message;
+    status.style.color = '#ef4444';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Generar backup ahora';
 }
 
 function fInit(){
