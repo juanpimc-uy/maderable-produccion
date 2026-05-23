@@ -1,7 +1,9 @@
-const CACHE_NAME = 'planta-mble-v1';
+const CACHE_NAME = 'planta-mble-v2';
 const ASSETS = [
   '/planta2.html',
+  '/admin.html',
   '/manifest.json',
+  '/manifest-admin.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/js/supabase-config.js',
