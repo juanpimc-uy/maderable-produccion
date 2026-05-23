@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<script src="/js/supabase-config.js"></script>
+<script src="/js/auth.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<title>Maderable · Reporte BARU</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+:root{--bg:#0f0f0f;--panel:#1e1e1e;--card:#131313;--border:#2a2a2a;--accent:#FFD600;--blue:#4a9eff;--green:#4caf50;--red:#e03030;--muted:#555;--text:#e0e0e0;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
+.topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 20px;height:50px;display:flex;align-items:center;gap:14px;}
+.topbar-title{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;}
+.topbar-brand{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--accent);letter-spacing:2px;}
+.content{max-width:1100px;margin:0 auto;padding:24px 20px;}
+.ctrl-bar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+.chip{font-family:'JetBrains Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s;}
+.chip.active{background:var(--accent);color:#000;border-color:var(--accent);font-weight:700;}
+.nav-btn{font-family:'JetBrains Mono',monospace;font-size:14px;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 10px;color:var(--muted);cursor:pointer;transition:all .15s;}
+.nav-btn:hover{border-color:var(--accent);color:var(--accent);}
+.rango-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);letter-spacing:1px;}
+.btn-export{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;padding:5px 14px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;}
+.btn-export:hover{border-color:var(--accent);color:var(--accent);}
+table{width:100%;border-collapse:collapse;font-size:11px;}
+th{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;text-align:left;padding:8px 6px;border-bottom:1px solid var(--border);}
+td{padding:6px;border-bottom:1px solid rgba(42,42,42,.5);font-family:'JetBrains Mono',monospace;font-size:10px;}
+tr.total td{font-weight:700;background:var(--panel);border-top:2px solid var(--border);}
+tr:not(.total){cursor:pointer;transition:background .1s;}
+tr:not(.total):hover{background:rgba(255,214,0,.04);}
+.empty{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-align:center;padding:40px 20px;}
+/* Modal */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;}
+.overlay.open{display:flex;}
+.modal{background:#1e1e1e;border:1px solid var(--border);border-radius:10px;padding:22px;width:480px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+.modal-title{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:16px;}
+/* Print */
+@media print{
+  body{background:#fff!important;color:#000!important;}
+  .topbar,.ctrl-bar,.btn-export{display:none!important;}
+  th,td{color:#000!important;border-color:#ccc!important;}
+  .print-hdr{display:block!important;}
+}
+.print-hdr{display:none;text-align:center;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;margin-bottom:16px;}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="topbar-brand">MADERABLE</span>
+  <span class="topbar-title">REPORTE BARU</span>
+</div>
+<div class="content">
+  <div class="ctrl-bar" id="ctrl-bar"></div>
+  <div class="print-hdr" id="print-hdr">MADERABLE — REPORTE BARU</div>
+  <div id="tabla-wrap"></div>
+</div>
+
+<!-- Modal detalle -->
+<div class="overlay" id="overlay-det" onclick="this.classList.remove('open')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" id="det-title">DETALLE</div>
+    <div id="det-body"></div>
+    <div style="margin-top:14px;"><button class="chip" onclick="document.getElementById('overlay-det').classList.remove('open')">Cerrar</button></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// Auth — requiere sesión Maderable admin/oficina
+const _sess = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}'); } catch { return {}; } })();
+if (_sess.rol_app !== 'admin' && _sess.rol_app !== 'oficina') {
+  document.querySelector('.content').innerHTML = '<div class="empty">Acceso restringido. <a href="/admin.html" style="color:var(--accent);">Ir al ERP</a></div>';
+}
+const CALLER_ID = _sess.id || '';
+
+let _periodo = 'semana';
+let _fecha = new Date().toISOString().split('T')[0];
+let _partidas = [];
+let _rango = null;
+
+function fmtD(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit'}); }
+function fmtDFull(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function estadoHtml(e) {
+  if (e==='ok') return '<span style="color:var(--green);">✓ Conforme</span>';
+  if (e==='obs') return '<span style="color:#f59e0b;">⚠ Obs.</span>';
+  if (e==='rehacer') return '<span style="color:var(--red);">✗ Rehacer</span>';
+  return '—';
+}
+
+async function cargar() {
+  document.getElementById('tabla-wrap').innerHTML = '<div class="empty">Cargando...</div>';
+  try {
+    const r = await fetch(`/api/baru-reporte-interno?periodo=${_periodo}&fecha=${_fecha}&caller_id=${CALLER_ID}`);
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    _partidas = d.partidas || [];
+    _rango = d.rango;
+    renderControls();
+    renderTabla();
+  } catch(e) {
+    document.getElementById('tabla-wrap').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+function renderControls() {
+  const rangoTxt = _rango ? fmtD(_rango.desde) + ' – ' + fmtD(_rango.hasta) : '';
+  document.getElementById('ctrl-bar').innerHTML = `
+    <button class="chip ${_periodo==='semana'?'active':''}" onclick="_periodo='semana';cargar()">Semana</button>
+    <button class="chip ${_periodo==='mes'?'active':''}" onclick="_periodo='mes';cargar()">Mes</button>
+    <button class="nav-btn" onclick="nav(-1)">←</button>
+    <span class="rango-label">${rangoTxt}</span>
+    <button class="nav-btn" onclick="nav(1)">→</button>
+    <button class="btn-export" onclick="exportXLS()" style="margin-left:auto;">↓ XLS</button>
+    <button class="btn-export" onclick="window.print()">↓ PDF</button>
+  `;
+}
+
+function nav(dir) {
+  const d = new Date(_fecha + 'T12:00:00');
+  if (_periodo === 'semana') d.setDate(d.getDate() + dir * 7);
+  else d.setMonth(d.getMonth() + dir);
+  _fecha = d.toISOString().split('T')[0];
+  cargar();
+}
+
+function renderTabla() {
+  const el = document.getElementById('tabla-wrap');
+  if (!_partidas.length) { el.innerHTML = '<div class="empty">Sin partidas en este período</div>'; return; }
+  let totalM2 = 0, totalUSD = 0;
+  let rows = '';
+  _partidas.forEach(p => {
+    const items = p.baru_items || [];
+    items.forEach((it, i) => {
+      totalM2 += it.metros_cuadrados || 0;
+      const precio = it.precio_usd_m2 || 0;
+      const sub = Math.round((it.metros_cuadrados||0) * precio * 100) / 100;
+      totalUSD += sub;
+      rows += `<tr onclick="abrirDetalle('${p.id}')">
+        <td>${i===0?esc(p.numero_envio||''):''}</td>
+        <td>${i===0?esc(p.proyecto_num||''):''}</td>
+        <td>${i===0?esc(p.obra||''):''}</td>
+        <td>${i===0?esc(p.mueble_nombre||''):''}</td>
+        <td>${esc(it.tipo_lustre||'')}</td>
+        <td style="text-align:right;">${(it.metros_cuadrados||0).toFixed(2)}</td>
+        <td style="text-align:right;">${precio>0?sub.toFixed(2):'—'}</td>
+        <td>${i===0?fmtD(p.fecha_despacho):''}</td>
+        <td>${i===0?fmtD(p.fecha_recepcion_proveedor):''}</td>
+        <td>${i===0?fmtD(p.baru_completado_at):''}</td>
+        <td>${i===0?fmtD(p.fecha_recepcion):''}</td>
+        <td>${i===0?estadoHtml(p.estado_recep):''}</td>
+      </tr>`;
+    });
+    if (!items.length) {
+      rows += `<tr onclick="abrirDetalle('${p.id}')">
+        <td>${esc(p.numero_envio||'')}</td><td>${esc(p.proyecto_num||'')}</td>
+        <td>${esc(p.obra||'')}</td><td>${esc(p.mueble_nombre||'')}</td>
+        <td colspan="2">—</td><td>—</td>
+        <td>${fmtD(p.fecha_despacho)}</td><td>${fmtD(p.fecha_recepcion_proveedor)}</td>
+        <td>${fmtD(p.baru_completado_at)}</td><td>${fmtD(p.fecha_recepcion)}</td>
+        <td>${estadoHtml(p.estado_recep)}</td>
+      </tr>`;
+    }
+  });
+  totalUSD = Math.round(totalUSD * 100) / 100;
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>ENV</th><th>Proyecto</th><th>Obra</th><th>Mueble</th>
+      <th>Tipo lustre</th><th style="text-align:right;">m²</th><th style="text-align:right;">USD</th>
+      <th>Desp.</th><th>Recib.</th><th>Complet.</th><th>Recep. Mad.</th><th>Estado</th>
+    </tr></thead>
+    <tbody>${rows}
+      <tr class="total">
+        <td colspan="5" style="text-align:right;">TOTAL</td>
+        <td style="text-align:right;">${totalM2.toFixed(2)}</td>
+        <td style="text-align:right;">${totalUSD>0?totalUSD.toFixed(2):'—'}</td>
+        <td colspan="5"></td>
+      </tr>
+    </tbody></table>`;
+}
+
+function abrirDetalle(id) {
+  const p = _partidas.find(x => x.id === id);
+  if (!p) return;
+  const items = p.baru_items || [];
+  let itemsHtml = '';
+  if (items.length) {
+    itemsHtml = '<div style="margin-top:12px;font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">TRABAJO REGISTRADO</div>';
+    items.forEach(it => {
+      const sub = it.precio_usd_m2 ? Math.round(it.metros_cuadrados * it.precio_usd_m2 * 100)/100 : 0;
+      itemsHtml += `<div style="background:#111;border:1px solid var(--border);border-radius:4px;padding:8px 10px;margin-bottom:4px;display:flex;justify-content:space-between;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);">${it.tipo_lustre||'—'}</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;">${it.metros_cuadrados||0} m²${sub>0?' · $'+sub.toFixed(2):''}</span>
+      </div>`;
+    });
+  }
+  document.getElementById('det-title').textContent = 'DETALLE ' + (p.numero_envio||'');
+  document.getElementById('det-body').innerHTML = `
+    <div style="font-size:14px;font-weight:600;color:#ccc;margin-bottom:4px;">${esc(p.mueble_nombre||'—')}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">${[p.obra,p.cliente].filter(Boolean).join(' · ')}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;color:var(--muted);margin-bottom:10px;">
+      <div>Despachado: <span style="color:#ccc;">${fmtDFull(p.fecha_despacho)}</span></div>
+      <div>Recibido: <span style="color:#ccc;">${fmtDFull(p.fecha_recepcion)}</span></div>
+      <div>Completado BARU: <span style="color:#ccc;">${fmtDFull(p.baru_completado_at)}</span></div>
+      <div>Estado: ${estadoHtml(p.estado_recep)}</div>
+    </div>
+    ${p.instruccion_lustre ? `<div style="border-left:2px solid var(--accent);padding-left:8px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:10px;">${esc(p.instruccion_lustre)}</div>` : ''}
+    ${itemsHtml}
+    ${p.monto_usd>0 ? `<div style="margin-top:10px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--accent);">Total: $${Number(p.monto_usd).toFixed(2)} USD</div>` : ''}
+  `;
+  document.getElementById('overlay-det').classList.add('open');
+}
+
+function exportXLS() {
+  if (!_partidas.length || typeof XLSX === 'undefined') return;
+  const estadoTxt = e => e==='ok'?'Conforme':e==='obs'?'Con observaciones':e==='rehacer'?'A rehacer':'—';
+  const rows = [['ENV','Proyecto','Obra','Mueble','Tipo lustre','m²','USD','Despachado','Recibido','Completado','Recep. Maderable','Estado']];
+  let totalM2=0,totalUSD=0;
+  _partidas.forEach(p => {
+    (p.baru_items||[]).forEach(it => {
+      totalM2+=it.metros_cuadrados||0;
+      const sub=Math.round((it.metros_cuadrados||0)*(it.precio_usd_m2||0)*100)/100;
+      totalUSD+=sub;
+      rows.push([p.numero_envio,p.proyecto_num,p.obra,p.mueble_nombre,it.tipo_lustre,it.metros_cuadrados,sub,
+        p.fecha_despacho||'',p.fecha_recepcion_proveedor||'',p.baru_completado_at||'',p.fecha_recepcion||'',estadoTxt(p.estado_recep)]);
+    });
+  });
+  rows.push(['','','','','TOTAL',totalM2,Math.round(totalUSD*100)/100,'','','','','']);
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'BARU');
+  const rango=_rango?`${_rango.desde}_${_rango.hasta}`:'';
+  XLSX.writeFile(wb,`baru-reporte-${rango}.xlsx`);
+}
+
+function esc(s) { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+document.addEventListener('keydown', e => { if (e.key==='Escape') document.getElementById('overlay-det').classList.remove('open'); });
+
+// Boot
+if (CALLER_ID) cargar();
+</script>
+</body>
+</html>

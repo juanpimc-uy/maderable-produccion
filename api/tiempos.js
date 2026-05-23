@@ -2232,6 +2232,8 @@ export default async function handler(req) {
         instruccion_lustre: p.instruccion_lustre || '',
         baru_completado_at: p.baru_completado_at || null,
         retorno_modificado_baru: p.retorno_modificado_baru || false,
+        baru_items: p.baru_items || [],
+        monto_usd: p.monto_usd != null ? Number(p.monto_usd) : null,
       })) });
     }
 

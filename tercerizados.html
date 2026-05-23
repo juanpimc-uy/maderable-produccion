@@ -176,6 +176,17 @@
   </div>
 </div>
 
+<!-- MODAL DETALLE BARU -->
+<div class="overlay" id="overlay-detalle-baru" onclick="cerrarModal('detalle-baru')">
+  <div class="modal" onclick="event.stopPropagation()" style="width:480px;">
+    <div class="modal-title" id="detalle-baru-title">DETALLE ENVÍO</div>
+    <div id="detalle-baru-body"></div>
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button class="btn-sm" onclick="cerrarModal('detalle-baru')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════════════════════════════
 // DATOS
@@ -265,7 +276,8 @@ function cardHtml(p, col) {
     const txt = p.estadoRecep === 'ok' ? '✓ Conforme' : p.estadoRecep === 'obs' ? '⚠ Obs.' : '✗ Rehacer';
     recepBadge = `<span class="badge-recep ${cls}">${txt}</span>`;
   }
-  const clickEdit = col === 'taller' ? ` onclick="abrirEditarPartida('${p.id}')" style="cursor:pointer;"` : '';
+  const clickEdit = col === 'taller' ? ` onclick="abrirEditarPartida('${p.id}')" style="cursor:pointer;"`
+    : col === 'recv' ? ` onclick="abrirDetalleBaruRecv('${p.id}')" style="cursor:pointer;"` : '';
   return `<div class="card"${clickEdit}>
     <div class="card-row1">
       <span class="card-code">${p.muebleCodigo || '—'}</span>
@@ -310,7 +322,7 @@ function renderChips() {
   // Botón reporte BARU (admin only, solo cuando filtro BARU activo)
   const sess = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}'); } catch(e) { return {}; } })();
   if (sess.rol_app === 'admin' && filtroProveedor.toUpperCase().includes('BARU')) {
-    html += ` <span class="chip" onclick="window.open('/baru.html?tab=completados','_blank')" style="margin-left:8px;">📊 Reporte</span>`;
+    html += ` <span class="chip" onclick="window.open('/baru-reporte.html','_blank')" style="margin-left:8px;">📊 Reporte BARU</span>`;
   }
   el.innerHTML = html;
 }
@@ -970,6 +982,49 @@ async function _guardarConfigProvs() {
 function abrirModal(id) { document.getElementById('overlay-'+id)?.classList.add('open'); }
 function cerrarModal(id) { document.getElementById('overlay-'+id)?.classList.remove('open'); }
 function hoy() { return new Date().toISOString().split('T')[0]; }
+
+function abrirDetalleBaruRecv(pid) {
+  const p = PARTIDAS.find(x => x.id === pid);
+  if (!p) return;
+  const fmtF = d => d ? new Date(d+(d.includes('T')?'':'T12:00:00')).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
+  const estadoTxt = e => e==='ok'?'<span style="color:var(--green);">✓ Conforme</span>':e==='obs'?'<span style="color:#f59e0b;">⚠ Con observaciones</span>':e==='rehacer'?'<span style="color:var(--red);">✗ A rehacer</span>':'—';
+  const items = p.baru_items || [];
+  let itemsHtml = '';
+  if (items.length) {
+    itemsHtml = `<div style="margin-top:12px;"><div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">TRABAJO REGISTRADO POR BARU</div>`;
+    items.forEach((it, i) => {
+      const sub = it.precio_usd_m2 ? (Math.round(it.metros_cuadrados * it.precio_usd_m2 * 100)/100) : 0;
+      itemsHtml += `<div style="background:#111;border:1px solid var(--border);border-radius:4px;padding:8px 10px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+        <div><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);">${it.tipo_lustre||'—'}</span></div>
+        <div style="text-align:right;"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;">${it.metros_cuadrados||0} m²</span>${sub>0?` <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);">$${sub.toFixed(2)}</span>`:''}</div>
+      </div>`;
+    });
+    itemsHtml += '</div>';
+  }
+  const body = document.getElementById('detalle-baru-body');
+  body.innerHTML = `
+    <div style="margin-bottom:10px;">
+      ${p.numero_envio ? `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 8px;border-radius:3px;background:#0a1a2a;color:var(--blue);border:1px solid #1a2a3a;">${p.numero_envio}</span>` : ''}
+      <span style="font-size:10px;color:var(--muted);margin-left:6px;">${p.proyectoNum||''}</span>
+    </div>
+    <div style="font-size:14px;font-weight:600;color:#ccc;margin-bottom:4px;">${p.muebleNombre||'—'}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">${[p.obra,p.cliente,p.bultos?p.bultos+' bulto(s)':''].filter(Boolean).join(' · ')}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;color:var(--muted);margin-bottom:10px;">
+      <div>Despachado: <span style="color:#ccc;">${fmtF(p.fechaDespacho)}</span></div>
+      <div>Recibido: <span style="color:#ccc;">${fmtF(p.fechaRecepcion)}</span></div>
+    </div>
+    <div style="margin-bottom:8px;">Estado: ${estadoTxt(p.estadoRecep)}</div>
+    ${p.obs ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Obs: ${p.obs}</div>` : ''}
+    ${p.instruccion_lustre ? `<div style="border-left:2px solid var(--accent);padding-left:8px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:8px;">${p.instruccion_lustre}</div>` : ''}
+    ${itemsHtml}
+    ${p.monto_usd != null && p.monto_usd > 0 ? `<div style="margin-top:10px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--accent);">Total: $${Number(p.monto_usd).toFixed(2)} USD</div>` : ''}
+  `;
+  document.getElementById('detalle-baru-title').textContent = 'DETALLE ENVÍO' + (p.numero_envio ? ' · ' + p.numero_envio : '');
+  abrirModal('detalle-baru');
+}
+
+// Cerrar modal con Escape
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal('detalle-baru'); });
 
 // ══════════════════════════════════════════════════════════════════════════
 // BOOT
