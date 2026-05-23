@@ -920,7 +920,8 @@ function guardar(){
     referencia:gv('f-referencia'),
     fechaInicio:gv('f-inicio'),fechaEntrega:gv('f-entrega'),notas:gv('f-notas'),
     estado:'en_produccion',muebles,materiales,sosCargadas,modulos:[],creadoEn:Date.now()};
-  fetch('/api/tiempos?action=guardar-proyecto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).catch(console.error);
+  const _st = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}').session_token||''; } catch{return '';} })();
+  fetch('/api/tiempos?action=guardar-proyecto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...p, session_token:_st})}).catch(console.error);
   document.querySelector('.page').innerHTML=`
     <div style="text-align:center;padding:70px 20px;">
       <div style="font-size:52px;margin-bottom:18px;">✓</div>

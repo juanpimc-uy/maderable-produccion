@@ -1268,7 +1268,7 @@ async function syncProyectoSupabase(proyecto) {
     const res = await fetch('/api/tiempos?action=guardar-proyecto', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify({ ...body, session_token: window.AUTH.getSessionToken() })
     });
     return res.json();
   } catch(e) {

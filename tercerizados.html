@@ -199,10 +199,13 @@ window.sbFetch('proyectos_cache?activo=eq.true&order=nombre')
 
 let PARTIDAS = JSON.parse(localStorage.getItem('partidas') || '[]');
 
+function _getST() { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}').session_token||''; } catch{return '';} }
+
 function guardarPartidas(ids) {
   localStorage.setItem('partidas', JSON.stringify(PARTIDAS));
   const lista = ids ? PARTIDAS.filter(p => ids.includes(p.id)) : PARTIDAS;
-  lista.forEach(p => fetch('/api/tiempos?action=guardar-partida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).catch(err => console.error('guardar-partida error:', err)));
+  const st = _getST();
+  lista.forEach(p => fetch('/api/tiempos?action=guardar-partida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...p, session_token:st})}).catch(err => console.error('guardar-partida error:', err)));
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -429,7 +432,7 @@ async function _confirmarDespachoBultos(id) {
   try {
     const res = await fetch('/api/tiempos?action=despachar-partida', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ partida_id: p.id, bultos: p.bultos||1, partes:'', fecha: hoy(), nota:'', tipoDespacho:'total' })
+      body: JSON.stringify({ partida_id: p.id, bultos: p.bultos||1, partes:'', fecha: hoy(), nota:'', tipoDespacho:'total', session_token:_getST() })
     });
     const data = await res.json();
     if (data.ok) {
@@ -465,7 +468,7 @@ async function confirmarDespacho() {
     try {
       const res = await fetch('/api/tiempos?action=despachar-partida', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ partida_id: p.id, bultos, partes, fecha, nota, tipoDespacho:'total' })
+        body: JSON.stringify({ partida_id: p.id, bultos, partes, fecha, nota, tipoDespacho:'total', session_token:_getST() })
       });
       const data = await res.json();
       if (data.ok) {
@@ -488,11 +491,11 @@ async function confirmarDespacho() {
     p.nota = `Despacho parcial el ${fecha}. Quedan partes en taller.`;
     PARTIDAS.push(nueva);
     // Save nueva first, then despachar it
-    await fetch('/api/tiempos?action=guardar-partida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(nueva)}).catch(err=>console.error('guardar-partida error:',err));
+    await fetch('/api/tiempos?action=guardar-partida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...nueva, session_token:_getST()})}).catch(err=>console.error('guardar-partida error:',err));
     try {
       const res = await fetch('/api/tiempos?action=despachar-partida', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ partida_id: nueva.id, bultos, partes, fecha, nota, tipoDespacho:'parcial' })
+        body: JSON.stringify({ partida_id: nueva.id, bultos, partes, fecha, nota, tipoDespacho:'parcial', session_token:_getST() })
       });
       const data = await res.json();
       if (data.ok) { nueva.estado='despachada'; nueva.numero_envio = data.numero_envio || ''; nueva.fechaDespacho = fecha; }
@@ -971,7 +974,7 @@ async function _guardarConfigProvs() {
   // Update config_global proveedores
   if (newLus) PROVS.lus = newLus;
   if (newTap) PROVS.tap = newTap;
-  fetch('/api/tiempos?action=guardar-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clave:'proveedores',valor:PROVS})}).catch(()=>{});
+  fetch('/api/tiempos?action=guardar-config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clave:'proveedores',valor:PROVS,session_token:_getST()})}).catch(()=>{});
   const ov = document.getElementById('overlay-cfg-prov');
   if (ov) document.body.removeChild(ov);
   render();

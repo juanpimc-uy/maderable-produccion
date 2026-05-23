@@ -557,7 +557,8 @@ function guardarDespacho() {
   // persistir
   localStorage.setItem('despachos', JSON.stringify(DESPACHOS));
   fetch('/api/tiempos?action=guardar-despacho',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(despacho)}).catch(console.error);
-  fetch('/api/tiempos?action=guardar-proyecto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(pr)}).catch(console.error);
+  const _st = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}').session_token||''; } catch{return '';} })();
+  fetch('/api/tiempos?action=guardar-proyecto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...pr, session_token:_st})}).catch(console.error);
 
   cerrarModal();
   selMods.clear(); bultos=[];

@@ -15,6 +15,11 @@ window.AUTH = {
     window.location.href = '/admin.html';
   },
 
+  getSessionToken() {
+    const u = this.usuarioActual();
+    return u?.session_token || '';
+  },
+
   esAdmin() {
     const u = this.usuarioActual();
     return u && u.rol_app === 'admin';

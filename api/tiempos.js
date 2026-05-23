@@ -113,6 +113,19 @@ class ApiError extends Error {
   }
 }
 
+// ── Verificar sesión (token en body o query) ──────────────────────────────
+async function verificarSesion(token) {
+  if (!token) return null;
+  const { data } = await supabase
+    .from('empleados')
+    .select('id, rol_app, nombre')
+    .eq('session_token', token)
+    .gt('session_expires_at', new Date().toISOString())
+    .eq('activo', true)
+    .maybeSingle();
+  return data || null;
+}
+
 // ── Constantes compartidas ─────────────────────────────────────────────────
 const ANOMALIA_MAX_HORAS = 11;
 const DESCANSO_INICIO_UTC = 15; // 12:00 UY = 15:00 UTC
@@ -1066,6 +1079,7 @@ export default async function handler(req) {
 
     // ── POST sync proyecto desde admin (full upsert, alias de guardar-proyecto) ──
     if (action === 'sync-proyecto' && req.method === 'POST') {
+      if (!await verificarSesion(body.session_token)) return err('Sesión inválida o expirada', 401);
       const { id, numero, obra, clienteNombre, referencia, fechaInicio, fechaEntrega,
               notas, estado, muebles, materiales, sosCargadas, modulos, creadoEn,
               // legacy fields for backwards compat
@@ -1951,7 +1965,13 @@ export default async function handler(req) {
         }
       }
       if (!valid) return new Response(JSON.stringify({ ok: false, error: 'Credenciales incorrectas' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      return ok({ ok: true, usuario: { id: data.id, nombre: data.nombre, email: data.email, rol_app: data.rol_app, categoria: data.categoria, acceso_tiempos: data.acceso_tiempos ?? false, centros_autorizados: data.centros_autorizados || [] } });
+      // Generar token de sesión (8 horas)
+      const sessionToken = crypto.randomUUID();
+      const sessionExpiry = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+      await supabase.from('empleados')
+        .update({ session_token: sessionToken, session_expires_at: sessionExpiry })
+        .eq('id', data.id);
+      return ok({ ok: true, usuario: { id: data.id, nombre: data.nombre, email: data.email, rol_app: data.rol_app, categoria: data.categoria, acceso_tiempos: data.acceso_tiempos ?? false, centros_autorizados: data.centros_autorizados || [], session_token: sessionToken } });
     }
 
     // ── POST cambiar PIN propio ───────────────────────────────────────────
@@ -2053,6 +2073,7 @@ export default async function handler(req) {
 
     // ── POST guardar proyecto completo ────────────────────────────────────
     if (action === 'guardar-proyecto' && req.method === 'POST') {
+      if (!await verificarSesion(body.session_token)) return err('Sesión inválida o expirada', 401);
       const { id, nombre, numero, obra, clienteNombre, referencia, fechaInicio, fechaEntrega,
               notas, estado, muebles, materiales, sosCargadas, modulos, creadoEn,
               activo: activoBody } = body;
@@ -2239,6 +2260,7 @@ export default async function handler(req) {
 
     // ── POST guardar partida ──────────────────────────────────────────────
     if (action === 'guardar-partida' && req.method === 'POST') {
+      if (!await verificarSesion(body.session_token)) return err('Sesión inválida o expirada', 401);
       const { id, tipo, proyectoNum, obra, cliente, muebleCodigo, muebleNombre,
               estado, partes, tipoDespacho, fechaDespacho, fechaRecepcion,
               estadoRecep, obs, nota, bultos, numero_envio, fechaRetornoEstimada, proveedorNombre, retorno_modificado_baru } = body;
@@ -2276,6 +2298,7 @@ export default async function handler(req) {
 
     // ── POST despachar-partida (asigna numero_envio) ─────────────────────
     if (action === 'despachar-partida' && req.method === 'POST') {
+      if (body.session_token && !await verificarSesion(body.session_token)) return err('Sesión inválida o expirada', 401);
       const { partida_id, bultos, partes, fecha, nota, tipoDespacho } = body;
       if (!partida_id) return err('partida_id requerido', 400);
       // Verificar si ya tiene numero_envio; si no, asignar como fallback
@@ -2310,8 +2333,9 @@ export default async function handler(req) {
       return ok({ ok: true });
     }
 
-    // ── POST recibir-partida (público, desde QR — confirma recepción por proveedor)
+    // ── POST recibir-partida (sesión opcional — también llamado desde QR/envio.html)
     if (action === 'recibir-partida' && req.method === 'POST') {
+      if (body.session_token && !await verificarSesion(body.session_token)) return err('Sesión inválida o expirada', 401);
       const { partida_id } = body;
       if (!partida_id) return err('partida_id requerido', 400);
       const { data, error } = await supabase.from('partidas_terceros')
@@ -2359,6 +2383,7 @@ export default async function handler(req) {
 
     // ── POST guardar configuración ────────────────────────────────────────
     if (action === 'guardar-config' && req.method === 'POST') {
+      if (!await verificarSesion(body.session_token)) return err('Sesión inválida o expirada', 401);
       const { clave, valor } = body;
       const { data, error } = await supabase.from('config_global')
         .upsert({ clave, valor, actualizado_at: new Date().toISOString() }, { onConflict: 'clave' })
