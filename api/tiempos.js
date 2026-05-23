@@ -126,6 +126,39 @@ async function verificarSesion(token) {
   return data || null;
 }
 
+// ── Rate limiting (en memoria) ─────────────────────────────────────────────
+const _loginAttempts = new Map();
+const RATE_MAX = 5;
+const RATE_WINDOW = 15 * 60 * 1000;
+
+function getRateKey(req) {
+  return req.headers.get?.('x-forwarded-for')?.split(',')[0]?.trim()
+    || req.headers.get?.('x-real-ip')
+    || 'unknown';
+}
+
+function checkRateLimit(key) {
+  const now = Date.now();
+  const entry = _loginAttempts.get(key);
+  if (!entry) return { blocked: false };
+  if (entry.blockedUntil > now) {
+    return { blocked: true, mins: Math.ceil((entry.blockedUntil - now) / 60000) };
+  }
+  if (now - entry.firstAt > RATE_WINDOW) { _loginAttempts.delete(key); return { blocked: false }; }
+  return { blocked: false };
+}
+
+function recordFailedAttempt(key) {
+  const now = Date.now();
+  const entry = _loginAttempts.get(key) || { count: 0, firstAt: now, blockedUntil: 0 };
+  if (now - entry.firstAt > RATE_WINDOW) { _loginAttempts.set(key, { count: 1, firstAt: now, blockedUntil: 0 }); return; }
+  entry.count += 1;
+  if (entry.count >= RATE_MAX) entry.blockedUntil = now + RATE_WINDOW;
+  _loginAttempts.set(key, entry);
+}
+
+function clearRateLimit(key) { _loginAttempts.delete(key); }
+
 // ── Constantes compartidas ─────────────────────────────────────────────────
 const ANOMALIA_MAX_HORAS = 11;
 const DESCANSO_INICIO_UTC = 15; // 12:00 UY = 15:00 UTC
@@ -1931,6 +1964,9 @@ export default async function handler(req) {
 
     // ── POST login admin (email + PIN) ───────────────────────────────────
     if (action === 'login-admin' && req.method === 'POST') {
+      const rateKey = getRateKey(req);
+      const rl = checkRateLimit(rateKey);
+      if (rl.blocked) return err(`Demasiados intentos. Esperá ${rl.mins} minuto(s).`, 429);
       const { email, pin, password } = body;
       const credential = password || pin;
       if (!email || !credential) return err('email y credencial requeridos', 400);
@@ -1943,7 +1979,7 @@ export default async function handler(req) {
         .limit(1)
         .maybeSingle();
       if (error) throw error;
-      if (!data) return new Response(JSON.stringify({ ok: false, error: 'Credenciales incorrectas' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (!data) { recordFailedAttempt(rateKey); return new Response(JSON.stringify({ ok: false, error: 'Credenciales incorrectas' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } }); }
 
       let valid = false;
       if (data.rol_app === 'admin' && data.password_hash) {
@@ -1964,7 +2000,8 @@ export default async function handler(req) {
           await supabase.from('empleados').update({ password_hash: hash }).eq('id', data.id);
         }
       }
-      if (!valid) return new Response(JSON.stringify({ ok: false, error: 'Credenciales incorrectas' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (!valid) { recordFailedAttempt(rateKey); return new Response(JSON.stringify({ ok: false, error: 'Credenciales incorrectas' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } }); }
+      clearRateLimit(rateKey);
       // Generar token de sesión (8 horas)
       const sessionToken = crypto.randomUUID();
       const sessionExpiry = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
@@ -2020,6 +2057,9 @@ export default async function handler(req) {
 
     // ── POST verificar PIN (login planta — server-side, no devuelve pin) ──
     if (action === 'verificar-pin' && req.method === 'POST') {
+      const rateKeyPin = getRateKey(req);
+      const rlPin = checkRateLimit(rateKeyPin);
+      if (rlPin.blocked) return err(`Demasiados intentos. Esperá ${rlPin.mins} minuto(s).`, 429);
       const { cedula, pin } = body;
       if (!cedula || !pin) return err('cedula y pin requeridos', 400);
       if (!/^\d{4}$/.test(pin)) {
@@ -2038,10 +2078,12 @@ export default async function handler(req) {
         .maybeSingle();
       if (error) throw error;
       if (!data) {
+        recordFailedAttempt(rateKeyPin);
         return new Response(JSON.stringify({ ok: false, error: 'Cédula o PIN incorrectos' }), {
           status: 401, headers: { ...CORS, 'Content-Type': 'application/json' }
         });
       }
+      clearRateLimit(rateKeyPin);
       return ok({ ok: true, empleado: data });
     }
 
