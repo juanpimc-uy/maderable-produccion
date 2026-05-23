@@ -93,7 +93,7 @@
 
   <!-- TOPBAR -->
   <div class="topbar">
-    <span class="topbar-title">TERCERIZADOS</span>
+    <span class="topbar-title" id="topbar-prov-title">TERCERIZADOS</span>
     <div style="display:flex;gap:6px;margin-left:16px;" id="prov-chips"></div>
     <button onclick="abrirConfigProvs()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:4px;" title="Configurar proveedores">⚙</button>
   </div>
@@ -208,7 +208,9 @@ function guardarPartidas(ids) {
 // ══════════════════════════════════════════════════════════════════════════
 // ESTADO UI
 // ══════════════════════════════════════════════════════════════════════════
-let filtroProveedor = 'todos'; // 'todos' | 'tap' | 'lus'
+// Leer proveedor del URL param ?prov=BARU
+const _urlProv = new URLSearchParams(location.search).get('prov');
+let filtroProveedor = _urlProv || 'todos';
 let modalPartidaId = null;
 let modalTipoNueva = 'lus';
 let tipoDesp = 'total';
@@ -314,15 +316,14 @@ function cardHtml(p, col) {
 
 function renderChips() {
   const el = document.getElementById('prov-chips');
-  const c = (id, label) => `<span class="chip ${filtroProveedor===id?'active':''}" onclick="filtroProveedor='${id}';render();">${label}</span>`;
-  let html = c('todos','Todos');
-  _provsCache.forEach(pv => { html += c(pv.nombre, pv.nombre); });
-  // Fallback si no hay proveedores cargados aún
-  if (!_provsCache.length) { html += c('lus', PROVS.lus) + c('tap', PROVS.tap); }
-  // Botón reporte BARU (admin only, solo cuando filtro BARU activo)
+  // Topbar title
+  const titleEl = document.getElementById('topbar-prov-title');
+  if (titleEl) titleEl.textContent = filtroProveedor !== 'todos' ? `TERCERIZADOS · ${filtroProveedor}` : 'TERCERIZADOS';
+  // Solo botón reporte si aplica
+  let html = '';
   const sess = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}'); } catch(e) { return {}; } })();
   if (sess.rol_app === 'admin' && filtroProveedor.toUpperCase().includes('BARU')) {
-    html += ` <span class="chip" onclick="window.open('/baru-reporte.html','_blank')" style="margin-left:8px;">📊 Reporte BARU</span>`;
+    html += `<span class="chip" onclick="window.open('/baru-reporte.html','_blank')">📊 Reporte BARU</span>`;
   }
   el.innerHTML = html;
 }
@@ -993,10 +994,9 @@ function abrirDetalleBaruRecv(pid) {
   if (items.length) {
     itemsHtml = `<div style="margin-top:12px;"><div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">TRABAJO REGISTRADO POR BARU</div>`;
     items.forEach((it, i) => {
-      const sub = it.precio_usd_m2 ? (Math.round(it.metros_cuadrados * it.precio_usd_m2 * 100)/100) : 0;
       itemsHtml += `<div style="background:#111;border:1px solid var(--border);border-radius:4px;padding:8px 10px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
         <div><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);">${it.tipo_lustre||'—'}</span></div>
-        <div style="text-align:right;"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;">${it.metros_cuadrados||0} m²</span>${sub>0?` <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);">$${sub.toFixed(2)}</span>`:''}</div>
+        <div style="text-align:right;"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;">${it.metros_cuadrados||0} m²</span></div>
       </div>`;
     });
     itemsHtml += '</div>';
@@ -1017,7 +1017,6 @@ function abrirDetalleBaruRecv(pid) {
     ${p.obs ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Obs: ${p.obs}</div>` : ''}
     ${p.instruccion_lustre ? `<div style="border-left:2px solid var(--accent);padding-left:8px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:8px;">${p.instruccion_lustre}</div>` : ''}
     ${itemsHtml}
-    ${p.monto_usd != null && p.monto_usd > 0 ? `<div style="margin-top:10px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--accent);">Total: $${Number(p.monto_usd).toFixed(2)} USD</div>` : ''}
   `;
   document.getElementById('detalle-baru-title').textContent = 'DETALLE ENVÍO' + (p.numero_envio ? ' · ' + p.numero_envio : '');
   abrirModal('detalle-baru');

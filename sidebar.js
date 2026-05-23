@@ -17,7 +17,10 @@
       { id: 'armado-so',   icon: '⬗', label: 'Kitting SO',  page: 'armado-so.html',      section: null, roles: ['admin', 'oficina'] },
       { id: 'recepciones', icon: '◫', label: 'Recepción',   page: 'recepciones-oc.html', section: null, roles: ['admin', 'oficina'] },
     ]},
-    { id: 'tercerizados', icon: '🧵', label: 'Tercerizados', page: 'tercerizados.html',  section: null,         roles: ['admin', 'oficina'] },
+    { id: 'tercerizados-group', icon: '🧵', label: 'Tercerizados', group: true, roles: ['admin', 'oficina'], children: [
+      { id: 'terc-baru',   icon: '◆', label: 'BARU',    page: 'tercerizados.html?prov=BARU',   section: null, roles: ['admin', 'oficina'] },
+      { id: 'terc-rodart', icon: '◇', label: 'RODART',  page: 'tercerizados.html?prov=RODART', section: null, roles: ['admin', 'oficina'] },
+    ]},
     { id: 'stock',        icon: '⬡', label: 'Stock Placas', page: 'stock-placas.html',  section: null,         roles: ['admin', 'oficina'], hidden: true },
     { id: 'despacho',     icon: '⇥', label: 'Despacho',     page: 'despacho.html',      section: null,         roles: ['admin', 'oficina'], hidden: true },
     { id: 'ajustes',      icon: GEAR_SVG, label: 'Ajustes', page: 'admin.html',         section: 'ajustes',    roles: ['admin'], iconIsHtml: true },
@@ -36,7 +39,7 @@
     const map = {
       'tiempos.html':        'tiempos',
       'materiales.html':     'materiales',
-      'tercerizados.html':   'tercerizados',
+      'tercerizados.html':   (() => { const sp = new URLSearchParams(location.search); const prov = sp.get('prov'); return prov === 'RODART' ? 'terc-rodart' : 'terc-baru'; })(),
       'stock-placas.html':   'stock',
       'armado-so.html':      'armado-so',
       'armado-so-planta.html':'armado-so',
