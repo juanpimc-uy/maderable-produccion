@@ -673,6 +673,7 @@
         <button class="ajuste-tab" data-tab="centros" onclick="switchAjusteTab('centros')">Centros</button>
         <button class="ajuste-tab" data-tab="tc" onclick="switchAjusteTab('tc')">Tipo de cambio</button>
         <button class="ajuste-tab" data-tab="lustre" onclick="switchAjusteTab('lustre')">Lustre</button>
+        <button class="ajuste-tab" data-tab="cuenta" onclick="switchAjusteTab('cuenta')">Mi cuenta</button>
       </div>
       <!-- Fórmula de tiempos -->
       <div data-ajuste-panel="formula">
@@ -793,12 +794,15 @@
         </div>
       </div>
       </div><!-- /panel lustre -->
+
+      <!-- Mi cuenta -->
+      <div data-ajuste-panel="cuenta" style="display:none;">
+        <div id="mi-cuenta-contenido"></div>
+      </div>
     </div>
 
-    <!-- ══ MI CUENTA ══════════════════════════════════════════════════════ -->
-    <div class="view" id="v-mi-cuenta">
-      <div id="mi-cuenta-contenido"></div>
-    </div>
+    <!-- ══ MI CUENTA (legacy, vacío) ══════════════════════════════════════ -->
+    <div class="view" id="v-mi-cuenta"></div>
 
   </div><!-- /content -->
 </div><!-- /main -->
@@ -4376,7 +4380,7 @@ let _ajusteTabActual = 'formula';
 function _initAjustes() {
   const u = window.AUTH.usuarioActual();
   if (!u || u.rol_app !== 'admin') { navTo('dashboard'); return; }
-  fInit(); tarifasInit(); tcInit(); centrosAjustesInit(); lustreTiposInit();
+  fInit(); tarifasInit(); tcInit(); centrosAjustesInit(); lustreTiposInit(); renderMiCuenta();
   switchAjusteTab(_ajusteTabActual);
 }
 

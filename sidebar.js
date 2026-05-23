@@ -21,7 +21,6 @@
     { id: 'stock',        icon: '⬡', label: 'Stock Placas', page: 'stock-placas.html',  section: null,         roles: ['admin', 'oficina'], hidden: true },
     { id: 'despacho',     icon: '⇥', label: 'Despacho',     page: 'despacho.html',      section: null,         roles: ['admin', 'oficina'], hidden: true },
     { id: 'ajustes',      icon: GEAR_SVG, label: 'Ajustes', page: 'admin.html',         section: 'ajustes',    roles: ['admin'], iconIsHtml: true },
-    { id: 'mi-cuenta',    icon: '◉', label: 'Mi cuenta',    page: 'admin.html',         section: 'mi-cuenta',  roles: ['admin', 'oficina'] },
   ];
 
   // ── 3. Leer sesion ─────────────────────────────────────────────────
