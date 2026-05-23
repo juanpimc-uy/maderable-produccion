@@ -1066,7 +1066,7 @@ export default async function handler(req) {
 
     // ── POST sync proyecto desde admin (full upsert, alias de guardar-proyecto) ──
     if (action === 'sync-proyecto' && req.method === 'POST') {
-      const { id, numero, obra, clienteNombre, fechaInicio, fechaEntrega,
+      const { id, numero, obra, clienteNombre, referencia, fechaInicio, fechaEntrega,
               notas, estado, muebles, materiales, sosCargadas, modulos, creadoEn,
               // legacy fields for backwards compat
               nombre, cliente, items } = body;
@@ -1076,6 +1076,7 @@ export default async function handler(req) {
         .upsert({
           id, nombre: numero || _obra, numero, obra: _obra,
           cliente: clienteNombre || cliente, cliente_nombre: clienteNombre || cliente,
+          referencia: referencia || null,
           fecha_inicio: fechaInicio, fecha_entrega: fechaEntrega,
           notas, estado: estado || 'en_produccion',
           muebles: _muebles, items: _muebles,
@@ -2052,13 +2053,14 @@ export default async function handler(req) {
 
     // ── POST guardar proyecto completo ────────────────────────────────────
     if (action === 'guardar-proyecto' && req.method === 'POST') {
-      const { id, nombre, numero, obra, clienteNombre, fechaInicio, fechaEntrega,
+      const { id, nombre, numero, obra, clienteNombre, referencia, fechaInicio, fechaEntrega,
               notas, estado, muebles, materiales, sosCargadas, modulos, creadoEn,
               activo: activoBody } = body;
       const { data, error } = await supabase.from('proyectos_cache')
         .upsert({
           id, nombre: nombre || obra || numero, numero, obra,
           cliente: clienteNombre, cliente_nombre: clienteNombre,
+          referencia: referencia || null,
           fecha_inicio: fechaInicio, fecha_entrega: fechaEntrega,
           notas, estado: estado || 'en_produccion',
           muebles: muebles || [], items: muebles || [],

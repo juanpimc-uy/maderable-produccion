@@ -98,6 +98,13 @@
   .nota-box { background:rgba(91,141,239,.08); border:1px solid rgba(91,141,239,.25); border-radius:6px; padding:10px 12px; font-size:12px; color:var(--blue); line-height:1.5; margin-top:8px; }
   /* back btn */
   .back-btn { background:var(--faint); border:none; color:var(--muted); border-radius:5px; padding:6px 12px; cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; }
+  /* ── Items progress squares ── */
+  .sq-track{flex:1;display:flex;gap:2px;height:10px;align-items:stretch;}
+  .sq-item{flex:1;border-radius:1px;min-width:2px;}
+  .sq-item.pending{background:#1e3a5f;}
+  .sq-item.done{background:#4ade80;}
+  .items-footer{display:flex;align-items:center;gap:8px;margin-top:2px;}
+  .items-label{font-family:'Space Mono',monospace;font-size:9px;color:#555;white-space:nowrap;}
   /* ── Ajustes tabs ── */
   .ajuste-tab{font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:1px;padding:8px 16px;background:transparent;border:none;border-bottom:2px solid transparent;color:#666;cursor:pointer;transition:color .2s,border-color .2s;margin-bottom:-1px;}
   .ajuste-tab:hover{color:#ccc;}
@@ -1770,11 +1777,11 @@ function renderProyectos() {
           ${barHoras(hA,hE,5)}
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          ${pill(pr.items.length+' ítems','var(--blue)')}
           ${matP > 0 ? pill(matP+' mat. pend.','var(--red)') : ''}
           ${inv > 0 ? pill(inv+' inventario','var(--teal)') : ''}
           ${des > 0 ? pill(des+' despachados','var(--purple)') : ''}
         </div>
+        ${(()=>{const items=pr.items||[];const total=items.length;if(!total)return'';const done=items.filter(m=>m.completado).length;const squares=items.map(m=>`<div class="sq-item ${m.completado?'done':'pending'}"></div>`).join('');return`<div class="items-footer"><div class="sq-track">${squares}</div><span class="items-label">${done}/${total}</span></div>`;})()}
       </div>`;
   }
 
@@ -1878,11 +1885,11 @@ function renderDetallePr(pr, sub) {
 
 
   const hdrContent = editMode
-    ? `<input id="ed-cliente" value="${pr.clienteNombre}" style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:5px 9px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10px;width:100%;margin-bottom:6px;outline:none;"><input id="ed-nombre" value="${pr.nombre}" style="background:var(--faint);border:1px solid var(--amber);border-radius:5px;padding:7px 11px;color:var(--text);font-size:18px;font-weight:700;width:100%;outline:none;">`
-    : `<div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${pr.clienteNombre}</div><div style="font-size:22px;font-weight:700;">${pr.nombre}</div>`;
+    ? `<input id="ed-cliente" value="${pr.clienteNombre}" placeholder="Cliente" style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:5px 9px;color:var(--muted);font-family:'Space Mono',monospace;font-size:10px;width:100%;margin-bottom:6px;outline:none;"><input id="ed-referencia" value="${pr.referencia||''}" placeholder="Referencia / Proyecto-OC" style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:5px 9px;color:var(--muted);font-family:'Space Mono',monospace;font-size:11px;width:100%;margin-bottom:6px;outline:none;"><input id="ed-nombre" value="${pr.nombre}" placeholder="Nombre" style="background:var(--faint);border:1px solid var(--amber);border-radius:5px;padding:7px 11px;color:var(--text);font-size:18px;font-weight:700;width:100%;outline:none;">`
+    : `<div style="font-size:11px;color:#999;font-family:'Space Mono',monospace;background:#111;border:1px solid #2e2e2e;border-radius:3px;padding:2px 10px;display:inline-block;margin-bottom:6px;">${pr.numero||''}</div><div style="font-size:13px;font-weight:600;color:#ccc;margin-bottom:2px;">${pr.clienteNombre}</div><div style="font-size:22px;font-weight:700;">${pr.referencia||pr.nombre}</div>`;
   const hdrButtons = editMode
     ? `<button class="btn btn-success btn-sm" onclick="guardarProyecto('${pr.id}','${sub}')">Guardar cambios</button><button class="btn btn-ghost btn-sm" onclick="editMode=false;renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${sub}')">Cancelar</button>`
-    : `<div style="text-align:right;margin-right:8px;"><div id="pr-horas-real" class="mono" style="font-size:13px;color:${excessColor(hA,hE)};">${fmtH(hA)} / ${fmtH(hE)} <span style="font-size:11px;">${fmtExceso(hA,hE)}</span></div><div style="font-size:10px;color:var(--muted);">real / estimado</div></div><button class="btn btn-ghost btn-sm" onclick="editMode=true;renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${sub}')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Editar</button>`;
+    : `<div style="text-align:right;margin-right:8px;"><div id="pr-horas-real" class="mono" style="font-size:13px;color:${excessColor(hA,hE)};">${fmtH(hA)} / ${fmtH(hE)} <span style="font-size:11px;">${fmtExceso(hA,hE)}</span></div><div style="font-size:10px;color:var(--muted);">real / estimado</div></div><button class="btn btn-ghost btn-sm" style="color:var(--muted);" onclick="archivarProyecto('${pr.id}',event)">Archivar</button><button class="btn btn-ghost btn-sm" onclick="editMode=true;renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${sub}')">Editar</button>`;
 
   let html = `
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
@@ -1910,6 +1917,7 @@ function renderDetallePr(pr, sub) {
     OPERARIOS.forEach(op=>{
       const h=byOp[op.id]||0;
       const ses=SESIONES.find(s=>s.operarioId===op.id&&s.proyectoId===pr.id);
+      if (h === 0 && !ses) return;
       const tid=`t-byop-${op.id}`;
       html+=`<div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
         <div class="av ${ses?'active':'idle'}" style="width:28px;height:28px;font-size:10px;">${op.avatar}</div>
@@ -2015,7 +2023,7 @@ function renderDetallePr(pr, sub) {
         const flujoChips=FLUJOS_ORDER.map(f=>{const fc=FLUJOS_CONF[f];const sel=m.flujos&&m.flujos.includes(f);const btn=`<button onclick="toggleFlujoInline('${pr.id}','${m.id}','${f}')" style="padding:4px 10px;border:1px solid ${sel?fc.color:'var(--border)'};border-radius:20px;background:${sel?fc.color+'18':'transparent'};color:${sel?fc.color:'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;transition:all .15s;">${fc.label}</button>`;if(sel&&FLUJOS_INTERNO.includes(f)){const hrs=(m.hrsExtra||{})[f]||'';return`<span style="display:inline-flex;align-items:center;gap:4px;">${btn}<input type="number" min="0" step="0.5" value="${hrs}" placeholder="h" onchange="setHrsExtraInline('${pr.id}','${m.id}','${f}',this.value)" style="width:48px;background:var(--faint);border:1px solid ${fc.color}44;border-radius:4px;padding:3px 5px;color:${fc.color};font-family:'JetBrains Mono',monospace;font-size:10px;text-align:center;outline:none;" title="Horas estimadas ${fc.label}"></span>`;}return btn;}).join('');
         const DIF_LABEL={1:'F',2:'M',3:'D',4:'UH'};
         const difBtns=[1,2,3,4].map(d=>{const sel=(m.dif||2)===d;return`<button onclick="setDifInline('${pr.id}','${m.id}',${d})" style="width:26px;height:22px;border:1px solid ${sel?'var(--amber)':'var(--border)'};border-radius:4px;background:${sel?'rgba(245,166,35,.2)':'transparent'};color:${sel?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;transition:all .15s;">${DIF_LABEL[d]}</button>`;}).join('');
-        html+=`<div style="background:var(--card);border:1px solid ${sesAct.length?'rgba(245,166,35,.4)':'var(--border)'};border-radius:8px;padding:18px;">
+        html+=`<div style="background:var(--card);border:1px solid ${sesAct.length?'rgba(245,166,35,.4)':'var(--border)'};border-radius:8px;padding:18px;${m.completado?'opacity:0.5;':''}">
           <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;">
             <div class="mono" style="font-size:11px;font-weight:700;color:var(--amber);min-width:38px;padding-top:2px;">${m.codigo||'—'}</div>
             <div style="flex:1;">
@@ -2039,6 +2047,7 @@ function renderDetallePr(pr, sub) {
             ${barHoras(hA2,hEst)}
           </div>
           ${sesAct.length?`<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px;">${sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);const c=getCentro(s.centroId);const tid='t-it-'+s.id;return`<div style="display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:5px;padding:4px 9px;border:1px solid rgba(245,166,35,.3);"><div class="av active" style="width:20px;height:20px;font-size:9px;">${op?.avatar}</div><span style="font-size:11px;">${op?.nombre}</span><span class="mono" style="font-size:11px;color:var(--amber);" id="${tid}">–</span></div>`;}).join('')}</div>`:''}
+          <div style="margin-top:10px;display:flex;justify-content:flex-end;"><button onclick="toggleItemCompletado('${pr.id}','${m.id}')" style="font-family:'Space Mono',monospace;font-size:9px;padding:3px 10px;border-radius:3px;border:1px solid ${m.completado?'#166534':'#2e2e2e'};background:${m.completado?'#14532d':'transparent'};color:${m.completado?'#4ade80':'#555'};cursor:pointer;">${m.completado?'\u2713 COMPLETADO':'MARCAR COMPLETADO'}</button></div>
         </div>`;
       });
       html+=`</div>`;
@@ -2576,8 +2585,10 @@ function guardarProyecto(prId, sub) {
   if(!pr) return;
   const nuevoNombre = document.getElementById('ed-nombre')?.value?.trim();
   const nuevoCliente = document.getElementById('ed-cliente')?.value?.trim();
+  const nuevaReferencia = document.getElementById('ed-referencia')?.value?.trim();
   if(nuevoNombre) pr.nombre = nuevoNombre;
   if(nuevoCliente) pr.clienteNombre = nuevoCliente;
+  pr.referencia = nuevaReferencia || null;
   // editar muebles si existen
   if(pr.muebles) {
     pr.muebles.forEach(m=>{
@@ -2746,6 +2757,19 @@ function setPlacasInline(prId,mId,val){
   // update items so hEstPr works correctly
   pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
   renderDetallePr(pr,'ítems');
+}
+
+function toggleItemCompletado(prId,itemId){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  if(!pr)return;
+  const item=(pr.items||[]).find(m=>m.id===itemId);
+  if(!item)return;
+  item.completado=!item.completado;
+  // Also update muebles if exists
+  const mueble=(pr.muebles||[]).find(m=>m.id===itemId);
+  if(mueble)mueble.completado=item.completado;
+  syncProyectoSupabase(pr);
+  renderDetallePr(pr,'\u00edtems');
 }
 
 function setNombreInline(prId,mId,valor){
@@ -4341,14 +4365,17 @@ function fRenderTable(){
   if(t)t.innerHTML=html;
 }
 
+let _ajusteTabActual = 'formula';
+
 function _initAjustes() {
   const u = window.AUTH.usuarioActual();
   if (!u || u.rol_app !== 'admin') { navTo('dashboard'); return; }
   fInit(); tarifasInit(); tcInit(); centrosAjustesInit(); lustreTiposInit();
-  switchAjusteTab('formula');
+  switchAjusteTab(_ajusteTabActual);
 }
 
 function switchAjusteTab(tab) {
+  _ajusteTabActual = tab;
   document.querySelectorAll('.ajuste-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelectorAll('[data-ajuste-panel]').forEach(p => {
     p.style.display = p.dataset.ajustePanel === tab ? '' : 'none';

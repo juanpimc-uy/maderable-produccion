@@ -1571,15 +1571,24 @@ function selProyecto(id) {
   if (!items.length) {
     el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:6px;">Sin ítems en este proyecto</div>';
   } else {
-    el.innerHTML = items.map(it => `
-      <button class="item-btn" id="it-${it.id}" onclick="selItem('${it.id}')" title="${(it.nombre||'').replace(/"/g,'&quot;')}">
-        <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
-          ${it.codigo ? `<span style="font-size:18px;font-weight:700;flex-shrink:0;line-height:1.3;">${it.codigo}</span>` : ''}
-          <span style="font-size:18px;font-weight:700;line-height:1.3;">${nombreCorto(it.nombre)}</span>
-        </div>
-        ${it.hEst ? `<span style="font-size:13px;color:var(--muted);">Est. ${it.hEst}h</span>` : ''}
-      </button>
-    `).join('');
+    el.innerHTML = items.map(it => {
+      if (it.completado) return `
+        <button class="item-btn" id="it-${it.id}" disabled style="opacity:0.35;cursor:not-allowed;" title="Completado">
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+            ${it.codigo ? `<span style="font-size:18px;font-weight:700;flex-shrink:0;line-height:1.3;">${it.codigo}</span>` : ''}
+            <span style="font-size:18px;font-weight:700;line-height:1.3;">${nombreCorto(it.nombre)}</span>
+            <span style="font-size:12px;color:#4ade80;">COMPLETADO</span>
+          </div>
+        </button>`;
+      return `
+        <button class="item-btn" id="it-${it.id}" onclick="selItem('${it.id}')" title="${(it.nombre||'').replace(/"/g,'&quot;')}">
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+            ${it.codigo ? `<span style="font-size:18px;font-weight:700;flex-shrink:0;line-height:1.3;">${it.codigo}</span>` : ''}
+            <span style="font-size:18px;font-weight:700;line-height:1.3;">${nombreCorto(it.nombre)}</span>
+          </div>
+          ${it.hEst ? `<span style="font-size:13px;color:var(--muted);">Est. ${it.hEst}h</span>` : ''}
+        </button>`;
+    }).join('');
   }
   document.getElementById('paso-item').style.display = 'block';
   document.getElementById('paso-item').scrollIntoView({ behavior: 'smooth', block: 'start' });

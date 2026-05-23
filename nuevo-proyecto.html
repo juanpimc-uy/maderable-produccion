@@ -240,6 +240,7 @@
         <div class="field"><label>Número (ODF / SO)</label><input id="f-num" placeholder="ODF-2385"/></div>
         <div class="field"><label>Obra</label><input id="f-obra" placeholder="HUGO BOSS"/></div>
         <div class="field"><label>Cliente</label><input id="f-cliente" placeholder="LGD Arquitectos"/></div>
+        <input type="hidden" id="f-referencia" value="">
       </div>
       <div class="g2">
         <div class="field"><label>Fecha de inicio</label><input type="date" id="f-inicio"/></div>
@@ -488,6 +489,7 @@ async function seleccionarODF(invoiceId,numFallback,btn){
     sv('f-num',invoice.invoice_number||numFallback||'');
     sv('f-obra',invoice.subject||invoice.reference_number||'');
     sv('f-cliente',invoice.customer_name||'');
+    sv('f-referencia',invoice.reference_number||'');
     if(invoice.date)sv('f-inicio',invoice.date);
     muebles=items.map((item,i)=>({
       id:'mf_'+i,
@@ -915,6 +917,7 @@ function renderResumen(){
 // ══════════════════════════════════════════════════════════════════════════
 function guardar(){
   const p={id:'pr_'+Date.now(),numero:gv('f-num'),obra:gv('f-obra'),clienteNombre:gv('f-cliente'),
+    referencia:gv('f-referencia'),
     fechaInicio:gv('f-inicio'),fechaEntrega:gv('f-entrega'),notas:gv('f-notas'),
     estado:'en_produccion',muebles,materiales,sosCargadas,modulos:[],creadoEn:Date.now()};
   fetch('/api/tiempos?action=guardar-proyecto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).catch(console.error);
