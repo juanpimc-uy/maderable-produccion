@@ -534,8 +534,7 @@ async function accionInformeDetalle(req, res) {
   let precio_venta_fuente = precio_venta_usd > 0 ? 'cache' : 'no_encontrado';
   let precio_venta_so_numero = null;
 
-  // Si no hay precio en cache, buscar invoice en Zoho por invoice_number = ODF
-  let _debugZoho = { skipped: true };
+  // Si no hay precio en cache, buscar invoice en Zoho y obtener detalle para sub_total
   if (precio_venta_usd === 0 && proyecto.numero) {
     try {
       const zohoToken = await getZohoToken();
@@ -545,19 +544,25 @@ async function accionInformeDetalle(req, res) {
         headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` },
       });
       const zohoData = await zohoRes.json();
-      _debugZoho = { token_ok: !!zohoToken, org_id: orgId, search_url: searchUrl, status: zohoRes.status, response_preview: JSON.stringify(zohoData).slice(0, 800) };
       const inv = zohoData?.invoices?.[0];
-      if (inv && inv.sub_total != null) {
-        precio_venta_usd = round2(Number(inv.sub_total));
-        precio_venta_fuente = 'zoho';
-        precio_venta_so_numero = inv.invoice_number || null;
-        // Cachear en BD para futuros requests
-        await supabase.from('proyectos_cache')
-          .update({ precio_venta_usd })
-          .eq('id', proyecto.id);
+      if (inv?.invoice_id) {
+        const detailUrl = `https://www.zohoapis.com/books/v3/invoices/${inv.invoice_id}?organization_id=${orgId}`;
+        const detailRes = await fetch(detailUrl, {
+          headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` },
+        });
+        const detailData = await detailRes.json();
+        const invDetail = detailData?.invoice;
+        if (invDetail?.sub_total != null) {
+          precio_venta_usd = round2(Number(invDetail.sub_total));
+          precio_venta_fuente = 'zoho';
+          precio_venta_so_numero = invDetail.invoice_number || null;
+          await supabase.from('proyectos_cache')
+            .update({ precio_venta_usd })
+            .eq('id', proyecto.id);
+        }
       }
     } catch (e) {
-      _debugZoho = { error: e.message };
+      console.error('[informes] Zoho invoice fetch error:', e.message);
     }
   }
 
@@ -608,7 +613,6 @@ async function accionInformeDetalle(req, res) {
     recepciones_count: recepcionesCount,
     precio_venta_fuente,
     precio_venta_so_numero,
-    _debug_zoho: _debugZoho,
     totales: {
       total_invertido_usd: total_invertido,
       precio_venta_usd,
@@ -652,13 +656,22 @@ async function accionSincronizarPrecios(req, res) {
           headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` },
         });
         const zData = await zRes.json();
-        console.log('[informes] Zoho invoice sync:', p.numero, 'status:', zRes.status, 'found:', zData?.invoices?.length || 0);
         const inv = zData?.invoices?.[0];
-        if (inv && inv.sub_total != null && Number(inv.sub_total) > 0) {
-          await supabase.from('proyectos_cache')
-            .update({ precio_venta_usd: round2(Number(inv.sub_total)) })
-            .eq('id', p.id);
-          actualizados++;
+        if (inv?.invoice_id) {
+          const detUrl = `https://www.zohoapis.com/books/v3/invoices/${inv.invoice_id}?organization_id=${orgId}`;
+          const detRes = await fetch(detUrl, {
+            headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` },
+          });
+          const detData = await detRes.json();
+          const invDetail = detData?.invoice;
+          if (invDetail?.sub_total != null && Number(invDetail.sub_total) > 0) {
+            await supabase.from('proyectos_cache')
+              .update({ precio_venta_usd: round2(Number(invDetail.sub_total)) })
+              .eq('id', p.id);
+            actualizados++;
+          } else {
+            sin_invoice++;
+          }
         } else {
           sin_invoice++;
         }
