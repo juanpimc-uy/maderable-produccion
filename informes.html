@@ -227,6 +227,7 @@
     <input class="cutoff-input" id="cutoffDate" type="date">
   </div>
   <div class="toolbar-stats" id="toolbarStats"></div>
+  <button id="btnSyncPrecios" class="export-btn" onclick="sincronizarPrecios()">&#x27F3; Sync precios</button>
   <button class="export-btn" onclick="exportCSV()">CSV</button>
   <button class="export-btn" onclick="window.print()">PDF</button>
 </div>
@@ -729,6 +730,33 @@ function downloadCSV(rows, filename) {
   a.href = URL.createObjectURL(blob);
   a.download = filename;
   a.click();
+}
+
+// ── SINCRONIZAR PRECIOS ──────────────────────────────────────────────────
+async function sincronizarPrecios() {
+  const btn = document.getElementById('btnSyncPrecios');
+  btn.disabled = true;
+  btn.textContent = 'Sincronizando...';
+  try {
+    const res = await fetch(`${BASE_URL}/api/informes?action=sincronizar-precios`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${seccionToken}` },
+    });
+    const data = await res.json();
+    if (data.ok) {
+      btn.textContent = `✓ ${data.actualizados} actualizados`;
+      setTimeout(() => { btn.textContent = '⟳ Sync precios'; }, 3000);
+      detailCache = {};
+      cargarInforme();
+    } else {
+      btn.textContent = 'Error';
+      setTimeout(() => { btn.textContent = '⟳ Sync precios'; }, 3000);
+    }
+  } catch (e) {
+    btn.textContent = 'Error de red';
+    setTimeout(() => { btn.textContent = '⟳ Sync precios'; }, 3000);
+  }
+  btn.disabled = false;
 }
 
 // ── EVENT LISTENERS ─────────────────────────────────────────────────────

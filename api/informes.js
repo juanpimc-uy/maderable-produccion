@@ -333,7 +333,7 @@ async function accionInformeProyectos(req, res) {
     const total_tercerizados_usd = round2(part.total);
     const total_oc_usd           = round2(cost.total);
     const total_invertido_usd    = round2(costo_mo_usd + total_materiales_usd + total_tercerizados_usd + total_oc_usd);
-    const precio_venta_usd       = round2(calcularPrecioVenta(proy.sos_cargadas));
+    const precio_venta_usd       = round2(Number(proy.precio_venta_usd || 0) || calcularPrecioVenta(proy.sos_cargadas));
     const saldo_usd              = round2(precio_venta_usd - total_invertido_usd);
     const margen_pct             = precio_venta_usd > 0 ? round1(saldo_usd / precio_venta_usd * 100) : null;
 
@@ -529,8 +529,8 @@ async function accionInformeDetalle(req, res) {
     matPorSo[soNum].subtotal_usd += ct;
   }
 
-  // ── Precio de venta (Zoho SO) ──────────────────────────────────────────
-  let precio_venta_usd = round2(calcularPrecioVenta(proyecto.sos_cargadas));
+  // ── Precio de venta (cache en BD → fallback Zoho invoice) ──────────────
+  let precio_venta_usd = round2(Number(proyecto.precio_venta_usd || 0) || calcularPrecioVenta(proyecto.sos_cargadas));
   let precio_venta_fuente = precio_venta_usd > 0 ? 'cache' : 'no_encontrado';
   let precio_venta_so_numero = null;
 
@@ -549,6 +549,10 @@ async function accionInformeDetalle(req, res) {
         precio_venta_usd = round2(Number(inv.sub_total));
         precio_venta_fuente = 'zoho';
         precio_venta_so_numero = inv.invoice_number || null;
+        // Cachear en BD para futuros requests
+        await supabase.from('proyectos_cache')
+          .update({ precio_venta_usd })
+          .eq('id', proyecto.id);
       }
     } catch (e) {
       console.error('[informes] Zoho invoice fetch error:', e.message);
@@ -615,6 +619,57 @@ async function accionInformeDetalle(req, res) {
 // Handler principal
 // ══════════════════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 5 — POST sincronizar-precios
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionSincronizarPrecios(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const seccion = verificarAccesoSeccion(req);
+  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
+
+  const { data: proyectos } = await supabase.from('proyectos_cache')
+    .select('id, numero').eq('activo', true);
+  const conNumero = (proyectos || []).filter(p => p.numero);
+
+  let zohoToken;
+  try { zohoToken = await getZohoToken(); } catch (e) {
+    return err(res, 'No se pudo obtener token de Zoho: ' + e.message, 502);
+  }
+  const orgId = process.env.ZOHO_ORG_ID;
+
+  let actualizados = 0, sin_invoice = 0;
+  const BATCH = 5;
+  for (let i = 0; i < conNumero.length; i += BATCH) {
+    const lote = conNumero.slice(i, i + BATCH);
+    await Promise.all(lote.map(async (p) => {
+      try {
+        const searchUrl = `https://www.zohoapis.com/books/v3/invoices?organization_id=${orgId}&invoice_number=${encodeURIComponent(p.numero)}`;
+        const zRes = await fetch(searchUrl, {
+          headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` },
+        });
+        const zData = await zRes.json();
+        const inv = zData?.invoices?.[0];
+        if (inv && inv.sub_total != null && Number(inv.sub_total) > 0) {
+          await supabase.from('proyectos_cache')
+            .update({ precio_venta_usd: round2(Number(inv.sub_total)) })
+            .eq('id', p.id);
+          actualizados++;
+        } else {
+          sin_invoice++;
+        }
+      } catch { sin_invoice++; }
+    }));
+    if (i + BATCH < conNumero.length) await new Promise(r => setTimeout(r, 200));
+  }
+
+  return ok(res, { actualizados, sin_invoice, total: conNumero.length });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Handler principal
+// ══════════════════════════════════════════════════════════════════════════
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -627,6 +682,7 @@ export default async function handler(req, res) {
     if (action === 'configurar-pin-seccion')   return await accionConfigurarPin(req, res);
     if (action === 'informe-proyectos')        return await accionInformeProyectos(req, res);
     if (action === 'informe-proyecto-detalle') return await accionInformeDetalle(req, res);
+    if (action === 'sincronizar-precios')      return await accionSincronizarPrecios(req, res);
     return err(res, 'Acción no reconocida');
   } catch (e) {
     console.error('[informes]', action, e);
