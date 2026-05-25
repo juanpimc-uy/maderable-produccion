@@ -1620,22 +1620,28 @@ function renderDashboard() {
   if (!visibles.length) {
     opsEl.innerHTML = '<div style="padding:20px;color:var(--muted);font-family:\'JetBrains Mono\',monospace;font-size:11px;letter-spacing:1px;">SIN ACTIVIDAD</div>';
   } else {
+    const _fmtHM = iso => { if (!iso) return '—'; const d = new Date(iso); return d.toLocaleTimeString('es-UY', { hour:'2-digit', minute:'2-digit', timeZone:'America/Montevideo' }); };
     const renderOpRow = (op) => {
       const esSinTarea  = op.estado === 'sin_tarea';
       const esAusente   = op.estado === 'ausente';
       const sinActividad = esSinTarea || esAusente;
       const cls = esAusente ? 'ds-op-row ds-ausente' : (esSinTarea ? 'ds-op-row ds-sin_tarea' : 'ds-op-row');
       const prefijo = esAusente ? '⊘ ' : (esSinTarea ? '◌ ' : '');
-      const centro  = sinActividad ? '—' : (op.centro_label || op.centro || '—');
-      const odf     = sinActividad ? '—' : (op.proyecto?.odf || '—');
+      // Entrada: hora de entrada hoy (en_tarea/sin_tarea) o última salida (ausente)
+      const entrada = esAusente ? _fmtHM(op.ultima_salida) : _fmtHM(op.entrada);
+      const entradaLabel = esAusente && op.ultima_salida ? `<span style="font-size:9px;color:#555;">últ.sal</span> ${entrada}` : entrada;
+      // Centro/ODF/Mueble: datos actuales o últimos
+      const centro  = sinActividad ? (op.ultimo_centro_label || '—') : (op.centro_label || op.centro || '—');
+      const odf     = sinActividad ? (op.ultimo_proyecto?.nombre || '—') : (op.proyecto?.odf || '—');
       const cliente = sinActividad ? '—' : (op.proyecto?.cliente || '—');
       const obra    = sinActividad ? '—' : (op.proyecto?.obra || '—');
-      const mueble  = sinActividad ? '—' : trim4(op.mueble?.nombre) || '—';
+      const mueble  = sinActividad ? (op.ultimo_mueble?.nombre ? trim4(op.ultimo_mueble.nombre) : '—') : trim4(op.mueble?.nombre) || '—';
       const estadoTxt = esAusente ? 'SIN ACTIVIDAD' : op.estado.replace('_', ' ').toUpperCase();
       const rowStyle = esAusente ? 'cursor:pointer;background:#2a0a0a;border-left:2px solid #3a1a1a;' : 'cursor:pointer;';
       const estadoStyle = esAusente ? 'color:#ef5350;' : '';
       return `<div class="${cls}" style="${rowStyle}" onclick="navTo('operarios')">
         <div class="ds-op-col ds-op-nombre">${prefijo}${op.nombre}</div>
+        <div class="ds-op-col" style="font-family:'JetBrains Mono',monospace;font-size:11px;">${entradaLabel}</div>
         <div class="ds-op-col">${centro}</div>
         <div class="ds-op-col">${odf}</div>
         <div class="ds-op-col">${cliente}</div>
@@ -1653,7 +1659,7 @@ function renderDashboard() {
     const plantaShown = planta.slice(0, MAX);
     const plantaRest  = planta.slice(MAX);
     let html = `<div class="ds-header-row">
-      <div style="flex:1;">OPERARIO</div><div style="flex:1;">CENTRO</div><div style="flex:1;">ODF</div><div style="flex:1;">CLIENTE</div><div style="flex:0.8;">OBRA</div><div style="flex:1;">MUEBLE</div><div style="flex:1;">ESTADO</div>
+      <div style="flex:1;">OPERARIO</div><div style="flex:0.6;">ENTRADA</div><div style="flex:1;">CENTRO</div><div style="flex:1;">ODF</div><div style="flex:1;">CLIENTE</div><div style="flex:0.8;">OBRA</div><div style="flex:1;">MUEBLE</div><div style="flex:1;">ESTADO</div>
     </div>`;
     html += plantaShown.map(renderOpRow).join('');
     if (plantaRest.length) {
@@ -6024,45 +6030,72 @@ function _mostrarPinCostos(prId) {
   _pinCostosBuffer = '';
   const panel = document.getElementById('costos-pr-panel');
   if (!panel) return;
-  panel.innerHTML = `
-    <div id="pin-costos-overlay" style="position:absolute;inset:0;z-index:10;background:rgba(15,15,15,.92);display:flex;align-items:center;justify-content:center;border-radius:8px;">
-      <div style="text-align:center;width:260px;">
-        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Seccion protegida</div>
-        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:22px;">PIN de Costos</div>
-        <div id="pinCostosDots" style="display:flex;gap:12px;justify-content:center;margin-bottom:22px;">
-          <div class="pin-c-dot"></div><div class="pin-c-dot"></div><div class="pin-c-dot"></div><div class="pin-c-dot"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:200px;margin:0 auto;">
-          <button class="pc-key" onclick="_pinCostosInput('1')">1</button>
-          <button class="pc-key" onclick="_pinCostosInput('2')">2</button>
-          <button class="pc-key" onclick="_pinCostosInput('3')">3</button>
-          <button class="pc-key" onclick="_pinCostosInput('4')">4</button>
-          <button class="pc-key" onclick="_pinCostosInput('5')">5</button>
-          <button class="pc-key" onclick="_pinCostosInput('6')">6</button>
-          <button class="pc-key" onclick="_pinCostosInput('7')">7</button>
-          <button class="pc-key" onclick="_pinCostosInput('8')">8</button>
-          <button class="pc-key" onclick="_pinCostosInput('9')">9</button>
-          <div></div>
-          <button class="pc-key" onclick="_pinCostosInput('0')">0</button>
-          <button class="pc-key" style="font-size:14px;color:var(--muted);" onclick="_pinCostosBack()">&#x232B;</button>
-        </div>
-        <div id="pinCostosMsg" style="margin-top:14px;font-family:'JetBrains Mono',monospace;font-size:10px;min-height:14px;color:var(--red);"></div>
+  // Append overlay over existing content (don't replace innerHTML)
+  const existing = document.getElementById('pin-costos-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'pin-costos-overlay';
+  overlay.style.cssText = 'position:absolute;inset:0;z-index:10;background:rgba(15,15,15,.95);display:flex;align-items:center;justify-content:center;border-radius:8px;';
+  overlay.innerHTML = `
+    <div style="text-align:center;width:260px;">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Seccion protegida</div>
+      <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:22px;">PIN de Costos</div>
+      <div id="pinCostosDots" style="display:flex;gap:12px;justify-content:center;margin-bottom:16px;">
+        <div class="pin-c-dot"></div><div class="pin-c-dot"></div><div class="pin-c-dot"></div><div class="pin-c-dot"></div>
       </div>
+      <input type="password" id="pinCostosTextInput" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="····" autocomplete="off" style="background:#222;border:1px solid #333;border-radius:0;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:24px;letter-spacing:10px;text-align:center;width:140px;padding:8px 12px;outline:none;display:block;margin:0 auto 16px;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:200px;margin:0 auto;">
+        <button class="pc-key" onclick="_pinCostosInput('1')">1</button>
+        <button class="pc-key" onclick="_pinCostosInput('2')">2</button>
+        <button class="pc-key" onclick="_pinCostosInput('3')">3</button>
+        <button class="pc-key" onclick="_pinCostosInput('4')">4</button>
+        <button class="pc-key" onclick="_pinCostosInput('5')">5</button>
+        <button class="pc-key" onclick="_pinCostosInput('6')">6</button>
+        <button class="pc-key" onclick="_pinCostosInput('7')">7</button>
+        <button class="pc-key" onclick="_pinCostosInput('8')">8</button>
+        <button class="pc-key" onclick="_pinCostosInput('9')">9</button>
+        <div></div>
+        <button class="pc-key" onclick="_pinCostosInput('0')">0</button>
+        <button class="pc-key" style="font-size:14px;color:var(--muted);" onclick="_pinCostosBack()">&#x232B;</button>
+      </div>
+      <div id="pinCostosMsg" style="margin-top:14px;font-family:'JetBrains Mono',monospace;font-size:10px;min-height:14px;color:var(--red);"></div>
     </div>`;
+  panel.appendChild(overlay);
+  // Auto-focus text input + sync
+  const inp = document.getElementById('pinCostosTextInput');
+  if (inp) {
+    inp.focus();
+    inp.addEventListener('input', function() {
+      const val = this.value.replace(/\D/g, '').slice(0, 4);
+      this.value = val;
+      _pinCostosBuffer = val;
+      _updatePinCostosDots();
+      if (val.length === 4) setTimeout(_submitPinCostos, 120);
+    });
+    inp.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && _pinCostosBuffer.length === 4) _submitPinCostos();
+    });
+  }
 }
 
 function _pinCostosInput(d) {
   if (_pinCostosBuffer.length >= 4) return;
   _pinCostosBuffer += d;
-  _updatePinCostosDots();
+  _syncPinCostosUI();
   if (_pinCostosBuffer.length === 4) _submitPinCostos();
 }
 
 function _pinCostosBack() {
   _pinCostosBuffer = _pinCostosBuffer.slice(0, -1);
-  _updatePinCostosDots();
+  _syncPinCostosUI();
   const msg = document.getElementById('pinCostosMsg');
   if (msg) msg.textContent = '';
+}
+
+function _syncPinCostosUI() {
+  _updatePinCostosDots();
+  const inp = document.getElementById('pinCostosTextInput');
+  if (inp && inp.value !== _pinCostosBuffer) inp.value = _pinCostosBuffer;
 }
 
 function _updatePinCostosDots() {
@@ -6091,16 +6124,18 @@ async function _submitPinCostos() {
     } else {
       if (msg) msg.textContent = data.msg || 'PIN incorrecto';
       _pinCostosBuffer = '';
-      _updatePinCostosDots();
+      _syncPinCostosUI();
       document.querySelectorAll('#pinCostosDots .pin-c-dot').forEach(d => {
         d.style.background = 'var(--red)'; d.style.borderColor = 'var(--red)';
       });
-      setTimeout(() => _updatePinCostosDots(), 500);
+      const inp = document.getElementById('pinCostosTextInput');
+      if (inp) { inp.style.borderColor = 'var(--red)'; }
+      setTimeout(() => { _updatePinCostosDots(); if (inp) { inp.style.borderColor = '#333'; inp.focus(); } }, 500);
     }
   } catch (e) {
     if (msg) msg.textContent = 'Error de red';
     _pinCostosBuffer = '';
-    _updatePinCostosDots();
+    _syncPinCostosUI();
   }
 }
 

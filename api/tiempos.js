@@ -796,17 +796,31 @@ export default async function handler(req) {
       const activoPorEmp = {};
       for (const r of activos) activoPorEmp[r.empleado_id] = r;
 
-      // 3b. Lookup última sesión para ausentes
+      // 3b. Lookup última sesión y última jornada para ausentes/sin_tarea
+      const sinTareaIds = empleados.filter(e => jornadaPorEmp[e.id] && !activoPorEmp[e.id]).map(e => e.id);
       const ausentesIds = empleados.filter(e => !jornadaPorEmp[e.id]).map(e => e.id);
-      let ultimosPorAusente = {};
-      if (ausentesIds.length > 0) {
+      const inactivosIds = [...ausentesIds, ...sinTareaIds];
+      let ultimosPorInactivo = {};
+      let ultimaJornadaPorAusente = {};
+      if (inactivosIds.length > 0) {
         const { data: ultRegs } = await supabase
           .from('registros_trabajo')
           .select('empleado_id, centro, proyecto_id, proyecto_nombre, item_id, item_nombre, inicio')
-          .in('empleado_id', ausentesIds)
+          .in('empleado_id', inactivosIds)
           .order('inicio', { ascending: false });
         (ultRegs || []).forEach(r => {
-          if (!ultimosPorAusente[r.empleado_id]) ultimosPorAusente[r.empleado_id] = r;
+          if (!ultimosPorInactivo[r.empleado_id]) ultimosPorInactivo[r.empleado_id] = r;
+        });
+      }
+      if (ausentesIds.length > 0) {
+        const { data: ultJorn } = await supabase
+          .from('jornadas')
+          .select('empleado_id, salida')
+          .in('empleado_id', ausentesIds)
+          .not('salida', 'is', null)
+          .order('fecha', { ascending: false });
+        (ultJorn || []).forEach(j => {
+          if (!ultimaJornadaPorAusente[j.empleado_id]) ultimaJornadaPorAusente[j.empleado_id] = j;
         });
       }
 
@@ -851,13 +865,15 @@ export default async function handler(req) {
           }
         }
 
-        const ultReg = estado === 'ausente' ? ultimosPorAusente[emp.id] : null;
+        const ultReg = (estado === 'ausente' || estado === 'sin_tarea') ? ultimosPorInactivo[emp.id] : null;
+        const ultJorn = estado === 'ausente' ? ultimaJornadaPorAusente[emp.id] : null;
 
         return {
           id:                emp.id,
           nombre:            emp.nombre,
           rol_app:           emp.rol_app,
           entrada:           jornada?.entrada || null,
+          ultima_salida:     ultJorn?.salida || null,
           estado,
           centro:            activo?.centro  || null,
           centro_label:      activo?.centro ? (centroLabelMap[activo.centro] || activo.centro.toUpperCase()) : null,

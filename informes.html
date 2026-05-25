@@ -451,7 +451,7 @@ function renderTabla(data) {
 
     const precioHtml = p.precio_venta_usd > 0
       ? `<span class="num num-accent">${fmt(p.precio_venta_usd)}</span>`
-      : `<span class="num num-muted">Sin SO</span>`;
+      : `<span class="num num-muted">${p.precio_venta_pendiente ? 'Ver detalle' : 'Sin SO'}</span>`;
 
     html += `<tr class="${rowClass}" onclick="toggleDetail('${p.id}', this)" id="row-${p.id}">
       <td>
@@ -669,9 +669,15 @@ function renderDetailContent(id, data) {
 
     <div class="detail-footer">
       <div class="footer-total">TOTAL INVERTIDO AL CORTE: <span style="color:var(--amber);">U$S ${fmtD(tot.total_invertido_usd)}</span></div>
-      <div class="footer-line">Precio venta: U$S ${fmtD(tot.precio_venta_usd)}</div>
+      <div class="footer-line">Precio venta: ${
+        tot.precio_venta_usd > 0
+          ? `U$S ${fmtD(tot.precio_venta_usd)}${data.precio_venta_fuente === 'zoho' ? ` <span style="font-size:9px;color:#555;">(${data.precio_venta_so_numero || 'Zoho'})</span>` : ''}`
+          : (data.precio_venta_fuente === 'no_encontrado' ? '<span style="color:var(--muted);">Sin precio en Zoho</span>' : '<span style="color:var(--muted);">—</span>')
+      }</div>
       <div class="footer-saldo" style="color:${saldoColor};">
-        Saldo estimado: ${saldoSign}U$S ${fmtD(Math.abs(tot.saldo_usd))}${tot.margen_pct != null ? ` (${tot.margen_pct.toFixed(1)}%)` : ''}
+        ${tot.precio_venta_usd > 0
+          ? `Saldo estimado: ${saldoSign}U$S ${fmtD(Math.abs(tot.saldo_usd))}${tot.margen_pct != null ? ` (${tot.margen_pct.toFixed(1)}%)` : ''}`
+          : 'Saldo: sin precio de venta para calcular'}
       </div>
     </div>`;
 
