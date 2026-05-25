@@ -1110,6 +1110,17 @@ export default async function handler(req) {
       return ok({ proyectos: data || [] });
     }
 
+    // ── POST archivar/restaurar proyecto ────────────────────────────────
+    if (action === 'archivar-proyecto' && req.method === 'POST') {
+      const { proyecto_id, archivar } = body;
+      if (!proyecto_id) return err('proyecto_id requerido', 400);
+      const activo = !archivar;
+      const { data, error } = await supabase.from('proyectos_cache')
+        .update({ activo }).eq('id', proyecto_id).select('id, activo').single();
+      if (error) throw error;
+      return ok({ ok: true, proyecto_id: data.id, activo: data.activo });
+    }
+
     // ── POST sync proyecto desde admin (full upsert, alias de guardar-proyecto) ──
     if (action === 'sync-proyecto' && req.method === 'POST') {
       if (!await verificarSesion(body.session_token)) return err('Sesión inválida o expirada', 401);

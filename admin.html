@@ -1124,8 +1124,11 @@ async function cargarTodoDesdeSupabase() {
   try {
     // ── 1. PROYECTOS — siempre primero, nunca bloqueado por otros ────────────
     try {
-      const data = await window.sbFetch('proyectos_cache?activo=eq.true&order=nombre');
+      const data = await window.sbFetch('proyectos_cache?order=nombre');
       PROYECTOS = (data || []).map(mapProyectoFromDB);
+      // Sincronizar _archivados con BD (activo=false = archivado)
+      _archivados = (data || []).filter(p => p.activo === false).map(p => p.id);
+      localStorage.setItem('proyectos_archivados', JSON.stringify(_archivados));
     } catch(e) {
       console.error('Error cargando proyectos:', e);
       anyError = true;
@@ -1708,17 +1711,40 @@ let _prOrden = 'nombre';
 let _prVista = localStorage.getItem('proyectos_vista') || 'grilla';
 let _prBusqueda = '';
 
-function archivarProyecto(prId, e) {
+async function archivarProyecto(prId, e) {
   e.stopPropagation();
-  if(!_archivados.includes(prId)) _archivados.push(prId);
-  localStorage.setItem('proyectos_archivados', JSON.stringify(_archivados));
-  renderProyectos();
+  if (!confirm('¿Archivar este proyecto?')) return;
+  const r = await fetch('/api/tiempos?action=archivar-proyecto', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ proyecto_id: prId, archivar: true }),
+  }).then(r => r.json());
+  if (r.ok) {
+    if (!_archivados.includes(prId)) _archivados.push(prId);
+    localStorage.setItem('proyectos_archivados', JSON.stringify(_archivados));
+    const pr = PROYECTOS.find(p => p.id === prId);
+    if (pr) pr.activo = false;
+    renderProyectos();
+  } else {
+    alert('Error al archivar: ' + (r.msg || r.error || 'desconocido'));
+  }
 }
-function restaurarProyecto(prId, e) {
+async function restaurarProyecto(prId, e) {
   e.stopPropagation();
-  _archivados = _archivados.filter(id=>id!==prId);
-  localStorage.setItem('proyectos_archivados', JSON.stringify(_archivados));
-  renderProyectos();
+  const r = await fetch('/api/tiempos?action=archivar-proyecto', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ proyecto_id: prId, archivar: false }),
+  }).then(r => r.json());
+  if (r.ok) {
+    _archivados = _archivados.filter(id => id !== prId);
+    localStorage.setItem('proyectos_archivados', JSON.stringify(_archivados));
+    const pr = PROYECTOS.find(p => p.id === prId);
+    if (pr) pr.activo = true;
+    renderProyectos();
+  } else {
+    alert('Error al restaurar: ' + (r.msg || r.error || 'desconocido'));
+  }
 }
 
 function _prGetEstado(pr) {
@@ -6468,7 +6494,19 @@ function _lustreToast(msg) {
 }
 
 navTo('proyectos');
-cargarTodoDesdeSupabase();
+cargarTodoDesdeSupabase().then(async () => {
+  // Migración única: mover archivados de localStorage a BD
+  const _localArch = JSON.parse(localStorage.getItem('proyectos_archivados') || '[]');
+  const _bdArch = PROYECTOS.filter(p => !p.activo).map(p => p.id);
+  const _pendientes = _localArch.filter(id => !_bdArch.includes(id) && PROYECTOS.some(p => p.id === id && p.activo !== false));
+  for (const id of _pendientes) {
+    await fetch('/api/tiempos?action=archivar-proyecto', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proyecto_id: id, archivar: true }),
+    }).catch(() => {});
+  }
+  if (_pendientes.length > 0) { await cargarTodoDesdeSupabase(); }
+});
 iniciarAutoRefresh();
 initTimerBar();
 </script>
