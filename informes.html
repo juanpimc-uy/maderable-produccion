@@ -101,6 +101,7 @@
   .status-dot.muted{background:#555;}
 
   .zombie-tag{font-family:'Space Mono',monospace;font-size:9px;color:var(--red);margin-left:8px;letter-spacing:.5px;}
+  .archived-badge{display:inline-block;font-family:'Space Mono',monospace;font-size:7px;font-weight:700;letter-spacing:1px;text-transform:uppercase;background:rgba(136,136,136,.15);color:#888;border:1px solid rgba(136,136,136,.3);padding:1px 5px;margin-left:6px;vertical-align:middle;}
 
   .progress-bar{width:60px;height:5px;background:var(--border);border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin-left:6px;}
   .progress-fill{height:100%;border-radius:3px;transition:width .3s;}
@@ -117,6 +118,7 @@
   .detail-panel{border-top:3px solid var(--amber);background:var(--panel);padding:24px;margin:0;}
   .detail-panel.negative-border{border-top-color:var(--red);}
   .detail-panel.zombie-border{border-top-color:var(--orange);}
+  .detail-panel.archived-border{border-top-color:#555;}
   .detail-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
   .detail-title{font-size:16px;font-weight:700;}
   .detail-badge{font-family:'Space Mono',monospace;font-size:10px;background:rgba(255,214,0,.1);color:var(--amber);padding:4px 10px;border-radius:4px;}
@@ -454,12 +456,15 @@ function renderTabla(data) {
       ? `<span class="num num-accent">${fmt(p.precio_venta_usd)}</span>`
       : `<span class="num num-muted">${p.precio_venta_pendiente ? 'Ver detalle' : 'Sin SO'}</span>`;
 
-    html += `<tr class="${rowClass}" onclick="toggleDetail('${p.id}', this)" id="row-${p.id}">
+    const archivedBadge = p.activo === false ? '<span class="archived-badge">ARCHIVADO</span>' : '';
+    const rowOpacity = p.activo === false ? 'opacity:.6;' : '';
+
+    html += `<tr class="${rowClass}" style="${rowOpacity}" onclick="toggleDetail('${p.id}', this)" id="row-${p.id}">
       <td>
         <div style="display:flex;align-items:center;">
           <span class="status-dot ${statusDotClass(p)}"></span>
           <div>
-            <div class="proj-name">${p.nombre || p.numero || '-'}${zombieHtml}</div>
+            <div class="proj-name">${p.nombre || p.numero || '-'}${archivedBadge}${zombieHtml}</div>
             <div class="proj-sub">${p.numero || ''}${p.cliente_nombre ? ' · ' + p.cliente_nombre : ''}</div>
             ${p.obra && p.obra !== p.nombre ? '<div class="proj-obra">' + p.obra + '</div>' : ''}
           </div>
@@ -564,7 +569,8 @@ function renderDetailContent(id, data) {
   const tot = data.totales;
   const corteDisplay = formatDateDisplay(data.fecha_corte);
 
-  const borderClass = tot.saldo_usd < 0 ? 'negative-border' : (proyectosData.find(p => p.id === id)?.es_zombie ? 'zombie-border' : '');
+  const _proy = proyectosData.find(p => p.id === id);
+  const borderClass = _proy?.activo === false ? 'archived-border' : (tot.saldo_usd < 0 ? 'negative-border' : (_proy?.es_zombie ? 'zombie-border' : ''));
   panel.parentElement.querySelector('.detail-panel').className = `detail-panel ${borderClass}`;
 
   // MO table
@@ -633,7 +639,7 @@ function renderDetailContent(id, data) {
   panel.innerHTML = `
     <div class="detail-header">
       <div>
-        <div class="detail-title">${pr.nombre || pr.obra}</div>
+        <div class="detail-title">${pr.nombre || pr.obra}${pr.activo === false ? ' <span class="archived-badge">ARCHIVADO</span>' : ''}</div>
         <div class="mono" style="font-size:11px;color:var(--muted);margin-top:2px;">${pr.numero || ''} - ${pr.cliente_nombre || ''}</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
