@@ -539,12 +539,14 @@ async function accionInformeDetalle(req, res) {
     try {
       const zohoToken = await getZohoToken();
       const orgId = process.env.ZOHO_ORG_ID;
+      console.log('[informes] Zoho token ok:', !!zohoToken, 'org:', orgId);
       const searchUrl = `https://www.zohoapis.com/books/v3/invoices?organization_id=${orgId}&search_text=${encodeURIComponent(proyecto.numero)}`;
       const zohoRes = await fetch(searchUrl, {
         headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` },
       });
       const zohoData = await zohoRes.json();
       console.log('[informes] Zoho invoice search:', proyecto.numero, 'status:', zohoRes.status, 'found:', zohoData?.invoices?.length || 0);
+      console.log('[informes] Zoho raw response:', JSON.stringify(zohoData).slice(0, 500));
       const inv = zohoData?.invoices?.[0];
       if (inv && inv.sub_total != null) {
         precio_venta_usd = round2(Number(inv.sub_total));
