@@ -534,24 +534,24 @@ async function accionInformeDetalle(req, res) {
   let precio_venta_fuente = precio_venta_usd > 0 ? 'cache' : 'no_encontrado';
   let precio_venta_so_numero = null;
 
-  // Si no hay precio en cache, intentar obtenerlo de Zoho
+  // Si no hay precio en cache, buscar invoice en Zoho por invoice_number = ODF
   if (precio_venta_usd === 0 && proyecto.numero) {
     try {
       const zohoToken = await getZohoToken();
       const orgId = process.env.ZOHO_ORG_ID;
-      const searchUrl = `https://www.zohoapis.com/books/v3/salesorders?organization_id=${orgId}&reference_number=${encodeURIComponent(proyecto.numero)}`;
+      const searchUrl = `https://www.zohoapis.com/books/v3/invoices?organization_id=${orgId}&invoice_number=${encodeURIComponent(proyecto.numero)}`;
       const zohoRes = await fetch(searchUrl, {
         headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` },
       });
       const zohoData = await zohoRes.json();
-      const so = zohoData?.salesorders?.[0];
-      if (so && so.total != null) {
-        precio_venta_usd = round2(Number(so.total));
+      const inv = zohoData?.invoices?.[0];
+      if (inv && inv.sub_total != null) {
+        precio_venta_usd = round2(Number(inv.sub_total));
         precio_venta_fuente = 'zoho';
-        precio_venta_so_numero = so.salesorder_number || so.reference_number || null;
+        precio_venta_so_numero = inv.invoice_number || null;
       }
     } catch (e) {
-      console.error('[informes] Zoho SO fetch error:', e.message);
+      console.error('[informes] Zoho invoice fetch error:', e.message);
     }
   }
 
