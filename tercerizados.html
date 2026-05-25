@@ -6,6 +6,12 @@
 <script src="/js/supabase-config.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maderable · Tercerizados</title>
+<link rel="manifest" href="/manifest-tercerizados.json">
+<meta name="theme-color" content="#FFD600">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tercerizados">
+<link rel="apple-touch-icon" href="/icons/icon-tercerizados-192.png">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
   :root{
@@ -1077,6 +1083,7 @@ function _mostrarApp() {
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('screen-app').style.display = '';
 }
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
 </script>
 </body>
 </html>

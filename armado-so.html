@@ -7,6 +7,12 @@
 <script src="/js/auth.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Maderable · MRP Armado SO</title>
+<link rel="manifest" href="/manifest-kitting.json">
+<meta name="theme-color" content="#FFD600">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Kitting">
+<link rel="apple-touch-icon" href="/icons/icon-kitting-192.png">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
 :root{
@@ -758,5 +764,6 @@ function _mostrarApp() {
 @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-7px)}80%{transform:translateX(7px)}}
 .shake{animation:shake .35s ease;}
 </style>
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');</script>
 </body>
 </html>

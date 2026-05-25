@@ -1,0 +1,13 @@
+{
+  "name": "Recepciones OC — Maderable",
+  "short_name": "Recepciones",
+  "start_url": "/recepciones-oc.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#FFD600",
+  "icons": [
+    { "src": "/icons/icon-recepciones-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-recepciones-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
