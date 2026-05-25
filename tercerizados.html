@@ -325,7 +325,7 @@ function renderChips() {
   // Solo botón reporte si aplica
   let html = '';
   const sess = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}'); } catch(e) { return {}; } })();
-  if (sess.rol_app === 'admin' && filtroProveedor.toUpperCase().includes('BARU')) {
+  if ((sess.rol_app === 'admin' || sess.rol_app === 'oficina') && filtroProveedor.toUpperCase().includes('BARU')) {
     html += `<span class="chip" onclick="window.open('/baru-reporte.html','_blank')">📊 Reporte BARU</span>`;
   }
   el.innerHTML = html;
