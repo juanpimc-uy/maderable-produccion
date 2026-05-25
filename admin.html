@@ -921,6 +921,8 @@
       </div>
     </div>
 
+    <div id="cd-items-list" style="margin-bottom:16px;"></div>
+
     <div style="margin-bottom:14px;">
       <div id="cd-oc-monto-label" style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:1px;margin-bottom:6px;">MONTO A IMPUTAR</div>
       <input type="number" id="cd-oc-monto" min="0.01" step="0.01" placeholder="0.00" disabled
@@ -6147,6 +6149,7 @@ let _cdItem = null;
 let _cdOcData = null;
 let _cdDebounce = null;
 let _cdCostosMap = {};
+let _cdItemsSel = new Set();
 
 const _fmtUSD = n => n != null ? `$${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
 const _fmtNum = n => Number(n).toLocaleString('es-UY',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -6261,6 +6264,54 @@ async function _cdBuscarOC() {
     }
     montoEl.disabled = false;
     statusEl.textContent = '';
+
+    // Renderizar lista de ítems de la OC
+    _cdItemsSel = new Set();
+    const lineItems = _cdOcData.line_items || [];
+    if (lineItems.length > 0) {
+      const itemsHtml = lineItems.map(li => {
+        const yaImputado = (_cdOcData.imputaciones?.detalle || []).find(d => d.line_item_id === li.line_item_id);
+        const totalUsd = oc.moneda_original === 'UYU' && oc.tc_aplicado ? li.total / oc.tc_aplicado : li.total;
+        const disabled = !!yaImputado;
+        if (!disabled) _cdItemsSel.add(li.line_item_id);
+        return `
+          <div class="${disabled ? 'cd-item-disabled' : 'cd-item-sel'}"
+               data-id="${li.line_item_id}" data-usd="${totalUsd.toFixed(2)}"
+               onclick="${disabled ? '' : `_cdToggleItem('${li.line_item_id}')`}"
+               style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:6px;margin-bottom:4px;
+                      cursor:${disabled ? 'not-allowed' : 'pointer'};
+                      border:1px solid ${disabled ? '#5c1a1a' : 'transparent'};
+                      background:${disabled ? '#1a0a0a' : '#1a2a1a'};
+                      opacity:${disabled ? '0.45' : '1'};">
+            <div id="chk-${li.line_item_id}"
+                 style="width:16px;height:16px;border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;
+                        border:1px solid ${disabled ? '#5c1a1a' : '#4ade80'};
+                        background:${disabled ? '#2a1515' : '#4ade80'};color:#000;">
+              ${!disabled ? '✓' : ''}
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:13px;color:${disabled ? '#555' : '#ccc'};">${li.nombre}</div>
+              <div style="font-family:'Space Mono',monospace;font-size:10px;color:#555;">
+                ${li.cantidad} u · ${oc.moneda_original === 'UYU' ? '$' : 'U$S'} ${li.rate.toLocaleString('es-UY')}
+                ${yaImputado ? ' <span style="color:#ef4444;font-size:9px;">· YA IMPUTADO</span>' : ''}
+              </div>
+            </div>
+            <div style="font-family:'Space Mono',monospace;font-size:12px;color:${disabled ? '#555' : '#aaa'};text-align:right;">
+              U$S ${totalUsd.toFixed(2)}
+            </div>
+          </div>`;
+      }).join('');
+      document.getElementById('cd-items-list').innerHTML = `
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;display:flex;justify-content:space-between;">
+          <span>Ítems de la OC</span>
+          <span style="cursor:pointer;text-decoration:underline;color:#666;" onclick="_cdSelTodos()">Seleccionar todos</span>
+        </div>
+        ${itemsHtml}
+        <div id="cd-items-resumen" style="margin-top:12px;"></div>`;
+      _cdActualizarResumen();
+    } else {
+      document.getElementById('cd-items-list').innerHTML = '';
+    }
   } catch(e) {
     statusEl.style.color = 'var(--red)';
     statusEl.textContent = e.message.includes('no encontrada')
@@ -6268,6 +6319,7 @@ async function _cdBuscarOC() {
       : `Error: ${e.message}`;
     infoEl.style.display = 'none';
     montoEl.disabled = true;
+    document.getElementById('cd-items-list').innerHTML = '';
   }
 }
 
@@ -6301,9 +6353,12 @@ async function _cdSubmitOC() {
   btn.disabled = true; btn.textContent = 'Enviando…';
   try {
     const action = _cdItem ? 'editar-costo-directo' : 'agregar-costo-directo';
+    const selItems = _cdOcData.line_items
+      ? _cdOcData.line_items.filter(li => _cdItemsSel.has(li.line_item_id)).map(li => ({ line_item_id: li.line_item_id, nombre: li.nombre, total: li.total }))
+      : null;
     const body = _cdItem
-      ? { costo_id: _cdItem.id, oc_numero: ocNumero, monto_original: monto, moneda_original: oc.moneda_original, fecha, admin_id: u.id }
-      : { proyecto_id: _cdPrId, tipo: 'oc', oc_numero: ocNumero, monto_original: monto, moneda_original: oc.moneda_original, fecha, admin_id: u.id };
+      ? { costo_id: _cdItem.id, oc_numero: ocNumero, monto_original: monto, moneda_original: oc.moneda_original, fecha, admin_id: u.id, items_seleccionados: selItems }
+      : { proyecto_id: _cdPrId, tipo: 'oc', oc_numero: ocNumero, monto_original: monto, moneda_original: oc.moneda_original, fecha, admin_id: u.id, items_seleccionados: selItems };
     const res = await fetch(`/api/tiempos?action=${action}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     });
@@ -6387,12 +6442,78 @@ async function _cdEliminar(costoId, prId) {
   }
 }
 
+function _cdToggleItem(id) {
+  if (_cdItemsSel.has(id)) {
+    _cdItemsSel.delete(id);
+    const chk = document.getElementById('chk-'+id);
+    if (chk) { chk.style.background='transparent'; chk.style.borderColor='#333'; chk.textContent=''; }
+    const row = document.querySelector(`[data-id="${id}"]`);
+    if (row) row.style.background='#252525';
+  } else {
+    _cdItemsSel.add(id);
+    const chk = document.getElementById('chk-'+id);
+    if (chk) { chk.style.background='#4ade80'; chk.style.borderColor='#4ade80'; chk.textContent='✓'; }
+    const row = document.querySelector(`[data-id="${id}"]`);
+    if (row) row.style.background='#1a2a1a';
+  }
+  _cdActualizarResumen();
+}
+
+function _cdSelTodos() {
+  (_cdOcData?.line_items || []).forEach(li => {
+    const yaImputado = (_cdOcData.imputaciones?.detalle || []).find(d => d.line_item_id === li.line_item_id);
+    if (!yaImputado) _cdItemsSel.add(li.line_item_id);
+  });
+  document.querySelectorAll('.cd-item-sel').forEach(row => {
+    row.style.background = '#1a2a1a';
+    const chk = row.querySelector('[id^="chk-"]');
+    if (chk) { chk.style.background='#4ade80'; chk.style.borderColor='#4ade80'; chk.textContent='✓'; }
+  });
+  _cdActualizarResumen();
+}
+
+function _cdActualizarResumen() {
+  if (!_cdOcData?.line_items) return;
+  const items = _cdOcData.line_items;
+  const tc = _cdOcData.oc.tc_aplicado || 1;
+  const esUyu = _cdOcData.oc.moneda_original === 'UYU';
+  let totalSel = 0;
+  let totalSelOriginal = 0;
+  items.forEach(li => {
+    if (_cdItemsSel.has(li.line_item_id)) {
+      totalSel += esUyu ? li.total / tc : li.total;
+      totalSelOriginal += li.total;
+    }
+  });
+  const disponibles = items.filter(li =>
+    !(_cdOcData.imputaciones?.detalle || []).find(d => d.line_item_id === li.line_item_id)
+  ).length;
+  const resumen = document.getElementById('cd-items-resumen');
+  if (resumen) resumen.innerHTML = `
+    <div style="background:#111;border-radius:6px;padding:12px 14px;font-family:'Space Mono',monospace;font-size:11px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+        <span style="color:#555;">ÍTEMS SELECCIONADOS</span>
+        <span style="color:#aaa;">${_cdItemsSel.size} de ${disponibles}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-top:1px solid #2e2e2e;padding-top:8px;margin-top:4px;">
+        <span style="color:#555;">TOTAL A IMPUTAR</span>
+        <span style="color:#FFD600;font-weight:700;">U$S ${totalSel.toFixed(2)}</span>
+      </div>
+    </div>`;
+  // Actualizar el input de monto con el total calculado (en moneda original)
+  const montoInput = document.getElementById('cd-oc-monto');
+  if (montoInput) montoInput.value = Math.round(totalSelOriginal * 100) / 100;
+}
+
 function _cdCerrar() {
   document.getElementById('modal-cd-oc').style.display = 'none';
   document.getElementById('modal-cd-manual').style.display = 'none';
   clearTimeout(_cdDebounce);
   _cdItem = null;
   _cdOcData = null;
+  _cdItemsSel = new Set();
+  const il = document.getElementById('cd-items-list');
+  if (il) il.innerHTML = '';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

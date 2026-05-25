@@ -2971,6 +2971,14 @@ export default async function handler(req) {
           total_usd:       Math.round(total_usd * 100) / 100,
           tc_aplicado,
         },
+        line_items: (oc.line_items || []).map(li => ({
+          line_item_id: li.line_item_id || li.item_id || String(Math.random()),
+          nombre:       li.name || li.description || 'Ítem sin nombre',
+          cantidad:     li.quantity || 1,
+          rate:         li.rate || 0,
+          total:        li.amount || ((li.quantity || 1) * (li.rate || 0)),
+          moneda:       oc.currency_code,
+        })),
         imputaciones: {
           ya_imputado_usd: Math.round(ya_imputado_usd * 100) / 100,
           disponible_usd:  Math.round(disponible_usd * 100) / 100,
@@ -2988,7 +2996,7 @@ export default async function handler(req) {
     if (action === 'agregar-costo-directo' && req.method === 'POST') {
       const { admin_id, proyecto_id, tipo, fecha,
               monto_original: mont_orig_raw, moneda_original,
-              oc_numero: oc_raw, descripcion } = body;
+              oc_numero: oc_raw, descripcion, items_seleccionados } = body;
 
       // 1) Campos comunes obligatorios
       if (!admin_id || !proyecto_id || !tipo || !fecha || mont_orig_raw === undefined || !moneda_original)
@@ -3142,6 +3150,7 @@ export default async function handler(req) {
           monto_usd: Math.round(monto_usd * 100) / 100,
           moneda_original, monto_original, tc_aplicado,
           fecha, creado_por: admin_id,
+          items_seleccionados: items_seleccionados || null,
         })
         .select().single();
       if (insErr) throw insErr;
@@ -3167,7 +3176,7 @@ export default async function handler(req) {
     if (action === 'editar-costo-directo' && req.method === 'POST') {
       const { admin_id, costo_id, fecha,
               monto_original: mont_orig_raw, moneda_original,
-              oc_numero: oc_raw, descripcion } = body;
+              oc_numero: oc_raw, descripcion, items_seleccionados } = body;
 
       // 1) Campos comunes obligatorios
       if (!admin_id || !costo_id || !fecha || mont_orig_raw === undefined || !moneda_original)
@@ -3314,6 +3323,7 @@ export default async function handler(req) {
           oc_total_usd: Math.round(oc_total_usd * 100) / 100,
           monto_usd: Math.round(monto_usd * 100) / 100,
           moneda_original, monto_original, tc_aplicado, fecha,
+          items_seleccionados: items_seleccionados || null,
         })
         .eq('id', costo_id)
         .select().single();
