@@ -1371,25 +1371,27 @@ export default async function handler(req) {
         }
       }
 
-      // Solapamiento (fin null en DB = sesión activa, equivale a infinito)
-      // Truncar a minutos para evitar falsos positivos por segundos
+      // Solapamiento — truncar a minutos para evitar falsos positivos por segundos
       const _truncMin = iso => iso.substring(0, 17) + '00Z'; // YYYY-MM-DDTHH:MM:00Z
       const inicioISO   = inicioEfectivo ? _truncMin(new Date(inicioEfectivo).toISOString()) : null;
       const finChequeoS = finEfectivo
         ? _truncMin(new Date(finEfectivo).toISOString())
         : '9999-12-31T23:59:59Z';
       if (inicioISO) {
-        const { data: solapadosS } = await supabase
+        // Traer candidatas del mismo empleado en la jornada (excluir la sesión actual)
+        const { data: candidatasS } = await supabase
           .from('registros_trabajo')
           .select('id, inicio, fin, estado')
           .eq('empleado_id', regS.empleado_id)
           .eq('eliminada', false)
-          .neq('id', reg_id)
-          .lt('inicio', finChequeoS)
-          .or(`fin.is.null,fin.gt.${inicioISO}`);
-        if (solapadosS && solapadosS.length > 0) {
-          // Si el solapado es la sesión activa (fin=null, estado='activo')
-          // y estamos editando el fin de otra sesión → auto-ajustar inicio de la activa
+          .neq('id', reg_id);
+        // Comparar truncado a minutos en JS
+        const solapadosS = (candidatasS || []).filter(s => {
+          const sIni = _truncMin(new Date(s.inicio).toISOString());
+          const sFin = s.fin ? _truncMin(new Date(s.fin).toISOString()) : '9999-12-31T23:59:59Z';
+          return sIni < finChequeoS && sFin > inicioISO;
+        });
+        if (solapadosS.length > 0) {
           const activaSolapada = solapadosS.find(ss => ss.estado === 'activo' && !ss.fin);
           const soloActivas    = solapadosS.every(ss => ss.estado === 'activo' && !ss.fin);
           if (activaSolapada && soloActivas && finEfectivo) {
@@ -1466,7 +1468,6 @@ export default async function handler(req) {
       const _truncMinAg = iso => iso.substring(0, 17) + '00Z';
       const inicioISO  = new Date(inicio).toISOString();
       const finChequeo = fin ? new Date(fin).toISOString() : '9999-12-31T23:59:59Z';
-      // Truncados a minuto para validación de solapamiento
       const inicioTrunc = _truncMinAg(inicioISO);
       const finTrunc    = fin ? _truncMinAg(finChequeo) : finChequeo;
 
@@ -1485,16 +1486,19 @@ export default async function handler(req) {
           .in('id', idsAbiertas);
       }
 
-      // Verificar solapamiento solo con sesiones finalizadas (que tienen fin definido)
-      const { data: solapadosAg } = await supabase
+      // Verificar solapamiento — traer candidatas y comparar truncado en JS
+      const { data: candidatasAg } = await supabase
         .from('registros_trabajo')
         .select('id, inicio, fin')
         .eq('empleado_id', jornAg.empleado_id)
         .eq('eliminada', false)
-        .not('fin', 'is', null)
-        .lt('inicio', finTrunc)
-        .gt('fin', inicioTrunc);
-      if (solapadosAg && solapadosAg.length > 0) {
+        .not('fin', 'is', null);
+      const solapadosAg = (candidatasAg || []).filter(s => {
+        const sIni = _truncMinAg(new Date(s.inicio).toISOString());
+        const sFin = _truncMinAg(new Date(s.fin).toISOString());
+        return sIni < finTrunc && sFin > inicioTrunc;
+      });
+      if (solapadosAg.length > 0) {
         const s = solapadosAg[0];
         return new Response(JSON.stringify({
           ok: false, error: `Solapamiento con sesión ${s.id} (${s.inicio} - ${s.fin})`,
