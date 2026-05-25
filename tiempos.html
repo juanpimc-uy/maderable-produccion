@@ -787,7 +787,11 @@ function _tSesionTable(sesiones, jornadaId, empNombre, empleadoId, fecha) {
     const sinFin  = !s.fin;
     const cv      = _cvT.find(c => c.codigo === s.centro);
     const centroLabel = cv?.nombre || s.centro || '—';
-    const proyLabel   = s.proyecto_nombre || '—';
+    const proyNum     = s.proyecto_numero || '';
+    const proyNom     = s.proyecto_cache_nombre || s.proyecto_nombre || '';
+    const proyLabel   = proyNum
+      ? `${proyNum}${proyNom ? `<div style="font-size:9px;color:#555;margin-top:1px;">${proyNom}</div>` : ''}`
+      : (proyNom || '—');
     const fmtTime = iso => {
       if (!iso) return '—';
       const d = new Date(iso);

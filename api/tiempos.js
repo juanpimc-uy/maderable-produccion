@@ -1372,9 +1372,11 @@ export default async function handler(req) {
       }
 
       // Solapamiento (fin null en DB = sesión activa, equivale a infinito)
-      const inicioISO   = inicioEfectivo ? new Date(inicioEfectivo).toISOString() : null;
+      // Truncar a minutos para evitar falsos positivos por segundos
+      const _truncMin = iso => iso.substring(0, 17) + '00Z'; // YYYY-MM-DDTHH:MM:00Z
+      const inicioISO   = inicioEfectivo ? _truncMin(new Date(inicioEfectivo).toISOString()) : null;
       const finChequeoS = finEfectivo
-        ? new Date(finEfectivo).toISOString()
+        ? _truncMin(new Date(finEfectivo).toISOString())
         : '9999-12-31T23:59:59Z';
       if (inicioISO) {
         const { data: solapadosS } = await supabase
@@ -1461,8 +1463,12 @@ export default async function handler(req) {
       if (cvAg.requiere_proyecto && !proyecto_id)
         return err('El centro seleccionado requiere un proyecto', 400);
 
+      const _truncMinAg = iso => iso.substring(0, 17) + '00Z';
       const inicioISO  = new Date(inicio).toISOString();
       const finChequeo = fin ? new Date(fin).toISOString() : '9999-12-31T23:59:59Z';
+      // Truncados a minuto para validación de solapamiento
+      const inicioTrunc = _truncMinAg(inicioISO);
+      const finTrunc    = fin ? _truncMinAg(finChequeo) : finChequeo;
 
       // Cerrar sesiones abiertas (fin IS NULL) del mismo empleado antes de insertar
       const { data: abiertasAg } = await supabase
@@ -1486,8 +1492,8 @@ export default async function handler(req) {
         .eq('empleado_id', jornAg.empleado_id)
         .eq('eliminada', false)
         .not('fin', 'is', null)
-        .lt('inicio', finChequeo)
-        .gt('fin', inicioISO);
+        .lt('inicio', finTrunc)
+        .gt('fin', inicioTrunc);
       if (solapadosAg && solapadosAg.length > 0) {
         const s = solapadosAg[0];
         return new Response(JSON.stringify({
@@ -3509,8 +3515,19 @@ export default async function handler(req) {
       if (eSDErr) throw eSDErr;
 
       const ahoraSD   = new Date();
+
+      // Lookup proyecto numero/nombre desde proyectos_cache
+      const proyIdsSD = [...new Set((registrosSD || []).map(r => r.proyecto_id).filter(Boolean))];
+      let proyMapSD = {};
+      if (proyIdsSD.length > 0) {
+        const { data: proysSD } = await supabase.from('proyectos_cache').select('id, numero, nombre').in('id', proyIdsSD);
+        (proysSD || []).forEach(p => { proyMapSD[p.id] = p; });
+      }
+
       const regsMapSD = {};
       (registrosSD || []).forEach(r => {
+        const pc = proyMapSD[r.proyecto_id];
+        if (pc) { r.proyecto_numero = pc.numero; r.proyecto_cache_nombre = pc.nombre; }
         if (!regsMapSD[r.jornada_id]) regsMapSD[r.jornada_id] = [];
         regsMapSD[r.jornada_id].push(r);
       });
@@ -3596,8 +3613,19 @@ export default async function handler(req) {
       if (rSEErr) throw rSEErr;
 
       const ahoraSE   = new Date();
+
+      // Lookup proyecto numero/nombre desde proyectos_cache
+      const proyIdsSE = [...new Set((registrosSE || []).map(r => r.proyecto_id).filter(Boolean))];
+      let proyMapSE = {};
+      if (proyIdsSE.length > 0) {
+        const { data: proysSE } = await supabase.from('proyectos_cache').select('id, numero, nombre').in('id', proyIdsSE);
+        (proysSE || []).forEach(p => { proyMapSE[p.id] = p; });
+      }
+
       const regsMapSE = {};
       (registrosSE || []).forEach(r => {
+        const pc = proyMapSE[r.proyecto_id];
+        if (pc) { r.proyecto_numero = pc.numero; r.proyecto_cache_nombre = pc.nombre; }
         if (!regsMapSE[r.jornada_id]) regsMapSE[r.jornada_id] = [];
         regsMapSE[r.jornada_id].push(r);
       });
