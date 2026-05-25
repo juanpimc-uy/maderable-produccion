@@ -539,11 +539,12 @@ async function accionInformeDetalle(req, res) {
     try {
       const zohoToken = await getZohoToken();
       const orgId = process.env.ZOHO_ORG_ID;
-      const searchUrl = `https://www.zohoapis.com/books/v3/invoices?organization_id=${orgId}&invoice_number=${encodeURIComponent(proyecto.numero)}`;
+      const searchUrl = `https://www.zohoapis.com/books/v3/invoices?organization_id=${orgId}&search_text=${encodeURIComponent(proyecto.numero)}`;
       const zohoRes = await fetch(searchUrl, {
         headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` },
       });
       const zohoData = await zohoRes.json();
+      console.log('[informes] Zoho invoice search:', proyecto.numero, 'status:', zohoRes.status, 'found:', zohoData?.invoices?.length || 0);
       const inv = zohoData?.invoices?.[0];
       if (inv && inv.sub_total != null) {
         precio_venta_usd = round2(Number(inv.sub_total));
@@ -644,11 +645,12 @@ async function accionSincronizarPrecios(req, res) {
     const lote = conNumero.slice(i, i + BATCH);
     await Promise.all(lote.map(async (p) => {
       try {
-        const searchUrl = `https://www.zohoapis.com/books/v3/invoices?organization_id=${orgId}&invoice_number=${encodeURIComponent(p.numero)}`;
+        const searchUrl = `https://www.zohoapis.com/books/v3/invoices?organization_id=${orgId}&search_text=${encodeURIComponent(p.numero)}`;
         const zRes = await fetch(searchUrl, {
           headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` },
         });
         const zData = await zRes.json();
+        console.log('[informes] Zoho invoice sync:', p.numero, 'status:', zRes.status, 'found:', zData?.invoices?.length || 0);
         const inv = zData?.invoices?.[0];
         if (inv && inv.sub_total != null && Number(inv.sub_total) > 0) {
           await supabase.from('proyectos_cache')
