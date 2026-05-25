@@ -111,6 +111,11 @@
   .sq-item.done{background:#4ade80;}
   .items-footer{display:flex;align-items:center;gap:8px;margin-top:2px;}
   .items-label{font-family:'Space Mono',monospace;font-size:9px;color:#555;white-space:nowrap;}
+  /* ── PIN costos mini-overlay ── */
+  .pin-c-dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--border);transition:all .15s;display:inline-block;}
+  .pc-key{height:42px;border-radius:8px;border:1px solid var(--border);background:var(--faint);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;cursor:pointer;transition:all .12s;}
+  .pc-key:hover{background:var(--border);}
+  .pc-key:active{background:var(--amber);color:#000;border-color:var(--amber);}
   /* ── Ajustes tabs ── */
   .ajuste-tab{font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:1px;padding:8px 16px;background:transparent;border:none;border-bottom:2px solid transparent;color:#666;cursor:pointer;transition:color .2s,border-color .2s;margin-bottom:-1px;}
   .ajuste-tab:hover{color:#ccc;}
@@ -2241,13 +2246,18 @@ function renderDetallePr(pr, sub) {
     }
   }
 
-  // ── COSTOS (solo admin) ──
+  // ── COSTOS (solo admin — protegido por PIN de sección) ──
   if (sub === 'costos') {
-    html += `<div class="card" id="costos-pr-panel">
+    html += `<div class="card" id="costos-pr-panel" style="position:relative;min-height:200px;">
       <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:2px;margin-bottom:16px;">CARGANDO COSTOS…</div>
     </div>`;
     document.getElementById('pr-detalle').innerHTML = html;
-    _renderCostosPr(pr.id);
+    // Verificar PIN de sección antes de mostrar costos
+    if (window._seccionToken && Date.now() < (window._seccionTokenExp || 0)) {
+      _renderCostosPr(pr.id);
+    } else {
+      _mostrarPinCostos(pr.id);
+    }
     return;
   }
 
@@ -5973,6 +5983,99 @@ async function _tercEliminar(prId, existingId, proceso) {
     });
     _renderCostosPr(prId);
   } catch(e) { alert('Error: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PIN DE SECCIÓN — protege tab Costos en detalle de proyecto
+// ═══════════════════════════════════════════════════════════════════════════
+window._seccionToken = null;
+window._seccionTokenExp = 0;
+let _pinCostosBuffer = '';
+let _pinCostosPrId = null;
+
+function _mostrarPinCostos(prId) {
+  _pinCostosPrId = prId;
+  _pinCostosBuffer = '';
+  const panel = document.getElementById('costos-pr-panel');
+  if (!panel) return;
+  panel.innerHTML = `
+    <div id="pin-costos-overlay" style="position:absolute;inset:0;z-index:10;background:rgba(15,15,15,.92);display:flex;align-items:center;justify-content:center;border-radius:8px;">
+      <div style="text-align:center;width:260px;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Seccion protegida</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:22px;">PIN de Costos</div>
+        <div id="pinCostosDots" style="display:flex;gap:12px;justify-content:center;margin-bottom:22px;">
+          <div class="pin-c-dot"></div><div class="pin-c-dot"></div><div class="pin-c-dot"></div><div class="pin-c-dot"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:200px;margin:0 auto;">
+          <button class="pc-key" onclick="_pinCostosInput('1')">1</button>
+          <button class="pc-key" onclick="_pinCostosInput('2')">2</button>
+          <button class="pc-key" onclick="_pinCostosInput('3')">3</button>
+          <button class="pc-key" onclick="_pinCostosInput('4')">4</button>
+          <button class="pc-key" onclick="_pinCostosInput('5')">5</button>
+          <button class="pc-key" onclick="_pinCostosInput('6')">6</button>
+          <button class="pc-key" onclick="_pinCostosInput('7')">7</button>
+          <button class="pc-key" onclick="_pinCostosInput('8')">8</button>
+          <button class="pc-key" onclick="_pinCostosInput('9')">9</button>
+          <div></div>
+          <button class="pc-key" onclick="_pinCostosInput('0')">0</button>
+          <button class="pc-key" style="font-size:14px;color:var(--muted);" onclick="_pinCostosBack()">&#x232B;</button>
+        </div>
+        <div id="pinCostosMsg" style="margin-top:14px;font-family:'JetBrains Mono',monospace;font-size:10px;min-height:14px;color:var(--red);"></div>
+      </div>
+    </div>`;
+}
+
+function _pinCostosInput(d) {
+  if (_pinCostosBuffer.length >= 4) return;
+  _pinCostosBuffer += d;
+  _updatePinCostosDots();
+  if (_pinCostosBuffer.length === 4) _submitPinCostos();
+}
+
+function _pinCostosBack() {
+  _pinCostosBuffer = _pinCostosBuffer.slice(0, -1);
+  _updatePinCostosDots();
+  const msg = document.getElementById('pinCostosMsg');
+  if (msg) msg.textContent = '';
+}
+
+function _updatePinCostosDots() {
+  document.querySelectorAll('#pinCostosDots .pin-c-dot').forEach((d, i) => {
+    d.style.background = i < _pinCostosBuffer.length ? 'var(--amber)' : 'transparent';
+    d.style.borderColor = i < _pinCostosBuffer.length ? 'var(--amber)' : 'var(--border)';
+  });
+}
+
+async function _submitPinCostos() {
+  const u = window.AUTH.usuarioActual();
+  const msg = document.getElementById('pinCostosMsg');
+  try {
+    const res = await fetch('/api/informes?action=verificar-seccion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: _pinCostosBuffer, empleado_id: u.id }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      window._seccionToken = data.token;
+      window._seccionTokenExp = Date.now() + (data.expires_in * 1000);
+      const overlay = document.getElementById('pin-costos-overlay');
+      if (overlay) overlay.remove();
+      _renderCostosPr(_pinCostosPrId);
+    } else {
+      if (msg) msg.textContent = data.msg || 'PIN incorrecto';
+      _pinCostosBuffer = '';
+      _updatePinCostosDots();
+      document.querySelectorAll('#pinCostosDots .pin-c-dot').forEach(d => {
+        d.style.background = 'var(--red)'; d.style.borderColor = 'var(--red)';
+      });
+      setTimeout(() => _updatePinCostosDots(), 500);
+    }
+  } catch (e) {
+    if (msg) msg.textContent = 'Error de red';
+    _pinCostosBuffer = '';
+    _updatePinCostosDots();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

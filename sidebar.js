@@ -23,6 +23,7 @@
     ]},
     { id: 'stock',        icon: '⬡', label: 'Stock Placas', page: 'stock-placas.html',  section: null,         roles: ['admin', 'oficina'], hidden: true },
     { id: 'despacho',     icon: '⇥', label: 'Despacho',     page: 'despacho.html',      section: null,         roles: ['admin', 'oficina'], hidden: true },
+    { id: 'informes',     icon: '📊', label: 'Informes',    page: 'informes.html',      section: null,         roles: ['admin'] },
     { id: 'ajustes',      icon: GEAR_SVG, label: 'Ajustes', page: 'admin.html',         section: 'ajustes',    roles: ['admin'], iconIsHtml: true },
   ];
 
@@ -45,6 +46,7 @@
       'armado-so-planta.html':'armado-so',
       'recepciones-oc.html': 'recepciones',
       'despacho.html':       'despacho',
+      'informes.html':       'informes',
       'config-formula.html': 'materiales',
     };
     return map[PAGE] || null;
