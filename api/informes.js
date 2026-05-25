@@ -1,6 +1,7 @@
 // api/informes.js — Endpoints sección Informes (Node.js runtime, NO edge)
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { getZohoToken } from './_zoho-token-cache.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -379,6 +380,7 @@ async function accionInformeProyectos(req, res) {
       total_oc_usd,
       total_invertido_usd,
       precio_venta_usd,
+      precio_venta_pendiente: precio_venta_usd === 0,
       saldo_usd,
       margen_pct,
       dias_sin_actividad,
@@ -518,7 +520,7 @@ async function accionInformeDetalle(req, res) {
 
   const matPorSo = {};
   for (const m of materiales) {
-    const soNum = m.so_numero || m.so || 'sin_so';
+    const soNum = m.so_numero || m.so || (m.key && m.key.split('::')[0]) || 'sin_so';
     if (!matPorSo[soNum]) matPorSo[soNum] = { so_numero: soNum === 'sin_so' ? null : soNum, items: [], subtotal_usd: 0 };
     const ct = m.costo_total_usd != null
       ? Number(m.costo_total_usd)
@@ -527,8 +529,31 @@ async function accionInformeDetalle(req, res) {
     matPorSo[soNum].subtotal_usd += ct;
   }
 
-  // ── Precio de venta ───────────────────────────────────────────────────
-  const precio_venta_usd = round2(calcularPrecioVenta(proyecto.sos_cargadas));
+  // ── Precio de venta (Zoho SO) ──────────────────────────────────────────
+  let precio_venta_usd = round2(calcularPrecioVenta(proyecto.sos_cargadas));
+  let precio_venta_fuente = precio_venta_usd > 0 ? 'cache' : 'no_encontrado';
+  let precio_venta_so_numero = null;
+
+  // Si no hay precio en cache, intentar obtenerlo de Zoho
+  if (precio_venta_usd === 0 && proyecto.numero) {
+    try {
+      const zohoToken = await getZohoToken();
+      const orgId = process.env.ZOHO_ORG_ID;
+      const searchUrl = `https://www.zohoapis.com/books/v3/salesorders?organization_id=${orgId}&reference_number=${encodeURIComponent(proyecto.numero)}`;
+      const zohoRes = await fetch(searchUrl, {
+        headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` },
+      });
+      const zohoData = await zohoRes.json();
+      const so = zohoData?.salesorders?.[0];
+      if (so && so.total != null) {
+        precio_venta_usd = round2(Number(so.total));
+        precio_venta_fuente = 'zoho';
+        precio_venta_so_numero = so.salesorder_number || so.reference_number || null;
+      }
+    } catch (e) {
+      console.error('[informes] Zoho SO fetch error:', e.message);
+    }
+  }
 
   // ── Totales ───────────────────────────────────────────────────────────
   const total_invertido = round2(round2(moTotalUsd) + round2(mat_total) + round2(terc_total) + round2(costos_total));
@@ -575,6 +600,8 @@ async function accionInformeDetalle(req, res) {
       sin_corte: true,
     },
     recepciones_count: recepcionesCount,
+    precio_venta_fuente,
+    precio_venta_so_numero,
     totales: {
       total_invertido_usd: total_invertido,
       precio_venta_usd,

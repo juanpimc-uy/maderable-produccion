@@ -33,6 +33,9 @@
   .pin-dot.filled{background:var(--amber);border-color:var(--amber);}
   .pin-dot.error{background:var(--red);border-color:var(--red);animation:shake .4s;}
   @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}50%{transform:translateX(6px)}75%{transform:translateX(-4px)}}
+  .pin-text-input{background:#222;border:1px solid #333;border-radius:0;color:var(--amber);font-family:'Space Mono',monospace;font-size:28px;letter-spacing:12px;text-align:center;width:160px;padding:10px 16px;outline:none;display:block;margin:0 auto 20px;}
+  .pin-text-input:focus{border-color:var(--amber);}
+  .pin-text-input.error{border-color:var(--red);}
   .pin-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:240px;margin:0 auto;}
   .pin-key{height:52px;border-radius:10px;border:1px solid var(--border);background:var(--faint);color:var(--text);font-family:'Space Mono',monospace;font-size:20px;font-weight:700;cursor:pointer;transition:all .12s;display:flex;align-items:center;justify-content:center;}
   .pin-key:hover{background:var(--border);border-color:var(--borderL);}
@@ -107,6 +110,7 @@
 
   .proj-name{font-weight:600;font-size:13px;}
   .proj-sub{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px;}
+  .proj-obra{font-size:10px;color:var(--muted);margin-top:1px;}
 
   /* ── DETAIL PANEL ───────────────────────────────────────── */
   .detail-row td{padding:0 !important;background:var(--faint) !important;cursor:default !important;}
@@ -175,6 +179,7 @@
     <div class="pin-dots" id="pinDots">
       <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
     </div>
+    <input type="password" id="pinTextInput" class="pin-text-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="····" autocomplete="off" autocorrect="off">
     <div class="pin-keys" id="pinKeys">
       <button class="pin-key" onclick="pinInput('1')">1</button>
       <button class="pin-key" onclick="pinInput('2')">2</button>
@@ -231,7 +236,7 @@
 <table id="mainTable">
   <thead>
     <tr>
-      <th style="min-width:200px;">Proyecto</th>
+      <th style="min-width:200px;">Proyecto / Cliente</th>
       <th class="num-col">Hs reales</th>
       <th class="num-col">Hs est.</th>
       <th class="num-col">Materiales</th>
@@ -272,27 +277,45 @@ let pinLocked = false;
 })();
 
 // ── PIN ─────────────────────────────────────────────────────────────────
+const pinTextEl = document.getElementById('pinTextInput');
+pinTextEl.focus();
+
 function pinInput(digit) {
   if (pinLocked || pinBuffer.length >= 4) return;
   pinBuffer += digit;
-  updateDots();
+  syncPinUI();
   if (pinBuffer.length === 4) submitPin();
 }
 
 function pinBack() {
   if (pinLocked) return;
   pinBuffer = pinBuffer.slice(0, -1);
-  updateDots();
+  syncPinUI();
   document.getElementById('pinMsg').textContent = '';
 }
 
-function updateDots() {
+function syncPinUI() {
+  // Sync dots
   const dots = document.querySelectorAll('#pinDots .pin-dot');
   dots.forEach((d, i) => {
     d.classList.toggle('filled', i < pinBuffer.length);
     d.classList.remove('error');
   });
+  // Sync text input
+  if (pinTextEl.value !== pinBuffer) pinTextEl.value = pinBuffer;
+  pinTextEl.classList.remove('error');
 }
+
+// Text input → sync with keypad
+pinTextEl.addEventListener('input', function() {
+  const val = this.value.replace(/\D/g, '').slice(0, 4);
+  this.value = val;
+  pinBuffer = val;
+  syncPinUI();
+  if (val.length === 4) setTimeout(submitPin, 120);
+});
+
+function updateDots() { syncPinUI(); }
 
 async function submitPin() {
   const u = window.AUTH.usuarioActual();
@@ -328,7 +351,9 @@ function showPinError(msg) {
   dots.forEach(d => { d.classList.remove('filled'); d.classList.add('error'); });
   document.getElementById('pinMsg').textContent = msg;
   pinBuffer = '';
-  setTimeout(() => dots.forEach(d => d.classList.remove('error')), 600);
+  pinTextEl.value = '';
+  pinTextEl.classList.add('error');
+  setTimeout(() => { dots.forEach(d => d.classList.remove('error')); pinTextEl.classList.remove('error'); pinTextEl.focus(); }, 600);
 }
 
 // ── SESSION COUNTDOWN ───────────────────────────────────────────────────
@@ -349,8 +374,10 @@ function startCountdown() {
       document.getElementById('pinOverlay').classList.remove('hidden');
       document.getElementById('pageWrap').style.display = 'none';
       pinBuffer = '';
+      pinTextEl.value = '';
       updateDots();
       document.getElementById('pinMsg').textContent = 'Sesion expirada';
+      setTimeout(() => pinTextEl.focus(), 100);
     }
   }, 1000);
 }
@@ -431,8 +458,9 @@ function renderTabla(data) {
         <div style="display:flex;align-items:center;">
           <span class="status-dot ${statusDotClass(p)}"></span>
           <div>
-            <div class="proj-name">${p.nombre || p.obra || '-'}${zombieHtml}</div>
-            <div class="proj-sub">${p.numero || ''} ${p.fecha_inicio ? '- ' + p.fecha_inicio : ''}</div>
+            <div class="proj-name">${p.nombre || p.numero || '-'}${zombieHtml}</div>
+            <div class="proj-sub">${p.numero || ''}${p.cliente_nombre ? ' · ' + p.cliente_nombre : ''}</div>
+            ${p.obra && p.obra !== p.nombre ? '<div class="proj-obra">' + p.obra + '</div>' : ''}
           </div>
         </div>
       </td>
@@ -704,12 +732,17 @@ document.getElementById('cutoffDate').addEventListener('change', () => {
   _fetchDebounce = setTimeout(() => { detailCache = {}; cargarInforme(); }, 500);
 });
 
-// Keyboard support for PIN
+// Keyboard support for PIN (only when text input not focused — avoid double input)
 document.addEventListener('keydown', (e) => {
-  if (!document.getElementById('pinOverlay').classList.contains('hidden')) {
-    if (e.key >= '0' && e.key <= '9') pinInput(e.key);
-    if (e.key === 'Backspace') pinBack();
+  if (document.getElementById('pinOverlay').classList.contains('hidden')) return;
+  if (document.activeElement === pinTextEl) {
+    // Text input handles digits itself; only intercept Enter
+    if (e.key === 'Enter' && pinBuffer.length === 4) submitPin();
+    return;
   }
+  if (e.key >= '0' && e.key <= '9') pinInput(e.key);
+  if (e.key === 'Backspace') pinBack();
+  if (e.key === 'Enter' && pinBuffer.length === 4) submitPin();
 });
 </script>
 </body>
