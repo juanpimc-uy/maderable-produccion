@@ -1442,8 +1442,16 @@ function barHoras(real, est, h=6) {
 }
 
 function hAcumPr(prId) {
-  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId);
-  return all.reduce((a,s)=>a+msH(s.fin-s.inicio),0);
+  const PLANTA_IDS = new Set(
+    CENTROS.filter(c => c.familia === 'planta').map(c => c.id)
+  );
+  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))]
+    .filter(s => s.proyectoId === prId)
+    .filter(s => {
+      const cid = getCentro(s.centroId)?.id || s.centroId;
+      return PLANTA_IDS.has(cid);
+    });
+  return all.reduce((a,s) => a + msH(s.fin - s.inicio), 0);
 }
 function hAcumIt(prId,itId) {
   const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId&&s.itemId===itId&&(s.tipo||'normal')==='normal');
@@ -4477,10 +4485,22 @@ async function generarBackupManual() {
   btn.textContent = 'Generar backup ahora';
 }
 
-function fInit(){
+async function fInit(){
   const u = window.AUTH.usuarioActual();
   const sec = document.getElementById('ajustes-formula-section');
   if (sec) sec.style.display = '';
+  // Cargar de localStorage; si no hay, intentar desde Supabase
+  if (!localStorage.getItem('coef')) {
+    try {
+      const res = await fetch('/api/tiempos?action=config');
+      const data = await res.json();
+      if (data.config?.formula_coef) {
+        const saved = typeof data.config.formula_coef === 'string' ? JSON.parse(data.config.formula_coef) : data.config.formula_coef;
+        if (saved.coef) localStorage.setItem('coef', JSON.stringify(saved.coef));
+        if (saved.dif) localStorage.setItem('dif', JSON.stringify(saved.dif));
+      }
+    } catch(e) {}
+  }
   const COEF=JSON.parse(localStorage.getItem('coef')||JSON.stringify(F_COEF_DEF));
   const DIF=JSON.parse(localStorage.getItem('dif')||JSON.stringify(F_DIF_DEF));
   const cg=document.getElementById('f-coef-grid');
@@ -4507,6 +4527,11 @@ function fGuardar(){
   const{coef,dif}=fReadCurrent();
   localStorage.setItem('coef',JSON.stringify(coef));
   localStorage.setItem('dif',JSON.stringify(dif));
+  fetch('/api/tiempos?action=guardar-config&st=' + window.AUTH.getSessionToken(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clave: 'formula_coef', valor: JSON.stringify({ coef, dif }), session_token: window.AUTH.getSessionToken() })
+  }).catch(console.error);
   const b=document.getElementById('ok-banner-f');
   if(b){b.classList.add('show');setTimeout(()=>b.classList.remove('show'),3000);}
 }
