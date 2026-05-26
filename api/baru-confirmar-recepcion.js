@@ -20,9 +20,20 @@ export default async function handler(req) {
       ? new Date(fecha + 'T12:00:00').toISOString()
       : new Date().toISOString();
 
+    // Primero obtener estado actual
+    const { data: partida } = await supabase
+      .from('partidas_terceros')
+      .select('estado')
+      .eq('id', id)
+      .maybeSingle();
+
+    const updateFields = { fecha_recepcion_proveedor: fechaRecepcion };
+    // Auto-despacho: si estaba en_taller, pasar a en_proveedor
+    if (partida?.estado === 'en_taller') updateFields.estado = 'en_proveedor';
+
     const { error } = await supabase
       .from('partidas_terceros')
-      .update({ fecha_recepcion_proveedor: fechaRecepcion })
+      .update(updateFields)
       .eq('id', id)
       .is('fecha_recepcion_proveedor', null);
 

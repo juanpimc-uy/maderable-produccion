@@ -816,11 +816,13 @@ function imprimirEtiquetas(id) {
   if (!p) return;
   const bultos = p.bultos || 1;
   for (let i = 0; i < bultos; i++) {
-    setTimeout(() => _imprimirEtiqueta(p), i * 600);
+    setTimeout(() => _imprimirEtiqueta(p, i + 1, bultos), i * 600);
   }
 }
 
-function _imprimirEtiqueta(p) {
+function _imprimirEtiqueta(p, bultoNum, bultoTotal) {
+  bultoNum = bultoNum || 1;
+  bultoTotal = bultoTotal || (p.bultos || 1);
   const provFull = p.proveedorNombre || (p.tipo === 'tap' ? PROVS.tap : PROVS.lus);
   const envio = p.numero_envio || 'ENV: PENDIENTE';
   const provShort = (provFull || '').split(' ')[0].toUpperCase();
@@ -864,6 +866,7 @@ body{display:flex;flex-direction:column;padding:0}
 .mueble{font-size:3pt;font-weight:bold;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.5;margin-top:1mm}
 .qr-wrap{width:16mm;height:16mm;flex-shrink:0}
 .qr-wrap canvas,.qr-wrap img{width:16mm!important;height:16mm!important}
+.bulto-label{font-size:5pt;font-weight:bold;text-align:center;letter-spacing:0.5pt;padding:0.5mm 0;border-top:0.2mm dashed #ccc;flex-shrink:0}
 .foot{border-top:0.2mm solid #ddd;padding:0.8mm 2mm;display:flex;justify-content:space-between;font-size:2.8pt;text-transform:uppercase;opacity:.38;flex-shrink:0}
 </style></head><body>
 <div class="top"><span class="marca">\u25CB MADERABLE</span><span class="env">${envio}</span></div>
@@ -874,7 +877,8 @@ body{display:flex;flex-direction:column;padding:0}
 <div class="proj-big">${proyecto}</div>
 <div class="mueble">${muebleNombre}</div>
 </div><div class="qr-wrap" id="qr"></div></div>
-<div class="foot"><span>${codigo}</span><span>${bultosNum} bulto(s) \u00b7 ${retorno}</span></div>
+${bultoTotal > 1 ? `<div class="bulto-label">BULTO ${bultoNum} DE ${bultoTotal}</div>` : ''}
+<div class="foot"><span>${codigo}</span><span>${bultoTotal > 1 ? 'B' + bultoNum + '/' + bultoTotal : bultosNum + ' bulto(s)'} \u00b7 ${retorno}</span></div>
 <script>
 new QRCode(document.getElementById('qr'),{text:'${qrUrl}',width:128,height:128,correctLevel:QRCode.CorrectLevel.M});
 setTimeout(function(){window.print();window.close();},700);
