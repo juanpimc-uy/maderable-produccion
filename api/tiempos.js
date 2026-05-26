@@ -3400,7 +3400,7 @@ export default async function handler(req) {
         const recibidasSet = new Set((recibidas || []).map(r => r.oc_numero));
         const hoy = new Date().toISOString().split('T')[0];
 
-        recepciones = allOcs
+        const ocsFiltradas = allOcs
           .filter(oc => {
             const num = parseInt((oc.purchaseorder_number || '').replace(/\D/g, ''), 10);
             return !isNaN(num) && num >= 5522;
@@ -3410,10 +3410,12 @@ export default async function handler(req) {
             const vencida = oc.delivery_date && oc.delivery_date < hoy;
             return {
               oc_numero: oc.purchaseorder_number,
+              oc_id_zoho: oc.purchaseorder_id,
               proveedor: oc.vendor_name || '',
               referencia: oc.reference_number || '',
               fecha_entrega: oc.delivery_date || null,
               estado: esRecibida ? 'recibida' : (vencida ? 'vencida' : 'pendiente'),
+              items: [],
             };
           })
           .filter(oc => oc.estado !== 'recibida')
@@ -3423,6 +3425,18 @@ export default async function handler(req) {
             if (oa !== ob) return oa - ob;
             return (a.fecha_entrega || '9999').localeCompare(b.fecha_entrega || '9999');
           }).slice(0, 15);
+
+        // Enriquecer con primeros 3 line_items de cada OC
+        await Promise.all(ocsFiltradas.map(async (oc) => {
+          try {
+            const detUrl = `https://www.zohoapis.com/books/v3/purchaseorders/${oc.oc_id_zoho}?organization_id=${orgId}`;
+            const detRes = await fetch(detUrl, { headers: zHeaders });
+            const detData = await detRes.json();
+            const li = detData?.purchaseorder?.line_items || [];
+            oc.items = li.slice(0, 3).map(i => `${i.description || i.name || 'Item'} ×${i.quantity || 0}`);
+          } catch { /* items queda [] */ }
+        }));
+        recepciones = ocsFiltradas.map(({ oc_id_zoho, ...rest }) => rest);
       } catch (e) { console.error('[tv-bottom] recepciones error:', e.message); }
 
       return ok({ ok: true, kitting, recepciones });
