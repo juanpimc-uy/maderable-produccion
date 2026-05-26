@@ -74,6 +74,8 @@ function renderPartida() {
   const p = _partida;
   const el = document.getElementById('content');
   const yaRecibida = !!p.fecha_recepcion_proveedor;
+  const enTaller = p.estado === 'en_taller';
+  const enProveedor = !enTaller && !yaRecibida;
 
   const fmtFecha = iso => {
     if (!iso) return '';
@@ -84,8 +86,10 @@ function renderPartida() {
   let statusHtml = '';
   if (yaRecibida) {
     statusHtml = `<div class="status-banner status-recibido">&#10003; Recibido por proveedor &middot; ${fmtFecha(p.fecha_recepcion_proveedor)}</div>`;
+  } else if (enTaller) {
+    statusHtml = `<div class="status-banner" style="background:rgba(255,214,0,0.06);color:#aaa;border:1px solid rgba(255,214,0,0.15);">Pendiente de despacho &mdash; este envío aún no fue despachado por Maderable</div>`;
   } else {
-    statusHtml = `<div class="status-banner status-pendiente">Pendiente de recepción</div>`;
+    statusHtml = `<div class="status-banner status-pendiente">En proveedor &mdash; pendiente de recepción</div>`;
   }
 
   let instruccionHtml = '';
@@ -98,7 +102,7 @@ function renderPartida() {
   }
 
   let actionHtml = '';
-  if (!yaRecibida) {
+  if (enProveedor) {
     const totalBultos = p.bultos || 1;
     const hoyStr = new Date().toISOString().split('T')[0];
     const pct = Math.round((_bultosConfirmados / totalBultos) * 100);

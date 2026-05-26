@@ -814,30 +814,17 @@ function _guardarEditPartida(id) {
 function imprimirEtiquetas(id) {
   const p = PARTIDAS.find(x => x.id === id);
   if (!p) return;
-  const bultos = p.bultos || 1;
-  for (let i = 0; i < bultos; i++) {
-    setTimeout(() => _imprimirEtiqueta(p, i + 1, bultos), i * 600);
-  }
-}
-
-function _imprimirEtiqueta(p, bultoNum, bultoTotal) {
-  bultoNum = bultoNum || 1;
-  bultoTotal = bultoTotal || (p.bultos || 1);
   const provFull = p.proveedorNombre || (p.tipo === 'tap' ? PROVS.tap : PROVS.lus);
   const envio = p.numero_envio || 'ENV: PENDIENTE';
   const provShort = (provFull || '').split(' ')[0].toUpperCase();
-  // Cliente: fallback al proyecto si la partida no lo tiene
   let clienteRaw = p.cliente || '';
-  if (!clienteRaw) {
-    const pr = _PROYECTOS.find(x => x.numero === p.proyectoNum);
-    clienteRaw = pr?.cliente_nombre || pr?.cliente || '';
-  }
+  if (!clienteRaw) { const pr = _PROYECTOS.find(x => x.numero === p.proyectoNum); clienteRaw = pr?.cliente_nombre || pr?.cliente || ''; }
   const cliente = (clienteRaw || '\u2014').toUpperCase();
   const odf = (p.proyectoNum || p.obra || '\u2014').toUpperCase();
   const proyecto = (p.obra || '\u2014').toUpperCase();
   const muebleNombre = (p.muebleNombre || '\u2014').toUpperCase();
   const codigo = (p.muebleCodigo || '\u2014').toUpperCase();
-  const bultosNum = p.bultos || 1;
+  const totalBultos = p.bultos || 1;
   const retorno = p.fechaRetornoEstimada
     ? new Date(p.fechaRetornoEstimada + 'T12:00:00').toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit'})
     : '\u2014';
@@ -846,14 +833,35 @@ function _imprimirEtiqueta(p, bultoNum, bultoTotal) {
     ? 'https://maderable-produccion.vercel.app/baru-recepcion.html?id=' + encodeURIComponent(p.id)
     : 'https://maderable-produccion.vercel.app/envio.html?id=' + encodeURIComponent(envio);
 
+  // Generar todas las etiquetas en una sola ventana (page-break entre cada una)
+  let pages = '';
+  for (let b = 1; b <= totalBultos; b++) {
+    const bultoLine = totalBultos > 1 ? `<div class="bulto-label">BULTO ${b} DE ${totalBultos}</div>` : '';
+    const footBulto = totalBultos > 1 ? `B${b}/${totalBultos}` : `${totalBultos} bulto(s)`;
+    pages += `
+      <div class="etiqueta${b < totalBultos ? ' page-break' : ''}">
+        <div class="top"><span class="marca">\u25CB MADERABLE</span><span class="env">${envio}</span></div>
+        <div class="mid"><div class="ml">
+          <div class="prov-big">${provShort}</div>
+          <div class="cli-big">${cliente}</div>
+          <div class="odf-sm">${odf}</div>
+          <div class="proj-big">${proyecto}</div>
+          <div class="mueble">${muebleNombre}</div>
+        </div><div class="qr-wrap" id="qr-${b}"></div></div>
+        ${bultoLine}
+        <div class="foot"><span>${codigo}</span><span>${footBulto} \u00b7 ${retorno}</span></div>
+      </div>`;
+  }
+
   const win = window.open('', '_blank', 'width=450,height=350');
   win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
 <style>
 @page{size:60mm 30mm;margin:0}
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:60mm;height:30mm;font-family:'Courier New',Courier,monospace;background:#fff;color:#000}
-body{display:flex;flex-direction:column;padding:0}
+html,body{font-family:'Courier New',Courier,monospace;background:#fff;color:#000}
+.etiqueta{width:60mm;height:30mm;display:flex;flex-direction:column;padding:0;overflow:hidden}
+.page-break{page-break-after:always}
 .top{padding:1.5mm 2mm 1mm;border-bottom:0.2mm solid #ddd;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
 .marca{font-size:3pt;letter-spacing:0.5pt;opacity:.4;text-transform:uppercase}
 .env{font-size:5.5pt;font-weight:bold;letter-spacing:0.5pt}
@@ -869,19 +877,13 @@ body{display:flex;flex-direction:column;padding:0}
 .bulto-label{font-size:5pt;font-weight:bold;text-align:center;letter-spacing:0.5pt;padding:0.5mm 0;border-top:0.2mm dashed #ccc;flex-shrink:0}
 .foot{border-top:0.2mm solid #ddd;padding:0.8mm 2mm;display:flex;justify-content:space-between;font-size:2.8pt;text-transform:uppercase;opacity:.38;flex-shrink:0}
 </style></head><body>
-<div class="top"><span class="marca">\u25CB MADERABLE</span><span class="env">${envio}</span></div>
-<div class="mid"><div class="ml">
-<div class="prov-big">${provShort}</div>
-<div class="cli-big">${cliente}</div>
-<div class="odf-sm">${odf}</div>
-<div class="proj-big">${proyecto}</div>
-<div class="mueble">${muebleNombre}</div>
-</div><div class="qr-wrap" id="qr"></div></div>
-${bultoTotal > 1 ? `<div class="bulto-label">BULTO ${bultoNum} DE ${bultoTotal}</div>` : ''}
-<div class="foot"><span>${codigo}</span><span>${bultoTotal > 1 ? 'B' + bultoNum + '/' + bultoTotal : bultosNum + ' bulto(s)'} \u00b7 ${retorno}</span></div>
+${pages}
 <script>
-new QRCode(document.getElementById('qr'),{text:'${qrUrl}',width:128,height:128,correctLevel:QRCode.CorrectLevel.M});
-setTimeout(function(){window.print();window.close();},700);
+for(var i=1;i<=${totalBultos};i++){
+  var el=document.getElementById('qr-'+i);
+  if(el)new QRCode(el,{text:'${qrUrl}',width:128,height:128,correctLevel:QRCode.CorrectLevel.M});
+}
+setTimeout(function(){window.print();window.close();},800);
 <\/script></body></html>`);
   win.document.close();
 }
