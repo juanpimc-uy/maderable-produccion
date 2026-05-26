@@ -1455,9 +1455,19 @@ function hAcumPr(prId) {
     });
   return all.reduce((a,s) => a + msH(s.fin - s.inicio), 0);
 }
-function hAcumIt(prId,itId) {
-  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId&&s.itemId===itId&&(s.tipo||'normal')==='normal');
-  return all.reduce((a,s)=>a+msH(s.fin-s.inicio),0);
+function hAcumIt(prId, itId) {
+  const PLANTA_IDS = new Set(
+    CENTROS.filter(c => c.familia === 'planta').map(c => c.id)
+  );
+  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))]
+    .filter(s =>
+      s.proyectoId === prId &&
+      s.itemId === itId &&
+      (s.tipo || 'normal') === 'normal' &&
+      PLANTA_IDS.has(getCentro(s.centroId)?.id || s.centroId) &&
+      (OPERARIOS.find(o => o.id === s.operarioId)?.categoria !== 'indirecto')
+    );
+  return all.reduce((a,s) => a + msH(s.fin - s.inicio), 0);
 }
 function hRetrabajoIt(prId,itId) {
   const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId&&s.itemId===itId&&s.tipo==='retrabajo');
