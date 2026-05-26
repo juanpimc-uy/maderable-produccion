@@ -27,6 +27,14 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .btn-confirmar:disabled{opacity:.4;cursor:not-allowed;}
 .link-portal{display:block;text-align:center;font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);text-decoration:none;padding:10px;transition:color .15s;}
 .link-portal:hover{color:var(--yellow);}
+.bultos-counter{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;text-align:center;}
+.bultos-num{font-family:'Space Mono',monospace;font-size:32px;font-weight:700;color:var(--yellow);line-height:1;}
+.bultos-label{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;margin-top:4px;}
+.bultos-bar{height:6px;background:#222;border-radius:3px;overflow:hidden;margin-top:10px;}
+.bultos-fill{height:100%;background:var(--green);border-radius:3px;transition:width .3s;}
+.btn-bulto{width:100%;padding:14px;border:none;border-radius:8px;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:1px;background:var(--yellow);color:#000;transition:opacity .15s;margin-bottom:8px;}
+.btn-bulto:hover{opacity:.85;}
+.btn-bulto:disabled{opacity:.4;cursor:not-allowed;}
 .loading{text-align:center;padding:60px 20px;font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
 .error-msg{text-align:center;padding:60px 20px;font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);}
 </style>
@@ -41,6 +49,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 <script>
 'use strict';
 let _partida = null;
+let _bultosConfirmados = 0;
 
 (async () => {
   const el = document.getElementById('content');
@@ -90,13 +99,24 @@ function renderPartida() {
 
   let actionHtml = '';
   if (!yaRecibida) {
+    const totalBultos = p.bultos || 1;
     const hoyStr = new Date().toISOString().split('T')[0];
+    const pct = Math.round((_bultosConfirmados / totalBultos) * 100);
+    const todosConfirmados = _bultosConfirmados >= totalBultos;
     actionHtml = `
+      <div class="bultos-counter">
+        <div class="bultos-num">${_bultosConfirmados} / ${totalBultos}</div>
+        <div class="bultos-label">BULTOS CONFIRMADOS</div>
+        <div class="bultos-bar"><div class="bultos-fill" style="width:${pct}%"></div></div>
+      </div>
+      ${!todosConfirmados ? `
+        <button class="btn-bulto" onclick="confirmarBulto()">&#10003; CONFIRMAR BULTO ${_bultosConfirmados + 1}</button>
+      ` : ''}
       <div style="margin-bottom:12px;">
         <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Fecha de recepción</div>
         <input type="date" id="recep-fecha" value="${hoyStr}" style="width:100%;background:#1e1e1e;border:1px solid #333;border-radius:6px;padding:10px 12px;color:#f0f0f0;font-family:'Space Mono',monospace;font-size:13px;outline:none;">
       </div>
-      <button class="btn-confirmar" id="btn-confirmar" onclick="confirmarRecepcion()">&#10003; Confirmar recepción</button>`;
+      <button class="btn-confirmar" id="btn-confirmar" onclick="confirmarRecepcion()" ${!todosConfirmados ? 'disabled' : ''}>&#10003; Completar recepción</button>`;
   }
 
   el.innerHTML = `
@@ -112,6 +132,15 @@ function renderPartida() {
     ${actionHtml}
     <a href="/baru.html" class="link-portal">&rarr; Ir al portal BARU</a>
   `;
+}
+
+function confirmarBulto() {
+  if (!_partida) return;
+  const total = _partida.bultos || 1;
+  if (_bultosConfirmados < total) {
+    _bultosConfirmados++;
+    renderPartida();
+  }
 }
 
 async function confirmarRecepcion() {
