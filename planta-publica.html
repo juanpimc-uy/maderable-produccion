@@ -129,20 +129,31 @@
 
   @media(max-width:768px){
     html, body { height:auto; overflow:auto; }
-    #screen-dash { height:auto; min-height:100vh; }
-    .main { overflow:visible; min-height:0; }
+    #screen-dash { height:auto; min-height:100vh; display:flex; flex-direction:column; }
+    .main { overflow:visible; min-height:0; flex:none; }
     .bottom {
       height:auto;
+      flex-shrink:0;
       grid-template-columns:1fr;
       border-top:2px solid var(--brd);
     }
     .panel-rec {
       border-right:none;
       border-bottom:1px solid var(--brd);
-      max-height:50vh;
+      height:auto;
+      max-height:none;
+    }
+    .panel-rec .panel-body {
+      max-height:40vh;
+      overflow-y:auto;
     }
     .panel-kit {
-      max-height:50vh;
+      height:auto;
+      max-height:none;
+    }
+    .panel-kit .panel-body {
+      max-height:40vh;
+      overflow-y:auto;
     }
   }
 </style>
