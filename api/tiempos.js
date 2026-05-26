@@ -2152,7 +2152,8 @@ export default async function handler(req) {
 
     // ── POST guardar proyecto completo ────────────────────────────────────
     if (action === 'guardar-proyecto' && req.method === 'POST') {
-      if (!await verificarSesion(body.session_token)) return err('Sesión inválida o expirada', 401);
+      const _st = body.session_token || url.searchParams.get('st');
+      if (!await verificarSesion(_st)) return err('Sesión inválida o expirada', 401);
       const { id, nombre, numero, obra, clienteNombre, referencia, fechaInicio, fechaEntrega,
               notas, estado, muebles, materiales, sosCargadas, modulos, creadoEn,
               activo: activoBody } = body;
