@@ -132,27 +132,43 @@
     #screen-dash { height:auto; min-height:100vh; display:flex; flex-direction:column; }
     .main { overflow:visible; min-height:0; flex:none; }
     .bottom {
-      height:auto;
       flex-shrink:0;
       grid-template-columns:1fr;
+      height:auto;
       border-top:2px solid var(--brd);
     }
-    .panel-rec {
-      border-right:none;
+    .bottom-tabs {
+      display:flex;
       border-bottom:1px solid var(--brd);
+      background:var(--surf);
+    }
+    .btab {
+      flex:1;
+      padding:8px;
+      font-family:'IBM Plex Mono',monospace;
+      font-size:10px;
+      font-weight:600;
+      letter-spacing:1px;
+      text-align:center;
+      text-transform:uppercase;
+      color:var(--tx3);
+      cursor:pointer;
+      border:none;
+      background:transparent;
+      border-bottom:2px solid transparent;
+    }
+    .btab.active-rec { color:var(--arm); border-bottom-color:var(--arm); }
+    .btab.active-kit { color:var(--col); border-bottom-color:var(--col); }
+    .panel-half.rec, .panel-half.kit {
+      border-right:none;
       height:auto;
       max-height:none;
+      display:none;
     }
-    .panel-rec .panel-body {
-      max-height:40vh;
-      overflow-y:auto;
-    }
-    .panel-kit {
-      height:auto;
-      max-height:none;
-    }
-    .panel-kit .panel-body {
-      max-height:40vh;
+    .panel-half.rec.tab-visible, .panel-half.kit.tab-visible { display:flex; }
+    .panel-half.rec .panel-hdr, .panel-half.kit .panel-hdr { display:none; }
+    .panel-half.rec .panel-body, .panel-half.kit .panel-body {
+      max-height:55vh;
       overflow-y:auto;
     }
   }
@@ -215,6 +231,10 @@
 
   <!-- ═══ BOTTOM: Recepciones + Kitting ═══════════════════════════════════ -->
   <div class="bottom">
+    <div class="bottom-tabs" id="bottom-tabs" style="display:none">
+      <button class="btab active-rec" onclick="switchTab('rec')">📦 Recepciones</button>
+      <button class="btab" onclick="switchTab('kit')">🧩 Kitting SO</button>
+    </div>
     <div class="panel-half rec">
       <div class="panel-hdr rec-hdr">
         <div class="phdr-title">RECEPCIONES OC</div>
@@ -267,10 +287,32 @@ async function _loginPublico() {
   }
 }
 
+// ── Tabs mobile ──────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  const rec = document.querySelector('.panel-half.rec');
+  const kit = document.querySelector('.panel-half.kit');
+  const tabs = document.querySelectorAll('.btab');
+  if (tab === 'rec') {
+    rec.classList.add('tab-visible');
+    kit.classList.remove('tab-visible');
+    tabs[0].className = 'btab active-rec';
+    tabs[1].className = 'btab';
+  } else {
+    kit.classList.add('tab-visible');
+    rec.classList.remove('tab-visible');
+    tabs[0].className = 'btab';
+    tabs[1].className = 'btab active-kit';
+  }
+}
+
 // ── Mostrar dashboard ─────────────────────────────────────────────────────────
 function mostrarDash() {
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('screen-dash').style.display = 'flex';
+  if (window.innerWidth <= 768) {
+    document.getElementById('bottom-tabs').style.display = 'flex';
+    document.querySelector('.panel-half.rec').classList.add('tab-visible');
+  }
   cargarSnapshot();
   cargarBottom();
   setInterval(cargarSnapshot, 60000);
