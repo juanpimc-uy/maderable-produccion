@@ -1281,7 +1281,7 @@ async function syncProyectoSupabase(proyecto) {
     fechaEntrega: proyecto.fechaEntrega,
     notas: proyecto.notas || '',
     estado: proyecto.estado || 'en_produccion',
-    muebles: proyecto.items || proyecto.muebles || [],
+    muebles: proyecto.muebles || [],
     materiales: proyecto.materiales || [],
     sosCargadas: proyecto.sosCargadas || [],
     modulos: proyecto.modulos || [],
@@ -1843,7 +1843,7 @@ function renderProyectos() {
           ${inv > 0 ? pill(inv+' inventario','var(--teal)') : ''}
           ${des > 0 ? pill(des+' despachados','var(--purple)') : ''}
         </div>
-        ${(()=>{const items=pr.items||[];const total=items.length;if(!total)return'';const done=items.filter(m=>m.completado).length;const squares=items.map(m=>`<div class="sq-item ${m.completado?'done':'pending'}"></div>`).join('');return`<div class="items-footer"><div class="sq-track">${squares}</div><span class="items-label">${done}/${total}</span></div>`;})()}
+        ${(()=>{const items=pr.muebles||pr.items||[];const total=items.length;if(!total)return'';const done=items.filter(m=>m.completado).length;const squares=items.map(m=>`<div class="sq-item ${m.completado?'done':'pending'}"></div>`).join('');return`<div class="items-footer"><div class="sq-track">${squares}</div><span class="items-label">${done}/${total}</span></div>`;})()}
       </div>`;
   }
 
@@ -2813,12 +2813,9 @@ function setPlacasInline(prId,mId,val){
 function toggleItemCompletado(prId,itemId){
   const pr=PROYECTOS.find(p=>p.id===prId);
   if(!pr)return;
-  const item=(pr.items||[]).find(m=>m.id===itemId);
-  if(!item)return;
-  item.completado=!item.completado;
-  // Also update muebles if exists
-  const mueble=(pr.muebles||[]).find(m=>m.id===itemId);
-  if(mueble)mueble.completado=item.completado;
+  const m=(pr.muebles||[]).find(x=>x.id===itemId);
+  if(!m)return;
+  m.completado=!m.completado;
   syncProyectoSupabase(pr);
   renderDetallePr(pr,'\u00edtems');
 }
