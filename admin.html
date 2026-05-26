@@ -2057,59 +2057,41 @@ function renderDetallePr(pr, sub) {
 
   // ── ÍTEMS ──
   if(sub==='ítems'){
-    if(editMode && pr.muebles && pr.muebles.length){
-      html+=`<div class="card"><div class="sec-title" style="margin-bottom:14px;">Muebles · editar</div>
-        <table><thead><tr><th>Código</th><th>Nombre</th><th>Cant</th><th>Dif</th><th>Hrs Est.</th></tr></thead><tbody>
-        ${pr.muebles.map(m=>`<tr>
-          <td class="mono" style="color:var(--amber);font-size:12px;">${m.codigo||'—'}</td>
-          <td><input id="edm-nombre-${m.id}" value="${(m.nombre||'').replace(/"/g,'&quot;')}" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:13px;width:100%;outline:none;"></td>
-          <td><input type="number" id="edm-cant-${m.id}" value="${m.cant||1}" min="1" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:13px;width:60px;text-align:center;outline:none;"></td>
-          <td><div style="display:flex;gap:4px;">${[1,2,3,4].map(d=>{const DL={1:'F',2:'M',3:'D',4:'UH'};const sel=(m.dif||2)===d;return`<button id="edm-dif-btn-${m.id}-${d}" onclick="edmSetDif('${m.id}',${d})" style="padding:4px 7px;border:1px solid ${sel?'var(--amber)':'var(--border)'};border-radius:4px;background:${sel?'rgba(245,166,35,.2)':'transparent'};color:${sel?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;transition:all .15s;">${DL[d]}</button>`;}).join('')}<input type="hidden" id="edm-dif-${m.id}" value="${m.dif||2}"></div></td>
-          <td class="mono" style="color:var(--muted);font-size:12px;">${fmtH(Object.values(m.horas||{}).reduce((a,v)=>a+Number(v||0),0))}</td>
-        </tr>`).join('')}
-        </tbody></table></div>`;
-      document.getElementById('pr-detalle').innerHTML = html;
-      return;
-    }
     if(pr.muebles && pr.muebles.length){
-      html+=`<div style="display:flex;flex-direction:column;gap:10px;">`;
+      html+=`<div style="display:flex;flex-direction:column;gap:4px;">`;
       pr.muebles.forEach((m,mIdx)=>{
         const hEst=Object.values(m.horas||{}).reduce((a,v)=>a+Number(v||0),0)*(m.cant||1);
         const hA2=hAcumIt(pr.id,m.id);
-        const sesAct=SESIONES.filter(s=>s.proyectoId===pr.id&&s.itemId===m.id);
-        const mats=m.mats||[];
-        const critPend=mats.filter(mat=>mat.critico&&(mat.recibido||0)<mat.requerido);
-        const allPend=mats.filter(mat=>(mat.recibido||0)<mat.requerido);
-        const sem=!mats.length?'🟢':critPend.length?'🔴':allPend.length?'🟡':'🟢';
         const FLUJOS_INTERNO=['madera_maciza','herreria','electricidad'];
-        const flujoChips=FLUJOS_ORDER.map(f=>{const fc=FLUJOS_CONF[f];const sel=m.flujos&&m.flujos.includes(f);const btn=`<button onclick="toggleFlujoInline('${pr.id}','${m.id}','${f}')" style="padding:4px 10px;border:1px solid ${sel?fc.color:'var(--border)'};border-radius:20px;background:${sel?fc.color+'18':'transparent'};color:${sel?fc.color:'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;transition:all .15s;">${fc.label}</button>`;if(sel&&FLUJOS_INTERNO.includes(f)){const hrs=(m.hrsExtra||{})[f]||'';return`<span style="display:inline-flex;align-items:center;gap:4px;">${btn}<input type="number" min="0" step="0.5" value="${hrs}" placeholder="h" onchange="setHrsExtraInline('${pr.id}','${m.id}','${f}',this.value)" style="width:48px;background:var(--faint);border:1px solid ${fc.color}44;border-radius:4px;padding:3px 5px;color:${fc.color};font-family:'JetBrains Mono',monospace;font-size:10px;text-align:center;outline:none;" title="Horas estimadas ${fc.label}"></span>`;}return btn;}).join('');
+        const flujoChips=FLUJOS_ORDER.map(f=>{const fc=FLUJOS_CONF[f];const sel=m.flujos&&m.flujos.includes(f);const btn=`<button onclick="toggleFlujoInline('${pr.id}','${m.id}','${f}')" style="padding:3px 8px;border:1px solid ${sel?fc.color:'var(--border)'};border-radius:20px;background:${sel?fc.color+'18':'transparent'};color:${sel?fc.color:'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;transition:all .15s;">${fc.label}</button>`;if(sel&&FLUJOS_INTERNO.includes(f)){const hrs=(m.hrsExtra||{})[f]||'';return`<span style="display:inline-flex;align-items:center;gap:3px;">${btn}<input type="number" min="0" step="0.5" value="${hrs}" placeholder="h" onchange="setHrsExtraInline('${pr.id}','${m.id}','${f}',this.value)" style="width:40px;background:var(--faint);border:1px solid ${fc.color}44;border-radius:4px;padding:2px 4px;color:${fc.color};font-family:'JetBrains Mono',monospace;font-size:9px;text-align:center;outline:none;" title="Horas estimadas ${fc.label}"></span>`;}return btn;}).join('');
         const DIF_LABEL={1:'F',2:'M',3:'D',4:'UH'};
-        const difBtns=[1,2,3,4].map(d=>{const sel=(m.dif||2)===d;return`<button onclick="setDifInline('${pr.id}','${m.id}',${d})" style="width:26px;height:22px;border:1px solid ${sel?'var(--amber)':'var(--border)'};border-radius:4px;background:${sel?'rgba(245,166,35,.2)':'transparent'};color:${sel?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;transition:all .15s;">${DIF_LABEL[d]}</button>`;}).join('');
-        html+=`<div style="background:var(--card);border:1px solid ${sesAct.length?'rgba(245,166,35,.4)':'var(--border)'};border-radius:8px;padding:18px;${m.completado?'opacity:0.5;':''}">
-          <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;">
-            <div class="mono" style="font-size:11px;font-weight:700;color:var(--amber);min-width:38px;padding-top:2px;">${m.codigo||'—'}</div>
-            <div style="flex:1;">
-              <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:8px;"><input value="${(m.nombre||'').replace(/"/g,'&amp;quot;')}" onfocus="this.style.borderBottomColor='var(--accent)'" onblur="this.style.borderBottomColor='var(--border)';setNombreInline('${pr.id}','${m.id}',this.value)" style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:15px;font-weight:600;width:100%;outline:none;padding:0;font-family:'DM Sans',sans-serif;"> <span style="font-size:12px;color:var(--muted);">×${m.cant||1}</span></div>
-              <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">${flujoChips}</div>
-              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                <div style="display:flex;align-items:center;gap:6px;">
-                  <span class="mono" style="font-size:10px;color:var(--muted);">PLACAS</span>
-                  <input type="number" min="1" max="99" value="${m.placas||4}" onchange="setPlacasInline('${pr.id}','${m.id}',this.value)" style="width:52px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 6px;color:var(--amber);font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;text-align:center;outline:none;">
-                </div>
-                <div style="display:flex;align-items:center;gap:5px;">
-                  <span class="mono" style="font-size:10px;color:var(--muted);">DIF</span>
-                  ${difBtns}
-                </div>
-              </div>
+        const difBtns=[1,2,3,4].map(d=>{const sel=(m.dif||2)===d;return`<button onclick="setDifInline('${pr.id}','${m.id}',${d})" style="width:22px;height:20px;border:1px solid ${sel?'var(--amber)':'var(--border)'};border-radius:4px;background:${sel?'rgba(245,166,35,.2)':'transparent'};color:${sel?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;transition:all .15s;">${DIF_LABEL[d]}</button>`;}).join('');
+        html+=`<div style="background:#1a1a1a;border:1px solid var(--border);border-radius:6px;padding:10px 14px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;opacity:${m.completado?'0.45':'1'};">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+              <span style="font-family:'Space Mono',monospace;font-size:12px;color:var(--amber);white-space:nowrap;">${m.codigo||'—'}</span>
+              <input value="${(m.nombre||'').replace(/"/g,'&quot;')}" onchange="setNombreInline('${pr.id}','${m.id}',this.value)" style="font-size:12px;font-weight:600;color:var(--text);background:transparent;border:none;border-bottom:1px solid transparent;outline:none;flex:1;font-family:'DM Sans',sans-serif;padding:1px 0;transition:border-color .15s;" onfocus="this.style.borderBottomColor='var(--amber)'" onblur="this.style.borderBottomColor='transparent'">
             </div>
-            <div style="font-size:22px;">${sem}</div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              ${flujoChips}
+              <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 2px;"></span>
+              ${difBtns}
+              <input type="number" min="1" max="99" value="${m.placas||4}" onchange="setPlacasInline('${pr.id}','${m.id}',this.value)" style="width:40px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:2px 4px;color:var(--amber);font-family:'Space Mono',monospace;font-size:10px;text-align:center;outline:none;" title="Placas">
+              <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">pl</span>
+            </div>
           </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span class="mono" style="font-size:11px;color:${excessColor(hA2,hEst)};white-space:nowrap;">${fmtH(hA2)} / ${fmtH(hEst)} <span style="font-size:9px;">${fmtExceso(hA2,hEst)}</span></span>
-            ${barHoras(hA2,hEst)}
+          <div style="display:flex;align-items:center;gap:10px;white-space:nowrap;">
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
+              <span style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:${excessColor(hA2,hEst)};">${fmtH(hA2)} / ${fmtH(hEst)}</span>
+              <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${(m.cant||1)>1?fmtH(hEst/(m.cant||1))+' × '+(m.cant||1)+'u':'est. por unidad'}</span>
+            </div>
+            <div style="width:1px;height:32px;background:var(--border);"></div>
+            <div style="text-align:center;">
+              <input type="number" min="1" value="${m.cant||1}" onchange="setCantInline('${pr.id}','${m.id}',this.value)" style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--amber);width:40px;text-align:center;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:2px 4px;outline:none;">
+              <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-top:2px;">UNID</div>
+            </div>
+            <button onclick="toggleItemCompletado('${pr.id}','${m.id}')" style="font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:3px;cursor:pointer;border:1px solid ${m.completado?'var(--green)':'var(--border)'};background:${m.completado?'rgba(74,222,128,0.1)':'transparent'};color:${m.completado?'var(--green)':'var(--muted)'};">${m.completado?'✓ COMPLETADO':'COMPLETAR'}</button>
           </div>
-          ${sesAct.length?`<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:10px;">${sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);const c=getCentro(s.centroId);const tid='t-it-'+s.id;return`<div style="display:flex;align-items:center;gap:6px;background:var(--panel);border-radius:5px;padding:4px 9px;border:1px solid rgba(245,166,35,.3);"><div class="av active" style="width:20px;height:20px;font-size:9px;">${op?.avatar}</div><span style="font-size:11px;">${op?.nombre}</span><span class="mono" style="font-size:11px;color:var(--amber);" id="${tid}">–</span></div>`;}).join('')}</div>`:''}
-          <div style="margin-top:10px;display:flex;justify-content:flex-end;"><button onclick="toggleItemCompletado('${pr.id}','${m.id}')" style="font-family:'Space Mono',monospace;font-size:9px;padding:3px 10px;border-radius:3px;border:1px solid ${m.completado?'#166534':'#2e2e2e'};background:${m.completado?'#14532d':'transparent'};color:${m.completado?'#4ade80':'#555'};cursor:pointer;">${m.completado?'\u2713 COMPLETADO':'MARCAR COMPLETADO'}</button></div>
         </div>`;
       });
       html+=`</div>`;
@@ -2804,6 +2786,7 @@ function toggleFlujoInline(prId,mId,flujoId){
   if(!m.flujos)m.flujos=[];
   m.flujos.includes(flujoId)?m.flujos=m.flujos.filter(f=>f!==flujoId):m.flujos.push(flujoId);
   guardarMueblesLS(prId,pr);
+  syncProyectoSupabase(pr);
   renderDetallePr(pr,'ítems');
 }
 
@@ -2821,6 +2804,7 @@ function setPlacasInline(prId,mId,val){
   const horas={};['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'].forEach(k=>{horas[k]=Math.round(m.placas*(coef[k]||0)*f*10)/10;});
   m.horas=horas;
   guardarMueblesLS(prId,pr);
+  syncProyectoSupabase(pr);
   // update items so hEstPr works correctly
   pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
   renderDetallePr(pr,'ítems');
@@ -2861,6 +2845,7 @@ function setDifInline(prId,mId,dif){
   const horas={};['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'].forEach(k=>{horas[k]=Math.round((m.placas||4)*(coef[k]||0)*f*10)/10;});
   m.horas=horas;
   guardarMueblesLS(prId,pr);
+  syncProyectoSupabase(pr);
   pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
   renderDetallePr(pr,'ítems');
 }
@@ -2872,6 +2857,26 @@ function setHrsExtraInline(prId,mId,flujoId,val){
   if(!m.hrsExtra)m.hrsExtra={};
   m.hrsExtra[flujoId]=Number(val)||0;
   guardarMueblesLS(prId,pr);
+  syncProyectoSupabase(pr);
+}
+
+function setCantInline(prId,itemId,val){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  if(!pr)return;
+  const m=(pr.muebles||[]).find(x=>x.id===itemId);
+  if(!m)return;
+  m.cant=Math.max(1,parseInt(val)||1);
+  const COEF_DEF={corte:0.5,enchapado:0.3,armado:0.8,revision:0.2,colocacion:0.15,herreria:0.20,electrica:0.20,macizo:0.20};
+  const DIF_DEF={1:0.7,2:1.0,3:1.5,4:2.2};
+  const coef=JSON.parse(localStorage.getItem('coef')||JSON.stringify(COEF_DEF));
+  const dif_map=JSON.parse(localStorage.getItem('dif')||JSON.stringify(DIF_DEF));
+  const f=dif_map[m.dif||2]||1;
+  const horas={};['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'].forEach(k=>{horas[k]=Math.round((m.placas||4)*(coef[k]||0)*f*10)/10;});
+  m.horas=horas;
+  guardarMueblesLS(prId,pr);
+  syncProyectoSupabase(pr);
+  pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
+  renderDetallePr(pr,'ítems');
 }
 
 function agregarMatManual(prId,mId){
