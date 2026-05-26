@@ -126,6 +126,25 @@
   /* ── Dashboard container ── */
   #screen-dash{display:none;flex-direction:column;flex:1;min-height:0;}
   #tv-err{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--red);display:none;padding:10px 28px;}
+
+  @media(max-width:768px){
+    html, body { height:auto; overflow:auto; }
+    #screen-dash { height:auto; min-height:100vh; }
+    .main { overflow:visible; min-height:0; }
+    .bottom {
+      height:auto;
+      grid-template-columns:1fr;
+      border-top:2px solid var(--brd);
+    }
+    .panel-rec {
+      border-right:none;
+      border-bottom:1px solid var(--brd);
+      max-height:50vh;
+    }
+    .panel-kit {
+      max-height:50vh;
+    }
+  }
 </style>
 </head>
 <body>
