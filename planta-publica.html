@@ -321,6 +321,25 @@ function mostrarDash() {
   cargarBottom();
   setInterval(cargarSnapshot, 60000);
   setInterval(cargarBottom, 600000); // cada 10 min (Zoho rate limit)
+  mantenerPantallaActiva();
+}
+
+async function mantenerPantallaActiva() {
+  try {
+    if ('wakeLock' in navigator) {
+      let wakeLock = await navigator.wakeLock.request('screen');
+      document.addEventListener('visibilitychange', async () => {
+        if (document.visibilityState === 'visible') {
+          wakeLock = await navigator.wakeLock.request('screen');
+        }
+      });
+      console.log('Wake Lock activo');
+    } else {
+      console.warn('Wake Lock no soportado en este browser');
+    }
+  } catch(e) {
+    console.warn('Wake Lock error:', e);
+  }
 }
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
