@@ -2082,7 +2082,7 @@ function renderDetallePr(pr, sub) {
           </div>
           <div style="display:flex;align-items:center;gap:10px;white-space:nowrap;">
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
-              <span style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:${excessColor(hA2,hEst)};">${fmtH(hA2)} / ${fmtH(hEst)}</span>
+              <span style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:${excessColor(hA2,hEst)};">${fmtH(hA2)} <span style="color:#555;font-weight:400;">/ ${fmtH(hEst)}</span></span>
               <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${(m.cant||1)>1?fmtH(hEst/(m.cant||1))+' × '+(m.cant||1)+'u':'est. por unidad'}</span>
             </div>
             <div style="width:1px;height:32px;background:var(--border);"></div>
