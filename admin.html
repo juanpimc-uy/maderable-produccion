@@ -4489,6 +4489,8 @@ async function fInit(){
   const u = window.AUTH.usuarioActual();
   const sec = document.getElementById('ajustes-formula-section');
   if (sec) sec.style.display = '';
+  // Si los inputs ya existen, no reconstruir (evita resetear durante edición)
+  if (document.getElementById('f-coef-corte')) return;
   // Cargar de localStorage; si no hay, intentar desde Supabase
   if (!localStorage.getItem('coef')) {
     try {
@@ -4539,6 +4541,8 @@ function fGuardar(){
 function fResetear(){
   if(!confirm('¿Restaurar valores por defecto?'))return;
   localStorage.removeItem('coef');localStorage.removeItem('dif');
+  // Forzar reconstrucción: eliminar inputs para que fInit los recree
+  const cg=document.getElementById('f-coef-grid'); if(cg) cg.innerHTML='';
   fInit();
 }
 
