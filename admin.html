@@ -1449,7 +1449,9 @@ function hAcumPr(prId) {
     .filter(s => s.proyectoId === prId)
     .filter(s => {
       const cid = getCentro(s.centroId)?.id || s.centroId;
-      return PLANTA_IDS.has(cid);
+      if (!PLANTA_IDS.has(cid)) return false;
+      const op = OPERARIOS.find(o => o.id === s.operarioId);
+      return op?.categoria !== 'indirecto';
     });
   return all.reduce((a,s) => a + msH(s.fin - s.inicio), 0);
 }
