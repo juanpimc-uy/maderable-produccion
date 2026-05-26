@@ -1281,7 +1281,7 @@ async function syncProyectoSupabase(proyecto) {
     fechaEntrega: proyecto.fechaEntrega,
     notas: proyecto.notas || '',
     estado: proyecto.estado || 'en_produccion',
-    muebles: proyecto.muebles || [],
+    muebles: proyecto.items || proyecto.muebles || [],
     materiales: proyecto.materiales || [],
     sosCargadas: proyecto.sosCargadas || [],
     modulos: proyecto.modulos || [],
