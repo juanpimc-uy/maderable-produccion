@@ -22,7 +22,7 @@
     --mod:#8b5cf6; --cam:#06b6d4; --coo:#6b7280;
     --obr:#10b981; --red:#ef4444; --grn:#22c55e;
   }
-  body{background:var(--bg);color:var(--tx1);font-family:'Barlow Condensed',sans-serif;min-height:100vh;overflow-x:hidden;}
+  body{background:var(--bg);color:var(--tx1);font-family:'Barlow Condensed',sans-serif;height:100vh;overflow:hidden;display:flex;flex-direction:column;}
   .mono{font-family:'IBM Plex Mono',monospace;}
 
   /* ── Login ── */
@@ -58,7 +58,7 @@
   .leg-ot{display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--red);letter-spacing:.5px;}
 
   /* ── Main grid ── */
-  .main{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:20px 28px 12px;}
+  .main{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:20px 28px 12px;flex:1;min-height:0;overflow:hidden;}
   .sh{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
   .sp{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;text-transform:uppercase;}
   .sp.pl{color:var(--arm);}
@@ -90,34 +90,41 @@
   .bb-cam{background:rgba(6,182,212,.12);color:var(--cam);} .bb-coo{background:rgba(107,114,128,.12);color:var(--coo);}
   .bb-obr{background:rgba(16,185,129,.12);color:var(--obr);}
 
-  /* ── Projects footer ── */
-  .pf{padding:8px 28px 20px;}
-  .pf-hdr{display:flex;align-items:center;gap:12px;margin-bottom:10px;}
-  .pf-title{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:2px;color:var(--tx2);white-space:nowrap;}
-  .pf-line{flex:1;height:1px;background:var(--brd);}
-  .lanes{display:flex;flex-direction:column;gap:4px;}
-  .lane{display:grid;grid-template-columns:160px 1fr 80px;gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid #141417;}
-  .lane:last-child{border-bottom:none;}
-  .li{min-width:0;}
-  .li-cli{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;color:var(--tx1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .li-odf{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--tx3);letter-spacing:1px;}
-  .lt{display:flex;flex-wrap:wrap;gap:3px;}
-  .chip{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:500;padding:2px 5px;border-radius:3px;white-space:nowrap;}
-  .ch-col{background:rgba(59,130,246,.15);color:var(--col);} .ch-arm{background:rgba(245,158,11,.15);color:var(--arm);}
-  .ch-cor{background:rgba(239,68,68,.15);color:var(--cor);} .ch-mod{background:rgba(139,92,246,.15);color:var(--mod);}
-  .ch-cam{background:rgba(6,182,212,.15);color:var(--cam);} .ch-coo{background:rgba(107,114,128,.15);color:var(--coo);}
-  .ch-obr{background:rgba(16,185,129,.15);color:var(--obr);}
-  .lr{display:flex;align-items:center;gap:8px;}
-  .lr-bar{flex:1;height:4px;background:#1a1a1e;border-radius:2px;overflow:hidden;}
-  .lr-fill{height:100%;border-radius:2px;transition:width .3s;}
-  .lr-n{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;min-width:18px;text-align:right;}
 
   /* ── Responsive ── */
   @media(max-width:900px){.main{grid-template-columns:1fr;} .lane{grid-template-columns:120px 1fr 60px;}}
   @media(max-width:480px){.hdr{flex-direction:column;gap:10px;padding:12px 16px;} .hdr-stats{gap:16px;} .main{padding:12px 16px;} .pf{padding:8px 16px 20px;} .leg{padding:8px 16px;}}
 
+  /* ── Bottom panels (Recepciones + Kitting) ── */
+  .bottom{display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:2px solid var(--brd);overflow:hidden;height:33vh;flex-shrink:0;}
+  .panel-half{display:flex;flex-direction:column;overflow:hidden;}
+  .panel-half.rec{border-right:1px solid var(--brd);background:#0d0d10;}
+  .panel-half.kit{background:#0a0c0d;}
+  .panel-hdr{display:flex;align-items:center;justify-content:space-between;padding:6px 16px;flex-shrink:0;}
+  .panel-hdr.rec-hdr{background:rgba(245,158,11,.07);border-bottom:1px solid rgba(245,158,11,.18);}
+  .panel-hdr.kit-hdr{background:rgba(59,130,246,.07);border-bottom:1px solid rgba(59,130,246,.18);}
+  .phdr-title{font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:3px;}
+  .rec-hdr .phdr-title{color:var(--arm);}
+  .kit-hdr .phdr-title{color:var(--col);}
+  .phdr-badge{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;padding:2px 8px;border-radius:3px;letter-spacing:.5px;}
+  .rec-hdr .phdr-badge{background:rgba(245,158,11,.12);color:var(--arm);}
+  .kit-hdr .phdr-badge{background:rgba(59,130,246,.12);color:var(--col);}
+  .panel-body{flex:1;overflow-y:auto;padding:4px 0;}
+  .brow{display:grid;grid-template-columns:90px 1fr 70px;gap:8px;align-items:center;padding:5px 16px;border-bottom:1px solid #141417;font-size:12px;}
+  .brow:last-child{border-bottom:none;}
+  .brow-num{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--tx1);}
+  .brow-desc{min-width:0;overflow:hidden;}
+  .brow-main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--tx2);font-size:12px;}
+  .brow-sub{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .brow-st{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;letter-spacing:.5px;text-align:right;}
+  .brow-st.st-pendiente{color:var(--arm);}
+  .brow-st.st-parcial{color:var(--col);}
+  .brow-st.st-vencida{color:var(--red);}
+  .brow-st.st-completo{color:var(--grn);}
+  @media(max-width:900px){.bottom{grid-template-columns:1fr;max-height:50vh;}}
+
   /* ── Dashboard container ── */
-  #screen-dash{display:none;}
+  #screen-dash{display:none;flex-direction:column;flex:1;min-height:0;}
   #tv-err{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--red);display:none;padding:10px 28px;}
 </style>
 </head>
@@ -148,7 +155,7 @@
       <div class="st"><div class="st-n" style="color:var(--arm)" id="cnt-tarea">0</div><div class="st-l">En Tarea</div></div>
       <div class="st"><div class="st-n" style="color:var(--tx3)" id="cnt-sin">0</div><div class="st-l">Sin Tarea</div></div>
       <div class="st"><div class="st-n" style="color:var(--red)" id="cnt-ot">0</div><div class="st-l">+9H turno</div></div>
-      <div class="st"><div class="st-n" style="color:var(--col)" id="cnt-proy">0</div><div class="st-l">Proyectos</div></div>
+      <div class="st"><div class="st-n" style="color:var(--col)" id="cnt-rec">0</div><div class="st-l">OC Pend.</div></div>
     </div>
     <div><div class="clock" id="tv-clock">--:--:--</div><div class="date" id="tv-date">—</div></div>
   </header>
@@ -176,14 +183,23 @@
     </div>
   </div>
 
-  <div class="pf">
-    <div class="pf-hdr">
-      <div class="pf-title">Proyectos activos</div>
-      <div class="pf-line"></div>
+  <!-- ═══ BOTTOM: Recepciones + Kitting ═══════════════════════════════════ -->
+  <div class="bottom">
+    <div class="panel-half rec">
+      <div class="panel-hdr rec-hdr">
+        <div class="phdr-title">RECEPCIONES OC</div>
+        <div class="phdr-badge" id="rec-badge">0</div>
+      </div>
+      <div class="panel-body" id="tv-rec"></div>
     </div>
-    <div class="lanes" id="tv-lanes"></div>
+    <div class="panel-half kit">
+      <div class="panel-hdr kit-hdr">
+        <div class="phdr-title">KITTING SO</div>
+        <div class="phdr-badge" id="kit-badge">0</div>
+      </div>
+      <div class="panel-body" id="tv-kit"></div>
+    </div>
   </div>
-
 
 </div>
 
@@ -224,9 +240,11 @@ async function _loginPublico() {
 // ── Mostrar dashboard ─────────────────────────────────────────────────────────
 function mostrarDash() {
   document.getElementById('screen-login').style.display = 'none';
-  document.getElementById('screen-dash').style.display = 'block';
+  document.getElementById('screen-dash').style.display = 'flex';
   cargarSnapshot();
+  cargarBottom();
   setInterval(cargarSnapshot, 60000);
+  setInterval(cargarBottom, 120000); // cada 2 min (Zoho rate limit)
 }
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
@@ -314,27 +332,6 @@ function buildCard(op) {
   </div>`;
 }
 
-function buildLane(proy, maxChips) {
-  const pct = Math.round((proy.chips.length / maxChips) * 100);
-  const color = proy.color;
-  const chips = proy.chips.map(ch => {
-    const cm = getCM(ch.c);
-    return `<div class="chip ${cm.chip}">${ch.l}</div>`;
-  }).join('');
-  return `<div class="lane">
-    <div class="li">
-      <div class="li-cli">${proy.cli}</div>
-      <div class="li-odf">${proy.odf}</div>
-    </div>
-    <div class="lt">${chips}</div>
-    <div class="lr">
-      <div class="lr-bar">
-        <div class="lr-fill" style="width:${pct}%;background:${color}"></div>
-      </div>
-      <div class="lr-n" style="color:${color}">${proy.chips.length}</div>
-    </div>
-  </div>`;
-}
 
 // ── Render ────────────────────────────────────────────────────────────────────
 function renderSnapshot(data) {
@@ -375,30 +372,61 @@ function renderSnapshot(data) {
   document.getElementById('sc-pl').textContent = plantaActiva.length;
   document.getElementById('sc-of').textContent = oficinaActiva.length;
 
-  // Proyectos lanes
-  const proyMap = {};
-  enTarea.forEach(op => {
-    const odf = op.proyecto?.odf;
-    if (!odf) return;
-    if (!proyMap[odf]) {
-      proyMap[odf] = {
-        cli: op.proyecto?.cliente || '—',
-        odf,
-        color: getCM((op.centro_label||'').toUpperCase()).color,
-        chips: []
-      };
-    }
-    const apellido = op.nombre.split(' ').slice(-1)[0];
-    const inicial = op.nombre[0];
-    proyMap[odf].chips.push({
-      l: `${inicial}. ${apellido}`,
-      c: (op.centro_label || op.centro || '').toUpperCase()
-    });
-  });
-  const proyList = Object.values(proyMap);
-  document.getElementById('cnt-proy').textContent = proyList.length;
-  const maxChips = Math.max(...proyList.map(p=>p.chips.length), 1);
-  document.getElementById('tv-lanes').innerHTML = proyList.map(p => buildLane(p, maxChips)).join('');
+}
+
+// ── Bottom panels (Recepciones + Kitting) ────────────────────────────────────
+async function cargarBottom() {
+  try {
+    const r = await fetch('/api/tiempos?action=tv-bottom').then(res => res.json());
+    if (!r.ok) return;
+    renderBottom(r);
+  } catch(e) {}
+}
+
+function renderBottom(data) {
+  const { recepciones, kitting } = data;
+
+  // Recepciones
+  const recEl = document.getElementById('tv-rec');
+  document.getElementById('rec-badge').textContent = (recepciones || []).length;
+  const cntRec = document.getElementById('cnt-rec');
+  if (cntRec) cntRec.textContent = (recepciones || []).length;
+  if (!recepciones || !recepciones.length) {
+    recEl.innerHTML = '<div style="padding:12px 16px;color:var(--tx3);font-size:11px;">Sin OC pendientes</div>';
+  } else {
+    recEl.innerHTML = recepciones.map(oc => {
+      const stClass = oc.estado === 'vencida' ? 'st-vencida' : 'st-pendiente';
+      const stLabel = oc.estado === 'vencida' ? 'VENCIDA' : (oc.fecha_entrega || 'S/F');
+      return `<div class="brow">
+        <div class="brow-num">${oc.oc_numero}</div>
+        <div class="brow-desc">
+          <div class="brow-main">${oc.proveedor}</div>
+          <div class="brow-sub">${oc.referencia || ''}</div>
+        </div>
+        <div class="brow-st ${stClass}">${stLabel}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Kitting
+  const kitEl = document.getElementById('tv-kit');
+  document.getElementById('kit-badge').textContent = (kitting || []).length;
+  if (!kitting || !kitting.length) {
+    kitEl.innerHTML = '<div style="padding:12px 16px;color:var(--tx3);font-size:11px;">Sin SOs pendientes</div>';
+  } else {
+    kitEl.innerHTML = kitting.map(so => {
+      const stClass = so.estado === 'parcial' ? 'st-parcial' : (so.estado === 'completo' ? 'st-completo' : 'st-pendiente');
+      const stLabel = so.estado.toUpperCase();
+      return `<div class="brow">
+        <div class="brow-num">${so.so_numero}</div>
+        <div class="brow-desc">
+          <div class="brow-main">${so.mueble}</div>
+          <div class="brow-sub">${so.obra}</div>
+        </div>
+        <div class="brow-st ${stClass}">${stLabel}</div>
+      </div>`;
+    }).join('');
+  }
 }
 
 // ── Clock ────────────────────────────────────────────────────────────────────

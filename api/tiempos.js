@@ -3350,6 +3350,84 @@ export default async function handler(req) {
       return ok({ ok: true, eliminado: { id: costo_id } });
     }
 
+    // ── GET tv-bottom (kitting + recepciones para dashboard TV) ──────────
+    if (action === 'tv-bottom' && req.method === 'GET') {
+      let kitting = [];
+      let recepciones = [];
+
+      // ── Kitting: so_estado + so_lineas_estado (local, sin Zoho) ──
+      try {
+        const [{ data: sos }, { data: lineas }] = await Promise.all([
+          supabase.from('so_estado').select('so_zoho_id, so_numero, obra, mueble, estado, oculta')
+            .or('oculta.is.null,oculta.eq.false'),
+          supabase.from('so_lineas_estado').select('so_zoho_id, cantidad_armada, eliminada'),
+        ]);
+        const lineasMap = {};
+        (lineas || []).forEach(l => {
+          if (l.eliminada) return;
+          if (!lineasMap[l.so_zoho_id]) lineasMap[l.so_zoho_id] = { total: 0, armadas: 0 };
+          lineasMap[l.so_zoho_id].total++;
+          if (l.cantidad_armada > 0) lineasMap[l.so_zoho_id].armadas++;
+        });
+        kitting = (sos || []).map(so => {
+          const li = lineasMap[so.so_zoho_id] || { total: 0, armadas: 0 };
+          const estado = so.estado || (li.armadas > 0 ? 'parcial' : 'pendiente');
+          return { so_numero: so.so_numero, obra: so.obra || '', mueble: so.mueble || '', estado };
+        }).filter(s => s.estado !== 'completo' || false)
+          .sort((a, b) => {
+            const ord = { pendiente: 0, parcial: 1, completo: 2 };
+            return (ord[a.estado] ?? 9) - (ord[b.estado] ?? 9);
+          }).slice(0, 20);
+      } catch (e) { console.error('[tv-bottom] kitting error:', e.message); }
+
+      // ── Recepciones: Zoho purchaseorders (pendientes + recibidas hoy) ──
+      try {
+        const orgId = process.env.ZOHO_ORG_ID;
+        const zoho_token = await getZohoToken();
+        const zHeaders = { 'Authorization': `Zoho-oauthtoken ${zoho_token}` };
+        const [resOpen, resApproved] = await Promise.all([
+          fetch(`https://www.zohoapis.com/books/v3/purchaseorders?filter_by=Status.Open&organization_id=${orgId}&per_page=100`, { headers: zHeaders }),
+          fetch(`https://www.zohoapis.com/books/v3/purchaseorders?filter_by=Status.Approved&organization_id=${orgId}&per_page=100`, { headers: zHeaders }),
+        ]);
+        const [dataOpen, dataApproved] = await Promise.all([resOpen.json(), resApproved.json()]);
+        const allOcs = [...(dataOpen.purchaseorders || []), ...(dataApproved.purchaseorders || [])];
+
+        // Recepciones locales para determinar estado
+        const ocNums = allOcs.map(oc => oc.purchaseorder_number);
+        const { data: recibidas } = ocNums.length
+          ? await supabase.from('recepciones_oc').select('oc_numero').in('oc_numero', ocNums)
+          : { data: [] };
+        const recibidasSet = new Set((recibidas || []).map(r => r.oc_numero));
+        const hoy = new Date().toISOString().split('T')[0];
+
+        recepciones = allOcs
+          .filter(oc => {
+            const num = parseInt((oc.purchaseorder_number || '').replace(/\D/g, ''), 10);
+            return !isNaN(num) && num >= 5522;
+          })
+          .map(oc => {
+            const esRecibida = recibidasSet.has(oc.purchaseorder_number);
+            const vencida = oc.delivery_date && oc.delivery_date < hoy;
+            return {
+              oc_numero: oc.purchaseorder_number,
+              proveedor: oc.vendor_name || '',
+              referencia: oc.reference_number || '',
+              fecha_entrega: oc.delivery_date || null,
+              estado: esRecibida ? 'recibida' : (vencida ? 'vencida' : 'pendiente'),
+            };
+          })
+          .filter(oc => oc.estado !== 'recibida')
+          .sort((a, b) => {
+            const ord = { vencida: 0, pendiente: 1 };
+            const oa = ord[a.estado] ?? 9, ob = ord[b.estado] ?? 9;
+            if (oa !== ob) return oa - ob;
+            return (a.fecha_entrega || '9999').localeCompare(b.fecha_entrega || '9999');
+          }).slice(0, 15);
+      } catch (e) { console.error('[tv-bottom] recepciones error:', e.message); }
+
+      return ok({ ok: true, kitting, recepciones });
+    }
+
     // ── POST login-publico ────────────────────────────────────────────────
     if (action === 'login-publico' && req.method === 'POST') {
       const { password } = body;
