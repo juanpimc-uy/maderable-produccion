@@ -384,6 +384,20 @@ function fmtMin(m) {
 function buildCard(op) {
   const esAusente = op.estado === 'ausente';
 
+  if (op.estado === 'sin_tarea') {
+    const centro = op.ultimo_centro_label || '—';
+    const cli = op.ultimo_proyecto?.nombre || '—';
+    const muebleStr = op.ultimo_mueble?.nombre || '—';
+    return `<div class="card" style="border-left:3px solid var(--red);opacity:0.7;">
+      <div class="cr1">
+        <div class="cname">${op.nombre}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;background:rgba(239,68,68,.12);color:var(--red);padding:2px 6px;border-radius:3px;">SIN TAREA</div>
+      </div>
+      <div class="cr2"><div class="ccli">${cli}</div></div>
+      <div class="cmueble">${muebleStr}</div>
+    </div>`;
+  }
+
   if (esAusente) {
     const centro = op.ultimo_centro_label || '—';
     const m = getCM(centro.toUpperCase());
@@ -434,7 +448,7 @@ function renderSnapshot(data) {
 
   const visibles = (operarios || []).filter(op => op.estado !== 'ausente');
   const allOps = operarios || [];
-  const plantaActiva  = visibles.filter(op => op.rol_app === 'operario' && op.estado !== 'sin_tarea');
+  const plantaActiva  = visibles.filter(op => op.rol_app === 'operario');
   const plantaAusente = allOps.filter(op => op.rol_app === 'operario' && op.estado === 'ausente');
   const CENTRO_ORDER = ['CORTE','ENCHAPADO','ARMADO','COLOCACION','HERRERIA','ELECTRICA','MACIZO'];
   function centroRank(op) {
@@ -450,7 +464,7 @@ function renderSnapshot(data) {
     return oa.localeCompare(ob);
   });
   const planta = [...plantaActiva, ...plantaAusente];
-  const oficinaActiva  = visibles.filter(op => op.rol_app !== 'operario' && op.estado !== 'sin_tarea');
+  const oficinaActiva  = visibles.filter(op => op.rol_app !== 'operario');
   const oficinaAusente = allOps.filter(op => op.rol_app !== 'operario' && op.estado === 'ausente');
   const oficina = [...oficinaActiva, ...oficinaAusente];
   const enTarea = visibles.filter(op => op.estado === 'en_tarea');
