@@ -1612,13 +1612,13 @@ export default async function handler(req) {
       const proyecto_id = url.searchParams.get('proyecto_id');
       const { data, error } = await supabase
         .from('registros_trabajo')
-        .select('inicio, fin, estado, empleado_id, item_id, centro')
+        .select('id, inicio, fin, estado, empleado_id, item_id, centro, es_retrabajo')
         .eq('proyecto_id', proyecto_id)
-        .not('fin', 'is', null);
+        .or('eliminada.is.null,eliminada.eq.false')
+        .order('inicio', { ascending: false });
       if (error) throw error;
-      const horas_totales = (data || []).reduce((sum, r) => {
-        const mins = (new Date(r.fin) - new Date(r.inicio)) / 60000;
-        return sum + mins / 60;
+      const horas_totales = (data || []).filter(r => r.fin).reduce((sum, r) => {
+        return sum + (new Date(r.fin) - new Date(r.inicio)) / 3600000;
       }, 0);
       return ok({ horas_totales: Math.round(horas_totales * 10) / 10, registros: data || [] });
     }

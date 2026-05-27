@@ -1441,46 +1441,46 @@ function barHoras(real, est, h=6) {
   return `<div style="display:flex;align-items:center;gap:8px;"><div class="bar-track"><div class="bar-fill${pulseClass}" style="width:${w}%;background:${color};"></div></div><span class="mono" style="font-size:10px;color:${color};white-space:nowrap;">${label}</span></div>`;
 }
 
+function _getSesiones(prId) {
+  // Use fetched API registros if available, fallback to localStorage
+  if (_prRegistros && _prRegistrosId === prId) return _regsToSesiones(_prRegistros);
+  return [...HISTORIAL.filter(s=>s.proyectoId===prId).map(s=>({...s,activa:false})),
+          ...SESIONES.filter(s=>s.proyectoId===prId).map(s=>({...s,fin:Date.now(),activa:true}))];
+}
 function hAcumPr(prId) {
-  const PLANTA_IDS = new Set(
-    CENTROS.filter(c => c.familia === 'planta').map(c => c.id)
-  );
-  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))]
-    .filter(s => s.proyectoId === prId)
+  const PLANTA_IDS = new Set(CENTROS.filter(c => c.familia === 'planta').map(c => c.id));
+  return _getSesiones(prId)
     .filter(s => {
       const cid = getCentro(s.centroId)?.id || s.centroId;
       if (!PLANTA_IDS.has(cid)) return false;
       const op = OPERARIOS.find(o => o.id === s.operarioId);
       return op?.categoria !== 'indirecto';
-    });
-  return all.reduce((a,s) => a + msH(s.fin - s.inicio), 0);
+    })
+    .reduce((a,s) => a + msH(s.fin - s.inicio), 0);
 }
 function hAcumIt(prId, itId) {
-  const PLANTA_IDS = new Set(
-    CENTROS.filter(c => c.familia === 'planta').map(c => c.id)
-  );
-  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))]
+  const PLANTA_IDS = new Set(CENTROS.filter(c => c.familia === 'planta').map(c => c.id));
+  return _getSesiones(prId)
     .filter(s =>
-      s.proyectoId === prId &&
       s.itemId === itId &&
       (s.tipo || 'normal') === 'normal' &&
       PLANTA_IDS.has(getCentro(s.centroId)?.id || s.centroId) &&
       (OPERARIOS.find(o => o.id === s.operarioId)?.categoria !== 'indirecto')
-    );
-  return all.reduce((a,s) => a + msH(s.fin - s.inicio), 0);
+    )
+    .reduce((a,s) => a + msH(s.fin - s.inicio), 0);
 }
 function hRetrabajoIt(prId,itId) {
-  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId&&s.itemId===itId&&s.tipo==='retrabajo');
-  return all.reduce((a,s)=>a+msH(s.fin-s.inicio),0);
+  return _getSesiones(prId).filter(s => s.itemId === itId && s.tipo === 'retrabajo')
+    .reduce((a,s) => a + msH(s.fin - s.inicio), 0);
 }
 function hByCentro(prId) {
-  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId);
+  const all = _getSesiones(prId);
   const m={}; CENTROS.forEach(c=>{m[c.id]=0;});
   all.forEach(s=>{const k=getCentro(s.centroId)?.id||s.centroId;m[k]=(m[k]||0)+msH(s.fin-s.inicio);});
   return m;
 }
 function hByOp(prId) {
-  const all = [...HISTORIAL, ...SESIONES.map(s=>({...s,fin:Date.now()}))].filter(s=>s.proyectoId===prId);
+  const all = _getSesiones(prId);
   const m={};
   all.forEach(s=>{m[s.operarioId]=(m[s.operarioId]||0)+msH(s.fin-s.inicio);});
   return m;
@@ -1957,7 +1957,31 @@ function abrirDetallePr(prId) {
 }
 
 let detallePrId = null, detalleSub = 'resumen', editMode = false;
-function renderDetallePr(pr, sub) {
+let _prRegistros = null, _prRegistrosId = null;
+
+async function _fetchRegistrosPr(prId) {
+  if (_prRegistrosId === prId && _prRegistros) return;
+  try {
+    const res = await fetch(`/api/tiempos?action=registros-proyecto&proyecto_id=${encodeURIComponent(prId)}`);
+    const data = await res.json();
+    _prRegistros = data.registros || [];
+    _prRegistrosId = prId;
+  } catch(e) { console.error('Error fetching registros:', e); _prRegistros = []; _prRegistrosId = prId; }
+}
+
+// Transforma registros API al formato que usan los tabs (compatible con HISTORIAL/SESIONES)
+function _regsToSesiones(regs) {
+  return (regs || []).map(r => ({
+    id: r.id, operarioId: r.empleado_id, itemId: r.item_id, centroId: r.centro,
+    inicio: new Date(r.inicio).getTime(),
+    fin: r.fin ? new Date(r.fin).getTime() : Date.now(),
+    activa: !r.fin && r.estado === 'activo',
+    tipo: r.es_retrabajo ? 'retrabajo' : 'normal',
+  }));
+}
+
+async function renderDetallePr(pr, sub) {
+  await _fetchRegistrosPr(pr.id);
   detallePrId = pr.id; detalleSub = sub;
   clearTimers();
   const hA=hAcumPr(pr.id), hE=hEstPr(pr);
@@ -1998,7 +2022,7 @@ function renderDetallePr(pr, sub) {
     html+=`</div><div class="card"><div class="sec-title">Horas por Operario</div>`;
     OPERARIOS.forEach(op=>{
       const h=byOp[op.id]||0;
-      const ses=SESIONES.find(s=>s.operarioId===op.id&&s.proyectoId===pr.id);
+      const ses=_getSesiones(pr.id).find(s=>s.operarioId===op.id&&s.activa);
       if (h === 0 && !ses) return;
       const tid=`t-byop-${op.id}`;
       html+=`<div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
@@ -2190,10 +2214,7 @@ function renderDetallePr(pr, sub) {
     // tabla compacta por mueble/ítem
     const rows = pr.muebles && pr.muebles.length ? pr.muebles : pr.items;
     const colCount = (pr.muebles&&pr.muebles.length) ? 7 : 6;
-    const allSesTiempos=[
-      ...HISTORIAL.filter(s=>s.proyectoId===pr.id).map(s=>({...s,activa:false})),
-      ...SESIONES.filter(s=>s.proyectoId===pr.id).map(s=>({...s,fin:Date.now(),activa:true})),
-    ].sort((a,b)=>b.inicio-a.inicio);
+    const allSesTiempos=_getSesiones(pr.id).sort((a,b)=>b.inicio-a.inicio);
     html+=`<div class="card" style="margin-bottom:16px;overflow-x:auto;">
       <table>
         <thead><tr>
@@ -2212,7 +2233,7 @@ function renderDetallePr(pr, sub) {
           const hEst=row.hEst||Object.values(row.horas||{}).reduce((a,v)=>a+Number(v||0),0)*(row.cant||1)||0;
           const p=pct(hA2,hEst||1);
           const over=hA2>hEst&&hEst>0;
-          const sesAct=SESIONES.filter(s=>s.proyectoId===pr.id&&s.itemId===row.id);
+          const sesAct=allSesTiempos.filter(s=>s.itemId===row.id&&s.activa);
           const ops=sesAct.map(s=>{const op=OPERARIOS.find(o=>o.id===s.operarioId);return op?`<div class="av active" style="width:20px;height:20px;font-size:9px;display:inline-flex;margin-right:3px;">${op.avatar}</div>`:''}).join('');
           const rowSes=allSesTiempos.filter(s=>s.itemId===row.id);
           const nCorto=row.codigo||(row.nombre||'').split(' – ')[0]||row.id;
@@ -2630,6 +2651,7 @@ async function _editarCostoMat(prId, matIndex, cantidad) {
 function volverListaPr() {
   clearTimers();
   editMode = false;
+  _prRegistros = null; _prRegistrosId = null;
   document.getElementById('pr-lista').style.display = 'block';
   document.getElementById('pr-detalle').style.display = 'none';
   renderProyectos();
