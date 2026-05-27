@@ -388,13 +388,14 @@ function buildCard(op) {
     const centro = op.ultimo_centro_label || '—';
     const cli = op.ultimo_proyecto?.nombre || '—';
     const muebleStr = op.ultimo_mueble?.nombre || '—';
-    return `<div class="card" style="border-left:3px solid var(--red);opacity:0.7;">
+    return `<div class="card" style="border-left:3px solid var(--red);background:rgba(239,68,68,.08);">
       <div class="cr1">
-        <div class="cname">${op.nombre}</div>
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;background:rgba(239,68,68,.12);color:var(--red);padding:2px 6px;border-radius:3px;">SIN TAREA</div>
+        <div class="cname" style="color:var(--tx1)">${op.nombre}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;background:rgba(239,68,68,.2);color:var(--red);padding:2px 8px;border-radius:3px;font-weight:600;">SIN TAREA</div>
       </div>
       <div class="cr2"><div class="ccli">${cli}</div></div>
       <div class="cmueble">${muebleStr}</div>
+      <div class="cr4"><span class="cbadge" style="background:rgba(239,68,68,.1);color:var(--red);">—</span></div>
     </div>`;
   }
 
