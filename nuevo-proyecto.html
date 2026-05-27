@@ -915,13 +915,27 @@ function renderResumen(){
 // ══════════════════════════════════════════════════════════════════════════
 // GUARDAR
 // ══════════════════════════════════════════════════════════════════════════
-function guardar(){
+async function guardar(){
   const p={id:'pr_'+Date.now(),numero:gv('f-num'),obra:gv('f-obra'),clienteNombre:gv('f-cliente'),
     referencia:gv('f-referencia'),
     fechaInicio:gv('f-inicio'),fechaEntrega:gv('f-entrega'),notas:gv('f-notas'),
     estado:'en_produccion',muebles,materiales,sosCargadas,modulos:[],creadoEn:Date.now()};
-  const _st = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}').session_token||''; } catch{return '';} })();
-  fetch('/api/tiempos?action=guardar-proyecto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...p, session_token:_st})}).catch(console.error);
+  try {
+    const st = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}').session_token||''; } catch{return '';} })();
+    const res = await fetch('/api/tiempos?action=guardar-proyecto&st=' + st, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...p, session_token: st }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      alert('Error al guardar proyecto: ' + (data.error || res.status));
+      return;
+    }
+  } catch(e) {
+    alert('Error de conexión al guardar proyecto');
+    return;
+  }
   document.querySelector('.page').innerHTML=`
     <div style="text-align:center;padding:70px 20px;">
       <div style="font-size:52px;margin-bottom:18px;">✓</div>
