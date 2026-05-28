@@ -791,7 +791,7 @@
             <button class="btn btn-primary btn-sm" onclick="_lustreAddRow()">+ AGREGAR TIPO</button>
           </div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
-            Catálogo de tipos de lustre para el portal BARU. El precio se snapshottea al completar cada partida.
+            Catálogo de tipos de lustre para el portal BARU. Los precios se snapshottean al completar cada partida.
           </div>
           <div id="lustre-tipos-wrap">
             <div style="font-size:12px;color:var(--muted);">Cargando…</div>
@@ -6585,6 +6585,7 @@ function _cdCerrar() {
 // AJUSTES — TIPOS DE LUSTRE
 // ═══════════════════════════════════════════════════════════════════════════
 let _lustreTipos = [];
+const _LUSTRE_CATEGORIAS = ['LUSTRE','MELAMINICO BLANCO','MELAMINICO COLOR','MDF BLANCO','MDF COLOR','MACIZO','MADERA PORO NATURAL','MADERA PORO ABIERTO','PATINAS','ALUMINIOS-HIERROS','BRILLANTES'];
 
 async function lustreTiposInit() {
   const u = window.AUTH.usuarioActual();
@@ -6604,60 +6605,89 @@ async function lustreTiposInit() {
 function _renderLustreTipos() {
   const wrap = document.getElementById('lustre-tipos-wrap');
   if (!_lustreTipos.length) { wrap.innerHTML = '<span style="color:var(--muted);font-size:11px;">Sin tipos de lustre</span>'; return; }
-  let html = `<div style="display:grid;grid-template-columns:2fr 1fr 60px 80px;gap:0;font-size:11px;">
-    <div style="padding:6px 8px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;border-bottom:1px solid var(--border);">NOMBRE</div>
-    <div style="padding:6px 8px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;border-bottom:1px solid var(--border);">USD/m²</div>
-    <div style="padding:6px 8px;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;border-bottom:1px solid var(--border);">ACTIVO</div>
-    <div style="padding:6px 8px;border-bottom:1px solid var(--border);"></div>`;
+
+  // Group by categoria
+  const groups = {};
   _lustreTipos.forEach(t => {
-    const actColor = t.activo ? 'var(--green)' : 'var(--muted)';
-    html += `
-    <div style="padding:6px 8px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;${t.activo?'':'opacity:.5;'}">
-      <input type="text" value="${(t.nombre||'').replace(/"/g,'&quot;')}" style="width:100%;background:transparent;border:1px solid transparent;border-radius:3px;padding:3px 6px;color:var(--text);font-size:12px;outline:none;" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='transparent';_lustreUpdateNombre(${t.id},this.value)" onkeydown="if(event.key==='Enter')this.blur()">
-    </div>
-    <div style="padding:6px 8px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;${t.activo?'':'opacity:.5;'}">
-      <input type="number" step="0.01" min="0" value="${Number(t.precio_usd_m2)||0}" style="width:80px;background:transparent;border:1px solid var(--border);border-radius:3px;padding:3px 6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;outline:none;" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='var(--border)';_lustreUpdatePrecio(${t.id},this.value)">
-    </div>
-    <div style="padding:6px 8px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;justify-content:center;">
-      <input type="checkbox" ${t.activo?'checked':''} onchange="_lustreToggleActivo(${t.id},this.checked)" style="cursor:pointer;">
-    </div>
-    <div style="padding:6px 8px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;justify-content:flex-end;">
-      <button onclick="_lustreDelete(${t.id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;transition:color .15s;" onmouseenter="this.style.color='var(--red)'" onmouseleave="this.style.color='var(--muted)'" title="Eliminar">✕</button>
-    </div>`;
+    const cat = t.categoria || 'LUSTRE';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(t);
+  });
+
+  const hdrStyle = 'padding:6px 8px;font-family:"JetBrains Mono",monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;border-bottom:1px solid var(--border);';
+  const priceInputStyle = 'width:70px;background:transparent;border:1px solid var(--border);border-radius:3px;padding:3px 4px;color:var(--text);font-family:"JetBrains Mono",monospace;font-size:11px;outline:none;text-align:right;';
+
+  let html = `<div style="display:grid;grid-template-columns:2fr 80px 80px 80px 50px 40px;gap:0;font-size:11px;">
+    <div style="${hdrStyle}">NOMBRE</div>
+    <div style="${hdrStyle}text-align:right;">EXT</div>
+    <div style="${hdrStyle}text-align:right;">INT VIS</div>
+    <div style="${hdrStyle}text-align:right;">INT NO VIS</div>
+    <div style="${hdrStyle}text-align:center;">ACT</div>
+    <div style="${hdrStyle}"></div>`;
+
+  const catOrder = _LUSTRE_CATEGORIAS.filter(c => groups[c]);
+  // Add any categories not in the predefined list
+  Object.keys(groups).forEach(c => { if (!catOrder.includes(c)) catOrder.push(c); });
+
+  catOrder.forEach(cat => {
+    const tipos = groups[cat];
+    html += `<div style="grid-column:1/-1;padding:8px 8px 4px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#FFD600;letter-spacing:1px;border-bottom:1px solid rgba(255,214,0,.15);background:rgba(255,214,0,.03);">${cat}</div>`;
+    tipos.forEach(t => {
+      const op = t.activo ? '' : 'opacity:.5;';
+      const pExt = Number(t.precio_exterior) || 0;
+      const pIV = t.precio_interior_visto;
+      const pINV = t.precio_interior_no_visto;
+      html += `
+      <div style="padding:4px 8px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;${op}">
+        <input type="text" value="${(t.nombre||'').replace(/"/g,'&amp;quot;')}" style="width:100%;background:transparent;border:1px solid transparent;border-radius:3px;padding:3px 6px;color:var(--text);font-size:12px;outline:none;" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='transparent';_lustreUpdateField(${t.id},'nombre',this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+      </div>
+      <div style="padding:4px 4px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;justify-content:flex-end;${op}">
+        <input type="number" step="0.01" min="0" value="${pExt}" style="${priceInputStyle}" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='var(--border)';_lustreUpdateField(${t.id},'precio_exterior',this.value)">
+      </div>
+      <div style="padding:4px 4px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;justify-content:flex-end;${op}">
+        <input type="number" step="0.01" min="0" value="${pIV!=null?Number(pIV):''}" placeholder="—" style="${priceInputStyle}" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='var(--border)';_lustreUpdateField(${t.id},'precio_interior_visto',this.value)">
+      </div>
+      <div style="padding:4px 4px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;justify-content:flex-end;${op}">
+        <input type="number" step="0.01" min="0" value="${pINV!=null?Number(pINV):''}" placeholder="—" style="${priceInputStyle}" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='var(--border)';_lustreUpdateField(${t.id},'precio_interior_no_visto',this.value)">
+      </div>
+      <div style="padding:4px 4px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;justify-content:center;">
+        <input type="checkbox" ${t.activo?'checked':''} onchange="_lustreToggleActivo(${t.id},this.checked)" style="cursor:pointer;">
+      </div>
+      <div style="padding:4px 4px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;justify-content:flex-end;">
+        <button onclick="_lustreDelete(${t.id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;transition:color .15s;" onmouseenter="this.style.color='var(--red)'" onmouseleave="this.style.color='var(--muted)'" title="Eliminar">✕</button>
+      </div>`;
+    });
   });
   html += '</div>';
   wrap.innerHTML = html;
 }
 
-async function _lustreUpdateNombre(id, val) {
-  const nombre = (val||'').trim();
-  if (!nombre) return;
+async function _lustreUpdateField(id, field, val) {
+  if (field === 'nombre') {
+    val = (val||'').trim();
+    if (!val) return;
+  }
   const u = window.AUTH.usuarioActual();
+  const payload = { action:'update', admin_id:u.id, id };
+  if (field === 'nombre') {
+    payload.nombre = val;
+  } else {
+    // Price fields — empty string means null
+    payload[field] = val === '' ? null : parseFloat(val) || 0;
+  }
   try {
     const r = await fetch('/api/admin-lustre-tipos', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ action:'update', admin_id:u.id, id, nombre }),
+      body: JSON.stringify(payload),
     });
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);
     const t = _lustreTipos.find(x=>x.id===id);
-    if (t) t.nombre = nombre;
-    _lustreToast('Nombre actualizado');
-  } catch(e) { alert('Error: '+e.message); }
-}
-
-async function _lustreUpdatePrecio(id, val) {
-  const u = window.AUTH.usuarioActual();
-  try {
-    const r = await fetch('/api/admin-lustre-tipos', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ action:'update', admin_id:u.id, id, precio_usd_m2:parseFloat(val)||0 }),
-    });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error);
-    _lustreToast('Precio actualizado');
-    const t = _lustreTipos.find(x=>x.id===id);
-    if (t) t.precio_usd_m2 = parseFloat(val)||0;
+    if (t) {
+      if (field === 'nombre') t.nombre = val;
+      else t[field] = val === '' ? null : parseFloat(val) || 0;
+    }
+    _lustreToast(field === 'nombre' ? 'Nombre actualizado' : 'Precio actualizado');
   } catch(e) { alert('Error: '+e.message); }
 }
 
@@ -6694,13 +6724,30 @@ async function _lustreDelete(id) {
 }
 
 async function _lustreAddRow() {
+  // Modal-style form via prompt chain
   const nombre = prompt('Nombre del tipo de lustre:');
   if (!nombre || !nombre.trim()) return;
+
+  // Categoria dropdown via a simple approach
+  const catIdx = prompt('Categoría (número):\\n' + _LUSTRE_CATEGORIAS.map((c,i) => `${i+1}. ${c}`).join('\\n') + '\\n\\nDefault: 1 (LUSTRE)');
+  const categoria = _LUSTRE_CATEGORIAS[(parseInt(catIdx)||1) - 1] || 'LUSTRE';
+
+  const precioExt = prompt('Precio EXT (USD/m²):', '0');
+  const precioIV = prompt('Precio INT VIS (USD/m², vacío = N/A):', '');
+  const precioINV = prompt('Precio INT NO VIS (USD/m², vacío = N/A):', '');
+
   const u = window.AUTH.usuarioActual();
   try {
     const r = await fetch('/api/admin-lustre-tipos', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ action:'create', admin_id:u.id, nombre:nombre.trim(), precio_usd_m2:0 }),
+      body: JSON.stringify({
+        action:'create', admin_id:u.id,
+        nombre: nombre.trim(),
+        categoria,
+        precio_exterior: parseFloat(precioExt) || 0,
+        precio_interior_visto: precioIV === '' ? null : parseFloat(precioIV) || 0,
+        precio_interior_no_visto: precioINV === '' ? null : parseFloat(precioINV) || 0,
+      }),
     });
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);

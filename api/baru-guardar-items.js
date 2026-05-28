@@ -20,10 +20,14 @@ export default async function handler(req) {
     if (!id) return err('id requerido', 400);
     if (!Array.isArray(items)) return err('items debe ser un array', 400);
 
-    // Cargar precios desde DB
+    // Cargar precios desde DB (3 precios por superficie)
     const { data: tiposDB } = await supabase
-      .from('lustre_tipos').select('nombre, precio_usd_m2').eq('activo', true);
-    const precioMap = Object.fromEntries((tiposDB || []).map(t => [t.nombre, Number(t.precio_usd_m2) || 0]));
+      .from('lustre_tipos').select('nombre, precio_exterior, precio_interior_visto, precio_interior_no_visto').eq('activo', true);
+    const precioMap = Object.fromEntries((tiposDB || []).map(t => [t.nombre, {
+      exterior: Number(t.precio_exterior) || 0,
+      interior_visto: Number(t.precio_interior_visto) ?? 0,
+      interior_no_visto: Number(t.precio_interior_no_visto) ?? 0,
+    }]));
 
     // Validar y enriquecer con precio snapshot
     for (const item of items) {
@@ -32,11 +36,17 @@ export default async function handler(req) {
       }
     }
 
-    const enrichedItems = items.map(it => ({
-      tipo_lustre: it.tipo_lustre || '',
-      metros_cuadrados: it.metros_cuadrados || 0,
-      precio_usd_m2: it.tipo_lustre ? (precioMap[it.tipo_lustre] || 0) : 0,
-    }));
+    const enrichedItems = items.map(it => {
+      const superficie = it.superficie || 'exterior';
+      const precioTipo = it.tipo_lustre ? (precioMap[it.tipo_lustre] || {}) : {};
+      const precio = precioTipo[superficie] || 0;
+      return {
+        tipo_lustre: it.tipo_lustre || '',
+        metros_cuadrados: it.metros_cuadrados || 0,
+        superficie,
+        precio_usd_m2: precio,
+      };
+    });
 
     const { error } = await supabase
       .from('partidas_terceros')

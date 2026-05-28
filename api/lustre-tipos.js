@@ -15,7 +15,7 @@ export default async function handler(req) {
   try {
     const { data, error } = await supabase
       .from('lustre_tipos')
-      .select('id, nombre, precio_usd_m2')
+      .select('id, nombre, categoria, precio_exterior, precio_interior_visto, precio_interior_no_visto')
       .eq('activo', true)
       .order('orden');
 

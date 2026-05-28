@@ -20,11 +20,16 @@ export default async function handler(req) {
     if (!id) return err('id requerido', 400);
     if (!Array.isArray(items) || items.length === 0) return err('items debe ser un array no vacío', 400);
 
-    // Cargar tipos válidos desde DB
+    // Cargar tipos válidos desde DB (3 precios por superficie)
     const { data: tiposDB } = await supabase
-      .from('lustre_tipos').select('nombre, precio_usd_m2').eq('activo', true);
-    const precioMap = Object.fromEntries((tiposDB || []).map(t => [t.nombre, Number(t.precio_usd_m2) || 0]));
+      .from('lustre_tipos').select('nombre, precio_exterior, precio_interior_visto, precio_interior_no_visto').eq('activo', true);
+    const precioMap = Object.fromEntries((tiposDB || []).map(t => [t.nombre, {
+      exterior: Number(t.precio_exterior) || 0,
+      interior_visto: Number(t.precio_interior_visto) ?? 0,
+      interior_no_visto: Number(t.precio_interior_no_visto) ?? 0,
+    }]));
     const nombresValidos = new Set(Object.keys(precioMap));
+    const superficiesValidas = new Set(['exterior', 'interior_visto', 'interior_no_visto']);
 
     for (const item of items) {
       if (!item.tipo_lustre || typeof item.tipo_lustre !== 'string' || !item.tipo_lustre.trim()) {
@@ -32,6 +37,9 @@ export default async function handler(req) {
       }
       if (!nombresValidos.has(item.tipo_lustre)) {
         return err(`Tipo de lustre no válido: ${item.tipo_lustre}`, 400);
+      }
+      if (item.superficie && !superficiesValidas.has(item.superficie)) {
+        return err(`Superficie no válida: ${item.superficie}`, 400);
       }
       if (typeof item.metros_cuadrados !== 'number' || item.metros_cuadrados <= 0) {
         return err('Cada item debe tener metros_cuadrados > 0', 400);
@@ -41,10 +49,12 @@ export default async function handler(req) {
     // Enriquecer items con precio snapshot y calcular total
     let total_usd = 0;
     const enrichedItems = items.map(it => {
-      const precio = precioMap[it.tipo_lustre] || 0;
+      const precioTipo = precioMap[it.tipo_lustre] || {};
+      const superficie = it.superficie || 'exterior';
+      const precio = precioTipo[superficie] || 0;
       const subtotal = Math.round(it.metros_cuadrados * precio * 100) / 100;
       total_usd += subtotal;
-      return { tipo_lustre: it.tipo_lustre, metros_cuadrados: it.metros_cuadrados, precio_usd_m2: precio };
+      return { tipo_lustre: it.tipo_lustre, metros_cuadrados: it.metros_cuadrados, superficie, precio_usd_m2: precio, subtotal };
     });
     total_usd = Math.round(total_usd * 100) / 100;
 

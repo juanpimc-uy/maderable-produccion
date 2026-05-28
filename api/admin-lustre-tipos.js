@@ -29,11 +29,14 @@ export default async function handler(req) {
     }
 
     if (action === 'update') {
-      const { id, nombre, precio_usd_m2, activo } = body;
+      const { id, nombre, categoria, precio_exterior, precio_interior_visto, precio_interior_no_visto, activo } = body;
       if (!id) return err('id requerido', 400);
       const campos = {};
       if (nombre !== undefined) campos.nombre = nombre;
-      if (precio_usd_m2 !== undefined) campos.precio_usd_m2 = Number(precio_usd_m2);
+      if (categoria !== undefined) campos.categoria = categoria;
+      if (precio_exterior !== undefined) campos.precio_exterior = Number(precio_exterior);
+      if (precio_interior_visto !== undefined) campos.precio_interior_visto = precio_interior_visto === null ? null : Number(precio_interior_visto);
+      if (precio_interior_no_visto !== undefined) campos.precio_interior_no_visto = precio_interior_no_visto === null ? null : Number(precio_interior_no_visto);
       if (activo !== undefined) campos.activo = activo;
       const { error } = await supabase.from('lustre_tipos').update(campos).eq('id', id);
       if (error) throw error;
@@ -41,14 +44,20 @@ export default async function handler(req) {
     }
 
     if (action === 'create') {
-      const { nombre, precio_usd_m2 } = body;
+      const { nombre, categoria, precio_exterior, precio_interior_visto, precio_interior_no_visto } = body;
       if (!nombre) return err('nombre requerido', 400);
       // orden = max + 1
       const { data: maxRow } = await supabase
         .from('lustre_tipos').select('orden').order('orden', { ascending: false }).limit(1).maybeSingle();
       const orden = (maxRow?.orden || 0) + 1;
       const { error } = await supabase.from('lustre_tipos').insert({
-        nombre, precio_usd_m2: Number(precio_usd_m2) || 0, activo: true, orden,
+        nombre,
+        categoria: categoria || 'LUSTRE',
+        precio_exterior: Number(precio_exterior) || 0,
+        precio_interior_visto: precio_interior_visto != null ? Number(precio_interior_visto) : null,
+        precio_interior_no_visto: precio_interior_no_visto != null ? Number(precio_interior_no_visto) : null,
+        activo: true,
+        orden,
       });
       if (error) throw error;
       return ok({ ok: true });

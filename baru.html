@@ -187,7 +187,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 // ═══════════════════════════════════════════════════════════════
 // Fallback — se sobreescribe con datos de /api/lustre-tipos al cargar
 let TIPOS_LUSTRE = [];
-let _tiposLustre = []; // [{id, nombre, precio_usd_m2}]
+let _tiposLustre = []; // [{id, nombre, categoria, precio_exterior, precio_interior_visto, precio_interior_no_visto}]
 
 let _token = null;
 let _tab = 'por_recibir';
@@ -450,7 +450,7 @@ function renderCompletados() {
         <td>${i===0?esc(p.proyecto_num||''):''}</td>
         <td>${i===0?esc(p.obra||''):''}</td>
         <td>${i===0?esc(p.mueble_nombre||''):''}</td>
-        <td>${esc(it.tipo_lustre||'')}</td>
+        <td>${esc(it.tipo_lustre||'')}${it.superficie && it.superficie !== 'exterior' ? ' <span style="color:var(--muted);font-size:9px;">' + esc(it.superficie.replace('_',' ')) + '</span>' : ''}</td>
         <td style="text-align:right;">${(it.metros_cuadrados||0).toFixed(2)}</td>
         <td style="text-align:right;">${precio > 0 ? subtotal.toFixed(2) : '—'}</td>
         <td>${i===0?fmtDateShort(p.fecha_despacho):''}</td>
@@ -497,7 +497,7 @@ function renderCompletados() {
 function exportXLS() {
   if (!_reportePartidas.length || typeof XLSX === 'undefined') return;
   const estadoTexto = e => e==='ok'?'Conforme':e==='obs'?'Con observaciones':e==='rehacer'?'A rehacer':'—';
-  const rows = [['ENV','Proyecto','Obra','Mueble','Tipo lustre','m²','USD','Despachado','Recibido','Completado','Recep. Maderable','Estado']];
+  const rows = [['ENV','Proyecto','Obra','Mueble','Tipo lustre','Superficie','m²','USD','Despachado','Recibido','Completado','Recep. Maderable','Estado']];
   let totalM2 = 0, totalUSD = 0;
   _reportePartidas.forEach(p => {
     const items = p.baru_items || [];
@@ -507,17 +507,17 @@ function exportXLS() {
         const precio = it.precio_usd_m2 || 0;
         const sub = Math.round((it.metros_cuadrados||0) * precio * 100) / 100;
         totalUSD += sub;
-        rows.push([p.numero_envio,p.proyecto_num,p.obra,p.mueble_nombre,it.tipo_lustre,it.metros_cuadrados,sub,
+        rows.push([p.numero_envio,p.proyecto_num,p.obra,p.mueble_nombre,it.tipo_lustre,it.superficie||'exterior',it.metros_cuadrados,sub,
           p.fecha_despacho||'',p.fecha_recepcion_proveedor||'',p.baru_completado_at||'',
           p.fecha_recepcion||'',estadoTexto(p.estado_recep)]);
       });
     } else {
-      rows.push([p.numero_envio,p.proyecto_num,p.obra,p.mueble_nombre,'','','',
+      rows.push([p.numero_envio,p.proyecto_num,p.obra,p.mueble_nombre,'','','','',
         p.fecha_despacho||'',p.fecha_recepcion_proveedor||'',p.baru_completado_at||'',
         p.fecha_recepcion||'',estadoTexto(p.estado_recep)]);
     }
   });
-  rows.push(['','','','','TOTAL',totalM2,Math.round(totalUSD*100)/100,'','','','','']);
+  rows.push(['','','','','','TOTAL',totalM2,Math.round(totalUSD*100)/100,'','','','','']);
   const ws = XLSX.utils.aoa_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'BARU');
@@ -536,7 +536,7 @@ async function openDetail(id) {
     _detailPartida = data.partida;
     _workItems = (_detailPartida.baru_items && _detailPartida.baru_items.length)
       ? [..._detailPartida.baru_items]
-      : [{ tipo_lustre: '', metros_cuadrados: '' }];
+      : [{ tipo_lustre: '', metros_cuadrados: '', superficie: 'exterior' }];
     renderDetail();
   } catch(e) { alert('Error: ' + e.message); }
 }
@@ -622,6 +622,20 @@ function renderDetail() {
   renderWorkItems();
 }
 
+function _getPrecioPreview(idx) {
+  const it = _workItems[idx];
+  if (!it || !it.tipo_lustre) return '';
+  const tipo = _tiposLustre.find(t => t.nombre === it.tipo_lustre);
+  if (!tipo) return '';
+  const sup = it.superficie || 'exterior';
+  const key = sup === 'interior_visto' ? 'precio_interior_visto' : sup === 'interior_no_visto' ? 'precio_interior_no_visto' : 'precio_exterior';
+  const precio = tipo[key];
+  if (precio == null) return '<span style="color:var(--muted);font-size:10px;">N/A para esta superficie</span>';
+  const m2 = it.metros_cuadrados || 0;
+  const subtotal = m2 > 0 ? (Math.round(m2 * precio * 100) / 100).toFixed(2) : '—';
+  return `<span style="font-family:var(--mono);font-size:10px;color:var(--muted);">USD ${Number(precio).toFixed(2)}/m² ${m2 > 0 ? '= <b style="color:var(--yellow);">$'+subtotal+'</b>' : ''}</span>`;
+}
+
 function renderWorkItems() {
   const el = document.getElementById('work-items');
   if (!el) return;
@@ -638,19 +652,26 @@ function renderWorkItems() {
           onfocus="openDropdown(${i})" oninput="filterDropdown(${i})" autocomplete="off">
         <div class="lustre-dropdown" id="dd-${i}"></div>
       </div>
+      <div class="field-label">Superficie</div>
+      <select id="sup-${i}" style="width:100%;background:#111;border:1px solid var(--border);border-radius:5px;padding:8px 10px;color:var(--text);font-family:var(--mono);font-size:11px;outline:none;margin-bottom:10px;" onchange="_workItems[${i}].superficie=this.value;updatePrecioPreview(${i})">
+        <option value="exterior"${(item.superficie||'exterior')==='exterior'?' selected':''}>Exterior</option>
+        <option value="interior_visto"${item.superficie==='interior_visto'?' selected':''}>Interior visto</option>
+        <option value="interior_no_visto"${item.superficie==='interior_no_visto'?' selected':''}>Interior no visto</option>
+      </select>
       <div class="field-label">Metros cuadrados</div>
       <div class="m2-row">
         <input class="m2-input" type="number" step="0.01" min="0" id="m2-${i}"
           value="${item.metros_cuadrados||''}" placeholder="0.00"
-          onchange="_workItems[${i}].metros_cuadrados=parseFloat(this.value)||0">
+          onchange="_workItems[${i}].metros_cuadrados=parseFloat(this.value)||0;updatePrecioPreview(${i})">
         <span class="m2-unit">m²</span>
       </div>
+      <div id="precio-preview-${i}" style="margin-top:4px;min-height:16px;">${_getPrecioPreview(i)}</div>
     </div>
   `).join('');
 }
 
 function addWorkItem() {
-  _workItems.push({ tipo_lustre: '', metros_cuadrados: '' });
+  _workItems.push({ tipo_lustre: '', metros_cuadrados: '', superficie: 'exterior' });
   renderWorkItems();
 }
 
@@ -692,6 +713,12 @@ function pickLustre(idx, tipo) {
   input.value = tipo;
   input.classList.add('selected');
   document.getElementById('dd-' + idx).classList.remove('open');
+  updatePrecioPreview(idx);
+}
+
+function updatePrecioPreview(idx) {
+  const el = document.getElementById('precio-preview-' + idx);
+  if (el) el.innerHTML = _getPrecioPreview(idx);
 }
 
 async function guardarBorrador() {
@@ -704,6 +731,7 @@ async function guardarBorrador() {
   const items = _workItems.map((it, i) => ({
     tipo_lustre: document.getElementById('lustre-' + i)?.value || it.tipo_lustre || '',
     metros_cuadrados: parseFloat(document.getElementById('m2-' + i)?.value) || 0,
+    superficie: document.getElementById('sup-' + i)?.value || it.superficie || 'exterior',
   }));
 
   try {
@@ -773,6 +801,7 @@ async function completarPartida() {
   const items = _workItems.map((it, i) => ({
     tipo_lustre: document.getElementById('lustre-' + i)?.value || it.tipo_lustre,
     metros_cuadrados: parseFloat(document.getElementById('m2-' + i)?.value) || 0,
+    superficie: document.getElementById('sup-' + i)?.value || it.superficie || 'exterior',
   }));
 
   // Validate
