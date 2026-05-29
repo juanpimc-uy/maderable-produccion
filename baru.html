@@ -668,6 +668,8 @@ function renderWorkItems() {
       <div id="precio-preview-${i}" style="margin-top:4px;min-height:16px;">${_getPrecioPreview(i)}</div>
     </div>
   `).join('');
+  // Update surface selectors after DOM is built
+  _workItems.forEach((_, i) => _updateSuperficieOptions(i));
 }
 
 function addWorkItem() {
@@ -713,7 +715,31 @@ function pickLustre(idx, tipo) {
   input.value = tipo;
   input.classList.add('selected');
   document.getElementById('dd-' + idx).classList.remove('open');
+  _updateSuperficieOptions(idx);
   updatePrecioPreview(idx);
+}
+
+function _updateSuperficieOptions(idx) {
+  const it = _workItems[idx];
+  const sel = document.getElementById('sup-' + idx);
+  if (!sel || !it) return;
+  const tipo = _tiposLustre.find(t => t.nombre === it.tipo_lustre);
+  if (!tipo) { sel.style.opacity='1'; sel.disabled=false; return; }
+  const hasIV = tipo.precio_interior_visto != null;
+  const hasINV = tipo.precio_interior_no_visto != null;
+  const onlyExt = !hasIV && !hasINV;
+  sel.style.opacity = onlyExt ? '0.35' : '1';
+  sel.disabled = onlyExt;
+  for (const opt of sel.options) {
+    if (opt.value === 'interior_visto') opt.disabled = !hasIV;
+    if (opt.value === 'interior_no_visto') opt.disabled = !hasINV;
+  }
+  // If current surface is disabled, fallback to exterior
+  if ((it.superficie === 'interior_visto' && !hasIV) ||
+      (it.superficie === 'interior_no_visto' && !hasINV)) {
+    it.superficie = 'exterior';
+    sel.value = 'exterior';
+  }
 }
 
 function updatePrecioPreview(idx) {

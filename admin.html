@@ -788,7 +788,10 @@
         <div class="card">
           <div class="sec-title" style="display:flex;justify-content:space-between;align-items:center;">
             TIPOS DE LUSTRE
-            <button class="btn btn-primary btn-sm" onclick="_lustreAddRow()">+ AGREGAR TIPO</button>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-size:10px;" onclick="_lustreDownloadCSV()">↓ DESCARGAR LISTA</button>
+              <button class="btn btn-primary btn-sm" onclick="_lustreAddRow()">+ AGREGAR TIPO</button>
+            </div>
           </div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
             Catálogo de tipos de lustre para el portal BARU. Los precios se snapshottean al completar cada partida.
@@ -797,6 +800,10 @@
             <div style="font-size:12px;color:var(--muted);">Cargando…</div>
           </div>
           <div id="lustre-toast" style="font-size:11px;color:var(--green);margin-top:8px;min-height:16px;"></div>
+          <div style="margin-top:16px;">
+            <div id="lustre-historial-toggle" style="cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.5px;user-select:none;" onclick="_lustreToggleHistorial()">&#9654; HISTORIAL DE CAMBIOS</div>
+            <div id="lustre-historial-wrap" style="display:none;margin-top:8px;"></div>
+          </div>
         </div>
       </div>
       </div><!-- /panel lustre -->
@@ -6602,6 +6609,13 @@ async function lustreTiposInit() {
   }
 }
 
+function _fmtModDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return '';
+  return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+String(dt.getFullYear()).slice(-2);
+}
+
 function _renderLustreTipos() {
   const wrap = document.getElementById('lustre-tipos-wrap');
   if (!_lustreTipos.length) { wrap.innerHTML = '<span style="color:var(--muted);font-size:11px;">Sin tipos de lustre</span>'; return; }
@@ -6617,16 +6631,16 @@ function _renderLustreTipos() {
   const hdrStyle = 'padding:6px 8px;font-family:"JetBrains Mono",monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;border-bottom:1px solid var(--border);';
   const priceInputStyle = 'width:70px;background:transparent;border:1px solid var(--border);border-radius:3px;padding:3px 4px;color:var(--text);font-family:"JetBrains Mono",monospace;font-size:11px;outline:none;text-align:right;';
 
-  let html = `<div style="display:grid;grid-template-columns:2fr 80px 80px 80px 50px 40px;gap:0;font-size:11px;">
+  let html = `<div style="display:grid;grid-template-columns:2fr 80px 80px 80px 70px 50px 40px;gap:0;font-size:11px;">
     <div style="${hdrStyle}">NOMBRE</div>
     <div style="${hdrStyle}text-align:right;">EXT</div>
     <div style="${hdrStyle}text-align:right;">INT VIS</div>
     <div style="${hdrStyle}text-align:right;">INT NO VIS</div>
+    <div style="${hdrStyle}text-align:center;">MODIFICADO</div>
     <div style="${hdrStyle}text-align:center;">ACT</div>
     <div style="${hdrStyle}"></div>`;
 
   const catOrder = _LUSTRE_CATEGORIAS.filter(c => groups[c]);
-  // Add any categories not in the predefined list
   Object.keys(groups).forEach(c => { if (!catOrder.includes(c)) catOrder.push(c); });
 
   catOrder.forEach(cat => {
@@ -6637,9 +6651,10 @@ function _renderLustreTipos() {
       const pExt = Number(t.precio_exterior) || 0;
       const pIV = t.precio_interior_visto;
       const pINV = t.precio_interior_no_visto;
+      const modDate = _fmtModDate(t.modificado_en);
       html += `
       <div style="padding:4px 8px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;${op}">
-        <input type="text" value="${(t.nombre||'').replace(/"/g,'&amp;quot;')}" style="width:100%;background:transparent;border:1px solid transparent;border-radius:3px;padding:3px 6px;color:var(--text);font-size:12px;outline:none;" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='transparent';_lustreUpdateField(${t.id},'nombre',this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+        <input type="text" value="${(t.nombre||'').replace(/"/g,'&quot;')}" style="width:100%;background:transparent;border:1px solid transparent;border-radius:3px;padding:3px 6px;color:var(--text);font-size:12px;outline:none;" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='transparent';_lustreUpdateField(${t.id},'nombre',this.value)" onkeydown="if(event.key==='Enter')this.blur()">
       </div>
       <div style="padding:4px 4px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;justify-content:flex-end;${op}">
         <input type="number" step="0.01" min="0" value="${pExt}" style="${priceInputStyle}" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='var(--border)';_lustreUpdateField(${t.id},'precio_exterior',this.value)">
@@ -6649,6 +6664,9 @@ function _renderLustreTipos() {
       </div>
       <div style="padding:4px 4px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;justify-content:flex-end;${op}">
         <input type="number" step="0.01" min="0" value="${pINV!=null?Number(pINV):''}" placeholder="—" style="${priceInputStyle}" onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='var(--border)';_lustreUpdateField(${t.id},'precio_interior_no_visto',this.value)">
+      </div>
+      <div style="padding:4px 4px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);">
+        ${modDate}
       </div>
       <div style="padding:4px 4px;border-bottom:1px solid rgba(30,30,30,.5);display:flex;align-items:center;justify-content:center;">
         <input type="checkbox" ${t.activo?'checked':''} onchange="_lustreToggleActivo(${t.id},this.checked)" style="cursor:pointer;">
@@ -6672,7 +6690,6 @@ async function _lustreUpdateField(id, field, val) {
   if (field === 'nombre') {
     payload.nombre = val;
   } else {
-    // Price fields — empty string means null
     payload[field] = val === '' ? null : parseFloat(val) || 0;
   }
   try {
@@ -6686,7 +6703,9 @@ async function _lustreUpdateField(id, field, val) {
     if (t) {
       if (field === 'nombre') t.nombre = val;
       else t[field] = val === '' ? null : parseFloat(val) || 0;
+      t.modificado_en = new Date().toISOString();
     }
+    _renderLustreTipos();
     _lustreToast(field === 'nombre' ? 'Nombre actualizado' : 'Precio actualizado');
   } catch(e) { alert('Error: '+e.message); }
 }
@@ -6701,7 +6720,7 @@ async function _lustreToggleActivo(id, activo) {
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);
     const t = _lustreTipos.find(x=>x.id===id);
-    if (t) t.activo = activo;
+    if (t) { t.activo = activo; t.modificado_en = new Date().toISOString(); }
     _renderLustreTipos();
     _lustreToast(activo ? 'Activado' : 'Desactivado');
   } catch(e) { alert('Error: '+e.message); }
@@ -6724,12 +6743,10 @@ async function _lustreDelete(id) {
 }
 
 async function _lustreAddRow() {
-  // Modal-style form via prompt chain
   const nombre = prompt('Nombre del tipo de lustre:');
   if (!nombre || !nombre.trim()) return;
 
-  // Categoria dropdown via a simple approach
-  const catIdx = prompt('Categoría (número):\\n' + _LUSTRE_CATEGORIAS.map((c,i) => `${i+1}. ${c}`).join('\\n') + '\\n\\nDefault: 1 (LUSTRE)');
+  const catIdx = prompt('Categoría (número):\n' + _LUSTRE_CATEGORIAS.map((c,i) => `${i+1}. ${c}`).join('\n') + '\n\nDefault: 1 (LUSTRE)');
   const categoria = _LUSTRE_CATEGORIAS[(parseInt(catIdx)||1) - 1] || 'LUSTRE';
 
   const precioExt = prompt('Precio EXT (USD/m²):', '0');
@@ -6751,9 +6768,80 @@ async function _lustreAddRow() {
     });
     const d = await r.json();
     if (!d.ok) throw new Error(d.error);
-    await lustreTiposInit(); // reload
+    await lustreTiposInit();
     _lustreToast('Tipo agregado');
   } catch(e) { alert('Error: '+e.message); }
+}
+
+function _lustreDownloadCSV() {
+  const activos = _lustreTipos.filter(t => t.activo).sort((a,b) => {
+    const ca = _LUSTRE_CATEGORIAS.indexOf(a.categoria||'LUSTRE');
+    const cb = _LUSTRE_CATEGORIAS.indexOf(b.categoria||'LUSTRE');
+    if (ca !== cb) return (ca===-1?999:ca) - (cb===-1?999:cb);
+    return (a.orden||0) - (b.orden||0);
+  });
+  const csvEsc = v => v == null ? '' : '"' + String(v).replace(/"/g,'""') + '"';
+  let csv = 'CATEGORIA,NOMBRE,EXTERIOR,INT_VISTO,INT_NO_VISTO,ACTIVO\n';
+  activos.forEach(t => {
+    csv += [csvEsc(t.categoria||'LUSTRE'), csvEsc(t.nombre), t.precio_exterior??'', t.precio_interior_visto??'', t.precio_interior_no_visto??'', 'true'].join(',') + '\n';
+  });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const today = new Date().toISOString().slice(0,10);
+  a.href = url; a.download = 'lista-lustre-' + today + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  _lustreToast('CSV descargado');
+}
+
+let _lustreHistorialOpen = false;
+async function _lustreToggleHistorial() {
+  const wrap = document.getElementById('lustre-historial-wrap');
+  const toggle = document.getElementById('lustre-historial-toggle');
+  if (_lustreHistorialOpen) {
+    wrap.style.display = 'none';
+    toggle.innerHTML = '&#9654; HISTORIAL DE CAMBIOS';
+    _lustreHistorialOpen = false;
+    return;
+  }
+  _lustreHistorialOpen = true;
+  toggle.innerHTML = '&#9660; HISTORIAL DE CAMBIOS';
+  wrap.style.display = '';
+  wrap.innerHTML = '<span style="color:var(--muted);font-size:11px;">Cargando...</span>';
+  const u = window.AUTH.usuarioActual();
+  try {
+    const r = await fetch('/api/admin-lustre-tipos', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'get_historial', admin_id:u.id }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    const hist = d.historial || [];
+    if (!hist.length) { wrap.innerHTML = '<span style="color:var(--muted);font-size:11px;">Sin cambios registrados</span>'; return; }
+    const campoLabel = c => c==='precio_exterior'?'Exterior':c==='precio_interior_visto'?'Int. visto':c==='precio_interior_no_visto'?'Int. no visto':c;
+    const fmtDT = d => { const dt=new Date(d); return isNaN(dt)?'':String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+String(dt.getFullYear()).slice(-2)+' '+String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0'); };
+    const fmtP = v => v==null?'—':Number(v).toFixed(2);
+    // Lookup empleados for names
+    let empMap = {};
+    try { const emps = await window.sbFetch('empleados?select=id,nombre'); (emps||[]).forEach(e => { empMap[e.id] = e.nombre; }); } catch(e){}
+    const hs = 'padding:6px 8px;font-family:"JetBrains Mono",monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;border-bottom:1px solid var(--border);';
+    let html = `<div style="display:grid;grid-template-columns:100px 1fr 90px 70px 70px 1fr;gap:0;font-size:11px;">
+      <div style="${hs}">FECHA</div><div style="${hs}">TIPO</div><div style="${hs}">CAMPO</div><div style="${hs}text-align:right;">ANTERIOR</div><div style="${hs}text-align:right;">NUEVO</div><div style="${hs}">POR</div>`;
+    hist.forEach(h => {
+      const rs = 'padding:4px 8px;border-bottom:1px solid rgba(30,30,30,.5);font-size:11px;';
+      html += `<div style="${rs}">${fmtDT(h.modificado_en)}</div>
+        <div style="${rs}">${h.nombre_tipo||''}</div>
+        <div style="${rs}">${campoLabel(h.campo)}</div>
+        <div style="${rs}text-align:right;color:var(--muted);">${fmtP(h.precio_anterior)}</div>
+        <div style="${rs}text-align:right;color:var(--yellow);">${fmtP(h.precio_nuevo)}</div>
+        <div style="${rs}color:var(--muted);">${empMap[h.modificado_por]||h.modificado_por||''}</div>`;
+    });
+    html += '</div>';
+    wrap.innerHTML = html;
+  } catch(e) {
+    wrap.innerHTML = '<span style="color:var(--red);font-size:11px;">Error: '+e.message+'</span>';
+  }
 }
 
 function _lustreToast(msg) {

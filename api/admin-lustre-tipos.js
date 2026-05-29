@@ -15,6 +15,8 @@ async function checkAdmin(adminId) {
   return data?.rol_app === 'admin';
 }
 
+const PRICE_FIELDS = ['precio_exterior', 'precio_interior_visto', 'precio_interior_no_visto'];
+
 export default async function handler(req) {
   if (req.method === 'OPTIONS') return options();
   if (req.method !== 'POST') return err('Method not allowed', 405);
@@ -31,15 +33,47 @@ export default async function handler(req) {
     if (action === 'update') {
       const { id, nombre, categoria, precio_exterior, precio_interior_visto, precio_interior_no_visto, activo } = body;
       if (!id) return err('id requerido', 400);
-      const campos = {};
+
+      // Read current record for historial
+      const { data: actual } = await supabase.from('lustre_tipos').select('*').eq('id', id).maybeSingle();
+      if (!actual) return err('Tipo no encontrado', 404);
+
+      // Build historial entries for changed price fields
+      const historialRows = [];
+      for (const field of PRICE_FIELDS) {
+        if (body[field] !== undefined) {
+          const nuevo = body[field] === null ? null : Number(body[field]);
+          const anterior = actual[field] != null ? Number(actual[field]) : null;
+          if (nuevo !== anterior) {
+            historialRows.push({
+              lustre_tipo_id: id,
+              nombre_tipo: actual.nombre,
+              campo: field,
+              precio_anterior: anterior,
+              precio_nuevo: nuevo,
+              modificado_por: admin_id,
+            });
+          }
+        }
+      }
+
+      // Build update payload
+      const campos = { modificado_por: admin_id, modificado_en: new Date().toISOString() };
       if (nombre !== undefined) campos.nombre = nombre;
       if (categoria !== undefined) campos.categoria = categoria;
-      if (precio_exterior !== undefined) campos.precio_exterior = Number(precio_exterior);
+      if (precio_exterior !== undefined) campos.precio_exterior = precio_exterior === null ? null : Number(precio_exterior);
       if (precio_interior_visto !== undefined) campos.precio_interior_visto = precio_interior_visto === null ? null : Number(precio_interior_visto);
       if (precio_interior_no_visto !== undefined) campos.precio_interior_no_visto = precio_interior_no_visto === null ? null : Number(precio_interior_no_visto);
       if (activo !== undefined) campos.activo = activo;
+
       const { error } = await supabase.from('lustre_tipos').update(campos).eq('id', id);
       if (error) throw error;
+
+      // Insert historial rows
+      if (historialRows.length) {
+        await supabase.from('lustre_historial').insert(historialRows);
+      }
+
       return ok({ ok: true });
     }
 
@@ -58,6 +92,8 @@ export default async function handler(req) {
         precio_interior_no_visto: precio_interior_no_visto != null ? Number(precio_interior_no_visto) : null,
         activo: true,
         orden,
+        modificado_por: admin_id,
+        modificado_en: new Date().toISOString(),
       });
       if (error) throw error;
       return ok({ ok: true });
@@ -80,6 +116,18 @@ export default async function handler(req) {
       const { error } = await supabase.from('lustre_tipos').delete().eq('id', id);
       if (error) throw error;
       return ok({ ok: true });
+    }
+
+    if (action === 'get_historial') {
+      const { lustre_tipo_id } = body;
+      let query = supabase.from('lustre_historial')
+        .select('*')
+        .order('modificado_en', { ascending: false })
+        .limit(200);
+      if (lustre_tipo_id) query = query.eq('lustre_tipo_id', lustre_tipo_id);
+      const { data, error } = await query;
+      if (error) throw error;
+      return ok({ ok: true, historial: data || [] });
     }
 
     return err('action no reconocida', 400);
