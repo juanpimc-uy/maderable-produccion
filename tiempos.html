@@ -929,7 +929,7 @@ function _tModalOpen(sesionId, jornadaId, empNombre) {
   // Fin time
   const finInput = document.getElementById('modal-fin');
   const finLink  = document.getElementById('modal-fin-link');
-  if (activo) {
+  if (activo && !_tIsAdmin) {
     finInput.value    = '';
     finInput.disabled = true;
     finLink.innerHTML = '';
