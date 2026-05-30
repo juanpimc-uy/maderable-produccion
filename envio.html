@@ -202,7 +202,7 @@ async function confirmarAccion() {
     let endpoint, body;
     if (_accion === 'despacho') {
       endpoint = 'despachar-partida';
-      body = { partida_id: e.partida_id || e._partida_id };
+      body = { partida_id: e.partida_id || e._partida_id, origen: 'scan' };
     } else {
       endpoint = 'recibir-partida';
       body = { partida_id: e.partida_id || e._partida_id };

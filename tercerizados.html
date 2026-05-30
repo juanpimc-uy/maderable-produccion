@@ -301,7 +301,7 @@ function cardHtml(p, col) {
     <div class="card-meta">
       ${p.obra ? p.obra + ' · ' : ''}${p.cliente ? p.cliente + ' · ' : ''}${p.bultos ? p.bultos + ' bulto(s)' : ''}
       ${p.partes ? ' · ' + p.partes : ''}
-      ${p.fechaDespacho ? ' · ' + p.fechaDespacho : ''}
+      ${p.fechaDespacho ? ' · ' + p.fechaDespacho : ''}${p.despachoOrigen === 'manual' ? ' <span style="font-size:8px;padding:1px 4px;border-radius:2px;background:rgba(255,152,0,.12);color:#ff9800;border:1px solid rgba(255,152,0,.2);letter-spacing:.3px;">FORZADO</span>' : ''}
     </div>
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
       ${showProv ? `<span class="badge-prov" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${provLabel}</span>` : ''}
@@ -438,7 +438,7 @@ async function _confirmarDespachoBultos(id) {
   try {
     const res = await fetch('/api/tiempos?action=despachar-partida', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ partida_id: p.id, bultos: p.bultos||1, partes:'', fecha: hoy(), nota:'', tipoDespacho:'total', session_token:_getST() })
+      body: JSON.stringify({ partida_id: p.id, bultos: p.bultos||1, partes:'', fecha: hoy(), nota:'', tipoDespacho:'total', origen:'manual', session_token:_getST() })
     });
     const data = await res.json();
     if (data.ok) {
@@ -474,7 +474,7 @@ async function confirmarDespacho() {
     try {
       const res = await fetch('/api/tiempos?action=despachar-partida', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ partida_id: p.id, bultos, partes, fecha, nota, tipoDespacho:'total', session_token:_getST() })
+        body: JSON.stringify({ partida_id: p.id, bultos, partes, fecha, nota, tipoDespacho:'total', origen:'manual', session_token:_getST() })
       });
       const data = await res.json();
       if (data.ok) {
@@ -501,7 +501,7 @@ async function confirmarDespacho() {
     try {
       const res = await fetch('/api/tiempos?action=despachar-partida', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ partida_id: nueva.id, bultos, partes, fecha, nota, tipoDespacho:'parcial', session_token:_getST() })
+        body: JSON.stringify({ partida_id: nueva.id, bultos, partes, fecha, nota, tipoDespacho:'parcial', origen:'manual', session_token:_getST() })
       });
       const data = await res.json();
       if (data.ok) { nueva.estado='despachada'; nueva.numero_envio = data.numero_envio || ''; nueva.fechaDespacho = fecha; }
@@ -558,7 +558,11 @@ async function abrirNuevaPartida() {
   } catch(e) {}
   const mostrarProceso = filtroProveedor === 'todos';
   // Determinar proveedor pre-seleccionado por filtro
-  const provFiltrado = (filtroProveedor !== 'todos') ? _provsCache.find(pv => pv.tipo === filtroProveedor) : null;
+  const provFiltrado = (filtroProveedor !== 'todos')
+    ? _provsCache.find(pv =>
+        pv.tipo === filtroProveedor ||
+        pv.nombre?.toUpperCase() === filtroProveedor.toUpperCase())
+    : null;
   const provOpts = _provsCache.map(pv => `<option value="${pv.nombre}" data-tipo="${pv.tipo}" ${provFiltrado && pv.id === provFiltrado.id ? 'selected' : ''}>${pv.nombre}</option>`).join('');
 
   const overlay = document.createElement('div');

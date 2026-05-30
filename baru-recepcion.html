@@ -102,7 +102,7 @@ function renderPartida() {
   }
 
   let actionHtml = '';
-  if (enProveedor) {
+  if (enProveedor || enTaller) {
     const totalBultos = p.bultos || 1;
     const hoyStr = new Date().toISOString().split('T')[0];
     const pct = Math.round((_bultosConfirmados / totalBultos) * 100);
@@ -155,6 +155,27 @@ async function confirmarRecepcion() {
 
   const fecha = document.getElementById('recep-fecha')?.value || null;
   try {
+    // Si la partida aún está en taller, despacharla primero
+    if (_partida.estado === 'en_taller') {
+      const despRes = await fetch('/api/tiempos?action=despachar-partida', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          partida_id: _partida.id,
+          bultos: _partida.bultos || 1,
+          partes: _partida.partes || '',
+          fecha: fecha || new Date().toISOString().split('T')[0],
+          tipoDespacho: 'total',
+          origen: 'scan',
+        }),
+      });
+      const despData = await despRes.json();
+      if (!despData.ok) throw new Error(despData.error || 'Error al despachar');
+      _partida.estado = 'despachada';
+      if (despData.numero_envio) _partida.numero_envio = despData.numero_envio;
+    }
+
+    // Confirmar recepción por proveedor
     const res = await fetch('/api/baru-confirmar-recepcion', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

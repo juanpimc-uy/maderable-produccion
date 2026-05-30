@@ -2333,6 +2333,7 @@ export default async function handler(req) {
         instruccion_lustre: p.instruccion_lustre || '',
         baru_completado_at: p.baru_completado_at || null,
         retorno_modificado_baru: p.retorno_modificado_baru || false,
+        despachoOrigen: p.despacho_origen || null,
         baru_items: p.baru_items || [],
         monto_usd: p.monto_usd != null ? Number(p.monto_usd) : null,
       })) });
@@ -2385,7 +2386,7 @@ export default async function handler(req) {
     // ── POST despachar-partida (asigna numero_envio) ─────────────────────
     if (action === 'despachar-partida' && req.method === 'POST') {
       if (body.session_token && !await verificarSesion(body.session_token)) return err('Sesión inválida o expirada', 401);
-      const { partida_id, bultos, partes, fecha, nota, tipoDespacho } = body;
+      const { partida_id, bultos, partes, fecha, nota, tipoDespacho, origen } = body;
       if (!partida_id) return err('partida_id requerido', 400);
       // Verificar si ya tiene numero_envio; si no, asignar como fallback
       const { data: existing } = await supabase.from('partidas_terceros')
@@ -2401,6 +2402,7 @@ export default async function handler(req) {
         estado: 'despachada', tipo_despacho: tipoDespacho || 'total',
         bultos: bultos || 1, partes: partes || '', nota: nota || '',
         fecha_despacho: fecha || new Date().toISOString().split('T')[0],
+        despacho_origen: origen || null,
       };
       if (numero_envio) updateRow.numero_envio = numero_envio;
       const { data, error } = await supabase.from('partidas_terceros')
