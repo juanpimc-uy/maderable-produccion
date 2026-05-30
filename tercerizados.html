@@ -575,10 +575,10 @@ async function abrirNuevaPartida() {
         </div>
       </div>` : ''}
       <div class="field"><label>Proveedor</label>
-        <select id="nueva-proveedor" ${provFiltrado ? 'disabled' : ''}>
+        ${provFiltrado ? `<div style="padding:6px 10px;background:rgba(255,214,0,.06);border:1px solid var(--border2);border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);font-weight:700;">${provFiltrado.nombre}</div><input type="hidden" id="nueva-proveedor" value="${provFiltrado.nombre}" data-tipo="${provFiltrado.tipo}"/>` : `<select id="nueva-proveedor">
           <option value="">Seleccionar...</option>
           ${provOpts}
-        </select>
+        </select>`}
       </div>
       <div class="field" style="position:relative;"><label>Proyecto</label>
         <input type="text" id="nueva-pr-search" placeholder="Buscar proyecto..." autocomplete="off"
