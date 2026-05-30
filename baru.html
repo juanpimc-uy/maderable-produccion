@@ -579,6 +579,10 @@ function renderDetail() {
       <button class="btn-add-item" onclick="addWorkItem()">+ Agregar ítem</button>
     </div>
     <div id="work-items"></div>
+    <div style="margin-bottom:12px;">
+      <div id="precio-list-toggle" style="cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.3px;user-select:none;" onclick="_togglePrecioList()">&#9654; VER LISTA DE PRECIOS</div>
+      <div id="precio-list-wrap" style="display:none;"></div>
+    </div>
     <div id="guardar-msg" style="font-family:var(--mono);font-size:10px;color:var(--green);text-align:center;margin-bottom:10px;min-height:14px;"></div>
     <div style="display:flex;gap:10px;">
       <button style="flex:1;padding:14px;border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:1px;background:transparent;color:var(--muted);transition:all .15s;" id="btn-guardar" onclick="guardarBorrador()" onmouseenter="this.style.borderColor='var(--yellow)';this.style.color='var(--yellow)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">GUARDAR CAMBIOS</button>
@@ -591,6 +595,10 @@ function renderDetail() {
       <button class="btn-add-item" onclick="addWorkItem()">+ Agregar ítem</button>
     </div>
     <div id="work-items"></div>
+    <div style="margin-bottom:12px;">
+      <div id="precio-list-toggle" style="cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.3px;user-select:none;" onclick="_togglePrecioList()">&#9654; VER LISTA DE PRECIOS</div>
+      <div id="precio-list-wrap" style="display:none;"></div>
+    </div>
     <div id="guardar-msg" style="font-family:var(--mono);font-size:10px;color:var(--green);text-align:center;margin-bottom:10px;min-height:14px;"></div>
     <div style="display:flex;gap:10px;">
       <button style="flex:1;padding:14px;border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:1px;background:transparent;color:var(--muted);transition:all .15s;" id="btn-guardar" onclick="guardarBorrador()" onmouseenter="this.style.borderColor='var(--yellow)';this.style.color='var(--yellow)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">GUARDAR</button>
@@ -620,6 +628,68 @@ function renderDetail() {
   `;
 
   renderWorkItems();
+}
+
+function _supOptions(item) {
+  const tipo = item.tipo_lustre ? _tiposLustre.find(t => t.nombre === item.tipo_lustre) : null;
+  const fmtP = v => v != null ? ' — $' + Number(v).toFixed(2) : '';
+  const pExt = tipo ? tipo.precio_exterior : null;
+  const pIV = tipo ? tipo.precio_interior_visto : null;
+  const pINV = tipo ? tipo.precio_interior_no_visto : null;
+  const sup = item.superficie || 'exterior';
+  return `<option value="exterior"${sup==='exterior'?' selected':''}>Exterior${fmtP(pExt)}</option>
+    <option value="interior_visto"${sup==='interior_visto'?' selected':''}${pIV==null?' disabled':''}>Interior visto${pIV!=null?fmtP(pIV):' — N/A'}</option>
+    <option value="interior_no_visto"${sup==='interior_no_visto'?' selected':''}${pINV==null?' disabled':''}>Interior no visto${pINV!=null?fmtP(pINV):' — N/A'}</option>`;
+}
+
+const _BARU_CATEGORIAS = ['LUSTRE','MELAMINICO BLANCO','MELAMINICO COLOR','MDF BLANCO','MDF COLOR','MACIZO','MADERA PORO NATURAL','MADERA PORO ABIERTO','PATINAS','ALUMINIOS-HIERROS','BRILLANTES'];
+let _precioListOpen = false;
+
+function _renderPrecioList() {
+  const wrap = document.getElementById('precio-list-wrap');
+  if (!wrap) return;
+  if (!_precioListOpen) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  if (!_tiposLustre.length) { wrap.innerHTML = '<span style="color:var(--muted);font-size:10px;">Sin tipos cargados</span>'; return; }
+
+  const selectedTipo = _workItems.length ? _workItems[_workItems.length-1].tipo_lustre : '';
+  const groups = {};
+  _tiposLustre.forEach(t => {
+    const cat = t.categoria || 'LUSTRE';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(t);
+  });
+  const catOrder = _BARU_CATEGORIAS.filter(c => groups[c]);
+  Object.keys(groups).forEach(c => { if (!catOrder.includes(c)) catOrder.push(c); });
+
+  const hs = 'padding:4px 6px;font-family:var(--mono);font-size:8px;color:var(--muted);letter-spacing:.3px;border-bottom:1px solid var(--border);';
+  const fmtP = v => v != null ? Number(v).toFixed(2) : '—';
+  let html = `<div style="display:grid;grid-template-columns:2fr 60px 60px 60px;gap:0;font-size:10px;margin-top:8px;">
+    <div style="${hs}">NOMBRE</div><div style="${hs}text-align:right;">EXT</div><div style="${hs}text-align:right;">INT VIS</div><div style="${hs}text-align:right;">INT NO VIS</div>`;
+
+  catOrder.forEach(cat => {
+    html += `<div style="grid-column:1/-1;padding:6px;font-family:var(--mono);font-size:9px;font-weight:700;color:#FFD600;letter-spacing:.5px;border-bottom:1px solid rgba(255,214,0,.1);background:rgba(255,214,0,.03);">${cat}</div>`;
+    groups[cat].forEach(t => {
+      const sel = t.nombre === selectedTipo;
+      const bg = sel ? 'background:rgba(255,214,0,.06);' : '';
+      const pc = sel ? 'color:var(--yellow);font-weight:700;' : 'color:var(--muted);';
+      const nc = sel ? 'color:var(--yellow);' : '';
+      const rs = `padding:3px 6px;border-bottom:1px solid rgba(30,30,30,.4);font-family:var(--mono);font-size:10px;${bg}`;
+      html += `<div style="${rs}${nc}">${t.nombre}</div>
+        <div style="${rs}text-align:right;${pc}">${fmtP(t.precio_exterior)}</div>
+        <div style="${rs}text-align:right;${pc}">${fmtP(t.precio_interior_visto)}</div>
+        <div style="${rs}text-align:right;${pc}">${fmtP(t.precio_interior_no_visto)}</div>`;
+    });
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+
+function _togglePrecioList() {
+  _precioListOpen = !_precioListOpen;
+  const toggle = document.getElementById('precio-list-toggle');
+  if (toggle) toggle.innerHTML = (_precioListOpen ? '&#9660;' : '&#9654;') + ' VER LISTA DE PRECIOS';
+  _renderPrecioList();
 }
 
 function _getPrecioPreview(idx) {
@@ -654,9 +724,7 @@ function renderWorkItems() {
       </div>
       <div class="field-label">Superficie</div>
       <select id="sup-${i}" style="width:100%;background:#111;border:1px solid var(--border);border-radius:5px;padding:8px 10px;color:var(--text);font-family:var(--mono);font-size:11px;outline:none;margin-bottom:10px;" onchange="_workItems[${i}].superficie=this.value;updatePrecioPreview(${i})">
-        <option value="exterior"${(item.superficie||'exterior')==='exterior'?' selected':''}>Exterior</option>
-        <option value="interior_visto"${item.superficie==='interior_visto'?' selected':''}>Interior visto</option>
-        <option value="interior_no_visto"${item.superficie==='interior_no_visto'?' selected':''}>Interior no visto</option>
+        ${_supOptions(item)}
       </select>
       <div class="field-label">Metros cuadrados</div>
       <div class="m2-row">
@@ -715,6 +783,9 @@ function pickLustre(idx, tipo) {
   input.value = tipo;
   input.classList.add('selected');
   document.getElementById('dd-' + idx).classList.remove('open');
+  // Refresh surface options with new prices
+  const sel = document.getElementById('sup-' + idx);
+  if (sel) sel.innerHTML = _supOptions(_workItems[idx]);
   _updateSuperficieOptions(idx);
   updatePrecioPreview(idx);
 }
@@ -745,6 +816,11 @@ function _updateSuperficieOptions(idx) {
 function updatePrecioPreview(idx) {
   const el = document.getElementById('precio-preview-' + idx);
   if (el) el.innerHTML = _getPrecioPreview(idx);
+  // Refresh surface option labels with prices
+  const sel = document.getElementById('sup-' + idx);
+  if (sel) sel.innerHTML = _supOptions(_workItems[idx]);
+  _updateSuperficieOptions(idx);
+  if (_precioListOpen) _renderPrecioList();
 }
 
 async function guardarBorrador() {
