@@ -724,17 +724,28 @@ function _tQuickSalidaHora(empId) {
 
 function _tQuickSalida(jid, fecha, empId) {
   const hora = _tQuickSalidaHora(empId);
-  const val = fecha + 'T' + hora;
   const input = document.getElementById('sal-input-' + jid);
-  if (input) input.value = val;
-  _tJorField(jid, 'salida', val);
+  if (input) input.value = hora;
+  _tJorField(jid, 'salida', hora);
   const btn = document.getElementById('sal-quick-' + jid);
   if (btn) btn.remove();
 }
 
 function _tJorField(jid, field, rawVal) {
   let val = rawVal;
-  if (field === 'entrada' || field === 'salida') val = rawVal ? fromLocalDT(rawVal) : null;
+  if (field === 'entrada' || field === 'salida') {
+    if (rawVal) {
+      // If value is HH:MM (from time input), combine with jornada date
+      if (rawVal.length <= 5) {
+        const fecha = _tFechaByJornada.get(jid) || todayStr();
+        val = fromLocalDT(fecha + 'T' + rawVal);
+      } else {
+        val = fromLocalDT(rawVal);
+      }
+    } else {
+      val = null;
+    }
+  }
   if (field === 'descanso_minutos') val = parseInt(rawVal, 10) || 0;
   _tMarkJor(jid, field, val);
 }
@@ -1260,6 +1271,80 @@ async function _tEliminarSesion(sid, btn) {
 }
 
 // ── Agregar sesión (admin) ────────────────────────────────────────────────
+function _tAgregarSesionSinJornada() {
+  const fecha = document.getElementById('dia-fecha').value;
+  if (!fecha) { alert('Seleccioná una fecha primero'); return; }
+  const result = document.getElementById('dia-result');
+  // Avoid duplicate
+  if (document.getElementById('add-sin-jornada-form')) return;
+  const empOpts = _empListT.map(e => `<option value="${e.id}">${e.nombre}</option>`).join('');
+  const centroOpts = _cvT.map(c => `<option value="${c.codigo}">${c.nombre}</option>`).join('');
+  const div = document.createElement('div');
+  div.id = 'add-sin-jornada-form';
+  div.className = 'emp-card';
+  div.style.cssText = 'border:1px solid var(--accent);margin-top:8px;';
+  div.innerHTML = `
+    <div style="padding:12px 16px;">
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:1px;margin-bottom:12px;">NUEVA SESIÓN · ${fecha}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px;">
+        <div><label style="font-size:9px;color:var(--muted);display:block;margin-bottom:2px;">OPERARIO</label><select id="asj-emp" style="background:var(--card);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;outline:none;"><option value="">—</option>${empOpts}</select></div>
+        <div><label style="font-size:9px;color:var(--muted);display:block;margin-bottom:2px;">INICIO</label><input type="time" id="asj-inicio" step="60" style="background:var(--card);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;outline:none;"></div>
+        <div><label style="font-size:9px;color:var(--muted);display:block;margin-bottom:2px;">FIN</label><input type="time" id="asj-fin" step="60" style="background:var(--card);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;outline:none;"></div>
+        <div><label style="font-size:9px;color:var(--muted);display:block;margin-bottom:2px;">CENTRO</label><select id="asj-centro" style="background:var(--card);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;outline:none;"><option value="">—</option>${centroOpts}</select></div>
+        <div><label style="font-size:9px;color:var(--muted);display:block;margin-bottom:2px;">PROYECTO</label><input type="text" id="asj-proy" list="proyectos-dl" placeholder="proyecto…" style="background:var(--card);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;outline:none;width:140px;"></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-load" style="font-size:10px;padding:4px 12px;" id="asj-btn" onclick="_tConfirmarAgregarSinJornada()">✓ AGREGAR</button>
+        <button class="btn-eliminar" onclick="document.getElementById('add-sin-jornada-form').remove()">✕ CANCELAR</button>
+      </div>
+    </div>`;
+  result.appendChild(div);
+}
+
+async function _tConfirmarAgregarSinJornada() {
+  const btn = document.getElementById('asj-btn');
+  btn.disabled = true;
+  const fecha = document.getElementById('dia-fecha').value;
+  const empId = document.getElementById('asj-emp').value;
+  const inicioTime = document.getElementById('asj-inicio').value;
+  const finTime = document.getElementById('asj-fin').value;
+  const centro = document.getElementById('asj-centro').value;
+  const proyVal = document.getElementById('asj-proy').value || '';
+
+  if (!empId) { alert('Seleccioná un operario'); btn.disabled = false; return; }
+  if (!inicioTime || !centro) { alert('Inicio y centro son obligatorios'); btn.disabled = false; return; }
+
+  const inicio = new Date(`${fecha}T${inicioTime}:00`).toISOString();
+  const fin = finTime ? new Date(`${fecha}T${finTime}:00`).toISOString() : null;
+  const opt = _proyectosT.find(p => {
+    const label = [p.numero, p.nombre].filter(Boolean).join(' · ');
+    return label === proyVal || p.nombre === proyVal;
+  });
+
+  try {
+    const res = await _tFetch('/api/tiempos?action=agregar-sesion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        empleado_id: empId,
+        fecha,
+        caller_id: CALLER_ID,
+        inicio, fin, centro,
+        estado: 'finalizado',
+        proyecto_id: opt ? opt.id : null,
+        proyecto_nombre: opt ? opt.nombre : (proyVal || null),
+      }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Error');
+    document.getElementById('add-sin-jornada-form')?.remove();
+    _tCargarDia(); // reload
+  } catch (e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false;
+  }
+}
+
 function _tAgregarSesion(jornadaId, btn) {
   const tbody = btn.closest('.emp-card-body, .day-card-body').querySelector('tbody');
   if (!tbody) return;
@@ -1357,7 +1442,8 @@ function _tRenderDia(data) {
   const result = document.getElementById('dia-result');
   const emps = (data.empleados || []).filter(emp => _tPassFiltro(emp));
   if (emps.length === 0) {
-    result.innerHTML = '<p class="empty-msg">Sin jornadas ese día.</p>';
+    const addBtn = _tIsAdmin ? `<div style="margin-top:12px;"><button class="btn-add-ses" onclick="_tAgregarSesionSinJornada()">+ AGREGAR SESIÓN</button></div>` : '';
+    result.innerHTML = `<p class="empty-msg">Sin jornadas ese día.</p>${addBtn}`;
     return;
   }
   result.innerHTML = emps.map(emp => {
@@ -1385,6 +1471,7 @@ function _tRenderDia(data) {
   <div class="emp-card-header" onclick="_tToggleCard(this)">
     <div>
       <div class="emp-card-title">${emp.nombre}</div>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;color:#666;margin-top:2px;">ENT ${_isoToHM(jornada.entrada)||'—'} · SAL ${_isoToHM(jornada.salida)||'—'} · DESC ${jornada.descanso_minutos ? jornada.descanso_minutos+'m' : '—'}</div>
       <div class="emp-card-meta">${fmtHM(emp.total_minutos)}</div>
     </div>
     <div class="emp-card-right">${badge}<span class="chevron">▼</span></div>
@@ -1393,17 +1480,17 @@ function _tRenderDia(data) {
     <div class="jornada-row">
       <div class="jornada-field">
         <span class="jornada-label">ENTRADA</span>
-        <input class="jornada-input" type="datetime-local"
+        <input class="jornada-input" type="time" step="60"
           data-jid="${jornada.id}"
-          value="${toLocalDT(jornada.entrada)}"
+          value="${_isoToHM(jornada.entrada)}"
           onchange="_tJorField('${jornada.id}','entrada',this.value)">
       </div>
       <div class="jornada-field">
         <span class="jornada-label">SALIDA</span>
         <div style="display:flex;align-items:center;gap:4px;">
-          <input class="jornada-input" type="datetime-local"
+          <input class="jornada-input" type="time" step="60"
             data-jid="${jornada.id}" id="sal-input-${jornada.id}"
-            value="${toLocalDT(jornada.salida)}"
+            value="${_isoToHM(jornada.salida)}"
             onchange="_tJorField('${jornada.id}','salida',this.value);document.getElementById('sal-quick-${jornada.id}')?.remove()">
           ${!jornada.salida ? `<button id="sal-quick-${jornada.id}" style="white-space:nowrap;font-family:'Space Mono',monospace;font-size:9px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--muted);cursor:pointer;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--muted)'" onclick="_tQuickSalida('${jornada.id}','${data.fecha}','${emp.empleado_id}')">⏎ ${_tQuickSalidaHora(emp.empleado_id)}</button>` : ''}
         </div>
@@ -1422,6 +1509,9 @@ function _tRenderDia(data) {
   </div>
 </div>`;
   }).join('');
+  if (_tIsAdmin) {
+    result.innerHTML += `<div style="margin-top:12px;"><button class="btn-add-ses" onclick="_tAgregarSesionSinJornada()">+ AGREGAR SESIÓN (otro operario)</button></div>`;
+  }
 }
 
 function _tToggleCard(header) {
@@ -1505,17 +1595,17 @@ ${data.dias.map(dia => {
     <div class="jornada-row">
       <div class="jornada-field">
         <span class="jornada-label">ENTRADA</span>
-        <input class="jornada-input" type="datetime-local"
+        <input class="jornada-input" type="time" step="60"
           data-jid="${jornada.id}"
-          value="${toLocalDT(jornada.entrada)}"
+          value="${_isoToHM(jornada.entrada)}"
           onchange="_tJorField('${jornada.id}','entrada',this.value)">
       </div>
       <div class="jornada-field">
         <span class="jornada-label">SALIDA</span>
         <div style="display:flex;align-items:center;gap:4px;">
-          <input class="jornada-input" type="datetime-local"
+          <input class="jornada-input" type="time" step="60"
             data-jid="${jornada.id}" id="sal-input-${jornada.id}"
-            value="${toLocalDT(jornada.salida)}"
+            value="${_isoToHM(jornada.salida)}"
             onchange="_tJorField('${jornada.id}','salida',this.value);document.getElementById('sal-quick-${jornada.id}')?.remove()">
           ${!jornada.salida ? `<button id="sal-quick-${jornada.id}" style="white-space:nowrap;font-family:'Space Mono',monospace;font-size:9px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--muted);cursor:pointer;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--muted)'" onclick="_tQuickSalida('${jornada.id}','${dia.fecha}','${data.empleado_id}')">⏎ ${_tQuickSalidaHora(data.empleado_id)}</button>` : ''}
         </div>

@@ -1441,10 +1441,11 @@ export default async function handler(req) {
 
     // ── POST agregar-sesion ───────────────────────────────────────────────
     if (action === 'agregar-sesion' && req.method === 'POST') {
-      const { jornada_id, inicio, fin, centro, estado,
+      const { jornada_id, empleado_id: body_empleado_id, fecha: body_fecha,
+              inicio, fin, centro, estado,
               proyecto_id, proyecto_nombre, item_id, item_nombre, caller_id } = body;
 
-      if (!jornada_id) return err('jornada_id requerido', 400);
+      if (!jornada_id && !body_empleado_id) return err('jornada_id o empleado_id requerido', 400);
       if (!inicio)     return err('inicio requerido', 400);
       if (!centro)     return err('centro requerido', 400);
       if (!caller_id)  return err('caller_id requerido', 400);
@@ -1464,10 +1465,29 @@ export default async function handler(req) {
         return new Response(JSON.stringify({ ok: false, error: 'Sin acceso' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
-      const { data: jornAg, error: jAgErr } = await supabase
-        .from('jornadas').select('id, empleado_id').eq('id', jornada_id).maybeSingle();
-      if (jAgErr) throw jAgErr;
-      if (!jornAg) return err('Jornada no encontrada', 404);
+      let jornAg;
+      if (jornada_id) {
+        const { data, error: jAgErr } = await supabase
+          .from('jornadas').select('id, empleado_id').eq('id', jornada_id).maybeSingle();
+        if (jAgErr) throw jAgErr;
+        if (!data) return err('Jornada no encontrada', 404);
+        jornAg = data;
+      } else {
+        // Auto-create jornada if it doesn't exist for this employee+date
+        if (callerAg.rol_app !== 'admin') return err('Solo admin puede crear jornadas implícitas', 403);
+        const fecha = body_fecha || new Date(inicio).toISOString().split('T')[0];
+        const { data: existing } = await supabase
+          .from('jornadas').select('id, empleado_id')
+          .eq('empleado_id', body_empleado_id).eq('fecha', fecha).maybeSingle();
+        if (existing) {
+          jornAg = existing;
+        } else {
+          const { data: newJor, error: newJorErr } = await supabase
+            .from('jornadas').insert({ empleado_id: body_empleado_id, fecha }).select().single();
+          if (newJorErr) throw newJorErr;
+          jornAg = newJor;
+        }
+      }
 
       // Oficina solo puede agregar sesiones para sí mismo
       if (callerAg.rol_app === 'oficina' && jornAg.empleado_id !== caller_id)
