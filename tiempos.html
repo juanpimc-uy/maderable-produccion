@@ -1698,6 +1698,23 @@ async function _tCargarSemana() {
   }
 }
 
+function _isoToMinutesUY(iso) {
+  if (!iso) return 0;
+  const d = new Date(iso);
+  // UTC-3 for Uruguay
+  const uy = new Date(d.getTime() - 3 * 3600000);
+  return uy.getUTCHours() * 60 + uy.getUTCMinutes();
+}
+
+function _esTarde(jornada, empId) {
+  if (!jornada.entrada) return false;
+  const emp = _empListT.find(e => e.id === empId);
+  const horario = emp?.horario_entrada || (emp?.rol_app === 'oficina' ? '09:00' : '07:30');
+  const [hh, mm] = horario.split(':').map(Number);
+  const cutoff = hh * 60 + mm + 10;
+  return _isoToMinutesUY(jornada.entrada) > cutoff;
+}
+
 function _tRenderSemana(data, lunes) {
   const result = document.getElementById('semana-result');
   const dias = [];
@@ -1775,7 +1792,7 @@ function _tRenderSemana(data, lunes) {
       totalMin += trabMin;
 
       // Detect flags
-      const tarde = !!j.tarde;
+      const tarde = _esTarde(j, empId);
       const esOficina = emp.rol_app === 'oficina';
       const limExtra = esOficina ? '17:00' : '17:30';
       const salidaHM = _isoToHM(j.salida);
