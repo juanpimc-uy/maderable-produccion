@@ -7,7 +7,7 @@
 <title>MBLE · Recepción BARU</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0f0f0f;--panel:#1e1e1e;--border:#333;--yellow:#FFD600;--yellow-dim:rgba(255,214,0,0.12);--green:#22c55e;--green-dim:rgba(34,197,94,0.12);--red:#ef4444;--text:#f0f0f0;--muted:#888;}
+:root{--bg:#0f0f0f;--panel:#1e1e1e;--border:#333;--yellow:#FFD600;--yellow-dim:rgba(255,214,0,0.12);--green:#22c55e;--green-dim:rgba(34,197,94,0.12);--red:#ef4444;--blue:#3b82f6;--blue-dim:rgba(59,130,246,0.12);--text:#f0f0f0;--muted:#888;}
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
 .wrap{width:100%;max-width:420px;margin:0 auto;padding:20px 16px;}
@@ -16,25 +16,29 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .envio-badge{display:inline-block;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--yellow);background:var(--yellow-dim);padding:4px 12px;border-radius:4px;letter-spacing:1px;margin-bottom:12px;}
 .mueble-name{font-size:18px;font-weight:600;color:#fff;margin-bottom:6px;}
 .meta{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:16px;line-height:1.6;}
-.instruccion-block{background:var(--panel);border-left:3px solid var(--yellow);border-radius:0 6px 6px 0;padding:14px 16px;margin-bottom:20px;}
-.instruccion-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.instruccion-block{background:rgba(255,214,0,.05);border-left:3px solid var(--yellow);border-radius:0 6px 6px 0;padding:14px 16px;margin-bottom:20px;}
+.instruccion-label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--yellow);margin-bottom:6px;}
 .instruccion-text{font-family:'Space Mono',monospace;font-size:12px;color:var(--text);line-height:1.5;white-space:pre-wrap;}
 .status-banner{padding:12px 16px;border-radius:6px;font-family:'Space Mono',monospace;font-size:11px;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
 .status-recibido{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,0.2);}
-.status-pendiente{background:rgba(255,214,0,0.06);color:var(--yellow);border:1px solid rgba(255,214,0,0.15);}
-.btn-confirmar{width:100%;padding:14px;border:none;border-radius:8px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:1px;background:var(--green);color:#000;transition:opacity .15s;margin-bottom:12px;}
+.status-taller{background:var(--yellow-dim);color:var(--yellow);border:1px solid rgba(255,214,0,0.2);}
+.status-proveedor{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(59,130,246,0.2);}
+.btn-confirmar{width:100%;padding:14px;border:none;border-radius:8px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:1px;transition:opacity .15s;margin-bottom:12px;}
 .btn-confirmar:hover{opacity:.85;}
 .btn-confirmar:disabled{opacity:.4;cursor:not-allowed;}
+.btn-despacho{background:var(--yellow);color:#000;}
+.btn-recepcion{background:var(--green);color:#000;}
 .link-portal{display:block;text-align:center;font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);text-decoration:none;padding:10px;transition:color .15s;}
 .link-portal:hover{color:var(--yellow);}
-.bultos-counter{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;text-align:center;}
-.bultos-num{font-family:'Space Mono',monospace;font-size:32px;font-weight:700;color:var(--yellow);line-height:1;}
-.bultos-label{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;margin-top:4px;}
-.bultos-bar{height:6px;background:#222;border-radius:3px;overflow:hidden;margin-top:10px;}
-.bultos-fill{height:100%;background:var(--green);border-radius:3px;transition:width .3s;}
-.btn-bulto{width:100%;padding:14px;border:none;border-radius:8px;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;cursor:pointer;text-transform:uppercase;letter-spacing:1px;background:var(--yellow);color:#000;transition:opacity .15s;margin-bottom:8px;}
-.btn-bulto:hover{opacity:.85;}
-.btn-bulto:disabled{opacity:.4;cursor:not-allowed;}
+.bultos-list{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:16px;}
+.bulto-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(50,50,50,.5);font-family:'Space Mono',monospace;font-size:13px;}
+.bulto-row:last-child{border-bottom:none;}
+.bulto-cb{width:22px;height:22px;accent-color:var(--green);cursor:pointer;}
+.bulto-label-text{color:var(--muted);flex:1;}
+.bulto-label-text.checked{color:var(--text);text-decoration:line-through;opacity:.6;}
+.bultos-progress{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;text-align:center;}
+.bultos-bar{height:6px;background:#222;border-radius:3px;overflow:hidden;margin-bottom:16px;}
+.bultos-fill{height:100%;border-radius:3px;transition:width .3s;}
 .loading{text-align:center;padding:60px 20px;font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
 .error-msg{text-align:center;padding:60px 20px;font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);}
 </style>
@@ -49,7 +53,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 <script>
 'use strict';
 let _partida = null;
-let _bultosConfirmados = 0;
+let _bultosChecked = [];
 
 (async () => {
   const el = document.getElementById('content');
@@ -64,6 +68,8 @@ let _bultosConfirmados = 0;
       return;
     }
     _partida = data.partida;
+    const total = _partida.bultos || 1;
+    _bultosChecked = new Array(total).fill(false);
     renderPartida();
   } catch (e) {
     el.innerHTML = '<div class="error-msg">Error: ' + e.message + '</div>';
@@ -83,54 +89,84 @@ function renderPartida() {
     return d.toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
-  let statusHtml = '';
-  if (yaRecibida) {
-    statusHtml = `<div class="status-banner status-recibido">&#10003; Recibido por proveedor &middot; ${fmtFecha(p.fecha_recepcion_proveedor)}</div>`;
-  } else if (enTaller) {
-    statusHtml = `<div class="status-banner" style="background:rgba(255,214,0,0.06);color:#aaa;border:1px solid rgba(255,214,0,0.15);">Pendiente de despacho &mdash; este envío aún no fue despachado por Maderable</div>`;
-  } else {
-    statusHtml = `<div class="status-banner status-pendiente">En proveedor &mdash; pendiente de recepción</div>`;
-  }
+  // Header
+  let headerHtml = `
+    ${p.numero_envio ? `<div class="envio-badge">${esc(p.numero_envio)}</div>` : ''}
+    <div class="mueble-name">${esc(p.mueble_nombre || '—')}</div>
+    <div class="meta">
+      ${p.proyecto_num ? esc(p.proyecto_num) + ' &middot; ' : ''}${p.obra ? esc(p.obra) + ' &middot; ' : ''}${p.cliente ? esc(p.cliente) + ' &middot; ' : ''}${p.bultos ? p.bultos + ' bulto(s)' : ''}
+      ${p.fecha_despacho ? '<br>Despachado: ' + fmtFecha(p.fecha_despacho) : ''}
+      ${p.fecha_retorno_estimada ? '<br>Retorno estimado: ' + p.fecha_retorno_estimada : ''}
+    </div>`;
 
+  // Instrucción de lustre
   let instruccionHtml = '';
   if (p.instruccion_lustre) {
     instruccionHtml = `
       <div class="instruccion-block">
-        <div class="instruccion-label">Instrucción de lustre</div>
+        <div class="instruccion-label">INSTRUCCIÓN DE LUSTRE</div>
         <div class="instruccion-text">${esc(p.instruccion_lustre)}</div>
       </div>`;
   }
 
+  // Status badge
+  let statusHtml = '';
+  if (yaRecibida) {
+    statusHtml = `<div class="status-banner status-recibido">&#10003; Recibido por proveedor &middot; ${fmtFecha(p.fecha_recepcion_proveedor)}</div>`;
+  } else if (enTaller) {
+    statusHtml = `<div class="status-banner status-taller">EN TALLER &mdash; pendiente de despacho</div>`;
+  } else {
+    statusHtml = `<div class="status-banner status-proveedor">EN PROVEEDOR &mdash; pendiente de recepción</div>`;
+  }
+
+  // Action section
   let actionHtml = '';
-  if (enProveedor || enTaller) {
+
+  if (enTaller) {
+    // FLUJO DESPACHO
     const totalBultos = p.bultos || 1;
-    const hoyStr = new Date().toISOString().split('T')[0];
-    const pct = Math.round((_bultosConfirmados / totalBultos) * 100);
-    const todosConfirmados = _bultosConfirmados >= totalBultos;
+    const checked = _bultosChecked.filter(Boolean).length;
+    const pct = Math.round((checked / totalBultos) * 100);
+    const todosOk = checked >= totalBultos;
+
+    let bultosHtml = '';
+    for (let i = 0; i < totalBultos; i++) {
+      bultosHtml += `<div class="bulto-row">
+        <input type="checkbox" class="bulto-cb" ${_bultosChecked[i]?'checked':''} onchange="_toggleBulto(${i},this.checked)">
+        <span class="bulto-label-text${_bultosChecked[i]?' checked':''}">Bulto ${i+1} de ${totalBultos}</span>
+      </div>`;
+    }
+
     actionHtml = `
-      <div class="bultos-counter">
-        <div class="bultos-num">${_bultosConfirmados} / ${totalBultos}</div>
-        <div class="bultos-label">BULTOS CONFIRMADOS</div>
-        <div class="bultos-bar"><div class="bultos-fill" style="width:${pct}%"></div></div>
-      </div>
-      ${!todosConfirmados ? `
-        <button class="btn-bulto" onclick="confirmarBulto()">&#10003; CONFIRMAR BULTO ${_bultosConfirmados + 1}</button>
-      ` : ''}
-      <div style="margin-bottom:12px;">
-        <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Fecha de recepción</div>
-        <input type="date" id="recep-fecha" value="${hoyStr}" style="width:100%;background:#1e1e1e;border:1px solid #333;border-radius:6px;padding:10px 12px;color:#f0f0f0;font-family:'Space Mono',monospace;font-size:13px;outline:none;">
-      </div>
-      <button class="btn-confirmar" id="btn-confirmar" onclick="confirmarRecepcion()" ${!todosConfirmados ? 'disabled' : ''}>&#10003; Completar recepción</button>`;
+      <div class="bultos-progress">${checked} / ${totalBultos} bultos verificados</div>
+      <div class="bultos-bar"><div class="bultos-fill" style="width:${pct}%;background:var(--yellow);"></div></div>
+      <div class="bultos-list">${bultosHtml}</div>
+      <button class="btn-confirmar btn-despacho" id="btn-accion" onclick="confirmarDespacho()" ${!todosOk?'disabled':''}>&#10003; CONFIRMAR DESPACHO (${checked}/${totalBultos})</button>`;
+
+  } else if (enProveedor) {
+    // FLUJO RECEPCIÓN
+    const totalBultos = p.bultos || 1;
+    const checked = _bultosChecked.filter(Boolean).length;
+    const pct = Math.round((checked / totalBultos) * 100);
+    const todosOk = checked >= totalBultos;
+
+    let bultosHtml = '';
+    for (let i = 0; i < totalBultos; i++) {
+      bultosHtml += `<div class="bulto-row">
+        <input type="checkbox" class="bulto-cb" ${_bultosChecked[i]?'checked':''} onchange="_toggleBulto(${i},this.checked)">
+        <span class="bulto-label-text${_bultosChecked[i]?' checked':''}">Bulto ${i+1} de ${totalBultos}</span>
+      </div>`;
+    }
+
+    actionHtml = `
+      <div class="bultos-progress">${checked} / ${totalBultos} bultos verificados</div>
+      <div class="bultos-bar"><div class="bultos-fill" style="width:${pct}%;background:var(--green);"></div></div>
+      <div class="bultos-list">${bultosHtml}</div>
+      <button class="btn-confirmar btn-recepcion" id="btn-accion" onclick="confirmarRecepcion()" ${!todosOk?'disabled':''}>&#10003; CONFIRMAR RECEPCIÓN (${checked}/${totalBultos})</button>`;
   }
 
   el.innerHTML = `
-    ${p.numero_envio ? `<div class="envio-badge">${esc(p.numero_envio)}</div>` : ''}
-    <div class="mueble-name">${esc(p.mueble_nombre || '—')}</div>
-    <div class="meta">
-      ${p.obra ? esc(p.obra) + ' &middot; ' : ''}${p.cliente ? esc(p.cliente) + ' &middot; ' : ''}${p.bultos ? p.bultos + ' bulto(s)' : ''}
-      ${p.fecha_despacho ? '<br>Despachado: ' + fmtFecha(p.fecha_despacho) : ''}
-      ${p.fecha_retorno_estimada ? '<br>Retorno estimado: ' + p.fecha_retorno_estimada : ''}
-    </div>
+    ${headerHtml}
     ${instruccionHtml}
     ${statusHtml}
     ${actionHtml}
@@ -138,52 +174,60 @@ function renderPartida() {
   `;
 }
 
-function confirmarBulto() {
-  if (!_partida) return;
-  const total = _partida.bultos || 1;
-  if (_bultosConfirmados < total) {
-    _bultosConfirmados++;
+function _toggleBulto(idx, val) {
+  _bultosChecked[idx] = val;
+  renderPartida();
+}
+
+async function confirmarDespacho() {
+  const btn = document.getElementById('btn-accion');
+  if (!btn || !_partida) return;
+  btn.disabled = true;
+  btn.textContent = 'DESPACHANDO...';
+
+  try {
+    const res = await fetch('/api/tiempos?action=despachar-partida', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        partida_id: _partida.id,
+        bultos: _partida.bultos || 1,
+        partes: _partida.partes || '',
+        fecha: new Date().toISOString().split('T')[0],
+        tipoDespacho: 'total',
+        origen: 'scan',
+      }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error al despachar');
+    _partida.estado = 'despachada';
+    _partida.fecha_despacho = new Date().toISOString().split('T')[0];
+    if (data.numero_envio) _partida.numero_envio = data.numero_envio;
+    // Reset bultos for next step (recepción)
+    _bultosChecked = new Array(_partida.bultos || 1).fill(false);
     renderPartida();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'ERROR — REINTENTAR';
+    alert('Error: ' + e.message);
   }
 }
 
 async function confirmarRecepcion() {
-  const btn = document.getElementById('btn-confirmar');
+  const btn = document.getElementById('btn-accion');
   if (!btn || !_partida) return;
   btn.disabled = true;
   btn.textContent = 'CONFIRMANDO...';
 
-  const fecha = document.getElementById('recep-fecha')?.value || null;
   try {
-    // Si la partida aún está en taller, despacharla primero
-    if (_partida.estado === 'en_taller') {
-      const despRes = await fetch('/api/tiempos?action=despachar-partida', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          partida_id: _partida.id,
-          bultos: _partida.bultos || 1,
-          partes: _partida.partes || '',
-          fecha: fecha || new Date().toISOString().split('T')[0],
-          tipoDespacho: 'total',
-          origen: 'scan',
-        }),
-      });
-      const despData = await despRes.json();
-      if (!despData.ok) throw new Error(despData.error || 'Error al despachar');
-      _partida.estado = 'despachada';
-      if (despData.numero_envio) _partida.numero_envio = despData.numero_envio;
-    }
-
-    // Confirmar recepción por proveedor
     const res = await fetch('/api/baru-confirmar-recepcion', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: _partida.id, fecha }),
+      body: JSON.stringify({ id: _partida.id }),
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Error');
-    _partida.fecha_recepcion_proveedor = fecha ? fecha + 'T12:00:00' : new Date().toISOString();
+    _partida.fecha_recepcion_proveedor = new Date().toISOString();
     renderPartida();
   } catch (e) {
     btn.disabled = false;
