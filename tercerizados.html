@@ -291,7 +291,7 @@ function cardHtml(p, col) {
     : col === 'recv' ? ` onclick="abrirDetalleBaruRecv('${p.id}')" style="cursor:pointer;"` : '';
   return `<div class="card"${clickEdit}>
     <div class="card-row1">
-      <span class="card-code">${p.muebleCodigo || '—'}</span>
+      <span class="card-code">${(p.muebleCodigo && p.muebleCodigo !== 'undefined') ? p.muebleCodigo : '—'}</span>
       <span style="display:flex;align-items:center;gap:6px;">
         ${p.numero_envio ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;background:#0a1a2a;color:var(--blue);border:1px solid #1a2a3a;">${p.numero_envio}</span>` : ''}
         <span class="card-odf">${p.proyectoNum || ''}</span>
@@ -725,7 +725,7 @@ function abrirEditarPartida(id) {
         <select id="edit-mueble-sel" onchange="_editMuebleChange()" style="${tieneProyecto?'':'display:none;'}"><option value="">Seleccionar...</option></select>
         <input id="edit-nombre" value="${(p.muebleNombre||'').replace(/"/g,'&quot;')}" placeholder="Nombre del mueble" style="${tieneProyecto?'margin-top:6px;':''}"/>
       </div>
-      <div class="field"><label>Código</label><input id="edit-codigo" value="${(p.muebleCodigo||'').replace(/"/g,'&quot;')}" readonly style="opacity:.6;cursor:not-allowed;"/></div>
+      <div class="field"><label>Código</label><input id="edit-codigo" value="${((p.muebleCodigo && p.muebleCodigo !== 'undefined') ? p.muebleCodigo : '').replace(/"/g,'&quot;')}" readonly style="opacity:.6;cursor:not-allowed;"/></div>
       <div class="field"><label>Bultos</label><input type="number" id="edit-bultos" min="1" value="${p.bultos||1}"/></div>
       <div class="field"><label>Retorno estimado</label><input type="date" id="edit-retorno" value="${defaultRetorno}"/></div>
       <div class="field"><label>Nota</label><textarea id="edit-nota" placeholder="Observaciones...">${(p.nota||'').replace(/</g,'&lt;')}</textarea></div>
@@ -823,7 +823,7 @@ function imprimirEtiquetas(id) {
   const odf = (p.proyectoNum || p.obra || '\u2014').toUpperCase();
   const proyecto = (p.obra || '\u2014').toUpperCase();
   const muebleNombre = (p.muebleNombre || '\u2014').toUpperCase();
-  const codigo = (p.muebleCodigo || '\u2014').toUpperCase();
+  const codigo = ((p.muebleCodigo && p.muebleCodigo !== 'undefined') ? p.muebleCodigo : '\u2014').toUpperCase();
   const totalBultos = p.bultos || 1;
   const retorno = p.fechaRetornoEstimada
     ? new Date(p.fechaRetornoEstimada + 'T12:00:00').toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit'})

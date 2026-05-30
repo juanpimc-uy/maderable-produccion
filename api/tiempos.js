@@ -2344,20 +2344,26 @@ export default async function handler(req) {
       const { id, tipo, proyectoNum, obra, cliente, muebleCodigo, muebleNombre,
               estado, partes, tipoDespacho, fechaDespacho, fechaRecepcion,
               estadoRecep, obs, nota, bultos, numero_envio, fechaRetornoEstimada, proveedorNombre, retorno_modificado_baru } = body;
-      // Asignar ENV al crear (si no tiene numero_envio y es registro nuevo)
+      // Asignar ENV — siempre generar para partidas nuevas
       let envioFinal = numero_envio || null;
-      if (!envioFinal && id) {
-        // Check if record already exists in DB
-        const { data: existing } = await supabase.from('partidas_terceros')
-          .select('numero_envio').eq('id', id).maybeSingle();
-        if (existing?.numero_envio) {
-          envioFinal = existing.numero_envio; // Keep existing
-        } else if (!existing) {
-          // New record — generate ENV
-          try {
-            const { data: seqData, error: seqErr } = await supabase.rpc('nextval_envio');
-            if (!seqErr && seqData) envioFinal = 'ENV-' + String(seqData).padStart(4, '0');
-          } catch(e) {}
+
+      if (!envioFinal) {
+        // Si tiene id, verificar si ya existe en DB
+        if (id) {
+          const { data: existing } = await supabase
+            .from('partidas_terceros')
+            .select('numero_envio')
+            .eq('id', id)
+            .maybeSingle();
+          if (existing?.numero_envio) {
+            envioFinal = existing.numero_envio;
+          }
+        }
+        // Si sigue sin ENV (nuevo registro o id sin ENV), generar
+        if (!envioFinal) {
+          const { data: seqData, error: seqErr } = await supabase.rpc('nextval_envio');
+          if (seqErr) console.error('[guardar-partida] nextval_envio error:', seqErr);
+          if (seqData) envioFinal = 'ENV-' + String(seqData).padStart(4, '0');
         }
       }
       const row = { id, tipo: tipo || null, proyecto_num: proyectoNum, obra, cliente: cliente || '',
