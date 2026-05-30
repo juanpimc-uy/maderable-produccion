@@ -3335,7 +3335,7 @@ function abrirModalOperario(opId) {
       <div style="display:flex;gap:12px;margin-bottom:12px;">
         <div style="flex:1;">
           <label style="${_labelStyle}">Horario entrada</label>
-          <input id="mod-op-horario-entrada" type="time" step="60" style="${_iStyle}">
+          <input id="mod-op-horario-entrada" type="text" pattern="[0-2][0-9]:[0-5][0-9]" maxlength="5" placeholder="HH:MM" style="${_iStyle}font-family:'JetBrains Mono',monospace;width:80px;letter-spacing:1px;">
         </div>
         <div style="flex:1;"></div>
       </div>
