@@ -717,6 +717,21 @@ function _tSesProyecto(sid, rawVal) {
     _tMarkSes(sid, 'proyecto_nombre', rawVal || null);
   }
 }
+function _tQuickSalidaHora(empId) {
+  const emp = _empListT.find(e => e.id === empId);
+  return (emp?.rol_app === 'oficina') ? '17:00' : '17:30';
+}
+
+function _tQuickSalida(jid, fecha, empId) {
+  const hora = _tQuickSalidaHora(empId);
+  const val = fecha + 'T' + hora;
+  const input = document.getElementById('sal-input-' + jid);
+  if (input) input.value = val;
+  _tJorField(jid, 'salida', val);
+  const btn = document.getElementById('sal-quick-' + jid);
+  if (btn) btn.remove();
+}
+
 function _tJorField(jid, field, rawVal) {
   let val = rawVal;
   if (field === 'entrada' || field === 'salida') val = rawVal ? fromLocalDT(rawVal) : null;
@@ -1385,10 +1400,13 @@ function _tRenderDia(data) {
       </div>
       <div class="jornada-field">
         <span class="jornada-label">SALIDA</span>
-        <input class="jornada-input" type="datetime-local"
-          data-jid="${jornada.id}"
-          value="${toLocalDT(jornada.salida)}"
-          onchange="_tJorField('${jornada.id}','salida',this.value)">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input class="jornada-input" type="datetime-local"
+            data-jid="${jornada.id}" id="sal-input-${jornada.id}"
+            value="${toLocalDT(jornada.salida)}"
+            onchange="_tJorField('${jornada.id}','salida',this.value);document.getElementById('sal-quick-${jornada.id}')?.remove()">
+          ${!jornada.salida ? `<button id="sal-quick-${jornada.id}" style="white-space:nowrap;font-family:'Space Mono',monospace;font-size:9px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--muted);cursor:pointer;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--muted)'" onclick="_tQuickSalida('${jornada.id}','${data.fecha}','${emp.empleado_id}')">⏎ ${_tQuickSalidaHora(emp.empleado_id)}</button>` : ''}
+        </div>
       </div>
       <div class="jornada-field">
         <span class="jornada-label">DESCANSO (min)</span>
@@ -1494,10 +1512,13 @@ ${data.dias.map(dia => {
       </div>
       <div class="jornada-field">
         <span class="jornada-label">SALIDA</span>
-        <input class="jornada-input" type="datetime-local"
-          data-jid="${jornada.id}"
-          value="${toLocalDT(jornada.salida)}"
-          onchange="_tJorField('${jornada.id}','salida',this.value)">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input class="jornada-input" type="datetime-local"
+            data-jid="${jornada.id}" id="sal-input-${jornada.id}"
+            value="${toLocalDT(jornada.salida)}"
+            onchange="_tJorField('${jornada.id}','salida',this.value);document.getElementById('sal-quick-${jornada.id}')?.remove()">
+          ${!jornada.salida ? `<button id="sal-quick-${jornada.id}" style="white-space:nowrap;font-family:'Space Mono',monospace;font-size:9px;padding:3px 6px;border:1px solid var(--border);border-radius:3px;background:transparent;color:var(--muted);cursor:pointer;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--muted)'" onclick="_tQuickSalida('${jornada.id}','${dia.fecha}','${data.empleado_id}')">⏎ ${_tQuickSalidaHora(data.empleado_id)}</button>` : ''}
+        </div>
       </div>
       <div class="jornada-field">
         <span class="jornada-label">DESCANSO (min)</span>
