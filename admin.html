@@ -3332,6 +3332,13 @@ function abrirModalOperario(opId) {
           <div style="font-size:10px;color:var(--muted);margin-top:4px;">Pausas breves pagas diarias (0 = ninguna).</div>
         </div>
       </div>
+      <div style="display:flex;gap:12px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <label style="${_labelStyle}">Horario entrada</label>
+          <input id="mod-op-horario-entrada" type="time" step="60" style="${_iStyle}">
+        </div>
+        <div style="flex:1;"></div>
+      </div>
       <div style="margin-bottom:12px;">
         <label style="${_labelStyle}">ACCESO TIEMPOS</label>
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -3368,6 +3375,7 @@ function abrirModalOperario(opId) {
     const rol=document.getElementById('mod-op-rol');if(rol)rol.value=op.rol_app||'operario';
     const cat=document.getElementById('mod-op-cat');if(cat)cat.value=op.categoria||'directo';
     const mod=document.getElementById('mod-op-descanso-modalidad');if(mod)mod.value=op.descanso_modalidad||'';
+    const he=document.getElementById('mod-op-horario-entrada');if(he)he.value=op.horario_entrada||(op.rol_app==='oficina'?'09:00':'07:30');
     const at=document.getElementById('edit-emp-acceso-tiempos');if(at)at.checked=!!op.acceso_tiempos;
     // Cargar centros en el modal
     _loadCentrosEnModal(op);
@@ -3492,6 +3500,7 @@ function guardarOperario(opId) {
   const modEl=document.getElementById('mod-op-descanso-modalidad');
   const descanso_modalidad=modEl ? (modEl.value||null) : (OPERARIOS.find(o=>o.id===opId)?.descanso_modalidad||null);
   const pit_stop_minutos=parseInt(document.getElementById('mod-op-pit-stop')?.value||'0',10)||0;
+  const horario_entrada=document.getElementById('mod-op-horario-entrada')?.value||(rol_app==='oficina'?'09:00':'07:30');
   const acceso_tiempos=document.getElementById('edit-emp-acceso-tiempos')?.checked||false;
   if(!nombre){showErr('El nombre es obligatorio');return;}
   if((rol_app==='oficina'||rol_app==='admin')&&!email){showErr('Email obligatorio para rol oficina/admin');document.getElementById('mod-op-email')?.focus();return;}
@@ -3507,10 +3516,10 @@ function guardarOperario(opId) {
   }
   if(opId){
     const op=OPERARIOS.find(o=>o.id===opId);
-    if(op){op.nombre=nombre;op.cedula=cedula;op.avatar=avatar;op.email=email;op.rol_app=rol_app;op.categoria=categoria;op.descanso_modalidad=descanso_modalidad;op.pit_stop_minutos=pit_stop_minutos;op.acceso_tiempos=acceso_tiempos;if(centrosFromModal!==null)op.centros=centrosFromModal;}
+    if(op){op.nombre=nombre;op.cedula=cedula;op.avatar=avatar;op.email=email;op.rol_app=rol_app;op.categoria=categoria;op.descanso_modalidad=descanso_modalidad;op.horario_entrada=horario_entrada;op.pit_stop_minutos=pit_stop_minutos;op.acceso_tiempos=acceso_tiempos;if(centrosFromModal!==null)op.centros=centrosFromModal;}
     syncEmpleadoSupabase(op);
   }else{
-    const nuevoOp={id:'op'+Date.now(),nombre,cedula,email,rol_app,avatar,status:'disponible',centros:centrosFromModal||[],categoria,descanso_modalidad,pit_stop_minutos,acceso_tiempos};
+    const nuevoOp={id:'op'+Date.now(),nombre,cedula,email,rol_app,avatar,status:'disponible',centros:centrosFromModal||[],categoria,descanso_modalidad,horario_entrada,pit_stop_minutos,acceso_tiempos};
     OPERARIOS.push(nuevoOp);
     syncEmpleadoSupabase(nuevoOp);
   }
