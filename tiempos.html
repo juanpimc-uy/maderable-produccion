@@ -325,6 +325,24 @@ table.ses-table tbody tr{cursor:pointer;transition:background .1s;}
 table.ses-table tbody tr:hover{background:rgba(255,255,255,.03);}
 table.ses-table tbody tr.add-row-tr{cursor:default;}
 table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
+/* ── Semana matrix ─────────────────────────────────────────────────── */
+.sem-matrix{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;}
+.sem-matrix th{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;padding:6px 8px;border-bottom:1px solid var(--border);text-align:center;}
+.sem-matrix th:first-child{text-align:left;min-width:140px;}
+.sem-matrix td{padding:6px 8px;border-bottom:1px solid rgba(30,30,30,.5);text-align:center;font-family:'Space Mono',monospace;font-size:11px;position:relative;cursor:default;}
+.sem-matrix td:first-child{text-align:left;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text);}
+.sem-matrix td.sem-total{font-weight:700;color:var(--text);}
+.sem-c-none{background:#111;color:#555;}
+.sem-c-ok{background:rgba(61,214,140,.08);color:var(--green);}
+.sem-c-tarde{background:rgba(240,92,92,.08);color:var(--red);}
+.sem-c-extra{background:rgba(255,214,0,.08);color:var(--accent);}
+.sem-c-tarde-extra{background:rgba(245,158,11,.1);color:#f59e0b;}
+.sem-c-anomalia{background:rgba(240,92,92,.05);color:var(--red);border:1px dashed rgba(240,92,92,.4);}
+.sem-leyenda{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;font-family:'Space Mono',monospace;font-size:9px;}
+.sem-leyenda-item{display:flex;align-items:center;gap:4px;}
+.sem-leyenda-box{width:14px;height:14px;border-radius:2px;}
+.sem-tooltip{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#222;border:1px solid #444;border-radius:4px;padding:6px 8px;font-size:9px;color:var(--text);white-space:nowrap;z-index:20;pointer-events:none;}
+.sem-matrix td:hover .sem-tooltip{display:block;}
 </style>
 </head>
 <body>
@@ -342,6 +360,7 @@ table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
   <div class="tabs-bar">
     <button class="tab-btn active" onclick="_tTab('dia')">POR DÍA</button>
     <button class="tab-btn" onclick="_tTab('operario')">POR OPERARIO</button>
+    <button class="tab-btn" onclick="_tTab('semana')">SEMANA</button>
     <button class="tab-btn" onclick="_tTab('reporte')">REPORTE</button>
   </div>
 
@@ -418,6 +437,18 @@ table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
       <button class="btn-export" id="btn-export-excel" disabled onclick="_tExportExcel()">↓ EXPORTAR EXCEL</button>
     </div>
     <div id="reporte-result"></div>
+  </div>
+
+  <!-- ═══ TAB: SEMANA ══════════════════════════════════════════════════ -->
+  <div id="panel-semana" class="tab-panel">
+    <div class="ctrl-bar">
+      <div class="ctrl-field">
+        <span class="ctrl-label">SEMANA DEL</span>
+        <input type="date" id="sem-fecha" class="ctrl-select" style="font-family:'Space Mono',monospace;">
+      </div>
+      <button class="btn-load" onclick="_tCargarSemana()">CARGAR</button>
+    </div>
+    <div id="semana-result"></div>
   </div>
 
 </div><!-- /content -->
@@ -589,6 +620,7 @@ async function _tInit() {
 
   // Default date controls
   document.getElementById('dia-fecha').value = todayStr();
+  document.getElementById('sem-fecha').value = _semLunes(todayStr());
   const now = new Date();
   const y = now.getFullYear(), m = now.getMonth() + 1;
   const firstDay = `${y}-${String(m).padStart(2,'0')}-01`;
@@ -656,7 +688,7 @@ async function _tInit() {
 // ── Tab routing ───────────────────────────────────────────────────────────
 function _tTab(name) {
   document.querySelectorAll('.tab-btn').forEach((b,i) => {
-    b.classList.toggle('active', ['dia','operario','reporte'][i] === name);
+    b.classList.toggle('active', ['dia','operario','semana','reporte'][i] === name);
   });
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
@@ -1631,6 +1663,161 @@ function _tToggleDayCard(header) {
   const chevron = header.querySelector('.chevron');
   const isOpen  = body.classList.toggle('open');
   if (chevron) chevron.textContent = isOpen ? '▲' : '▼';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB — SEMANA
+// ═══════════════════════════════════════════════════════════════════════════
+function _semLunes(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const day = d.getDay(); // 0=dom
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().split('T')[0];
+}
+
+function _semInitDate() {
+  const input = document.getElementById('sem-fecha');
+  if (!input.value) input.value = _semLunes(todayStr());
+}
+
+async function _tCargarSemana() {
+  _semInitDate();
+  const lunes = _semLunes(document.getElementById('sem-fecha').value);
+  const viernes = (() => { const d = new Date(lunes + 'T12:00:00'); d.setDate(d.getDate() + 4); return d.toISOString().split('T')[0]; })();
+  const result = document.getElementById('semana-result');
+  result.innerHTML = '<span class="spinner"></span><span class="mono" style="color:var(--muted);font-size:12px;">Cargando…</span>';
+
+  try {
+    const res = await _tFetch(`/api/tiempos?action=jornadas-rango&desde=${lunes}&hasta=${viernes}&caller_id=${CALLER_ID}`);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Error');
+    _tRenderSemana(json, lunes);
+  } catch (e) {
+    result.innerHTML = `<p class="empty-msg">Error: ${e.message}</p>`;
+  }
+}
+
+function _tRenderSemana(data, lunes) {
+  const result = document.getElementById('semana-result');
+  const dias = [];
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(lunes + 'T12:00:00');
+    d.setDate(d.getDate() + i);
+    dias.push(d.toISOString().split('T')[0]);
+  }
+  const dayLabels = ['LUN','MAR','MIÉ','JUE','VIE'];
+  const dayDates = dias.map(d => d.slice(5)); // MM-DD
+
+  // Build employee map with rol_app from _empListT
+  const empMap = {};
+  (data.empleados || []).forEach(e => {
+    const full = _empListT.find(x => x.id === e.id);
+    empMap[e.id] = { nombre: e.nombre, rol_app: full?.rol_app || 'operario' };
+  });
+
+  // Also include employees without jornadas from _empListT
+  _empListT.forEach(e => {
+    if (!empMap[e.id] && _tPassFiltro(e)) {
+      empMap[e.id] = { nombre: e.nombre, rol_app: e.rol_app || 'operario' };
+    }
+  });
+
+  // Index jornadas by empleado_id + fecha
+  const jorMap = {};
+  (data.jornadas || []).forEach(j => {
+    jorMap[j.empleado_id + '|' + j.fecha] = j;
+  });
+
+  // Filter by current chip
+  const empIds = Object.keys(empMap).filter(id => _tPassFiltro(empMap[id])).sort((a,b) => empMap[a].nombre.localeCompare(empMap[b].nombre));
+
+  if (!empIds.length) {
+    result.innerHTML = '<p class="empty-msg">Sin empleados para el filtro actual.</p>';
+    return;
+  }
+
+  // Leyenda
+  let html = `<div class="sem-leyenda">
+    <div class="sem-leyenda-item"><div class="sem-leyenda-box sem-c-ok"></div>OK</div>
+    <div class="sem-leyenda-item"><div class="sem-leyenda-box sem-c-tarde"></div>TARDE</div>
+    <div class="sem-leyenda-item"><div class="sem-leyenda-box sem-c-extra"></div>EXTRA</div>
+    <div class="sem-leyenda-item"><div class="sem-leyenda-box sem-c-tarde-extra"></div>TARDE+EXTRA</div>
+    <div class="sem-leyenda-item"><div class="sem-leyenda-box sem-c-anomalia"></div>ANOMALÍA</div>
+    <div class="sem-leyenda-item"><div class="sem-leyenda-box sem-c-none"></div>SIN JORNADA</div>
+  </div>`;
+
+  html += `<table class="sem-matrix"><thead><tr><th>OPERARIO</th>`;
+  dias.forEach((d, i) => { html += `<th>${dayLabels[i]}<br><span style="font-size:8px;color:#555;">${dayDates[i]}</span></th>`; });
+  html += `<th>HS TOT</th></tr></thead><tbody>`;
+
+  empIds.forEach(empId => {
+    const emp = empMap[empId];
+    html += `<tr><td>${emp.nombre}</td>`;
+    let totalMin = 0;
+
+    dias.forEach(fecha => {
+      const j = jorMap[empId + '|' + fecha];
+      if (!j || j.ausente) {
+        html += `<td class="sem-c-none">—</td>`;
+        return;
+      }
+
+      // Calculate worked minutes
+      const sesiones = j.sesiones || [];
+      let trabMin = 0;
+      sesiones.forEach(s => {
+        if (s.inicio && s.fin) {
+          trabMin += (new Date(s.fin) - new Date(s.inicio)) / 60000;
+        }
+      });
+      trabMin = Math.round(trabMin);
+      totalMin += trabMin;
+
+      // Detect flags
+      const tarde = !!j.tarde;
+      const esOficina = emp.rol_app === 'oficina';
+      const limExtra = esOficina ? '17:00' : '17:30';
+      const salidaHM = _isoToHM(j.salida);
+      const extra = salidaHM > limExtra;
+
+      // Anomaly: session without fin, or gaps >30min
+      let anomalia = false;
+      const sorted = [...sesiones].filter(s => s.inicio).sort((a,b) => new Date(a.inicio) - new Date(b.inicio));
+      for (const s of sorted) {
+        if (!s.fin && s.estado !== 'finalizado') { anomalia = true; break; }
+      }
+      if (!anomalia) {
+        for (let i = 1; i < sorted.length; i++) {
+          const prevFin = sorted[i-1].fin;
+          if (prevFin) {
+            const gap = (new Date(sorted[i].inicio) - new Date(prevFin)) / 60000;
+            if (gap > 30) { anomalia = true; break; }
+          }
+        }
+      }
+
+      // Pick class
+      let cls;
+      if (anomalia) cls = 'sem-c-anomalia';
+      else if (tarde && extra) cls = 'sem-c-tarde-extra';
+      else if (tarde) cls = 'sem-c-tarde';
+      else if (extra) cls = 'sem-c-extra';
+      else cls = 'sem-c-ok';
+
+      const horas = fmtHM(trabMin);
+      const entH = _isoToHM(j.entrada) || '—';
+      const salH = _isoToHM(j.salida) || '—';
+      const flags = [tarde?'TARDE':'', extra?'EXTRA':'', anomalia?'ANOMALÍA':''].filter(Boolean).join(', ') || 'OK';
+
+      html += `<td class="${cls}">${horas}<div class="sem-tooltip">ENT ${entH} · SAL ${salH}<br>${flags}</div></td>`;
+    });
+
+    html += `<td class="sem-total">${fmtHM(totalMin)}</td></tr>`;
+  });
+
+  html += '</tbody></table>';
+  result.innerHTML = html;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
