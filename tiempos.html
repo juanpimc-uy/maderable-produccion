@@ -1353,7 +1353,7 @@ function _tRenderDia(data) {
     const jornada = emp.jornada;
     const _dmD = emp.descanso_modalidad;
     const _dmLabelD = _dmD === 'paga_30' ? '30 min pagos' : _dmD === 'no_paga_60' ? '60 min desc.' : null;
-    const _tomoDescD = _dmLabelD ? `
+    const _tomoDescD = (_dmLabelD && _tUser?.rol_app === 'admin') ? `
       <div class="jornada-field">
         <span class="jornada-label">TOMÓ DESCANSO</span>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
@@ -1460,7 +1460,7 @@ ${data.dias.map(dia => {
   const jornada   = dia.jornada;
   const _dmO = data.descanso_modalidad;
   const _dmLabelO = _dmO === 'paga_30' ? '30 min pagos' : _dmO === 'no_paga_60' ? '60 min desc.' : null;
-  const _tomoDescO = _dmLabelO ? `
+  const _tomoDescO = (_dmLabelO && _tUser?.rol_app === 'admin') ? `
       <div class="jornada-field">
         <span class="jornada-label">TOMÓ DESCANSO</span>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
