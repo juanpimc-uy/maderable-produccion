@@ -1800,7 +1800,7 @@ function _tRenderSemana(data, lunes) {
 
       // Anomaly: session without fin, or gaps >30min
       let anomalia = false;
-      const sorted = [...sesiones].filter(s => s.inicio).sort((a,b) => new Date(a.inicio) - new Date(b.inicio));
+      const sorted = [...(j.sesiones || [])].filter(s => s.inicio).sort((a,b) => new Date(a.inicio) - new Date(b.inicio));
       for (const s of sorted) {
         if (!s.fin && s.estado !== 'finalizado') { anomalia = true; break; }
       }
