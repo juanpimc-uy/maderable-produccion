@@ -1780,15 +1780,15 @@ function _tRenderSemana(data, lunes) {
         return;
       }
 
-      // Calculate worked minutes
-      const sesiones = j.sesiones || [];
+      // Calculate worked minutes from jornada entrada→salida minus descanso
       let trabMin = 0;
-      sesiones.forEach(s => {
-        if (s.inicio && s.fin) {
-          trabMin += (new Date(s.fin) - new Date(s.inicio)) / 60000;
-        }
-      });
-      trabMin = Math.round(trabMin);
+      if (j.entrada && j.salida) {
+        trabMin = Math.round(
+          (new Date(j.salida) - new Date(j.entrada)) / 60000
+          - (j.descanso_minutos || 0)
+        );
+        trabMin = Math.max(0, trabMin);
+      }
       totalMin += trabMin;
 
       // Detect flags
