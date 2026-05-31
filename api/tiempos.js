@@ -183,6 +183,53 @@ function _tardanzaMin(entradaISO, horarioEntrada) {
   return tardanza;
 }
 
+// ── Helper: auto-corregir sesiones superpuestas ──────────────────────────
+async function _resolverSuperposiciones(sb, jornadaId, nuevoInicio, nuevoFin, excluirId) {
+  const nuevaIni = new Date(nuevoInicio);
+  const nuevaFin = nuevoFin ? new Date(nuevoFin) : new Date('9999-12-31T23:59:59Z');
+
+  const { data: existentes } = await sb
+    .from('registros_trabajo')
+    .select('id, inicio, fin')
+    .eq('jornada_id', jornadaId)
+    .eq('eliminada', false);
+
+  for (const s of (existentes || [])) {
+    if (excluirId && s.id === excluirId) continue;
+    const sIni = new Date(s.inicio);
+    const sFin = s.fin ? new Date(s.fin) : new Date('9999-12-31T23:59:59Z');
+
+    // Check overlap
+    if (!(sIni < nuevaFin && sFin > nuevaIni)) continue;
+
+    // Completely inside → delete
+    if (sIni >= nuevaIni && sFin <= nuevaFin) {
+      await sb.from('registros_trabajo').delete().eq('id', s.id);
+      continue;
+    }
+
+    // Starts before, ends inside → trim fin
+    if (sIni < nuevaIni && sFin <= nuevaFin) {
+      await sb.from('registros_trabajo')
+        .update({ fin: nuevoInicio }).eq('id', s.id);
+      continue;
+    }
+
+    // Starts inside, ends after → trim inicio
+    if (sIni >= nuevaIni && sFin > nuevaFin) {
+      await sb.from('registros_trabajo')
+        .update({ inicio: nuevoFin }).eq('id', s.id);
+      continue;
+    }
+
+    // Engulfs completely → trim fin of existing
+    if (sIni < nuevaIni && sFin > nuevaFin) {
+      await sb.from('registros_trabajo')
+        .update({ fin: nuevoInicio }).eq('id', s.id);
+    }
+  }
+}
+
 // ── Helpers: anomalía + descanso ──────────────────────────────────────────
 function _detectarAnomalia(r, ahora) {
   const ini = new Date(r.inicio);
@@ -1387,40 +1434,9 @@ export default async function handler(req) {
         }
       }
 
-      // Solapamiento — truncar a minutos para evitar falsos positivos por segundos
-      const _truncMin = iso => iso.substring(0, 17) + '00Z'; // YYYY-MM-DDTHH:MM:00Z
-      const inicioISO   = inicioEfectivo ? _truncMin(new Date(inicioEfectivo).toISOString()) : null;
-      const finChequeoS = finEfectivo
-        ? _truncMin(new Date(finEfectivo).toISOString())
-        : '9999-12-31T23:59:59Z';
-      if (inicioISO) {
-        // Traer candidatas del mismo empleado en la jornada (excluir la sesión actual)
-        const { data: candidatasS } = await supabase
-          .from('registros_trabajo')
-          .select('id, inicio, fin, estado')
-          .eq('empleado_id', regS.empleado_id)
-          .eq('eliminada', false)
-          .neq('id', reg_id);
-        // Comparar truncado a minutos en JS
-        const solapadosS = (candidatasS || []).filter(s => {
-          const sIni = _truncMin(new Date(s.inicio).toISOString());
-          const sFin = s.fin ? _truncMin(new Date(s.fin).toISOString()) : '9999-12-31T23:59:59Z';
-          return sIni < finChequeoS && sFin > inicioISO;
-        });
-        if (solapadosS.length > 0) {
-          const activaSolapada = solapadosS.find(ss => ss.estado === 'activo' && !ss.fin);
-          const soloActivas    = solapadosS.every(ss => ss.estado === 'activo' && !ss.fin);
-          if (activaSolapada && soloActivas && finEfectivo) {
-            await supabase.from('registros_trabajo')
-              .update({ inicio: new Date(finEfectivo).toISOString() })
-              .eq('id', activaSolapada.id);
-          } else {
-            const s = solapadosS[0];
-            return new Response(JSON.stringify({
-              ok: false, error: `Solapamiento con sesión ${s.id} (${s.inicio} - ${s.fin})`,
-            }), { status: 409, headers: { ...CORS, 'Content-Type': 'application/json' } });
-          }
-        }
+      // Auto-corregir sesiones superpuestas en la misma jornada
+      if (inicioEfectivo) {
+        await _resolverSuperposiciones(supabase, regS.jornada_id, new Date(inicioEfectivo).toISOString(), finEfectivo ? new Date(finEfectivo).toISOString() : null, reg_id);
       }
 
       const camposS = {};
@@ -1501,11 +1517,7 @@ export default async function handler(req) {
       if (cvAg.requiere_proyecto && !proyecto_id)
         return err('El centro seleccionado requiere un proyecto', 400);
 
-      const _truncMinAg = iso => iso.substring(0, 17) + '00Z';
       const inicioISO  = new Date(inicio).toISOString();
-      const finChequeo = fin ? new Date(fin).toISOString() : '9999-12-31T23:59:59Z';
-      const inicioTrunc = _truncMinAg(inicioISO);
-      const finTrunc    = fin ? _truncMinAg(finChequeo) : finChequeo;
 
       // Cerrar sesiones abiertas (fin IS NULL) del mismo empleado antes de insertar
       const { data: abiertasAg } = await supabase
@@ -1522,24 +1534,9 @@ export default async function handler(req) {
           .in('id', idsAbiertas);
       }
 
-      // Verificar solapamiento — traer candidatas y comparar truncado en JS
-      const { data: candidatasAg } = await supabase
-        .from('registros_trabajo')
-        .select('id, inicio, fin')
-        .eq('empleado_id', jornAg.empleado_id)
-        .eq('eliminada', false)
-        .not('fin', 'is', null);
-      const solapadosAg = (candidatasAg || []).filter(s => {
-        const sIni = _truncMinAg(new Date(s.inicio).toISOString());
-        const sFin = _truncMinAg(new Date(s.fin).toISOString());
-        return sIni < finTrunc && sFin > inicioTrunc;
-      });
-      if (solapadosAg.length > 0) {
-        const s = solapadosAg[0];
-        return new Response(JSON.stringify({
-          ok: false, error: `Solapamiento con sesión ${s.id} (${s.inicio} - ${s.fin})`,
-        }), { status: 409, headers: { ...CORS, 'Content-Type': 'application/json' } });
-      }
+      // Auto-corregir sesiones superpuestas en la misma jornada
+      const jornada_id_final = jornAg.id;
+      await _resolverSuperposiciones(supabase, jornada_id_final, inicioISO, fin ? new Date(fin).toISOString() : null, null);
 
       const { data: regNew, error: insAgErr } = await supabase
         .from('registros_trabajo')
