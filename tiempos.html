@@ -1758,10 +1758,9 @@ function _tRenderSemana(data, lunes) {
   let html = `<div class="sem-leyenda">
     <div class="sem-leyenda-item"><div class="sem-leyenda-box sem-c-ok"></div>OK</div>
     <div class="sem-leyenda-item"><div class="sem-leyenda-box sem-c-tarde"></div>TARDE</div>
-    <div class="sem-leyenda-item"><div class="sem-leyenda-box sem-c-extra"></div>EXTRA</div>
-    <div class="sem-leyenda-item"><div class="sem-leyenda-box sem-c-tarde-extra"></div>TARDE+EXTRA</div>
     <div class="sem-leyenda-item"><div class="sem-leyenda-box sem-c-anomalia"></div>ANOMALÍA</div>
     <div class="sem-leyenda-item"><div class="sem-leyenda-box sem-c-none"></div>SIN JORNADA</div>
+    <div class="sem-leyenda-item"><div class="sem-leyenda-box sem-c-extra"></div>HS TOT CON EXTRA</div>
   </div>`;
 
   html += `<table class="sem-matrix"><thead><tr><th>OPERARIO</th>`;
@@ -1793,10 +1792,6 @@ function _tRenderSemana(data, lunes) {
 
       // Detect flags
       const tarde = _esTarde(j, empId);
-      const esOficina = emp.rol_app === 'oficina';
-      const limExtra = esOficina ? '17:00' : '17:30';
-      const salidaHM = _isoToHM(j.salida);
-      const extra = salidaHM > limExtra;
 
       // Anomaly: session without fin, or gaps >30min
       let anomalia = false;
@@ -1814,23 +1809,29 @@ function _tRenderSemana(data, lunes) {
         }
       }
 
-      // Pick class
+      // Pick class (daily: OK / TARDE / ANOMALÍA / SIN JORNADA)
       let cls;
       if (anomalia) cls = 'sem-c-anomalia';
-      else if (tarde && extra) cls = 'sem-c-tarde-extra';
       else if (tarde) cls = 'sem-c-tarde';
-      else if (extra) cls = 'sem-c-extra';
       else cls = 'sem-c-ok';
 
       const horas = fmtHM(trabMin);
       const entH = _isoToHM(j.entrada) || '—';
       const salH = _isoToHM(j.salida) || '—';
-      const flags = [tarde?'TARDE':'', extra?'EXTRA':'', anomalia?'ANOMALÍA':''].filter(Boolean).join(', ') || 'OK';
+      const flags = [tarde?'TARDE':'', anomalia?'ANOMALÍA':''].filter(Boolean).join(', ') || 'OK';
 
       html += `<td class="${cls}">${horas}<div class="sem-tooltip">ENT ${entH} · SAL ${salH}<br>${flags}</div></td>`;
     });
 
-    html += `<td class="sem-total">${fmtHM(totalMin)}</td></tr>`;
+    // Weekly extra detection
+    const esOficina = emp.rol_app === 'oficina';
+    const limSemanal = esOficina ? 40 * 60 : 45 * 60;
+    const extraMin = Math.max(0, totalMin - limSemanal);
+    if (extraMin > 0) {
+      html += `<td class="sem-total sem-c-extra">${fmtHM(totalMin)} <span style="font-size:9px;">+${fmtHM(extraMin)}</span></td></tr>`;
+    } else {
+      html += `<td class="sem-total">${fmtHM(totalMin)}</td></tr>`;
+    }
   });
 
   html += '</tbody></table>';
