@@ -278,7 +278,10 @@ function cardHtml(p, col) {
       : `<button class="btn-sm success" onclick="abrirRecepcion('${p.id}')">✓ Recibir</button>`;
   }
   // Etiquetas + archivar en todas las columnas
-  const etqBtn = `<button class="btn-sm" onclick="imprimirEtiquetas('${p.id}')" style="border-color:#333;color:#aaa;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='#333';this.style.color='#aaa'">\u{1F5A8}</button>`;
+  const _tieneEnv = p.numero_envio && /^ENV-\d+$/.test(p.numero_envio);
+  const etqBtn = _tieneEnv
+    ? `<button class="btn-sm" onclick="imprimirEtiquetas('${p.id}')" style="border-color:#333;color:#aaa;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseleave="this.style.borderColor='#333';this.style.color='#aaa'">\u{1F5A8}</button>`
+    : `<button class="btn-sm" disabled style="border-color:#222;color:#444;opacity:.4;cursor:not-allowed;" title="Esperando número ENV...">\u{1F5A8}</button>`;
   const archBtn = `<button class="btn-sm" onclick="archivarPartida('${p.id}')" style="border-color:#333;color:#555;font-size:9px;" onmouseenter="this.style.borderColor='var(--muted)';this.style.color='var(--muted)'" onmouseleave="this.style.borderColor='#333';this.style.color='#555'">Archivar</button>`;
   actions = (actions ? actions : '') + etqBtn + archBtn;
   let recepBadge = '';
@@ -671,7 +674,7 @@ function onNuevaPr(prId) {
   }
 }
 
-function confirmarNueva() {
+async function confirmarNueva() {
   const prId = document.getElementById('nueva-pr')?.value;
   const pr = _PROYECTOS.find(p=>p.id===prId);
   const muebleVal = document.getElementById('nueva-mueble')?.value || '';
@@ -690,11 +693,29 @@ function confirmarNueva() {
     estado:'en_taller', partes:'', fechaDespacho:'', fechaRecepcion:'', estadoRecep:'', obs:'', nota:''
   };
   if (!nueva.muebleNombre) { alert('Completá el nombre del mueble'); return; }
-  PARTIDAS.push(nueva);
-  guardarPartidas([nueva.id]);
-  const ov = document.getElementById('overlay-nueva');
-  if(ov) document.body.removeChild(ov);
-  render();
+
+  try {
+    const res = await fetch('/api/tiempos?action=guardar-partida', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({...nueva, session_token:_getST()})
+    });
+    const data = await res.json();
+    if (!data.ok && !data.partida) throw new Error(data.error || 'Error del servidor');
+    // Update with server data (numero_envio, id if changed)
+    if (data.partida) {
+      nueva.numero_envio = data.partida.numero_envio || data.numero_envio || '';
+      if (data.partida.id) nueva.id = data.partida.id;
+    } else if (data.numero_envio) {
+      nueva.numero_envio = data.numero_envio;
+    }
+    PARTIDAS.push(nueva);
+    localStorage.setItem('partidas', JSON.stringify(PARTIDAS));
+    const ov = document.getElementById('overlay-nueva');
+    if(ov) document.body.removeChild(ov);
+    render();
+  } catch(e) {
+    alert('Error al guardar la partida. Intentá de nuevo.\n' + (e.message || ''));
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
