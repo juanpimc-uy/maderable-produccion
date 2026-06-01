@@ -349,6 +349,15 @@
     justify-content: center;
   }
   #timer-modal-overlay.open { display: flex; }
+  #timer-reconfirm-overlay {
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9600;
+    align-items:center;justify-content:center;
+  }
+  #timer-reconfirm-overlay.open { display:flex; }
+  #timer-reconfirm-panel {
+    background:#1e1e1e;border:2px solid #FFD600;border-radius:12px;padding:32px;
+    width:100%;max-width:400px;text-align:center;
+  }
   #timer-modal {
     background: var(--card);
     border: 1px solid var(--border);
@@ -605,6 +614,7 @@
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
       <button id="timer-btn-descanso" class="timer-bar-action-btn" style="display:none;" onclick="event.stopPropagation();_timerDescanso()">☕ Descanso</button>
+      <button id="timer-btn-cambiar" class="timer-bar-action-btn" style="display:none;" onclick="event.stopPropagation();_timerCambiarTarea()">⇄ Cambiar</button>
       <button id="timer-btn-finalizar" class="timer-bar-action-btn" style="display:none;" onclick="event.stopPropagation();_timerFinalizar()">✓ Finalizar</button>
       <button id="timer-btn-volver" class="timer-bar-action-btn" style="display:none;" onclick="event.stopPropagation();_timerVolverATarea()">▶ Volver a tarea</button>
       <button id="timer-btn-salida" class="timer-bar-action-btn" style="display:none;" onclick="event.stopPropagation();_timerSalida()">⏹ Salida</button>
@@ -876,6 +886,16 @@
       <span class="op-sub">REGISTRA LA ENTRADA SIN INICIAR UNA TAREA TODAVÍA</span>
     </button>
     <button onclick="_timerEntradaCerrar()" style="width:100%;padding:10px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;">Cancelar</button>
+  </div>
+</div>
+
+<!-- ══ RECONFIRMACIÓN 2H ══════════════════════════════════════════════════ -->
+<div id="timer-reconfirm-overlay">
+  <div id="timer-reconfirm-panel" onclick="event.stopPropagation()">
+    <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--text);letter-spacing:1px;margin-bottom:8px;">¿SEGUÍS TRABAJANDO EN ESTO?</div>
+    <div id="timer-reconfirm-sub" style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:24px;"></div>
+    <button onclick="_timerReconfirmarSi()" style="width:100%;padding:14px;background:#FFD600;color:#0f0f0f;border:none;border-radius:8px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:1px;margin-bottom:10px;">✓ SÍ, CONTINÚO</button>
+    <button onclick="_timerReconfirmarCambiar()" style="width:100%;padding:12px;background:transparent;border:2px solid #FFD600;color:#FFD600;border-radius:8px;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:1px;">CAMBIAR TAREA</button>
   </div>
 </div>
 
@@ -5321,8 +5341,9 @@ function _timerSetEstado(nuevoEstado) {
   const bar = document.getElementById('timer-bar');
   bar.className = nuevoEstado;
   clearInterval(_timerInterval); _timerInterval = null;
+  _reconfirmStop();
 
-  const ids = ['timer-btn-descanso','timer-btn-finalizar','timer-btn-volver','timer-btn-salida','timer-bar-stop'];
+  const ids = ['timer-btn-descanso','timer-btn-cambiar','timer-btn-finalizar','timer-btn-volver','timer-btn-salida','timer-bar-stop'];
   ids.forEach(id => { const el = document.getElementById(id); if (el) { el.style.display = 'none'; el.disabled = false; } });
 
   const icon    = document.getElementById('timer-bar-icon');
@@ -5345,9 +5366,11 @@ function _timerSetEstado(nuevoEstado) {
     _timerBarActualizarTexto();
     _timerInterval = setInterval(_timerBarActualizarTexto, 1000);
     document.getElementById('timer-btn-descanso').style.display = '';
+    document.getElementById('timer-btn-cambiar').style.display = '';
     document.getElementById('timer-btn-finalizar').style.display = '';
     document.getElementById('timer-btn-salida').style.display = '';
     overlay.classList.remove('visible');
+    _reconfirmStart();
 
   } else if (nuevoEstado === 'descanso-activo') {
     icon.textContent = '☕';
@@ -5928,6 +5951,7 @@ async function _timerIniciar() {
     const json = await res.json();
     if (!res.ok || !json.ok) throw new Error(json.error || 'Error al iniciar');
     _timerRegistro = json.registro;
+    _reconfirmReset();
     _timerModalCerrar();
     await _timerActualizarEstado();
   } catch(e) {
@@ -5960,6 +5984,66 @@ async function _timerDescanso() {
   } finally {
     btn.disabled = false;
   }
+}
+
+async function _timerCambiarTarea() {
+  _timerModalAbrir();
+}
+
+// ── Reconfirmación cada 2h (solo oficina/admin) ──────────────────────────
+let _reconfirmInterval = null;
+const _RECONFIRM_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+function _reconfirmStart() {
+  _reconfirmStop();
+  const u = window.AUTH.usuarioActual();
+  if (!u || (u.rol_app !== 'oficina' && u.rol_app !== 'admin')) return;
+  const key = 'tarea_inicio_' + u.id;
+  if (!sessionStorage.getItem(key)) sessionStorage.setItem(key, String(Date.now()));
+  _reconfirmInterval = setInterval(_reconfirmCheck, 60000);
+}
+
+function _reconfirmStop() {
+  if (_reconfirmInterval) { clearInterval(_reconfirmInterval); _reconfirmInterval = null; }
+}
+
+function _reconfirmReset() {
+  const u = window.AUTH.usuarioActual();
+  if (u) sessionStorage.setItem('tarea_inicio_' + u.id, String(Date.now()));
+}
+
+function _reconfirmCheck() {
+  const u = window.AUTH.usuarioActual();
+  if (!u || !_timerRegistro || _timerEstado !== 'tarea-activa') return;
+  if (u.rol_app !== 'oficina' && u.rol_app !== 'admin') return;
+  const key = 'tarea_inicio_' + u.id;
+  const inicio = parseInt(sessionStorage.getItem(key) || '0', 10);
+  if (!inicio) return;
+  if (Date.now() - inicio >= _RECONFIRM_MS) {
+    _reconfirmMostrar();
+  }
+}
+
+function _reconfirmMostrar() {
+  if (!_timerRegistro) return;
+  const secs = Math.floor((Date.now() - new Date(_timerRegistro.inicio).getTime()) / 1000);
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const centro = _timerRegistro.centro || '—';
+  const proy = (_timerRegistro.proyecto_nombre || '—').split(' · ')[0];
+  document.getElementById('timer-reconfirm-sub').textContent = `Llevás ${h}h ${m}m en ${centro} · ${proy}`;
+  document.getElementById('timer-reconfirm-overlay').classList.add('open');
+}
+
+function _timerReconfirmarSi() {
+  document.getElementById('timer-reconfirm-overlay').classList.remove('open');
+  _reconfirmReset();
+}
+
+function _timerReconfirmarCambiar() {
+  document.getElementById('timer-reconfirm-overlay').classList.remove('open');
+  _reconfirmReset();
+  _timerModalAbrir();
 }
 
 async function _timerFinalizar() {
