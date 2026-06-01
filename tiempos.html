@@ -562,7 +562,7 @@ function _tFilterOpSelect() {
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────
-(function _auth() {
+(async function _auth() {
   const u = window.AUTH?.usuarioActual();
   if (!u) { window.location.href = '/index.html'; return; }
   if (u.rol_app === 'operario') { window.location.href = '/planta2.html'; return; }
@@ -570,12 +570,20 @@ function _tFilterOpSelect() {
   _tUser    = u;
   _tIsAdmin = u.rol_app === 'admin' || !!(u.acceso_tiempos);
   CALLER_ID = u.id;
-
+  // Verify session is still valid
+  if (window.AUTH) {
+    const valid = await window.AUTH.checkSession();
+    if (!valid) return;
+  }
 })();
 
 // ── Fetch wrapper (handles 403 redirect) ──────────────────────────────────
 async function _tFetch(url, opts) {
   const res = await fetch(url, opts);
+  if (res.status === 401) {
+    window.AUTH?.showSessionExpired();
+    throw new Error('Sesión expirada');
+  }
   if (res.status === 403) {
     window.location.href = '/admin.html?error=sin_acceso';
     throw new Error('Sin acceso');

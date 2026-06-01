@@ -546,6 +546,14 @@ export default async function handler(req) {
       return ok({ ok: !error, hasKey, supabaseUrl: process.env.SUPABASE_URL || 'hardcoded', error: error?.message || null });
     }
 
+    // ── GET check-session ──────────────────────────────────────────────
+    if (action === 'check-session' && req.method === 'GET') {
+      const token = url.searchParams.get('session_token');
+      const user = await verificarSesion(token);
+      if (!user) return err('Sesión inválida o expirada', 401);
+      return ok({ ok: true, user: { id: user.id, nombre: user.nombre, rol_app: user.rol_app } });
+    }
+
     // ── GET empleados activos ─────────────────────────────────────────────
     if (action === 'empleados' && req.method === 'GET') {
       const incluirArchivados = url.searchParams.get('incluir_archivados') === 'true';
@@ -2361,7 +2369,7 @@ export default async function handler(req) {
       if (!await verificarSesion(body.session_token)) return err('Sesión inválida o expirada', 401);
       const { id, tipo, proyectoNum, obra, cliente, muebleCodigo, muebleNombre,
               estado, partes, tipoDespacho, fechaDespacho, fechaRecepcion,
-              estadoRecep, obs, nota, bultos, numero_envio, fechaRetornoEstimada, proveedorNombre, retorno_modificado_baru } = body;
+              estadoRecep, obs, nota, bultos, numero_envio, fechaRetornoEstimada, proveedorNombre, retorno_modificado_baru, instruccion_lustre } = body;
       // Asignar ENV — siempre generar para partidas nuevas
       let envioFinal = numero_envio || null;
 
@@ -2391,6 +2399,7 @@ export default async function handler(req) {
                   estado_recep: estadoRecep, obs, nota,
                   bultos: bultos || 0, numero_envio: envioFinal,
                   proveedor_nombre: proveedorNombre || null };
+      if (instruccion_lustre !== undefined) row.instruccion_lustre = instruccion_lustre || null;
       if (fechaRetornoEstimada) row.fecha_retorno_estimada = fechaRetornoEstimada;
       if (retorno_modificado_baru !== undefined) row.retorno_modificado_baru = !!retorno_modificado_baru;
       const { data, error } = await supabase.from('partidas_terceros')

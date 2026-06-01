@@ -1003,16 +1003,21 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // AUTH GATE — must be first
 // ═══════════════════════════════════════════════════════════════════════════
-(function _authGate() {
+(async function _authGate() {
   const overlay = document.getElementById('login-overlay');
   const shell   = document.getElementById('app-shell');
   if (window.AUTH.puedeEntrarAAdmin()) {
+    // Verify session is still valid
+    const valid = await window.AUTH.checkSession();
+    if (!valid) { shell.style.display = 'none'; return; }
     overlay.classList.add('hidden');
     shell.style.display = '';
   } else {
     shell.style.display = 'none';
   }
 })();
+// Wrap fetch to detect 401 on any request
+if (window.AUTH) window.fetch = window.AUTH.wrapFetch(window.fetch);
 
 async function _loginSubmit() {
   const email = document.getElementById('login-email').value.trim();
