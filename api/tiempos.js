@@ -2064,9 +2064,9 @@ export default async function handler(req) {
       }
       if (!valid) { recordFailedAttempt(rateKey); return new Response(JSON.stringify({ ok: false, error: 'Credenciales incorrectas' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } }); }
       clearRateLimit(rateKey);
-      // Generar token de sesión (8 horas)
+      // Generar token de sesión (12 horas)
       const sessionToken = crypto.randomUUID();
-      const sessionExpiry = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+      const sessionExpiry = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
       await supabase.from('empleados')
         .update({ session_token: sessionToken, session_expires_at: sessionExpiry })
         .eq('id', data.id);
