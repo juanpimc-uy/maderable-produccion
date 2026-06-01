@@ -29,7 +29,7 @@
 
   // ── 3. Leer sesion ─────────────────────────────────────────────────
   let session = {};
-  try { session = JSON.parse(sessionStorage.getItem('mble_session') || '{}'); } catch(e) {}
+  try { session = JSON.parse(localStorage.getItem('mble_session') || sessionStorage.getItem('mble_session') || '{}'); } catch(e) {}
   const rol = session.rol_app || session.rol || 'admin';
   const nombre = session.nombre || session.name || '';
   const iniciales = nombre ? nombre.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() : '??';
@@ -97,7 +97,7 @@
 
     // No renderizar si no hay sesión ERP activa
     const sess = (() => {
-      try { return JSON.parse(sessionStorage.getItem('mble_session') || '{}'); }
+      try { return JSON.parse(localStorage.getItem('mble_session') || sessionStorage.getItem('mble_session') || '{}'); }
       catch(e) { return {}; }
     })();
     if (!sess.rol_app) { root.innerHTML = ''; return; }

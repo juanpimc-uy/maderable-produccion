@@ -921,7 +921,7 @@ async function guardar(){
     fechaInicio:gv('f-inicio'),fechaEntrega:gv('f-entrega'),notas:gv('f-notas'),
     estado:'en_produccion',muebles,materiales,sosCargadas,modulos:[],creadoEn:Date.now()};
   try {
-    const st = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}').session_token||''; } catch{return '';} })();
+    const st = (() => { try { return JSON.parse(localStorage.getItem('mble_session')||sessionStorage.getItem('mble_session')||'{}').session_token||''; } catch{return '';} })();
     const res = await fetch('/api/tiempos?action=guardar-proyecto&st=' + st, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

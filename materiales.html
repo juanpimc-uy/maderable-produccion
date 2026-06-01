@@ -493,7 +493,7 @@ function confirmarRecepcion() {
   localStorage.setItem('ocs',         JSON.stringify(OCS));
   localStorage.setItem('recepciones', JSON.stringify(RECEPCIONES));
   // sync a Supabase
-  const _st = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}').session_token||''; } catch{return '';} })();
+  const _st = (() => { try { return JSON.parse(localStorage.getItem('mble_session')||sessionStorage.getItem('mble_session')||'{}').session_token||''; } catch{return '';} })();
   PROYECTOS.forEach(p=>fetch('/api/tiempos?action=guardar-proyecto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...p, session_token:_st})}).catch(()=>{}));
   const ocMod=OCS.find(o=>o.numero===ocNum);
   if(ocMod)fetch('/api/tiempos?action=guardar-oc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ocMod)}).catch(()=>{});

@@ -285,25 +285,49 @@ async function _entradaImpl(sb, { empleado_id }) {
   const hoy = new Date().toISOString().split('T')[0];
   const ahora = new Date().toISOString();
   const { data: emp } = await sb
-    .from('empleados').select('horario_entrada').eq('id', empleado_id).single();
+    .from('empleados').select('horario_entrada, horario_salida').eq('id', empleado_id).single();
   const [h, m] = (emp?.horario_entrada || '08:00').split(':');
   const esperado = new Date();
   esperado.setHours(parseInt(h), parseInt(m), 0, 0);
   const tarde = new Date() > new Date(esperado.getTime() + 10 * 60000);
-  // Blindaje: cerrar cualquier tarea activa de días anteriores antes de abrir nueva jornada
-  await _cerrarTareasActivasDe(sb, empleado_id, ahora);
+
+  // Detectar sesiones huérfanas de días anteriores (fin IS NULL, inicio < hoy UY)
+  const hoyUYstart = hoy + 'T00:00:00-03:00';
+  const { data: huerfanas } = await sb.from('registros_trabajo')
+    .select('id, inicio, centro, proyecto_nombre, proyecto_id')
+    .eq('empleado_id', empleado_id)
+    .is('fin', null)
+    .lt('inicio', hoyUYstart);
+
   const { data, error } = await sb.from('jornadas')
     .upsert({ empleado_id, fecha: hoy, entrada: ahora, tarde, salida: null }, { onConflict: 'empleado_id,fecha' })
     .select().single();
   if (error) throw error;
-  return { jornada: data };
+
+  const result = { jornada: data };
+  if (huerfanas && huerfanas.length > 0) {
+    result.sesiones_huerfanas = huerfanas.map(s => ({
+      id: s.id,
+      inicio: s.inicio,
+      centro: s.centro,
+      proyecto_nombre: s.proyecto_nombre,
+    }));
+    result.horario_salida = emp?.horario_salida || '17:00';
+  }
+  return result;
 }
 
 async function _salidaImpl(sb, { empleado_id }) {
   const hoy = new Date().toISOString().split('T')[0];
   const ahora = new Date().toISOString();
-  // Cerrar TODOS los registros activos como 'pausado'
-  await _cerrarTareasActivasDe(sb, empleado_id, ahora);
+  // Cerrar TODOS los registros con fin IS NULL como 'finalizado' al marcar salida
+  const { data: abiertos } = await sb.from('registros_trabajo')
+    .select('id').eq('empleado_id', empleado_id).is('fin', null);
+  if (abiertos && abiertos.length > 0) {
+    await sb.from('registros_trabajo')
+      .update({ fin: ahora, estado: 'finalizado' })
+      .eq('empleado_id', empleado_id).is('fin', null);
+  }
   const { data } = await sb.from('jornadas')
     .update({ salida: ahora })
     .eq('empleado_id', empleado_id).eq('fecha', hoy).is('salida', null)
@@ -552,6 +576,19 @@ export default async function handler(req) {
       const user = await verificarSesion(token);
       if (!user) return err('Sesión inválida o expirada', 401);
       return ok({ ok: true, user: { id: user.id, nombre: user.nombre, rol_app: user.rol_app } });
+    }
+
+    // ── POST verificar-pass-tercerizados ───────────────────────────────
+    if (action === 'verificar-pass-tercerizados' && req.method === 'POST') {
+      const { password } = body;
+      if (!password) return ok({ ok: true, valido: false });
+      const { data: cfg } = await supabase
+        .from('config_global').select('valor').eq('clave', 'pass_tercerizados').maybeSingle();
+      const stored = cfg?.valor;
+      // valor is jsonb — could be a string directly or { password: "..." }
+      const expected = typeof stored === 'string' ? stored : stored?.password || stored;
+      const valido = expected && password === expected;
+      return ok({ ok: true, valido: !!valido });
     }
 
     // ── GET empleados activos ─────────────────────────────────────────────

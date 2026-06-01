@@ -72,7 +72,7 @@ tr:not(.total):hover{background:rgba(255,214,0,.04);}
 'use strict';
 
 // Auth — requiere sesión Maderable admin/oficina
-const _sess = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}'); } catch { return {}; } })();
+const _sess = (() => { try { return JSON.parse(localStorage.getItem('mble_session')||sessionStorage.getItem('mble_session')||'{}'); } catch { return {}; } })();
 if (_sess.rol_app !== 'admin' && _sess.rol_app !== 'oficina') {
   document.querySelector('.content').innerHTML = '<div class="empty">Acceso restringido. <a href="/admin.html" style="color:var(--accent);">Ir al ERP</a></div>';
 }

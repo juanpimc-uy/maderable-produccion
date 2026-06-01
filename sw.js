@@ -1,4 +1,4 @@
-const CACHE_NAME = 'planta-mble-v2';
+const CACHE_NAME = 'planta-mble-v3';
 const ASSETS = [
   '/planta2.html',
   '/admin.html',
@@ -27,23 +27,32 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Network-first para HTML y JSON (datos siempre frescos)
-  // Cache-first para imágenes/CSS/JS estáticos
   const url = new URL(event.request.url);
 
-  if (event.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
-    );
-    return;
-  }
-
+  // API calls: network-only, never cache
   if (url.pathname.startsWith('/api/')) {
-    // No cachear las llamadas a la API, siempre fresco
     event.respondWith(fetch(event.request));
     return;
   }
 
+  // HTML, JS, CSS: network-first, update cache on success, fallback to cache
+  if (event.request.mode === 'navigate' ||
+      url.pathname.endsWith('.html') ||
+      url.pathname.endsWith('.js') ||
+      url.pathname.endsWith('.css')) {
+    event.respondWith(
+      fetch(event.request).then((res) => {
+        if (res.ok && event.request.method === 'GET') {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return res;
+      }).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Everything else (icons, images, manifest): cache-first
   event.respondWith(
     caches.match(event.request).then((cached) => cached || fetch(event.request))
   );

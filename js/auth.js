@@ -2,15 +2,22 @@ window.AUTH = {
   KEY: 'mble_session',
 
   guardarSesion(usuario) {
-    sessionStorage.setItem(this.KEY, JSON.stringify(usuario));
+    // Role-aware: admin/oficina persist in localStorage; operario in sessionStorage
+    const store = (usuario.rol_app === 'admin' || usuario.rol_app === 'oficina') ? localStorage : sessionStorage;
+    store.setItem(this.KEY, JSON.stringify(usuario));
+    // Clear the other store to avoid stale sessions
+    const other = store === localStorage ? sessionStorage : localStorage;
+    other.removeItem(this.KEY);
   },
 
   usuarioActual() {
-    const raw = sessionStorage.getItem(this.KEY);
+    // Read localStorage first (admin/oficina), fallback to sessionStorage (operario)
+    const raw = localStorage.getItem(this.KEY) || sessionStorage.getItem(this.KEY);
     return raw ? JSON.parse(raw) : null;
   },
 
   cerrarSesion() {
+    localStorage.removeItem(this.KEY);
     sessionStorage.removeItem(this.KEY);
     window.location.href = '/admin.html';
   },
@@ -18,6 +25,10 @@ window.AUTH = {
   getSessionToken() {
     const u = this.usuarioActual();
     return u?.session_token || '';
+  },
+
+  getSession() {
+    return this.usuarioActual();
   },
 
   esAdmin() {
@@ -58,7 +69,6 @@ window.AUTH = {
     banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#1a0a0a;border-bottom:2px solid #ef4444;padding:12px 20px;display:flex;align-items:center;justify-content:center;gap:12px;font-family:"Space Mono",monospace;font-size:12px;color:#ef4444;';
     banner.innerHTML = '\u26a0 Sesión expirada — <a href="/admin.html" style="color:#FFD600;text-decoration:underline;font-weight:700;">Volver a ingresar</a>';
     document.body.prepend(banner);
-    // Disable action buttons
     document.querySelectorAll('button.btn-sm,button.btn-load,button.btn-completar,button.btn-confirmar,.btn.btn-primary,.btn.btn-success').forEach(b => { b.disabled = true; b.style.opacity = '.3'; });
   },
 
@@ -70,7 +80,7 @@ window.AUTH = {
       if (res.status === 401) { this.showSessionExpired(); return false; }
       const data = await res.json();
       return !!data.ok;
-    } catch (e) { return true; } // network error: don't block
+    } catch (e) { return true; }
   },
 
   wrapFetch(originalFetch) {
@@ -90,3 +100,10 @@ window.AUTH = {
     };
   }
 };
+
+// Helper for pages that don't load auth.js but read mble_session directly
+// They can call _getMbleSession() instead of parsing sessionStorage
+function _getMbleSession() {
+  try { return JSON.parse(localStorage.getItem('mble_session') || sessionStorage.getItem('mble_session') || '{}'); }
+  catch(e) { return {}; }
+}

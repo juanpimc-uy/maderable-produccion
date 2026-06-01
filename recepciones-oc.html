@@ -222,7 +222,7 @@ let _rateLimitUntil = 0;
 // ── Auth ─────────────────────────────────────────────────────────────────
 const PASS = 'maderable2024';
 // Si tiene sesión ERP como admin u oficina, saltear contraseña
-const _erpSess = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}'); } catch(e) { return {}; } })();
+const _erpSess = (() => { try { return JSON.parse(localStorage.getItem('mble_session')||sessionStorage.getItem('mble_session')||'{}'); } catch(e) { return {}; } })();
 if (_erpSess.rol_app === 'admin' || _erpSess.rol_app === 'oficina') _mostrarApp();
 else if (localStorage.getItem('oc_session') === 'ok') _mostrarApp();
 function _login() {

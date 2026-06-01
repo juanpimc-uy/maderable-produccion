@@ -206,7 +206,7 @@ window.sbFetch('proyectos_cache?activo=eq.true&order=nombre')
 
 let PARTIDAS = JSON.parse(localStorage.getItem('partidas') || '[]');
 
-function _getST() { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}').session_token||''; } catch{return '';} }
+function _getST() { try { return JSON.parse(localStorage.getItem('mble_session')||sessionStorage.getItem('mble_session')||'{}').session_token||''; } catch{return '';} }
 
 function guardarPartidas(ids) {
   localStorage.setItem('partidas', JSON.stringify(PARTIDAS));
@@ -334,7 +334,7 @@ function renderChips() {
   if (titleEl) titleEl.textContent = filtroProveedor !== 'todos' ? `TERCERIZADOS · ${filtroProveedor}` : 'TERCERIZADOS';
   // Solo botón reporte si aplica
   let html = '';
-  const sess = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session')||'{}'); } catch(e) { return {}; } })();
+  const sess = (() => { try { return JSON.parse(localStorage.getItem('mble_session')||sessionStorage.getItem('mble_session')||'{}'); } catch(e) { return {}; } })();
   if ((sess.rol_app === 'admin' || sess.rol_app === 'oficina') && filtroProveedor.toUpperCase().includes('BARU')) {
     html += `<span class="chip" onclick="window.open('/baru-reporte.html','_blank')">📊 Reporte BARU</span>`;
   }
@@ -1097,9 +1097,8 @@ render();
 
 <script>
 // ── Auth standalone ─────────────────────────────────────────────
-const PASS_TERC = 'terceros2024';
 document.addEventListener('DOMContentLoaded', async () => {
-  const _sess = (() => { try { return JSON.parse(sessionStorage.getItem('mble_session') || '{}'); } catch(e) { return {}; } })();
+  const _sess = (() => { try { return JSON.parse(localStorage.getItem('mble_session') || sessionStorage.getItem('mble_session') || '{}'); } catch(e) { return {}; } })();
   if (_sess.rol_app === 'admin' || _sess.rol_app === 'oficina') {
     // Verify session is still valid
     if (window.AUTH && _sess.session_token) {
@@ -1112,18 +1111,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 // Wrap fetch to detect 401 on any request
 if (window.AUTH) window.fetch = window.AUTH.wrapFetch(window.fetch);
-function _login() {
+async function _login() {
   const pw = document.getElementById('pw-input').value.trim();
-  if (pw === PASS_TERC) {
-    localStorage.setItem('tercerizados_auth', 'ok');
-    _mostrarApp();
-  } else {
-    const inp = document.getElementById('pw-input');
-    inp.classList.remove('shake');
-    void inp.offsetWidth;
-    inp.classList.add('shake');
-    inp.value = '';
-  }
+  if (!pw) return;
+  try {
+    const res = await fetch('/api/tiempos?action=verificar-pass-tercerizados', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ password: pw }),
+    });
+    const data = await res.json();
+    if (data.ok && data.valido) {
+      localStorage.setItem('tercerizados_auth', 'ok');
+      _mostrarApp();
+      return;
+    }
+  } catch(e) {}
+  const inp = document.getElementById('pw-input');
+  inp.classList.remove('shake');
+  void inp.offsetWidth;
+  inp.classList.add('shake');
+  inp.value = '';
 }
 function _mostrarApp() {
   document.getElementById('screen-login').style.display = 'none';
