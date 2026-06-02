@@ -909,6 +909,17 @@
   </div>
 </div>
 
+<!-- ══ SESIONES HUÉRFANAS (TAREAS SIN CERRAR) ═════════════════════════════ -->
+<div id="timer-sesiones-huerfanas-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9700;align-items:center;justify-content:center;">
+  <div onclick="event.stopPropagation()" style="background:#1e1e1e;border:2px solid #FFD600;border-radius:12px;padding:32px;max-width:520px;width:92%;max-height:85vh;overflow-y:auto;">
+    <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:#FFD600;letter-spacing:1px;margin-bottom:6px;">⚠ TAREAS SIN CERRAR</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:20px;">Las siguientes tareas quedaron abiertas de días anteriores. Indicá a qué hora terminaste cada una.</p>
+    <div id="sh-lista"></div>
+    <button id="sh-guardar-btn" disabled onclick="_shGuardarTodas()" style="margin-top:16px;width:100%;padding:12px;background:#FFD600;color:#0f0f0f;border:none;border-radius:8px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:1px;opacity:.5;">GUARDAR Y CONTINUAR</button>
+    <div id="sh-error" style="font-size:11px;color:var(--red);margin-top:8px;min-height:14px;text-align:center;"></div>
+  </div>
+</div>
+
 <!-- ══ BLOQUEO OVERLAY ════════════════════════════════════════════════════ -->
 <div id="timer-bloqueo-overlay">
   <div class="bloqueo-titulo">⚠ TIEMPO SIN CLASIFICAR</div>
@@ -5507,10 +5518,81 @@ async function _timerHacerEntrada() {
     if (!res.ok || !json.ok) throw new Error(json.error || 'Error al marcar entrada');
     _timerJornada = json.jornada;
     await _timerActualizarEstado();
+    // Sesiones huérfanas: mostrar modal bloqueante
+    if (json.sesiones_huerfanas && json.sesiones_huerfanas.length > 0) {
+      _shMostrar(json.sesiones_huerfanas, json.horario_salida || '17:00');
+      return false; // bloquea hasta resolver
+    }
     return true;
   } catch(e) {
     alert('Error al marcar entrada: ' + e.message);
     return false;
+  }
+}
+
+// ── Sesiones huérfanas — modal bloqueante ─────────────────────────────────
+let _shDatos = [];
+let _shHorarioSalida = '17:00';
+
+function _shMostrar(sesiones, horarioSalida) {
+  _shDatos = sesiones;
+  _shHorarioSalida = horarioSalida;
+  const lista = document.getElementById('sh-lista');
+  lista.innerHTML = sesiones.map((s, i) => {
+    const fechaUY = new Date(s.inicio).toLocaleDateString('es-UY', { day:'2-digit', month:'2-digit', year:'numeric', timeZone:'America/Montevideo' });
+    const centro = s.centro || '—';
+    const proy = s.proyecto_nombre || '—';
+    return `<div style="background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:12px 14px;margin-bottom:8px;">
+      <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:6px;">${fechaUY} · ${centro} · ${proy}</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <label style="font-family:'Space Mono',monospace;font-size:10px;color:#888;white-space:nowrap;">¿A qué hora terminaste?</label>
+        <input type="time" id="sh-hora-${i}" value="${horarioSalida}" oninput="_shValidar()"
+          style="background:#0f0f0f;border:1px solid #333;border-radius:4px;padding:6px 8px;color:var(--text);font-family:'Space Mono',monospace;font-size:13px;outline:none;"/>
+      </div>
+    </div>`;
+  }).join('');
+  _shValidar();
+  document.getElementById('sh-error').textContent = '';
+  document.getElementById('timer-sesiones-huerfanas-overlay').style.display = 'flex';
+}
+
+function _shValidar() {
+  const todosOk = _shDatos.every((_, i) => {
+    const inp = document.getElementById(`sh-hora-${i}`);
+    return inp && inp.value;
+  });
+  const btn = document.getElementById('sh-guardar-btn');
+  btn.disabled = !todosOk;
+  btn.style.opacity = todosOk ? '1' : '.5';
+}
+
+async function _shGuardarTodas() {
+  const u = window.AUTH.usuarioActual();
+  if (!u) return;
+  const btn = document.getElementById('sh-guardar-btn');
+  const errEl = document.getElementById('sh-error');
+  btn.disabled = true; btn.textContent = 'GUARDANDO…';
+  errEl.textContent = '';
+  try {
+    for (let i = 0; i < _shDatos.length; i++) {
+      const s = _shDatos[i];
+      const hora = document.getElementById(`sh-hora-${i}`).value;
+      if (!hora) throw new Error('Completá todas las horas');
+      // Construir fin: fecha del inicio (UY) + hora ingresada
+      const inicioDate = new Date(s.inicio);
+      const fechaISO = inicioDate.toLocaleDateString('sv-SE', { timeZone: 'America/Montevideo' }); // YYYY-MM-DD
+      const finLocal = new Date(`${fechaISO}T${hora}:00-03:00`).toISOString();
+      await fetch('/api/tiempos?action=editar-sesion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sesion_id: s.id, fin: finLocal, estado: 'finalizado', caller_id: u.id }),
+      }).then(r => r.json()).then(d => { if (d.error) throw new Error(d.error); });
+    }
+    document.getElementById('timer-sesiones-huerfanas-overlay').style.display = 'none';
+    _shDatos = [];
+  } catch(e) {
+    errEl.textContent = 'Error: ' + e.message;
+    btn.disabled = false; btn.textContent = 'GUARDAR Y CONTINUAR';
   }
 }
 

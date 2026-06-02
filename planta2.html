@@ -929,6 +929,20 @@ textarea.campo {
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════════════
+  PANTALLA HUÉRFANAS (tareas sin cerrar de días anteriores)
+══════════════════════════════════════════════════════════════════════ -->
+<div id="pantalla-huerfanas" class="pantalla">
+  <div class="centrado" style="max-width:420px;margin:0 auto;width:100%;padding:40px 20px;">
+    <div style="font-size:36px;text-align:center;margin-bottom:12px;">⚠</div>
+    <div style="font-family:'Space Mono',monospace;font-size:15px;font-weight:700;text-align:center;color:#FFD600;letter-spacing:1px;margin-bottom:8px;">TAREAS SIN CERRAR</div>
+    <div id="ph-fecha" style="font-family:'Space Mono',monospace;font-size:12px;text-align:center;color:var(--muted);margin-bottom:24px;"></div>
+    <div id="ph-lista" style="margin-bottom:24px;"></div>
+    <div style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:20px;">Avisá a tu supervisor para que las corrija desde Tiempos.</div>
+    <button onclick="_phContinuar()" style="width:100%;padding:14px;background:transparent;border:2px solid #FFD600;color:#FFD600;border-radius:8px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:1px;">YA AVISÉ, CONTINUAR</button>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast"></div>
 
@@ -1322,9 +1336,14 @@ async function autenticar() {
     if (jornadaExist) {
       jornada = jornadaExist;
     } else {
-      const { jornada: jornadaNueva } = await apiPost('entrada', { empleado_id: empId });
-      jornada = jornadaNueva;
+      const entradaRes = await apiPost('entrada', { empleado_id: empId });
+      jornada = entradaRes.jornada;
       toast(`Entrada registrada — ${fmtHora(jornada.entrada)}`, 'var(--green)');
+      // Detectar sesiones huérfanas de días anteriores
+      if (entradaRes.sesiones_huerfanas && entradaRes.sesiones_huerfanas.length > 0) {
+        _phMostrar(entradaRes.sesiones_huerfanas);
+        // No bloquear indefinidamente — operario continúa tras avisar
+      }
     }
 
     // 2. Registros de hoy — buscar activo
@@ -1412,6 +1431,27 @@ async function autenticar() {
 
 function setLoginError(msg) {
   document.getElementById('login-error').textContent = msg;
+}
+
+// ── Pantalla huérfanas (tareas sin cerrar) ────────────────────────────────
+let _phPendiente = false;
+function _phMostrar(sesiones) {
+  _phPendiente = true;
+  const fechas = [...new Set(sesiones.map(s =>
+    new Date(s.inicio).toLocaleDateString('es-UY', { day:'2-digit', month:'2-digit', year:'numeric', timeZone:'America/Montevideo' })
+  ))].join(', ');
+  document.getElementById('ph-fecha').textContent = `DEL ${fechas}`;
+  document.getElementById('ph-lista').innerHTML = sesiones.map(s => {
+    const hora = new Date(s.inicio).toLocaleTimeString('es-UY', { hour:'2-digit', minute:'2-digit', timeZone:'America/Montevideo' });
+    return `<div style="background:#1a1a00;border:1px solid #333;border-radius:6px;padding:10px 14px;margin-bottom:6px;font-family:'Space Mono',monospace;font-size:12px;color:#ccc;">
+      ${hora} · ${s.centro || '—'} · ${s.proyecto_nombre || '—'}
+    </div>`;
+  }).join('');
+  ir('pantalla-huerfanas');
+}
+function _phContinuar() {
+  _phPendiente = false;
+  irAlMenu();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
