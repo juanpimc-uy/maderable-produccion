@@ -216,7 +216,7 @@ tr.anomalia-row:hover{background:#332222 !important;}
 @media print{
   html,body{height:auto !important;overflow:visible !important;background:#fff !important;color:#000 !important;}
   .shell{display:block !important;height:auto !important;overflow:visible !important;}
-  .sidebar,.tabs-bar,.ctrl-bar,.filter-bar,.export-bar,#btn-guardar-fijo,.btn-eliminar,.btn-add-ses{display:none !important;}
+  .sidebar,.tabs-bar,.ctrl-bar,.filter-bar,.export-bar,#btn-guardar-fijo,.btn-eliminar,.btn-add-ses,.btn-export{display:none !important;}
   .main,.content{height:auto !important;overflow:visible !important;}
   #reporte-result{height:auto !important;overflow:visible !important;page-break-inside:auto;}
   .rep-table{font-size:10px !important;page-break-inside:auto;}
@@ -327,6 +327,15 @@ table.ses-table tbody tr{cursor:pointer;transition:background .1s;}
 table.ses-table tbody tr:hover{background:rgba(255,255,255,.03);}
 table.ses-table tbody tr.add-row-tr{cursor:default;}
 table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
+/* ── Operario grid header ─────────────────────────────────────────── */
+.op-grid-labels,.op-grid-row{
+  display:grid;grid-template-columns:100px 55px 65px 65px 45px 60px 1fr 16px;
+  align-items:center;gap:0;font-family:'Space Mono',monospace;
+}
+.op-grid-labels{font-size:8px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;padding:0 12px 6px;border-bottom:1px solid var(--border);margin-bottom:4px;}
+.op-grid-labels span{padding:0 2px;}
+.op-grid-row{padding:10px 12px;cursor:pointer;border-radius:6px;transition:background .1s;border:1px solid transparent;margin-bottom:2px;}
+.op-grid-row:hover{background:rgba(255,255,255,.02);border-color:var(--border);}
 /* ── Semana matrix ─────────────────────────────────────────────────── */
 .sem-matrix{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;}
 .sem-matrix th{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:.5px;padding:6px 8px;border-bottom:1px solid var(--border);text-align:center;}
@@ -363,7 +372,7 @@ table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
     <button class="tab-btn active" onclick="_tTab('dia')">POR DÍA</button>
     <button class="tab-btn" onclick="_tTab('operario')">POR OPERARIO</button>
     <button class="tab-btn" onclick="_tTab('semana')">SEMANA</button>
-    <button class="tab-btn" onclick="_tTab('reporte')">REPORTE</button>
+    <button class="tab-btn" onclick="_tTab('reporte')">MENSUAL</button>
   </div>
 
   <!-- ── FILTER CHIPS ── -->
@@ -435,8 +444,9 @@ table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
       <button class="btn-load" onclick="_tGenerarReporte()">GENERAR</button>
     </div>
     <div class="export-bar">
-      <button class="btn-export" id="btn-export-pdf"   disabled onclick="_tExportPDF()">↓ EXPORTAR PDF</button>
-      <button class="btn-export" id="btn-export-excel" disabled onclick="_tExportExcel()">↓ EXPORTAR EXCEL</button>
+      <button class="btn-export" id="btn-export-csv-rep" disabled onclick="_tExportCSVMensual()">↓ CSV</button>
+      <button class="btn-export" id="btn-export-excel" disabled onclick="_tExportExcel()">↓ EXCEL</button>
+      <button class="btn-export" id="btn-export-pdf"   disabled onclick="_tExportPDF()">↓ PDF</button>
     </div>
     <div id="reporte-result"></div>
   </div>
@@ -449,8 +459,10 @@ table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
         <input type="date" id="sem-fecha" class="ctrl-select" style="font-family:'Space Mono',monospace;">
       </div>
       <button class="btn-load" onclick="_tCargarSemana()">CARGAR</button>
+      <button class="btn-export" id="btn-sem-csv" style="display:none;" onclick="_tExportSemCSV()">↓ CSV</button>
     </div>
     <div id="semana-result"></div>
+    <div id="semana-detalle" style="display:none;"></div>
   </div>
 
 </div><!-- /content -->
@@ -702,6 +714,11 @@ function _tTab(name) {
   });
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
+  // Restore semana matrix if switching back
+  if (name === 'semana') {
+    document.getElementById('semana-result').style.display = '';
+    document.getElementById('semana-detalle').style.display = 'none';
+  }
 }
 
 // ── Change tracking ───────────────────────────────────────────────────────
@@ -1607,9 +1624,19 @@ function _tRenderOperario(data) {
 <div class="mono" style="font-size:12px;color:var(--muted);margin-bottom:14px;">
   ${data.nombre.toUpperCase()}
 </div>
+<div class="op-grid-labels"><span>FECHA</span><span>HORAS</span><span>ENTRADA</span><span>SALIDA</span><span>DESC</span><span>TARDE</span><span>ESTADO</span><span></span></div>
 ${data.dias.map(dia => {
-  const hayActivo = dia.sesiones.some(s => s.estado === 'activo');
   const jornada   = dia.jornada;
+  const horasMin  = dia.horas_jornada_min != null ? dia.horas_jornada_min : dia.total_minutos;
+  const entHM     = _isoToHM(jornada.entrada) || '—';
+  const salHM     = _isoToHM(jornada.salida)  || '—';
+  const descMin   = jornada.descanso_minutos || 0;
+  const tardeMin  = dia.tardanza_min || 0;
+  const anomCount = dia.sesiones.filter(s => s.anomalia && s.anomalia_aprobada !== true && s.anomalia_aprobada !== false).length;
+  const estadoHtml = anomCount > 0
+    ? `<span style="font-size:9px;padding:2px 5px;border-radius:3px;background:#2a0000;color:#ff4444;border:1px solid #660000;">⚠ ${anomCount} ANOMALÍA${anomCount>1?'S':''}</span>`
+    : `<span style="color:#555;">—</span>`;
+
   const _dmO = data.descanso_modalidad;
   const _dmLabelO = _dmO === 'paga_30' ? '30 min pagos' : _dmO === 'no_paga_60' ? '60 min desc.' : null;
   const _tomoDescO = (_dmLabelO && _tUser?.rol_app === 'admin') ? `
@@ -1626,15 +1653,15 @@ ${data.dias.map(dia => {
       </div>` : '';
   return `
 <div class="day-card">
-  <div class="day-card-header" onclick="_tToggleDayCard(this)">
-    <div>
-      <span class="day-card-title">${fmtDate(dia.fecha)}</span>
-      <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-left:12px;">${fmtHM(dia.horas_jornada_min != null ? dia.horas_jornada_min : dia.total_minutos)}</span>
-      ${hayActivo ? '<span class="badge-activo" style="margin-left:8px;">ACTIVO</span>' : ''}
-      ${dia.tardanza_min > 0 ? `<span style="font-family:'Space Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.25);margin-left:6px;">${dia.tardanza_min}m tarde</span>` : ''}
-      ${(() => { const jm = dia.horas_jornada_min; const tm = dia.total_minutos; if (jm != null && Math.abs(jm - tm) > 15) { const sinClasif = Math.max(0, jm - tm); return `<span style="font-family:'Space Mono',monospace;font-size:9px;color:#f59e0b;margin-left:6px;">JORNADA: ${fmtHM(jm)} | TAREAS: ${fmtHM(tm)} | ⚠ ${sinClasif}m sin clasificar</span>`; } return ''; })()}
-    </div>
-    <span class="chevron">▼</span>
+  <div class="op-grid-row" onclick="_tToggleDayCard(this)">
+    <span style="font-weight:700;color:#ddd;font-size:11px;">${fmtDate(dia.fecha)}</span>
+    <span style="color:#FFD600;font-size:11px;">${fmtHM(horasMin)}</span>
+    <span style="color:#888;font-size:11px;">${entHM}</span>
+    <span style="color:#888;font-size:11px;">${salHM}</span>
+    <span style="color:#888;font-size:11px;">${descMin}m</span>
+    <span style="color:${tardeMin > 0 ? '#ff9800' : '#555'};font-size:11px;">${tardeMin > 0 ? tardeMin+'m' : '—'}</span>
+    <span>${estadoHtml}</span>
+    <span class="chevron" style="color:var(--muted);font-size:10px;">▼</span>
   </div>
   <div class="day-card-body">
     <div class="jornada-row">
@@ -1833,7 +1860,7 @@ function _tRenderSemana(data, lunes) {
       const salH = _isoToHM(j.salida) || '—';
       const flags = [tarde?'TARDE':'', anomalia?'ANOMALÍA':''].filter(Boolean).join(', ') || 'OK';
 
-      html += `<td class="${cls}">${horas}<div class="sem-tooltip">ENT ${entH} · SAL ${salH}<br>${flags}</div></td>`;
+      html += `<td class="${cls}" style="cursor:pointer;" onclick="_tSemDetalle('${empId}','${fecha}')">${horas}<div class="sem-tooltip">ENT ${entH} · SAL ${salH}<br>${flags}</div></td>`;
     });
 
     // Weekly extra detection
@@ -1849,6 +1876,93 @@ function _tRenderSemana(data, lunes) {
 
   html += '</tbody></table>';
   result.innerHTML = html;
+  const csvBtn = document.getElementById('btn-sem-csv');
+  if (csvBtn) csvBtn.style.display = '';
+}
+
+// ── Semana: detalle de un día ─────────────────────────────────────────────
+let _semSavedState = null;
+let _semLastData   = null;
+let _semLastLunes  = null;
+
+// Store data on each render for detail navigation
+const _origRenderSemana = _tRenderSemana;
+// Wrap: already stores via closure above
+
+async function _tSemDetalle(empId, fecha) {
+  // Save state to restore
+  _semSavedState = { lunes: document.getElementById('sem-fecha').value, filtroRol: _tFiltroRol };
+  const result  = document.getElementById('semana-result');
+  const detalle = document.getElementById('semana-detalle');
+  result.style.display  = 'none';
+  detalle.style.display = '';
+  detalle.innerHTML = '<span class="spinner"></span><span class="mono" style="color:var(--muted);font-size:12px;">Cargando…</span>';
+
+  try {
+    const res = await _tFetch(`/api/tiempos?action=sesiones-empleado&empleado_id=${empId}&desde=${fecha}&hasta=${fecha}&caller_id=${CALLER_ID}`);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Error');
+    const dia = (json.dias || [])[0];
+    if (!dia) { detalle.innerHTML = '<p class="empty-msg">Sin datos para este día.</p>'; return; }
+    const jornada = dia.jornada;
+    const horasMin = dia.horas_jornada_min != null ? dia.horas_jornada_min : dia.total_minutos;
+
+    detalle.innerHTML = `
+      <button class="btn-load" onclick="_tSemVolverMatriz()" style="margin-bottom:14px;">← VOLVER A SEMANA</button>
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:14px;">
+        <span class="mono" style="font-size:13px;font-weight:700;color:var(--text);">${(json.nombre||'').toUpperCase()}</span>
+        <span class="mono" style="font-size:12px;color:var(--muted);">${fmtDate(fecha)}</span>
+        <span class="mono" style="font-size:11px;color:#FFD600;">${fmtHM(horasMin)}</span>
+        <span class="mono" style="font-size:10px;color:#888;">ENT ${_isoToHM(jornada.entrada)||'—'} · SAL ${_isoToHM(jornada.salida)||'—'}</span>
+      </div>
+      <div class="jornada-row" style="margin-bottom:12px;">
+        <div class="jornada-field">
+          <span class="jornada-label">ENTRADA</span>
+          <input class="jornada-input" type="time" step="60" data-jid="${jornada.id}" value="${_isoToHM(jornada.entrada)}" onchange="_tJorField('${jornada.id}','entrada',this.value)">
+        </div>
+        <div class="jornada-field">
+          <span class="jornada-label">SALIDA</span>
+          <input class="jornada-input" type="time" step="60" data-jid="${jornada.id}" value="${_isoToHM(jornada.salida)}" onchange="_tJorField('${jornada.id}','salida',this.value)">
+        </div>
+        <div class="jornada-field">
+          <span class="jornada-label">DESCANSO (min)</span>
+          <input class="jornada-input" type="number" min="0" step="1" style="width:70px;" data-jid="${jornada.id}" value="${jornada.descanso_minutos||0}" onchange="_tJorField('${jornada.id}','descanso_minutos',this.value)">
+        </div>
+      </div>
+      ${_tSesionTable(dia.sesiones, jornada.id, json.nombre, empId, fecha)}
+    `;
+  } catch(e) {
+    detalle.innerHTML = `<p class="empty-msg">Error: ${e.message}</p>`;
+  }
+}
+
+function _tSemVolverMatriz() {
+  document.getElementById('semana-detalle').style.display = 'none';
+  document.getElementById('semana-result').style.display  = '';
+  if (_semSavedState) {
+    if (_semSavedState.filtroRol) _tSetFiltroRol(_semSavedState.filtroRol);
+  }
+}
+
+function _tExportSemCSV() {
+  // Export from the rendered matrix data
+  const table = document.querySelector('#semana-result .sem-matrix');
+  if (!table) return;
+  const rows = table.querySelectorAll('tbody tr');
+  const lunes = _semLunes(document.getElementById('sem-fecha').value);
+  const dias = [];
+  for (let i = 0; i < 5; i++) { const d = new Date(lunes+'T12:00:00'); d.setDate(d.getDate()+i); dias.push(d.toISOString().split('T')[0]); }
+  const sep = ';';
+  const lines = ['EMPLEADO;LUN;MAR;MIE;JUE;VIE;HS TOT'];
+  rows.forEach(tr => {
+    const cells = tr.querySelectorAll('td');
+    const vals = Array.from(cells).map(td => td.textContent.trim().split('\n')[0].trim());
+    lines.push(vals.join(sep));
+  });
+  const csv = lines.join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `semana-${lunes}.csv`; a.click();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1863,8 +1977,9 @@ async function _tGenerarReporte() {
   const result = document.getElementById('reporte-result');
   result.innerHTML = '<span class="spinner"></span><span class="mono" style="color:var(--muted);font-size:12px;">Generando…</span>';
   _tReportData = null;
-  document.getElementById('btn-export-excel').disabled = true;
-  document.getElementById('btn-export-pdf').disabled   = true;
+  document.getElementById('btn-export-excel').disabled   = true;
+  document.getElementById('btn-export-pdf').disabled     = true;
+  document.getElementById('btn-export-csv-rep').disabled = true;
 
   try {
     let url = `/api/tiempos?action=reporte-horas&desde=${desde}&hasta=${hasta}&caller_id=${CALLER_ID}`;
@@ -1874,8 +1989,9 @@ async function _tGenerarReporte() {
     if (!json.ok) throw new Error(json.error || 'Error');
     _tReportData = json;
     _tRenderReporte(json, anio, mes);
-    document.getElementById('btn-export-excel').disabled = false;
-    document.getElementById('btn-export-pdf').disabled   = false;
+    document.getElementById('btn-export-excel').disabled   = false;
+    document.getElementById('btn-export-pdf').disabled     = false;
+    document.getElementById('btn-export-csv-rep').disabled = false;
   } catch(e) {
     result.innerHTML = `<p class="empty-msg">Error: ${e.message}</p>`;
   }
@@ -1908,73 +2024,96 @@ function _tRenderReporte(data, anio, mes) {
     return;
   }
   _repSemExpanded = {};
+  _repEmpExpanded = {};
 
   const periodoLabel = `${String(mes).padStart(2,'0')}/${anio}`;
   const ph = document.getElementById('print-header');
   if (ph) ph.textContent = `MADERABLE \u2014 REPORTE DE HORAS \u2014 ${periodoLabel}`;
 
   let html = `
-<div class="mono" style="font-size:10px;color:var(--muted);margin-bottom:16px;letter-spacing:1px;">
+<div class="mono" style="font-size:10px;color:var(--muted);margin-bottom:12px;letter-spacing:1px;">
   PERÍODO ${periodoLabel} &nbsp;·&nbsp; ${data.desde} → ${data.hasta}
 </div>`;
 
   emps.forEach((emp, ei) => {
-    if (ei > 0) html += '<div style="height:20px;"></div>';
-    html += `<div class="mono" style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;">${emp.nombre}</div>`;
-    html += `<table class="rep-table">
+    if (ei > 0) html += '<div style="border-top:1px solid #1a1a1a;margin:4px 0;"></div>';
+    const rm = emp.resumen_mensual || {};
+    html += `<div class="mono" style="font-size:11px;font-weight:700;color:var(--text);padding:5px 8px;cursor:pointer;display:flex;align-items:center;gap:8px;" onclick="_tToggleRepEmp(${ei})">
+      <span id="rep-emp-chev-${ei}" style="font-size:9px;color:var(--muted);">▾</span>
+      ${emp.nombre}
+      <span style="font-size:10px;color:#FFD600;font-weight:400;margin-left:auto;">${fmtHM(rm.total_horas_min || emp.total_minutos)}</span>
+    </div>`;
+    html += `<div id="rep-emp-body-${ei}">`;
+    html += `<table class="rep-table" style="font-size:11px;">
 <thead><tr>
-  <th></th><th>SEMANA</th>
-  <th>HORAS NETAS</th><th>EXTRAS</th><th>TARDE</th><th>AUSENCIAS</th>
+  <th style="padding:4px 10px;"></th><th style="padding:4px 10px;">SEMANA</th>
+  <th style="padding:4px 10px;">HORAS NETAS</th><th style="padding:4px 10px;">EXTRAS</th><th style="padding:4px 10px;">TARDE</th><th style="padding:4px 10px;">AUSENCIAS</th>
 </tr></thead><tbody>`;
 
     emp.semanas.forEach((s, si) => {
       const key = `${ei}-${si}`;
       html += `<tr style="cursor:pointer;" onclick="_tToggleRepSem('${key}')">
-        <td class="mono" style="font-size:10px;color:var(--muted);width:14px;" id="rep-chev-${key}">▾</td>
-        <td class="mono" style="font-size:11px;color:var(--muted);">${fmtDate(s.semana_inicio)}–${fmtDate(s.semana_fin)}</td>
-        <td class="mono">${fmtHM(s.horas_netas_min)}</td>
-        <td>${s.extras_minutos > 0 ? `<span class="extras-pos">${fmtHM(s.extras_minutos)}</span>` : '—'}</td>
-        <td class="mono">${s.minutos_tarde_semana > 0 ? s.minutos_tarde_semana + 'm' : '—'}</td>
-        <td class="mono">${s.ausencias > 0 ? s.ausencias : '—'}</td>
+        <td class="mono" style="font-size:9px;color:var(--muted);width:14px;padding:4px 10px;" id="rep-chev-${key}">▾</td>
+        <td class="mono" style="font-size:10px;color:var(--muted);padding:4px 10px;">${fmtDate(s.semana_inicio)}–${fmtDate(s.semana_fin)}</td>
+        <td class="mono" style="padding:4px 10px;">${fmtHM(s.horas_netas_min)}</td>
+        <td style="padding:4px 10px;">${s.extras_minutos > 0 ? `<span class="extras-pos">${fmtHM(s.extras_minutos)}</span>` : '—'}</td>
+        <td class="mono" style="padding:4px 10px;">${s.minutos_tarde_semana > 0 ? s.minutos_tarde_semana + 'm' : '—'}</td>
+        <td class="mono" style="padding:4px 10px;">${s.ausencias > 0 ? s.ausencias : '—'}</td>
       </tr>`;
       // Detalle diario (colapsado por defecto)
       html += `<tr id="rep-det-${key}" style="display:none;"><td colspan="6" style="padding:0;">
-        <table style="width:100%;border-collapse:collapse;background:#161616;">
+        <table style="width:100%;border-collapse:collapse;background:#161616;font-size:10px;">
           <thead><tr>
-            <th style="text-align:left;font-size:8px;color:var(--muted);padding:4px 12px;">FECHA</th>
-            <th style="text-align:left;font-size:8px;color:var(--muted);padding:4px 6px;">ENTRADA</th>
-            <th style="text-align:left;font-size:8px;color:var(--muted);padding:4px 6px;">SALIDA</th>
-            <th style="text-align:left;font-size:8px;color:var(--muted);padding:4px 6px;">TARDE</th>
-            <th style="text-align:center;font-size:8px;color:var(--muted);padding:4px 6px;">AUSENTE</th>
-            <th style="text-align:right;font-size:8px;color:var(--muted);padding:4px 12px;">EXTRAS DÍA</th>
+            <th style="text-align:left;font-size:8px;color:var(--muted);padding:3px 10px;">FECHA</th>
+            <th style="text-align:left;font-size:8px;color:var(--muted);padding:3px 6px;">HORAS</th>
+            <th style="text-align:left;font-size:8px;color:var(--muted);padding:3px 6px;">ENTRADA</th>
+            <th style="text-align:left;font-size:8px;color:var(--muted);padding:3px 6px;">SALIDA</th>
+            <th style="text-align:left;font-size:8px;color:var(--muted);padding:3px 6px;">TARDE</th>
+            <th style="text-align:center;font-size:8px;color:var(--muted);padding:3px 6px;">EXTRAS</th>
           </tr></thead><tbody>`;
       (s.dias || []).forEach(d => {
-        html += `<tr style="font-size:10px;border-bottom:1px solid #1e1e1e;">
-          <td style="padding:3px 12px;" class="mono">${fmtDate(d.fecha)}</td>
-          <td style="padding:3px 6px;" class="mono">${d.ausente ? '—' : (d.entrada || '—')}</td>
-          <td style="padding:3px 6px;" class="mono">${d.ausente ? '—' : (d.salida || '—')}</td>
-          <td style="padding:3px 6px;" class="mono">${d.tarde_min > 0 ? d.tarde_min + 'm' : '—'}</td>
-          <td style="padding:3px 6px;text-align:center;">${d.ausente ? '<span style="color:var(--red);">✗</span>' : ''}</td>
-          <td style="padding:3px 12px;text-align:right;" class="mono">${d.extras_dia_min > 0 ? fmtHM(d.extras_dia_min) : '—'}</td>
-        </tr>`;
+        if (d.ausente) {
+          html += `<tr style="font-size:10px;border-bottom:1px solid #1e1e1e;">
+            <td style="padding:3px 10px;" class="mono">${fmtDate(d.fecha)}</td>
+            <td colspan="4" style="padding:3px 6px;color:var(--red);" class="mono">AUSENTE</td>
+            <td style="padding:3px 6px;text-align:center;">—</td>
+          </tr>`;
+        } else {
+          html += `<tr style="font-size:10px;border-bottom:1px solid #1e1e1e;">
+            <td style="padding:3px 10px;" class="mono">${fmtDate(d.fecha)}</td>
+            <td style="padding:3px 6px;" class="mono">${fmtHM(d.horas_min)}</td>
+            <td style="padding:3px 6px;" class="mono">${d.entrada || '—'}</td>
+            <td style="padding:3px 6px;" class="mono">${d.salida || '—'}</td>
+            <td style="padding:3px 6px;" class="mono">${d.tarde_min > 0 ? d.tarde_min + 'm' : '—'}</td>
+            <td style="padding:3px 6px;text-align:center;" class="mono">${d.extras_dia_min > 0 ? fmtHM(d.extras_dia_min) : '—'}</td>
+          </tr>`;
+        }
       });
       html += `</tbody></table></td></tr>`;
     });
 
-    const rm = emp.resumen_mensual || {};
     html += `<tr class="rep-total">
-      <td></td>
-      <td class="mono" style="color:var(--muted);">TOTAL</td>
-      <td class="mono">${fmtHM(rm.total_horas_min || emp.total_minutos)}</td>
-      <td>${(rm.total_extras_min || emp.total_extras_minutos) > 0 ? `<span class="extras-pos">${fmtHM(rm.total_extras_min || emp.total_extras_minutos)}</span>` : '—'}</td>
-      <td class="mono">${(rm.total_minutos_tarde || 0) > 0 ? rm.total_minutos_tarde + 'm' : '—'}</td>
-      <td class="mono">${(rm.total_ausencias || 0) > 0 ? rm.total_ausencias : '—'}</td>
+      <td style="padding:4px 10px;"></td>
+      <td class="mono" style="color:var(--muted);padding:4px 10px;">TOTAL</td>
+      <td class="mono" style="padding:4px 10px;">${fmtHM(rm.total_horas_min || emp.total_minutos)}</td>
+      <td style="padding:4px 10px;">${(rm.total_extras_min || emp.total_extras_minutos) > 0 ? `<span class="extras-pos">${fmtHM(rm.total_extras_min || emp.total_extras_minutos)}</span>` : '—'}</td>
+      <td class="mono" style="padding:4px 10px;">${(rm.total_minutos_tarde || 0) > 0 ? rm.total_minutos_tarde + 'm' : '—'}</td>
+      <td class="mono" style="padding:4px 10px;">${(rm.total_ausencias || 0) > 0 ? rm.total_ausencias : '—'}</td>
     </tr>`;
 
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
   });
 
   result.innerHTML = html;
+}
+
+let _repEmpExpanded = {};
+function _tToggleRepEmp(ei) {
+  _repEmpExpanded[ei] = !(_repEmpExpanded[ei] ?? true);
+  const body = document.getElementById('rep-emp-body-' + ei);
+  const chev = document.getElementById('rep-emp-chev-' + ei);
+  if (body) body.style.display = _repEmpExpanded[ei] ? '' : 'none';
+  if (chev) chev.textContent = _repEmpExpanded[ei] ? '▾' : '▸';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1985,14 +2124,12 @@ function _tExportExcel() {
   const mes  = String(document.getElementById('rep-mes').value).padStart(2,'0');
   const anio = document.getElementById('rep-anio').value;
   const sep = ';';
-  const lines = ['Empleado;Semana desde;Semana hasta;Entrada;Salida;Descanso (min);Horas netas (h);Extras (h);Tarde (min);Ausencias'];
+  const lines = ['EMPLEADO;SEMANA DESDE;SEMANA HASTA;HORAS NETAS (h);EXTRAS (h);TARDE (min);AUSENCIAS'];
   const emps = (_tReportData.empleados || []).filter(emp => _tPassFiltro({ rol_app: emp._rol_app || '' }));
   emps.forEach(emp => {
     emp.semanas.forEach(s => {
       lines.push([
         emp.nombre, s.semana_inicio, s.semana_fin,
-        _fmtTimeLocal(s.entrada), _fmtTimeLocal(s.salida),
-        s.descanso_total_min || 0,
         +(s.horas_netas_min / 60).toFixed(2),
         +(s.extras_minutos / 60).toFixed(2),
         s.minutos_tarde_semana || 0,
@@ -2002,7 +2139,6 @@ function _tExportExcel() {
     const rm = emp.resumen_mensual || {};
     lines.push([
       emp.nombre, 'TOTAL', '',
-      '', '', '',
       +((rm.total_horas_min || emp.total_minutos) / 60).toFixed(2),
       +((rm.total_extras_min || emp.total_extras_minutos) / 60).toFixed(2),
       rm.total_minutos_tarde || 0,
@@ -2013,7 +2149,7 @@ function _tExportExcel() {
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `reporte-horas-${anio}-${mes}.csv`;
+  a.download = `mensual-${anio}-${mes}.xlsx.csv`;
   a.click();
 }
 
@@ -2025,14 +2161,17 @@ function _tExportPDF() {
 function _tExportOpCSV() {
   if (!_tOpData || !_tOpData.dias) return;
   const sep = ';';
-  const lines = ['Fecha;Entrada;Salida;Descanso (min);Horas netas (h);Tarde (min);Ausente'];
+  const lines = ['FECHA;ENTRADA;SALIDA;DESCANSO;HORAS NETAS;TARDE;ANOMALIAS'];
   _tOpData.dias.forEach(d => {
     const ent = d.jornada?.entrada ? _fmtTimeLocal(d.jornada.entrada) : '—';
     const sal = d.jornada?.salida  ? _fmtTimeLocal(d.jornada.salida)  : '—';
-    const desc = d.jornada?.descanso_minutos || 0;
-    const horas = +(d.total_minutos / 60).toFixed(2);
-    const tarde = d.tardanza_min || 0;
-    lines.push([d.fecha, ent, sal, desc, horas, tarde, ''].join(sep));
+    const desc = (d.jornada?.descanso_minutos || 0) + 'm';
+    const horasMin = d.horas_jornada_min != null ? d.horas_jornada_min : d.total_minutos;
+    const horas = fmtHM(horasMin);
+    const tarde = d.tardanza_min > 0 ? d.tardanza_min + 'm' : '—';
+    const anomCount = (d.sesiones || []).filter(s => s.anomalia && s.anomalia_aprobada !== true && s.anomalia_aprobada !== false).length;
+    const anom = anomCount > 0 ? anomCount : '—';
+    lines.push([d.fecha, ent, sal, desc, horas, tarde, anom].join(sep));
   });
   const csv = lines.join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
@@ -2041,8 +2180,41 @@ function _tExportOpCSV() {
   const hasta = document.getElementById('op-hasta').value;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `horas-${nombre}-${desde}-${hasta}.csv`;
+  a.download = `operario-${nombre}-${desde}-${hasta}.csv`;
   a.click();
+}
+
+function _tExportCSVMensual() {
+  if (!_tReportData) return;
+  const mes  = String(document.getElementById('rep-mes').value).padStart(2,'0');
+  const anio = document.getElementById('rep-anio').value;
+  const sep = ';';
+  const lines = ['EMPLEADO;SEMANA;HORAS NETAS;EXTRAS;TARDE;AUSENCIAS'];
+  const emps = (_tReportData.empleados || []).filter(emp => _tPassFiltro({ rol_app: emp._rol_app || '' }));
+  emps.forEach(emp => {
+    emp.semanas.forEach(s => {
+      lines.push([
+        emp.nombre,
+        fmtDate(s.semana_inicio) + '–' + fmtDate(s.semana_fin),
+        fmtHM(s.horas_netas_min),
+        s.extras_minutos > 0 ? fmtHM(s.extras_minutos) : '—',
+        s.minutos_tarde_semana > 0 ? s.minutos_tarde_semana + 'm' : '—',
+        s.ausencias > 0 ? s.ausencias : '—',
+      ].join(sep));
+    });
+    const rm = emp.resumen_mensual || {};
+    lines.push([
+      emp.nombre, 'TOTAL',
+      fmtHM(rm.total_horas_min || emp.total_minutos),
+      (rm.total_extras_min || 0) > 0 ? fmtHM(rm.total_extras_min) : '—',
+      (rm.total_minutos_tarde || 0) > 0 ? rm.total_minutos_tarde + 'm' : '—',
+      (rm.total_ausencias || 0) > 0 ? rm.total_ausencias : '—',
+    ].join(sep));
+  });
+  const csv = lines.join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `mensual-${anio}-${mes}.csv`; a.click();
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
