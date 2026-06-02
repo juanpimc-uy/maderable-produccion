@@ -6,6 +6,7 @@
 <link rel="icon" href="data:,">
 <script src="/js/supabase-config.js"></script>
 <script src="/js/auth.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <title>Maderable · Tiempos</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -219,6 +220,9 @@ tr.anomalia-row:hover{background:#332222 !important;}
   .sidebar,.tabs-bar,.ctrl-bar,.filter-bar,.export-bar,#btn-guardar-fijo,.btn-eliminar,.btn-add-ses,.btn-export{display:none !important;}
   .main,.content{height:auto !important;overflow:visible !important;}
   #reporte-result{height:auto !important;overflow:visible !important;page-break-inside:auto;}
+  .rep-emp-block{border-top:2px solid #ccc;margin-top:20px;padding-top:10px;page-break-inside:avoid;}
+  .rep-emp-block:first-child{border-top:none;margin-top:0;}
+  .rep-emp-name{margin-bottom:4px;}
   .rep-table{font-size:10px !important;page-break-inside:auto;}
   .rep-table tr{page-break-inside:avoid;}
   .rep-table th,.rep-table td{color:#000 !important;border-color:#ccc !important;}
@@ -345,10 +349,9 @@ table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
 .sem-matrix td.sem-total{font-weight:700;color:var(--text);}
 .sem-c-none{background:#111;color:#555;}
 .sem-c-ok{background:rgba(61,214,140,.08);color:var(--green);}
-.sem-c-tarde{background:rgba(240,92,92,.08);color:var(--red);}
+.sem-c-tarde{background:#1f1000;color:#ff9800;}
 .sem-c-extra{background:rgba(255,214,0,.08);color:var(--accent);}
-.sem-c-tarde-extra{background:rgba(245,158,11,.1);color:#f59e0b;}
-.sem-c-anomalia{background:rgba(240,92,92,.05);color:var(--red);border:1px dashed rgba(240,92,92,.4);}
+.sem-c-anomalia{background:#1f0000;color:#ff4444;border:1px dashed #8a0000;font-weight:700;}
 .sem-leyenda{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;font-family:'Space Mono',monospace;font-size:9px;}
 .sem-leyenda-item{display:flex;align-items:center;gap:4px;}
 .sem-leyenda-box{width:14px;height:14px;border-radius:2px;}
@@ -1860,7 +1863,8 @@ function _tRenderSemana(data, lunes) {
       const salH = _isoToHM(j.salida) || '—';
       const flags = [tarde?'TARDE':'', anomalia?'ANOMALÍA':''].filter(Boolean).join(', ') || 'OK';
 
-      html += `<td class="${cls}" style="cursor:pointer;" onclick="_tSemDetalle('${empId}','${fecha}')">${horas}<div class="sem-tooltip">ENT ${entH} · SAL ${salH}<br>${flags}</div></td>`;
+      const cellText = anomalia ? '⚠ ' + horas : horas;
+      html += `<td class="${cls}" style="cursor:pointer;" onclick="_tSemDetalle('${empId}','${fecha}')">${cellText}<div class="sem-tooltip">ENT ${entH} · SAL ${salH}<br>${flags}</div></td>`;
     });
 
     // Weekly extra detection
@@ -1945,24 +1949,25 @@ function _tSemVolverMatriz() {
 }
 
 function _tExportSemCSV() {
-  // Export from the rendered matrix data
   const table = document.querySelector('#semana-result .sem-matrix');
   if (!table) return;
-  const rows = table.querySelectorAll('tbody tr');
   const lunes = _semLunes(document.getElementById('sem-fecha').value);
-  const dias = [];
-  for (let i = 0; i < 5; i++) { const d = new Date(lunes+'T12:00:00'); d.setDate(d.getDate()+i); dias.push(d.toISOString().split('T')[0]); }
-  const sep = ';';
-  const lines = ['EMPLEADO;LUN;MAR;MIE;JUE;VIE;HS TOT'];
-  rows.forEach(tr => {
-    const cells = tr.querySelectorAll('td');
-    const vals = Array.from(cells).map(td => td.textContent.trim().split('\n')[0].trim());
-    lines.push(vals.join(sep));
+  const filas = [['EMPLEADO','LUN','MAR','MIÉ','JUE','VIE','HS TOT']];
+  table.querySelectorAll('tbody tr').forEach(tr => {
+    const vals = Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim().split('\n')[0].trim());
+    filas.push(vals);
   });
-  const csv = lines.join('\n');
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `semana-${lunes}.csv`; a.click();
+  if (typeof XLSX !== 'undefined') {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(filas);
+    XLSX.utils.book_append_sheet(wb, ws, 'Semana');
+    XLSX.writeFile(wb, `semana-${lunes}.xlsx`);
+  } else {
+    const csv = filas.map(r => r.join(';')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `semana-${lunes}.csv`; a.click();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2036,9 +2041,9 @@ function _tRenderReporte(data, anio, mes) {
 </div>`;
 
   emps.forEach((emp, ei) => {
-    if (ei > 0) html += '<div style="border-top:1px solid #1a1a1a;margin:4px 0;"></div>';
     const rm = emp.resumen_mensual || {};
-    html += `<div class="mono" style="font-size:11px;font-weight:700;color:var(--text);padding:5px 8px;cursor:pointer;display:flex;align-items:center;gap:8px;" onclick="_tToggleRepEmp(${ei})">
+    html += `<div class="rep-emp-block">`;
+    html += `<div class="rep-emp-name mono" style="font-size:11px;font-weight:700;color:var(--text);padding:5px 8px;cursor:pointer;display:flex;align-items:center;gap:8px;" onclick="_tToggleRepEmp(${ei})">
       <span id="rep-emp-chev-${ei}" style="font-size:9px;color:var(--muted);">▾</span>
       ${emp.nombre}
       <span style="font-size:10px;color:#FFD600;font-weight:400;margin-left:auto;">${fmtHM(rm.total_horas_min || emp.total_minutos)}</span>
@@ -2101,7 +2106,7 @@ function _tRenderReporte(data, anio, mes) {
       <td class="mono" style="padding:4px 10px;">${(rm.total_ausencias || 0) > 0 ? rm.total_ausencias : '—'}</td>
     </tr>`;
 
-    html += '</tbody></table></div>';
+    html += '</tbody></table></div></div>';
   });
 
   result.innerHTML = html;
@@ -2123,34 +2128,38 @@ function _tExportExcel() {
   if (!_tReportData) return;
   const mes  = String(document.getElementById('rep-mes').value).padStart(2,'0');
   const anio = document.getElementById('rep-anio').value;
-  const sep = ';';
-  const lines = ['EMPLEADO;SEMANA DESDE;SEMANA HASTA;HORAS NETAS (h);EXTRAS (h);TARDE (min);AUSENCIAS'];
+  const filas = [['EMPLEADO','SEMANA DESDE','SEMANA HASTA','HORAS NETAS (h)','EXTRAS (h)','TARDE (min)','AUSENCIAS']];
   const emps = (_tReportData.empleados || []).filter(emp => _tPassFiltro({ rol_app: emp._rol_app || '' }));
   emps.forEach(emp => {
     emp.semanas.forEach(s => {
-      lines.push([
+      filas.push([
         emp.nombre, s.semana_inicio, s.semana_fin,
         +(s.horas_netas_min / 60).toFixed(2),
         +(s.extras_minutos / 60).toFixed(2),
         s.minutos_tarde_semana || 0,
         s.ausencias || 0,
-      ].join(sep));
+      ]);
     });
     const rm = emp.resumen_mensual || {};
-    lines.push([
+    filas.push([
       emp.nombre, 'TOTAL', '',
       +((rm.total_horas_min || emp.total_minutos) / 60).toFixed(2),
       +((rm.total_extras_min || emp.total_extras_minutos) / 60).toFixed(2),
       rm.total_minutos_tarde || 0,
       rm.total_ausencias || 0,
-    ].join(sep));
+    ]);
   });
-  const csv = lines.join('\n');
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `mensual-${anio}-${mes}.xlsx.csv`;
-  a.click();
+  if (typeof XLSX !== 'undefined') {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(filas);
+    XLSX.utils.book_append_sheet(wb, ws, 'Horas');
+    XLSX.writeFile(wb, `mensual-${anio}-${mes}.xlsx`);
+  } else {
+    const csv = filas.map(r => r.join(';')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `mensual-${anio}-${mes}.csv`; a.click();
+  }
 }
 
 function _tExportPDF() {
@@ -2160,8 +2169,7 @@ function _tExportPDF() {
 
 function _tExportOpCSV() {
   if (!_tOpData || !_tOpData.dias) return;
-  const sep = ';';
-  const lines = ['FECHA;ENTRADA;SALIDA;DESCANSO;HORAS NETAS;TARDE;ANOMALIAS'];
+  const filas = [['FECHA','ENTRADA','SALIDA','DESCANSO','HORAS NETAS','TARDE','ANOMALÍAS']];
   _tOpData.dias.forEach(d => {
     const ent = d.jornada?.entrada ? _fmtTimeLocal(d.jornada.entrada) : '—';
     const sal = d.jornada?.salida  ? _fmtTimeLocal(d.jornada.salida)  : '—';
@@ -2171,17 +2179,22 @@ function _tExportOpCSV() {
     const tarde = d.tardanza_min > 0 ? d.tardanza_min + 'm' : '—';
     const anomCount = (d.sesiones || []).filter(s => s.anomalia && s.anomalia_aprobada !== true && s.anomalia_aprobada !== false).length;
     const anom = anomCount > 0 ? anomCount : '—';
-    lines.push([d.fecha, ent, sal, desc, horas, tarde, anom].join(sep));
+    filas.push([d.fecha, ent, sal, desc, horas, tarde, anom]);
   });
-  const csv = lines.join('\n');
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
   const nombre = (_tOpData.nombre || 'empleado').replace(/\s+/g, '-').toLowerCase();
   const desde = document.getElementById('op-desde').value;
   const hasta = document.getElementById('op-hasta').value;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `operario-${nombre}-${desde}-${hasta}.csv`;
-  a.click();
+  if (typeof XLSX !== 'undefined') {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(filas);
+    XLSX.utils.book_append_sheet(wb, ws, 'Operario');
+    XLSX.writeFile(wb, `operario-${nombre}-${desde}-${hasta}.xlsx`);
+  } else {
+    const csv = filas.map(r => r.join(';')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `operario-${nombre}-${desde}-${hasta}.csv`; a.click();
+  }
 }
 
 function _tExportCSVMensual() {
