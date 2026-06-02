@@ -3735,6 +3735,12 @@ export default async function handler(req) {
           const raw = regsMapSD[j.id] || [];
           const tomoDescanso = j.tomo_descanso ?? true;
           const { sesiones, total_minutos } = _procesarSesiones(raw, ahoraSD, emp.descanso_modalidad, tomoDescanso);
+          // horas_jornada_min: salida - entrada - descanso (jornada como fuente de verdad)
+          let horas_jornada_min = null;
+          if (j.entrada && j.salida) {
+            const diffMs = new Date(j.salida) - new Date(j.entrada);
+            horas_jornada_min = Math.max(0, Math.round(diffMs / 60000) - (j.descanso_minutos || 0));
+          }
           return {
             empleado_id:        j.empleado_id,
             nombre:             emp.nombre || '',
@@ -3743,6 +3749,7 @@ export default async function handler(req) {
             jornada:            { id: j.id, entrada: j.entrada, salida: j.salida, descanso_minutos: j.descanso_minutos, tomo_descanso: tomoDescanso },
             sesiones,
             total_minutos,
+            horas_jornada_min,
           };
         }),
       });
@@ -3832,11 +3839,18 @@ export default async function handler(req) {
           const tomoDescanso = j.tomo_descanso ?? true;
           const { sesiones, total_minutos } = _procesarSesiones(raw, ahoraSE, empDescansoModalidadSE, tomoDescanso);
           const tardanza_min = _tardanzaMin(j.entrada, empHorarioEntradaSE);
+          // horas_jornada_min: salida - entrada - descanso (jornada como fuente de verdad)
+          let horas_jornada_min = null;
+          if (j.entrada && j.salida) {
+            const diffMs = new Date(j.salida) - new Date(j.entrada);
+            horas_jornada_min = Math.max(0, Math.round(diffMs / 60000) - (j.descanso_minutos || 0));
+          }
           return {
             fecha:         j.fecha,
             jornada:       { id: j.id, entrada: j.entrada, salida: j.salida, descanso_minutos: j.descanso_minutos, tomo_descanso: tomoDescanso },
             sesiones,
             total_minutos,
+            horas_jornada_min,
             tardanza_min,
           };
         }),
@@ -3891,16 +3905,8 @@ export default async function handler(req) {
 
       const empleadoIdsRH = empleadosRH.map(e => e.id);
 
-      // Fetch registros + jornadas en paralelo
-      const [{ data: registrosRH, error: rRHErr }, { data: jornadasRH, error: jRHErr }, { data: empsFullRH, error: efRHErr }] = await Promise.all([
-        supabase.from('registros_trabajo')
-          .select('id, empleado_id, inicio, fin, estado, anomalia, anomalia_aprobada')
-          .in('empleado_id', empleadoIdsRH)
-          .in('estado', ['finalizado', 'activo', 'pausado'])
-          .eq('eliminada', false)
-          .gte('inicio', desde + 'T00:00:00.000Z')
-          .lte('inicio', hasta + 'T23:59:59.999Z')
-          .order('inicio', { ascending: true }),
+      // Fetch jornadas + empleados (no registros_trabajo — jornadas son fuente de verdad)
+      const [{ data: jornadasRH, error: jRHErr }, { data: empsFullRH, error: efRHErr }] = await Promise.all([
         supabase.from('jornadas')
           .select('id, empleado_id, fecha, entrada, salida, descanso_minutos, tomo_descanso')
           .in('empleado_id', empleadoIdsRH)
@@ -3911,7 +3917,6 @@ export default async function handler(req) {
           .select('id, rol_app, descanso_modalidad, horario_entrada')
           .in('id', empleadoIdsRH),
       ]);
-      if (rRHErr) throw rRHErr;
       if (jRHErr) throw jRHErr;
       if (efRHErr) throw efRHErr;
 
@@ -3939,42 +3944,29 @@ export default async function handler(req) {
         return count;
       }
 
-      // Agrupar por empleado
-      const regsPorEmpRH = {};
-      (registrosRH || []).forEach(r => {
-        if (!regsPorEmpRH[r.empleado_id]) regsPorEmpRH[r.empleado_id] = [];
-        regsPorEmpRH[r.empleado_id].push(r);
-      });
+      // Agrupar jornadas por empleado
       const jorsPorEmpRH = {};
       (jornadasRH || []).forEach(j => {
         if (!jorsPorEmpRH[j.empleado_id]) jorsPorEmpRH[j.empleado_id] = [];
         jorsPorEmpRH[j.empleado_id].push(j);
       });
 
-      const ahoraRH = new Date();
-
       return ok({
         ok: true, desde, hasta,
         empleados: empleadosRH.map(emp => {
-          const regs = regsPorEmpRH[emp.id] || [];
           const jors = jorsPorEmpRH[emp.id] || [];
           const empFull = empFullMap[emp.id] || {};
           const esOperario = empFull.rol_app === 'operario';
           const horarioEntrada = empFull.horario_entrada || (esOperario ? '07:30' : '09:00');
 
-          // Agrupar jornadas y registros por semana
-          const semanasMap = {}; // monday → { regs:[], jors:[], fechasConJornada: Set }
+          // Agrupar jornadas por semana
+          const semanasMap = {}; // monday → { jors:[], fechasConJornada: Set }
 
           jors.forEach(j => {
             const monday = _rhIsoMonday(j.fecha);
-            if (!semanasMap[monday]) semanasMap[monday] = { regs: [], jors: [], fechasConJornada: new Set() };
+            if (!semanasMap[monday]) semanasMap[monday] = { jors: [], fechasConJornada: new Set() };
             semanasMap[monday].jors.push(j);
             semanasMap[monday].fechasConJornada.add(j.fecha);
-          });
-          regs.forEach(r => {
-            const monday = _rhIsoMonday(new Date(r.inicio).toISOString().split('T')[0]);
-            if (!semanasMap[monday]) semanasMap[monday] = { regs: [], jors: [], fechasConJornada: new Set() };
-            semanasMap[monday].regs.push(r);
           });
 
           // Helper: generar lista de fechas hábiles en un rango
@@ -3995,14 +3987,6 @@ export default async function handler(req) {
             const jorByFecha = {};
             sw.jors.forEach(j => { jorByFecha[j.fecha] = j; });
 
-            // Registros agrupados por jornada_id
-            const regsByJor = {};
-            sw.regs.forEach(r => {
-              const jid = r.jornada_id || '_none';
-              if (!regsByJor[jid]) regsByJor[jid] = [];
-              regsByJor[jid].push(r);
-            });
-
             // Generar detalle diario
             const fechasHabiles = _rhFechasHabiles(monday, sunday, desde, hasta);
             let entradaMin = null, salidaMax = null;
@@ -4019,10 +4003,12 @@ export default async function handler(req) {
               descansoTotalMin += j.descanso_minutos || 0;
               if (j.entrada) { const e = new Date(j.entrada); if (!entradaMin || e < entradaMin) entradaMin = e; }
               if (j.salida)  { const s = new Date(j.salida);  if (!salidaMax  || s > salidaMax)  salidaMax  = s; }
-              // Horas netas del día
-              const jRegs = regsByJor[j.id] || [];
-              const tomoDescanso = j.tomo_descanso ?? true;
-              const { total_minutos: diaMin } = _procesarSesiones(jRegs, ahoraRH, empFull.descanso_modalidad, tomoDescanso);
+              // Horas netas del día: salida - entrada - descanso (jornada como fuente de verdad)
+              let diaMin = 0;
+              if (j.entrada && j.salida) {
+                const diffMs = new Date(j.salida) - new Date(j.entrada);
+                diaMin = Math.max(0, Math.round(diffMs / 60000) - (j.descanso_minutos || 0));
+              }
               horasNetasMin += diaMin;
               const extrasDia = esOperario ? Math.max(0, diaMin - 9*60) : 0;
               return { fecha, ausente: false, entrada: entradaHM, salida: salidaHM, tarde_min: tardeMin, horas_min: diaMin, extras_dia_min: extrasDia };

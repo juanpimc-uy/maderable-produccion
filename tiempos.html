@@ -214,12 +214,14 @@ tr.anomalia-row:hover{background:#332222 !important;}
 .descuento-info{font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-top:1px;}
 /* ── Print ──────────────────────────────────────────────────────── */
 @media print{
-  body{background:#fff !important;color:#000 !important;}
-  .shell{display:block !important;}
+  html,body{height:auto !important;overflow:visible !important;background:#fff !important;color:#000 !important;}
+  .shell{display:block !important;height:auto !important;overflow:visible !important;}
   .sidebar,.tabs-bar,.ctrl-bar,.filter-bar,.export-bar,#btn-guardar-fijo,.btn-eliminar,.btn-add-ses{display:none !important;}
-  .main,.content{overflow:visible !important;}
+  .main,.content{height:auto !important;overflow:visible !important;}
+  #reporte-result{height:auto !important;overflow:visible !important;page-break-inside:auto;}
+  .rep-table{font-size:10px !important;page-break-inside:auto;}
+  .rep-table tr{page-break-inside:avoid;}
   .rep-table th,.rep-table td{color:#000 !important;border-color:#ccc !important;}
-  .rep-table{font-size:10px !important;}
   .rep-total td{background:#eee !important;}
   .extras-pos{color:#c00 !important;}
   #print-header{display:block !important;}
@@ -1513,7 +1515,8 @@ function _tRenderDia(data) {
     <div>
       <div class="emp-card-title">${emp.nombre}</div>
       <div style="font-family:'Space Mono',monospace;font-size:9px;color:#666;margin-top:2px;">ENT ${_isoToHM(jornada.entrada)||'—'} · SAL ${_isoToHM(jornada.salida)||'—'} · DESC ${jornada.descanso_minutos ? jornada.descanso_minutos+'m' : '—'}</div>
-      <div class="emp-card-meta">${fmtHM(emp.total_minutos)}</div>
+      <div class="emp-card-meta">${fmtHM(emp.horas_jornada_min != null ? emp.horas_jornada_min : emp.total_minutos)}</div>
+      ${(() => { const jm = emp.horas_jornada_min; const tm = emp.total_minutos; if (jm != null && Math.abs(jm - tm) > 15) { const sinClasif = Math.max(0, jm - tm); return `<div style="font-family:'Space Mono',monospace;font-size:9px;color:#f59e0b;margin-top:2px;">JORNADA: ${fmtHM(jm)} | TAREAS: ${fmtHM(tm)} | ⚠ ${sinClasif}m sin clasificar</div>`; } return ''; })()}
     </div>
     <div class="emp-card-right">${badge}<span class="chevron">▼</span></div>
   </div>
@@ -1626,9 +1629,10 @@ ${data.dias.map(dia => {
   <div class="day-card-header" onclick="_tToggleDayCard(this)">
     <div>
       <span class="day-card-title">${fmtDate(dia.fecha)}</span>
-      <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-left:12px;">${fmtHM(dia.total_minutos)}</span>
+      <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-left:12px;">${fmtHM(dia.horas_jornada_min != null ? dia.horas_jornada_min : dia.total_minutos)}</span>
       ${hayActivo ? '<span class="badge-activo" style="margin-left:8px;">ACTIVO</span>' : ''}
       ${dia.tardanza_min > 0 ? `<span style="font-family:'Space Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.25);margin-left:6px;">${dia.tardanza_min}m tarde</span>` : ''}
+      ${(() => { const jm = dia.horas_jornada_min; const tm = dia.total_minutos; if (jm != null && Math.abs(jm - tm) > 15) { const sinClasif = Math.max(0, jm - tm); return `<span style="font-family:'Space Mono',monospace;font-size:9px;color:#f59e0b;margin-left:6px;">JORNADA: ${fmtHM(jm)} | TAREAS: ${fmtHM(tm)} | ⚠ ${sinClasif}m sin clasificar</span>`; } return ''; })()}
     </div>
     <span class="chevron">▼</span>
   </div>
