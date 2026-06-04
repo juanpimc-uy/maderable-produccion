@@ -1358,7 +1358,7 @@ export default async function handler(req) {
         return err('Rango máximo permitido: 31 días', 400);
 
       const { data: callerR, error: cRErr } = await supabase
-        .from('empleados').select('rol_app').eq('id', caller_id).maybeSingle();
+        .from('empleados').select('rol_app, acceso_tiempos').eq('id', caller_id).maybeSingle();
       if (cRErr) throw cRErr;
       if (!callerR)
         return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
@@ -1368,7 +1368,7 @@ export default async function handler(req) {
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
       let empleado_id_filtro = emp_param || null;
-      if (callerR.rol_app === 'oficina') {
+      if (callerR.rol_app === 'oficina' && !callerR.acceso_tiempos) {
         if (emp_param && emp_param !== caller_id)
           return new Response(JSON.stringify({ ok: false, error: 'Solo puede consultar sus propias jornadas' }),
             { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
@@ -1517,7 +1517,7 @@ export default async function handler(req) {
       }
 
       const { data: callerAg, error: cAgErr } = await supabase
-        .from('empleados').select('rol_app').eq('id', caller_id).maybeSingle();
+        .from('empleados').select('rol_app, acceso_tiempos').eq('id', caller_id).maybeSingle();
       if (cAgErr) throw cAgErr;
       if (!callerAg)
         return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
@@ -1535,7 +1535,7 @@ export default async function handler(req) {
         jornAg = data;
       } else {
         // Auto-create jornada if it doesn't exist for this employee+date
-        if (callerAg.rol_app !== 'admin') return err('Solo admin puede crear jornadas implícitas', 403);
+        if (callerAg.rol_app !== 'admin' && !(callerAg.rol_app === 'oficina' && callerAg.acceso_tiempos)) return err('Solo admin puede crear jornadas implícitas', 403);
         const fecha = body_fecha || new Date(inicio).toISOString().split('T')[0];
         const { data: existing } = await supabase
           .from('jornadas').select('id, empleado_id')
@@ -1550,8 +1550,8 @@ export default async function handler(req) {
         }
       }
 
-      // Oficina solo puede agregar sesiones para sí mismo
-      if (callerAg.rol_app === 'oficina' && jornAg.empleado_id !== caller_id)
+      // Oficina sin acceso_tiempos solo puede agregar sesiones para sí mismo
+      if (callerAg.rol_app === 'oficina' && !callerAg.acceso_tiempos && jornAg.empleado_id !== caller_id)
         return new Response(JSON.stringify({ ok: false, error: 'Oficina solo puede agregar sus propias sesiones' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
