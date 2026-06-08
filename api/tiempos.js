@@ -4088,6 +4088,21 @@ export default async function handler(req) {
       const tcUyuUsd = tcRow ? Number(tcRow.valor) : 0;
 
       const TIPOS_VENTA = new Set(['e-Factura', 'e-Ticket', 'Nota de Crédito de e-Factura']);
+
+      const toISODate = (d) => {
+        if (!d) return null;
+        if (typeof d === 'object' && d instanceof Date) {
+          return d.toISOString().split('T')[0];
+        }
+        const s = String(d).trim();
+        if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.split('T')[0];
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+          const [day, month, year] = s.split('/');
+          return `${year}-${month}-${day}`;
+        }
+        return null;
+      };
+
       let importados = 0, duplicados = 0, auto_asociados = 0, multi_odf = 0, sin_adenda = 0, odf_inactiva_o_inexistente = 0, no_venta = 0;
 
       for (const r of rows) {
@@ -4104,7 +4119,7 @@ export default async function handler(req) {
             tipo_cfe: r.tipo_cfe,
             serie: r.serie,
             numero: r.numero,
-            fecha_emision: r.fecha_emision,
+            fecha_emision: toISODate(r.fecha_emision),
             cliente_nombre: r.cliente_nombre,
             documento_receptor: r.documento_receptor,
             moneda: r.moneda,
