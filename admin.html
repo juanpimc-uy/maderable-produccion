@@ -1075,7 +1075,9 @@ async function _loginSubmit() {
       return;
     }
     window.AUTH.guardarSesion(data.usuario);
-    window.location.reload();
+    document.getElementById('login-overlay').classList.add('hidden');
+    document.getElementById('app-shell').style.display = '';
+    _initApp();
   } catch(e) {
     errEl.textContent = 'Error de conexión';
     btn.disabled = false; btn.textContent = 'ENTRAR';
@@ -1083,9 +1085,8 @@ async function _loginSubmit() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DATOS (solo corre si auth pasó)
+// DATOS (se definen siempre; la inicialización real es _initApp())
 // ═══════════════════════════════════════════════════════════════════════════
-if (!window.AUTH.puedeEntrarAAdmin()) throw new Error('Auth required');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DATOS
@@ -7029,22 +7030,28 @@ function _lustreToast(msg) {
   if (el) { el.textContent = '✓ ' + msg; setTimeout(() => { el.textContent = ''; }, 3000); }
 }
 
-navTo('proyectos');
-cargarTodoDesdeSupabase().then(async () => {
-  // Migración única: mover archivados de localStorage a BD
-  const _localArch = JSON.parse(localStorage.getItem('proyectos_archivados') || '[]');
-  const _bdArch = PROYECTOS.filter(p => !p.activo).map(p => p.id);
-  const _pendientes = _localArch.filter(id => !_bdArch.includes(id) && PROYECTOS.some(p => p.id === id && p.activo !== false));
-  for (const id of _pendientes) {
-    await fetch('/api/tiempos?action=archivar-proyecto', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ proyecto_id: id, archivar: true }),
-    }).catch(() => {});
-  }
-  if (_pendientes.length > 0) { await cargarTodoDesdeSupabase(); }
-});
-iniciarAutoRefresh();
-initTimerBar();
+let _appInitialized = false;
+function _initApp() {
+  if (_appInitialized) return;
+  _appInitialized = true;
+  navTo('proyectos');
+  cargarTodoDesdeSupabase().then(async () => {
+    // Migración única: mover archivados de localStorage a BD
+    const _localArch = JSON.parse(localStorage.getItem('proyectos_archivados') || '[]');
+    const _bdArch = PROYECTOS.filter(p => !p.activo).map(p => p.id);
+    const _pendientes = _localArch.filter(id => !_bdArch.includes(id) && PROYECTOS.some(p => p.id === id && p.activo !== false));
+    for (const id of _pendientes) {
+      await fetch('/api/tiempos?action=archivar-proyecto', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proyecto_id: id, archivar: true }),
+      }).catch(() => {});
+    }
+    if (_pendientes.length > 0) { await cargarTodoDesdeSupabase(); }
+  });
+  iniciarAutoRefresh();
+  initTimerBar();
+}
+if (window.AUTH.puedeEntrarAAdmin()) _initApp();
 </script>
 </div><!-- /app-shell -->
 <script>

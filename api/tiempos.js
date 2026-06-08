@@ -4052,6 +4052,247 @@ export default async function handler(req) {
       });
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // FACTURACIÓN BILLER
+    // ══════════════════════════════════════════════════════════════════════
+
+    // ── POST importar-facturas-biller ────────────────────────────────────
+    if (action === 'importar-facturas-biller' && req.method === 'POST') {
+      const _st = body.st || body.session_token || url.searchParams.get('st');
+      const caller = await verificarSesion(_st);
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      const { rows } = body;
+      if (!Array.isArray(rows) || !rows.length) return err('rows requerido (array no vacío)', 400);
+
+      // TC UYU→USD
+      const { data: tcRow } = await supabase
+        .from('tipo_cambio').select('valor')
+        .eq('moneda_origen', 'UYU').eq('moneda_destino', 'USD').maybeSingle();
+      const tcUyuUsd = tcRow ? Number(tcRow.valor) : 0;
+
+      const TIPOS_VENTA = new Set(['e-Factura', 'e-Ticket', 'Nota de Crédito de e-Factura']);
+      let importados = 0, duplicados = 0, auto_asociados = 0, multi_odf = 0, sin_adenda = 0, odf_inactiva_o_inexistente = 0, no_venta = 0;
+
+      for (const r of rows) {
+        const es_venta = TIPOS_VENTA.has(r.tipo_cfe);
+        const signo = r.tipo_cfe === 'Nota de Crédito de e-Factura' ? -1 : 1;
+        const monto_neto = Number(r.monto_neto) || 0;
+        let monto_neto_usd = 0;
+        if (r.moneda === 'USD') monto_neto_usd = monto_neto;
+        else if (r.moneda === 'UYU' && tcUyuUsd > 0) monto_neto_usd = Math.round(monto_neto / tcUyuUsd * 100) / 100;
+
+        const { data: inserted, error: insErr } = await supabase
+          .from('facturas_biller')
+          .upsert({
+            tipo_cfe: r.tipo_cfe,
+            serie: r.serie,
+            numero: r.numero,
+            fecha_emision: r.fecha_emision,
+            cliente_nombre: r.cliente_nombre,
+            documento_receptor: r.documento_receptor,
+            moneda: r.moneda,
+            tipo_cambio: Number(r.tipo_cambio) || null,
+            monto_neto: monto_neto,
+            monto_total: Number(r.monto_total) || 0,
+            monto_neto_usd,
+            adenda_raw: r.adenda_raw || null,
+            estado_dgi: r.estado_dgi || null,
+            es_venta,
+            signo,
+            importado_por: caller.id,
+          }, { onConflict: 'tipo_cfe,serie,numero', ignoreDuplicates: true })
+          .select('id');
+        if (insErr) throw insErr;
+
+        if (!inserted || !inserted.length) { duplicados++; continue; }
+        importados++;
+        if (!es_venta) { no_venta++; continue; }
+
+        // AUTO-MATCH
+        const adenda = r.adenda_raw || '';
+        const candidatos = (adenda.match(/\d{3,}/g) || []).map(Number);
+        if (candidatos.length === 0) { sin_adenda++; continue; }
+        if (candidatos.length > 1) { multi_odf++; continue; }
+
+        // Single candidate
+        const odfNum = 'ODF-' + candidatos[0];
+        const { data: proy } = await supabase
+          .from('proyectos_cache').select('id, numero')
+          .eq('numero', odfNum).eq('activo', true).maybeSingle();
+        if (!proy) { odf_inactiva_o_inexistente++; continue; }
+
+        const { error: aErr } = await supabase.from('facturas_biller_odf').insert({
+          factura_id: inserted[0].id,
+          proyecto_id: proy.id,
+          proyecto_numero: proy.numero,
+          monto_neto_usd: Math.round(signo * monto_neto_usd * 100) / 100,
+          origen: 'auto',
+        });
+        if (aErr) throw aErr;
+        auto_asociados++;
+      }
+
+      return ok({ ok: true, resumen: { importados, duplicados, auto_asociados, multi_odf, sin_adenda, odf_inactiva_o_inexistente, no_venta } });
+    }
+
+    // ── GET facturas-biller ──────────────────────────────────────────────
+    if (action === 'facturas-biller' && req.method === 'GET') {
+      const _st = url.searchParams.get('st');
+      const caller = await verificarSesion(_st);
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      const { data: facturas, error: fErr } = await supabase
+        .from('facturas_biller').select('*').order('fecha_emision', { ascending: false });
+      if (fErr) throw fErr;
+
+      const facturaIds = (facturas || []).map(f => f.id);
+      let asignaciones = [];
+      if (facturaIds.length) {
+        const { data: asigs, error: aErr } = await supabase
+          .from('facturas_biller_odf').select('*').in('factura_id', facturaIds);
+        if (aErr) throw aErr;
+        asignaciones = asigs || [];
+      }
+
+      const asigMap = {};
+      asignaciones.forEach(a => {
+        if (!asigMap[a.factura_id]) asigMap[a.factura_id] = [];
+        asigMap[a.factura_id].push({ id: a.id, proyecto_id: a.proyecto_id, proyecto_numero: a.proyecto_numero, monto_neto_usd: a.monto_neto_usd, origen: a.origen });
+      });
+
+      const comprobantes = (facturas || []).map(f => {
+        const candidatos_adenda = (f.adenda_raw || '').match(/\d{3,}/g);
+        return {
+          ...f,
+          candidatos_adenda: candidatos_adenda ? candidatos_adenda.map(Number) : [],
+          asignaciones: asigMap[f.id] || [],
+        };
+      });
+
+      const { data: proyActivos, error: pErr } = await supabase
+        .from('proyectos_cache').select('id, numero, nombre').eq('activo', true).order('numero');
+      if (pErr) throw pErr;
+
+      return ok({ ok: true, comprobantes, proyectos_activos: proyActivos || [] });
+    }
+
+    // ── POST asociar-factura-biller ──────────────────────────────────────
+    if (action === 'asociar-factura-biller' && req.method === 'POST') {
+      const _st = body.st || body.session_token || url.searchParams.get('st');
+      const caller = await verificarSesion(_st);
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      const { factura_id, asignaciones: asigs } = body;
+      if (!factura_id) return err('factura_id requerido', 400);
+      if (!Array.isArray(asigs) || !asigs.length) return err('asignaciones requerido (array no vacío)', 400);
+
+      const { data: factura } = await supabase
+        .from('facturas_biller').select('id, monto_neto_usd, signo').eq('id', factura_id).maybeSingle();
+      if (!factura) return err('Factura no encontrada', 404);
+
+      const sumaAsig = asigs.reduce((acc, a) => acc + Math.abs(Number(a.monto_neto_usd) || 0), 0);
+      if (sumaAsig > Math.abs(factura.monto_neto_usd) + 0.01)
+        return err('La suma de asignaciones excede el monto neto de la factura', 400);
+
+      // Validate projects
+      const proyIds = asigs.map(a => a.proyecto_id);
+      const { data: proyectos } = await supabase
+        .from('proyectos_cache').select('id, numero').eq('activo', true).in('id', proyIds);
+      const proyMap = {};
+      (proyectos || []).forEach(p => { proyMap[p.id] = p.numero; });
+      for (const a of asigs) {
+        if (!proyMap[a.proyecto_id]) return err('Proyecto no encontrado o inactivo: ' + a.proyecto_id, 400);
+      }
+
+      // Delete existing and reinsert
+      await supabase.from('facturas_biller_odf').delete().eq('factura_id', factura_id);
+      const nuevas = asigs.map(a => ({
+        factura_id,
+        proyecto_id: a.proyecto_id,
+        proyecto_numero: proyMap[a.proyecto_id],
+        monto_neto_usd: (Number(factura.signo) || 1) * Math.abs(Number(a.monto_neto_usd) || 0),
+        origen: 'manual',
+        creado_por: caller.id,
+      }));
+      const { data: insertadas, error: iErr } = await supabase
+        .from('facturas_biller_odf').insert(nuevas).select();
+      if (iErr) throw iErr;
+
+      return ok({ ok: true, asignaciones: insertadas || [] });
+    }
+
+    // ── POST desasociar-factura-biller ────────────────────────────────────
+    if (action === 'desasociar-factura-biller' && req.method === 'POST') {
+      const _st = body.st || body.session_token || url.searchParams.get('st');
+      const caller = await verificarSesion(_st);
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      const { factura_id } = body;
+      if (!factura_id) return err('factura_id requerido', 400);
+
+      const { error: dErr } = await supabase.from('facturas_biller_odf').delete().eq('factura_id', factura_id);
+      if (dErr) throw dErr;
+
+      return ok({ ok: true });
+    }
+
+    // ── GET facturacion-proyecto ──────────────────────────────────────────
+    if (action === 'facturacion-proyecto' && req.method === 'GET') {
+      const _st = url.searchParams.get('st');
+      const caller = await verificarSesion(_st);
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      const proyecto_id = url.searchParams.get('proyecto_id');
+      if (!proyecto_id) return err('proyecto_id requerido', 400);
+
+      const { data: pr } = await supabase
+        .from('proyectos_cache').select('id, numero, precio_venta_usd').eq('id', proyecto_id).maybeSingle();
+      if (!pr) return err('Proyecto no encontrado', 404);
+
+      const venta_usd = Number(pr.precio_venta_usd) || 0;
+
+      const { data: odfRows, error: oErr } = await supabase
+        .from('facturas_biller_odf').select('factura_id, monto_neto_usd, origen')
+        .eq('proyecto_id', proyecto_id);
+      if (oErr) throw oErr;
+
+      const facturado_usd = Math.round((odfRows || []).reduce((acc, r) => acc + (Number(r.monto_neto_usd) || 0), 0) * 100) / 100;
+      const saldo_usd = Math.round((venta_usd - facturado_usd) * 100) / 100;
+      const avance_pct = venta_usd > 0 ? Math.round(facturado_usd / venta_usd * 100) : null;
+
+      // Comprobantes detail
+      const facturaIds = [...new Set((odfRows || []).map(r => r.factura_id))];
+      let comprobantes = [];
+      if (facturaIds.length) {
+        const { data: facts } = await supabase
+          .from('facturas_biller').select('id, tipo_cfe, serie, numero, fecha_emision, cliente_nombre')
+          .in('id', facturaIds);
+        const factMap = {};
+        (facts || []).forEach(f => { factMap[f.id] = f; });
+        comprobantes = (odfRows || []).map(r => {
+          const f = factMap[r.factura_id] || {};
+          return {
+            tipo_cfe: f.tipo_cfe, serie: f.serie, numero: f.numero,
+            fecha_emision: f.fecha_emision, cliente_nombre: f.cliente_nombre,
+            monto_neto_usd: r.monto_neto_usd, origen: r.origen,
+          };
+        });
+      }
+
+      return ok({ ok: true, venta_usd, facturado_usd, saldo_usd, avance_pct, comprobantes });
+    }
+
     return err('Acción no reconocida: ' + action);
 
   } catch (e) {
