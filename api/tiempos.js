@@ -4156,25 +4156,23 @@ export default async function handler(req) {
         const ins = insertedMap[`${reg.tipo_cfe}|${reg.serie}|${reg.numero}`];
         if (!ins) continue; // duplicado
         if (!ins.es_venta) { no_venta++; continue; }
-        const nums = (reg._adenda_str.match(/\d{3,}/g) || []).map(Number);
+        const nums = reg._adenda_str.match(/\b\d{4}\b/g) || [];
         if (nums.length === 0) { sin_adenda++; continue; }
         if (nums.length > 1) { multi_odf++; continue; }
-        matchCandidates.push({ ins, odfNum: 'ODF-' + nums[0], signo: ins.signo, monto_neto_usd: ins.monto_neto_usd });
+        matchCandidates.push({ ins, adendaNum: nums[0], signo: ins.signo, monto_neto_usd: ins.monto_neto_usd });
       }
 
       if (matchCandidates.length) {
-        // Single query for all candidate ODF numbers
-        const odfNums = [...new Set(matchCandidates.map(c => c.odfNum))];
+        // Single query: all projects (incl. archivados — facturas pueden ser de proyectos entregados)
         const { data: proysActivos } = await supabase
-          .from('proyectos_cache').select('id, numero')
-          .in('numero', odfNums).eq('activo', true);
-        const proyMap = {};
-        (proysActivos || []).forEach(p => { proyMap[p.numero] = p; });
+          .from('proyectos_cache').select('id, numero');
+        const proyByNum = {};
+        (proysActivos || []).forEach(p => { proyByNum[p.numero.replace(/\D/g, '')] = p; });
 
         // Build bulk insert for facturas_biller_odf
         const asocRows = [];
         for (const c of matchCandidates) {
-          const proy = proyMap[c.odfNum];
+          const proy = proyByNum[c.adendaNum];
           if (!proy) { odf_inactiva_o_inexistente++; continue; }
           asocRows.push({
             factura_id: c.ins.id,
