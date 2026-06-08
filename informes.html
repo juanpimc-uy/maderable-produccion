@@ -1013,12 +1013,13 @@ async function billerImportFile(input) {
       body: JSON.stringify({ st: _bSt(), rows }),
     });
     const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'Error en importación');
+    if (!data.ok) { console.error('Biller import response:', data); throw new Error(data.error || 'Error en importación'); }
     const s = data.resumen;
     banner.innerHTML = `<div class="import-banner ok">✓ ${s.importados} importados · ${s.duplicados} duplicados · ${s.auto_asociados} auto-asociados${s.multi_odf ? ` · ${s.multi_odf} multi-ODF` : ''}${s.sin_adenda ? ` · ${s.sin_adenda} sin adenda` : ''}${s.no_venta ? ` · ${s.no_venta} no-venta` : ''}</div>`;
     await loadBillerData();
   } catch (e) {
-    banner.innerHTML = `<div class="import-banner err">✗ ${e.message}</div>`;
+    console.error('Biller import error:', e);
+    banner.innerHTML = `<div class="import-banner err">✗ ${e?.message || e?.error || JSON.stringify(e) || 'Error desconocido'}</div>`;
   }
 }
 

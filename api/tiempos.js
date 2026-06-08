@@ -4127,7 +4127,7 @@ export default async function handler(req) {
             monto_neto: monto_neto,
             monto_total: Number(r.monto_total) || 0,
             monto_neto_usd,
-            adenda_raw: r.adenda_raw || null,
+            adenda_raw: r.adenda_raw != null ? String(r.adenda_raw) : null,
             estado_dgi: r.estado_dgi || null,
             es_venta,
             signo,
@@ -4141,7 +4141,7 @@ export default async function handler(req) {
         if (!es_venta) { no_venta++; continue; }
 
         // AUTO-MATCH
-        const adenda = r.adenda_raw || '';
+        const adenda = String(r.adenda_raw ?? '');
         const candidatos = (adenda.match(/\d{3,}/g) || []).map(Number);
         if (candidatos.length === 0) { sin_adenda++; continue; }
         if (candidatos.length > 1) { multi_odf++; continue; }
@@ -4195,7 +4195,7 @@ export default async function handler(req) {
       });
 
       const comprobantes = (facturas || []).map(f => {
-        const candidatos_adenda = (f.adenda_raw || '').match(/\d{3,}/g);
+        const candidatos_adenda = String(f.adenda_raw ?? '').match(/\d{3,}/g);
         return {
           ...f,
           candidatos_adenda: candidatos_adenda ? candidatos_adenda.map(Number) : [],
