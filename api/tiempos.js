@@ -4103,65 +4103,92 @@ export default async function handler(req) {
         return null;
       };
 
-      let importados = 0, duplicados = 0, auto_asociados = 0, multi_odf = 0, sin_adenda = 0, odf_inactiva_o_inexistente = 0, no_venta = 0;
-
-      for (const r of rows) {
+      // ── PASO 1: preparar registros y bulk upsert ──
+      const registros = rows.map(r => {
         const es_venta = TIPOS_VENTA.has(r.tipo_cfe);
         const signo = r.tipo_cfe === 'Nota de Crédito de e-Factura' ? -1 : 1;
         const monto_neto = Number(r.monto_neto) || 0;
         let monto_neto_usd = 0;
         if (r.moneda === 'USD') monto_neto_usd = monto_neto;
         else if (r.moneda === 'UYU' && tcUyuUsd > 0) monto_neto_usd = Math.round(monto_neto / tcUyuUsd * 100) / 100;
+        return {
+          tipo_cfe: r.tipo_cfe,
+          serie: r.serie,
+          numero: r.numero,
+          fecha_emision: toISODate(r.fecha_emision),
+          cliente_nombre: r.cliente_nombre,
+          documento_receptor: r.documento_receptor,
+          moneda: r.moneda,
+          tipo_cambio: Number(r.tipo_cambio) || null,
+          monto_neto,
+          monto_total: Number(r.monto_total) || 0,
+          monto_neto_usd,
+          adenda_raw: r.adenda_raw != null ? String(r.adenda_raw) : null,
+          estado_dgi: r.estado_dgi || null,
+          es_venta,
+          signo,
+          importado_por: caller.id,
+          _adenda_str: String(r.adenda_raw ?? ''),
+        };
+      });
 
-        const { data: inserted, error: insErr } = await supabase
-          .from('facturas_biller')
-          .upsert({
-            tipo_cfe: r.tipo_cfe,
-            serie: r.serie,
-            numero: r.numero,
-            fecha_emision: toISODate(r.fecha_emision),
-            cliente_nombre: r.cliente_nombre,
-            documento_receptor: r.documento_receptor,
-            moneda: r.moneda,
-            tipo_cambio: Number(r.tipo_cambio) || null,
-            monto_neto: monto_neto,
-            monto_total: Number(r.monto_total) || 0,
-            monto_neto_usd,
-            adenda_raw: r.adenda_raw != null ? String(r.adenda_raw) : null,
-            estado_dgi: r.estado_dgi || null,
-            es_venta,
-            signo,
-            importado_por: caller.id,
-          }, { onConflict: 'tipo_cfe,serie,numero', ignoreDuplicates: true })
-          .select('id');
-        if (insErr) throw insErr;
+      const { data: inserted, error: insErr } = await supabase
+        .from('facturas_biller')
+        .upsert(registros.map(({ _adenda_str, ...rest }) => rest),
+          { onConflict: 'tipo_cfe,serie,numero', ignoreDuplicates: true })
+        .select('id, tipo_cfe, serie, numero, es_venta, signo, monto_neto_usd');
+      if (insErr) throw insErr;
 
-        if (!inserted || !inserted.length) { duplicados++; continue; }
-        importados++;
-        if (!es_venta) { no_venta++; continue; }
+      const insertedRows = inserted || [];
+      const duplicados = registros.length - insertedRows.length;
+      const importados = insertedRows.length;
 
-        // AUTO-MATCH
-        const adenda = String(r.adenda_raw ?? '');
-        const candidatos = (adenda.match(/\d{3,}/g) || []).map(Number);
-        if (candidatos.length === 0) { sin_adenda++; continue; }
-        if (candidatos.length > 1) { multi_odf++; continue; }
+      // ── PASO 2: auto-match adendas con proyectos activos ──
+      let auto_asociados = 0, multi_odf = 0, sin_adenda = 0, odf_inactiva_o_inexistente = 0, no_venta = 0;
 
-        // Single candidate
-        const odfNum = 'ODF-' + candidatos[0];
-        const { data: proy } = await supabase
+      // Build lookup: "tipo_cfe|serie|numero" → inserted row
+      const insertedMap = {};
+      insertedRows.forEach(row => { insertedMap[`${row.tipo_cfe}|${row.serie}|${row.numero}`] = row; });
+
+      // Collect ODF candidates from ventas
+      const matchCandidates = [];
+      for (const reg of registros) {
+        const ins = insertedMap[`${reg.tipo_cfe}|${reg.serie}|${reg.numero}`];
+        if (!ins) continue; // duplicado
+        if (!ins.es_venta) { no_venta++; continue; }
+        const nums = (reg._adenda_str.match(/\d{3,}/g) || []).map(Number);
+        if (nums.length === 0) { sin_adenda++; continue; }
+        if (nums.length > 1) { multi_odf++; continue; }
+        matchCandidates.push({ ins, odfNum: 'ODF-' + nums[0], signo: ins.signo, monto_neto_usd: ins.monto_neto_usd });
+      }
+
+      if (matchCandidates.length) {
+        // Single query for all candidate ODF numbers
+        const odfNums = [...new Set(matchCandidates.map(c => c.odfNum))];
+        const { data: proysActivos } = await supabase
           .from('proyectos_cache').select('id, numero')
-          .eq('numero', odfNum).eq('activo', true).maybeSingle();
-        if (!proy) { odf_inactiva_o_inexistente++; continue; }
+          .in('numero', odfNums).eq('activo', true);
+        const proyMap = {};
+        (proysActivos || []).forEach(p => { proyMap[p.numero] = p; });
 
-        const { error: aErr } = await supabase.from('facturas_biller_odf').insert({
-          factura_id: inserted[0].id,
-          proyecto_id: proy.id,
-          proyecto_numero: proy.numero,
-          monto_neto_usd: Math.round(signo * monto_neto_usd * 100) / 100,
-          origen: 'auto',
-        });
-        if (aErr) throw aErr;
-        auto_asociados++;
+        // Build bulk insert for facturas_biller_odf
+        const asocRows = [];
+        for (const c of matchCandidates) {
+          const proy = proyMap[c.odfNum];
+          if (!proy) { odf_inactiva_o_inexistente++; continue; }
+          asocRows.push({
+            factura_id: c.ins.id,
+            proyecto_id: proy.id,
+            proyecto_numero: proy.numero,
+            monto_neto_usd: Math.round(c.signo * c.monto_neto_usd * 100) / 100,
+            origen: 'auto',
+          });
+        }
+        if (asocRows.length) {
+          const { error: aErr } = await supabase.from('facturas_biller_odf').insert(asocRows);
+          if (aErr) throw aErr;
+          auto_asociados = asocRows.length;
+        }
       }
 
       return ok({ ok: true, resumen: { importados, duplicados, auto_asociados, multi_odf, sin_adenda, odf_inactiva_o_inexistente, no_venta } });

@@ -1012,7 +1012,11 @@ async function billerImportFile(input) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ st: _bSt(), rows }),
     });
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch {
+      throw new Error(`Error del servidor (${res.status}) — el archivo puede ser muy grande o la operación tardó demasiado. Intentá con un período más corto.`);
+    }
     if (!data.ok) { console.error('Biller import response:', data); throw new Error(data.error || 'Error en importación'); }
     const s = data.resumen;
     banner.innerHTML = `<div class="import-banner ok">✓ ${s.importados} importados · ${s.duplicados} duplicados · ${s.auto_asociados} auto-asociados${s.multi_odf ? ` · ${s.multi_odf} multi-ODF` : ''}${s.sin_adenda ? ` · ${s.sin_adenda} sin adenda` : ''}${s.no_venta ? ` · ${s.no_venta} no-venta` : ''}</div>`;
