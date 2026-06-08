@@ -736,18 +736,31 @@ cargarTodo();
 
 <script>
 // ── Auth standalone ─────────────────────────────────────────────
-const PASS_ARMADO = 'armado2024';
 document.addEventListener('DOMContentLoaded', () => {
   const _sess = (() => { try { return JSON.parse(localStorage.getItem('mble_session') || sessionStorage.getItem('mble_session') || '{}'); } catch(e) { return {}; } })();
   if (_sess.rol_app === 'admin' || _sess.rol_app === 'oficina') _mostrarApp();
   else if (localStorage.getItem('armado_so_auth') === 'ok') _mostrarApp();
 });
-function _login() {
+async function _login() {
   const pw = document.getElementById('pw-input').value.trim();
-  if (pw === PASS_ARMADO) {
-    localStorage.setItem('armado_so_auth', 'ok');
-    _mostrarApp();
-  } else {
+  if (!pw) return;
+  try {
+    const res = await fetch('/api/tiempos?action=verificar-acceso', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seccion: 'armado', password: pw }),
+    });
+    const data = await res.json();
+    if (data.valido) {
+      localStorage.setItem('armado_so_auth', 'ok');
+      _mostrarApp();
+    } else {
+      const inp = document.getElementById('pw-input');
+      inp.classList.remove('shake');
+      void inp.offsetWidth;
+      inp.classList.add('shake');
+      inp.value = '';
+    }
+  } catch(e) {
     const inp = document.getElementById('pw-input');
     inp.classList.remove('shake');
     void inp.offsetWidth;

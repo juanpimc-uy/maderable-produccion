@@ -578,6 +578,20 @@ export default async function handler(req) {
       return ok({ ok: true, user: { id: user.id, nombre: user.nombre, rol_app: user.rol_app } });
     }
 
+    // ── POST verificar-acceso ────────────────────────────────────────
+    // Verifica passwords de secciones standalone (armado-so, recepciones-oc).
+    // Env vars: ACCESO_ARMADO, ACCESO_RECEPCIONES (configurar en Vercel).
+    if (action === 'verificar-acceso' && req.method === 'POST') {
+      const { seccion, password } = body;
+      if (!seccion || !password) return ok({ ok: true, valido: false });
+      const envMap = { armado: 'ACCESO_ARMADO', recepciones: 'ACCESO_RECEPCIONES' };
+      const envKey = envMap[seccion];
+      if (!envKey) return ok({ ok: true, valido: false });
+      const esperado = process.env[envKey];
+      if (!esperado) return ok({ ok: true, valido: false }); // env var not set
+      return ok({ ok: true, valido: password === esperado });
+    }
+
     // ── POST verificar-pass-tercerizados ───────────────────────────────
     if (action === 'verificar-pass-tercerizados' && req.method === 'POST') {
       const { password } = body;

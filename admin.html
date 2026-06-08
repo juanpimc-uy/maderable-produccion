@@ -1669,7 +1669,8 @@ function renderDashboard() {
   }
 
   // ── BLOQUE A: operarios (sin ausentes) ───────────────────────────────────
-  const trim4 = str => (str||'').split(' ').slice(0,4).join(' ');
+  const _clean = v => (!v || v === 'undefined' || v === 'null') ? '—' : v;
+  const trim4 = str => { const s = _clean(str); return s === '—' ? s : s.split(' ').slice(0,4).join(' '); };
   const visibles = (operarios || [])
     .sort((a, b) => {
       // Activos primero, luego sin_tarea, luego ausentes
@@ -1696,16 +1697,16 @@ function renderDashboard() {
       // Entrada: hora de entrada hoy (en_tarea/sin_tarea) o última salida (ausente)
       const entrada = esAusente ? _fmtHM(op.ultima_salida) : _fmtHM(op.entrada);
       const entradaLabel = esAusente && op.ultima_salida ? `<span style="font-size:9px;color:#555;">últ.sal</span> ${entrada}` : entrada;
-      // Centro/ODF/Mueble: datos actuales o últimos
-      const centro  = sinActividad ? (op.ultimo_centro_label || '—') : (op.centro_label || op.centro || '—');
-      const odf     = sinActividad ? (op.ultimo_proyecto?.nombre || '—') : (op.proyecto?.odf || '—');
-      const cliente = sinActividad ? '—' : (op.proyecto?.cliente || '—');
-      const obra    = sinActividad ? '—' : (op.proyecto?.obra || '—');
-      const mueble  = sinActividad ? (op.ultimo_mueble?.nombre ? trim4(op.ultimo_mueble.nombre) : '—') : trim4(op.mueble?.nombre) || '—';
+      // Centro/ODF/Mueble: datos actuales o últimos (sanitized)
+      const centro  = sinActividad ? _clean(op.ultimo_centro_label) : _clean(op.centro_label || op.centro);
+      const odf     = sinActividad ? _clean(op.ultimo_proyecto?.nombre) : _clean(op.proyecto?.odf);
+      const cliente = sinActividad ? '—' : _clean(op.proyecto?.cliente);
+      const obra    = sinActividad ? '—' : _clean(op.proyecto?.obra);
+      const mueble  = sinActividad ? trim4(op.ultimo_mueble?.nombre) : trim4(op.mueble?.nombre);
       const estadoTxt = esAusente ? 'SIN ACTIVIDAD' : op.estado.replace('_', ' ').toUpperCase();
       const rowStyle = esAusente ? 'cursor:pointer;background:#2a0a0a;border-left:2px solid #3a1a1a;' : 'cursor:pointer;';
       const estadoStyle = esAusente ? 'color:#ef5350;' : '';
-      return `<div class="${cls}" style="${rowStyle}" onclick="navTo('operarios')">
+      return `<div class="${cls}" style="${rowStyle}" onclick="window.location.href='/tiempos.html?emp=${op.id}'">
         <div class="ds-op-col ds-op-nombre">${prefijo}${op.nombre}</div>
         <div class="ds-op-col" style="font-family:'JetBrains Mono',monospace;font-size:11px;">${entradaLabel}</div>
         <div class="ds-op-col">${centro}</div>
@@ -3139,9 +3140,10 @@ function _renderOpEstadoSnapshot() {
                  : '';
     const prefijo     = esSin ? '◌ ' : esAus ? '— ' : '';
     const nombreColor = (esSin||esAus) ? 'var(--muted)' : 'var(--text)';
-    const centro   = (esSin||esAus) ? '—' : (op.centro_label || op.centro || '—');
-    const proyecto = (esSin||esAus) ? '—' : (op.proyecto?.odf || '—');
-    const mueble   = (esSin||esAus) ? '—' : (op.mueble?.nombre || '—');
+    const _clean = v => (!v || v === 'undefined' || v === 'null') ? '—' : v;
+    const centro   = (esSin||esAus) ? '—' : _clean(op.centro_label || op.centro);
+    const proyecto = (esSin||esAus) ? '—' : _clean(op.proyecto?.odf);
+    const mueble   = (esSin||esAus) ? '—' : _clean(op.mueble?.nombre);
     const entradaStr = op.entrada ? new Date(op.entrada).toLocaleTimeString('es-UY',{hour:'2-digit',minute:'2-digit'}) : '—';
 
     let estadoHtml = '';

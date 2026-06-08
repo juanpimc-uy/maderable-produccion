@@ -666,6 +666,10 @@ async function _tInit() {
     document.getElementById('rep-emp-field').style.display = 'flex';
   }
 
+  // Deep-link: ?emp=<id> → switch to POR OPERARIO tab, pre-select employee, auto-load
+  const _dlParams = new URLSearchParams(window.location.search);
+  const _dlEmp = _dlParams.get('emp');
+
   // Load centros-virtuales
   try {
     const r = await _tFetch('/api/tiempos?action=centros-virtuales');
@@ -707,6 +711,16 @@ async function _tInit() {
         repSel.innerHTML += `<option value="${e.id}">${e.nombre}</option>`;
       });
     } catch(e) { console.warn('[tiempos] empleados:', e.message); }
+  }
+
+  // Deep-link: ?emp=<id> → switch to POR OPERARIO tab, pre-select, auto-load
+  if (_dlEmp && _tIsAdmin) {
+    const opSel = document.getElementById('op-emp-select');
+    if (opSel && [...opSel.options].some(o => o.value === _dlEmp)) {
+      opSel.value = _dlEmp;
+      _tTab('operario');
+      _tCargarOperario();
+    }
   }
 }
 
