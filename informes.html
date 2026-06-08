@@ -170,7 +170,50 @@
     .hours-bar-bg { display: none !important; }
     thead { display: table-header-group !important; }
   }
+
+  /* ── MODE TOGGLE ── */
+  .mode-toggle{display:flex;gap:0;}
+  .mode-btn{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.5px;padding:5px 14px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;text-transform:uppercase;}
+  .mode-btn:first-child{border-radius:4px 0 0 4px;}
+  .mode-btn:last-child{border-radius:0 4px 4px 0;border-left:0;}
+  .mode-btn.active{background:rgba(255,214,0,.1);border-color:var(--amber);color:var(--amber);}
+  /* ── BILLER ── */
+  .biller-metrics{display:flex;gap:12px;margin-bottom:20px;}
+  .biller-metric{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;text-align:center;}
+  .biller-metric .m-val{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:var(--amber);}
+  .biller-metric .m-lbl{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;margin-top:4px;}
+  .b-badge{display:inline-block;font-family:'Space Mono',monospace;font-size:8px;font-weight:700;letter-spacing:.5px;padding:2px 7px;border-radius:3px;}
+  .b-badge.auto{background:rgba(61,214,140,.12);color:var(--green);border:1px solid rgba(61,214,140,.3);}
+  .b-badge.manual{background:rgba(255,214,0,.1);color:var(--amber);border:1px solid rgba(255,214,0,.3);}
+  .b-badge.none{background:rgba(136,136,136,.1);color:#888;border:1px solid rgba(136,136,136,.3);}
+  .b-badge.excl{background:rgba(50,50,50,.5);color:#555;border:1px solid #333;}
+  .biller-bar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
+  .biller-bar select,.biller-bar input[type=text]{background:#222;border:1px solid var(--border);border-radius:5px;padding:6px 10px;color:var(--text);font-size:12px;outline:none;}
+  .biller-bar select:focus,.biller-bar input:focus{border-color:var(--amber);}
+  .b-btn{font-family:'Space Mono',monospace;font-size:10px;padding:5px 12px;border-radius:4px;cursor:pointer;transition:all .15s;border:1px solid var(--border);background:transparent;color:var(--muted);letter-spacing:.5px;}
+  .b-btn:hover{border-color:var(--amber);color:var(--amber);}
+  .b-btn.danger{border-color:rgba(240,92,92,.4);color:var(--red);}
+  .b-btn.danger:hover{border-color:var(--red);background:rgba(240,92,92,.08);}
+  .b-btn.accent{border-color:rgba(255,214,0,.4);color:var(--amber);}
+  .b-btn.accent:hover{border-color:var(--amber);background:rgba(255,214,0,.08);}
+  .import-banner{padding:12px 16px;border-radius:6px;font-family:'Space Mono',monospace;font-size:11px;margin-bottom:16px;border:1px solid;}
+  .import-banner.ok{background:rgba(61,214,140,.06);border-color:rgba(61,214,140,.2);color:var(--green);}
+  .import-banner.err{background:rgba(240,92,92,.06);border-color:rgba(240,92,92,.2);color:var(--red);}
+  .b-modal{position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;}
+  .b-modal.hidden{display:none;}
+  .b-modal-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:24px;width:100%;max-width:520px;max-height:80vh;overflow-y:auto;}
+  .b-modal-title{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:1px;margin-bottom:16px;}
+  .b-modal-row{display:flex;gap:10px;align-items:center;margin-bottom:10px;}
+  .b-modal-row select,.b-modal-row input{flex:1;background:#222;border:1px solid var(--border);border-radius:5px;padding:8px 10px;color:var(--text);font-size:12px;outline:none;}
+  .b-modal-footer{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border);}
+  .fact-stats{display:flex;gap:20px;margin-bottom:12px;font-family:'Space Mono',monospace;font-size:12px;}
+  .fact-stats .fs-item{display:flex;flex-direction:column;gap:2px;}
+  .fact-stats .fs-label{font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+  .fact-stats .fs-val{font-weight:700;}
+  .fact-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:12px;}
+  .fact-bar-fill{height:100%;background:var(--amber);border-radius:3px;transition:width .3s;}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <!-- ══ PIN OVERLAY ═══════════════════════════════════════════════════════ -->
@@ -218,20 +261,27 @@
 
 <!-- ══ TOOLBAR ═══════════════════════════════════════════════════════════ -->
 <div class="toolbar">
-  <input class="search-input" id="searchInput" type="text" placeholder="Buscar proyecto, ODF, cliente...">
-  <div class="toolbar-sep"></div>
-  <button class="chip active" data-estado="all" onclick="setEstado('all')">Todos</button>
-  <button class="chip" data-estado="activo" onclick="setEstado('activo')">En curso</button>
-  <button class="chip" data-estado="inactivo" onclick="setEstado('inactivo')">Archivados</button>
-  <div class="toolbar-sep"></div>
-  <div class="cutoff-wrap">
-    <span class="cutoff-label">Corte al</span>
-    <input class="cutoff-input" id="cutoffDate" type="date">
+  <div class="mode-toggle">
+    <button class="mode-btn active" id="mode-costos" onclick="setViewMode('costos')">COSTOS</button>
+    <button class="mode-btn" id="mode-biller" onclick="setViewMode('biller')">BILLER</button>
   </div>
-  <div class="toolbar-stats" id="toolbarStats"></div>
-  <button id="btnSyncPrecios" class="export-btn" onclick="sincronizarPrecios()">&#x27F3; Sync precios</button>
-  <button class="export-btn" onclick="exportCSV()">CSV</button>
-  <button class="export-btn" onclick="window.print()">PDF</button>
+  <div class="toolbar-sep"></div>
+  <span id="costosControls" style="display:contents;">
+    <input class="search-input" id="searchInput" type="text" placeholder="Buscar proyecto, ODF, cliente...">
+    <div class="toolbar-sep"></div>
+    <button class="chip active" data-estado="all" onclick="setEstado('all')">Todos</button>
+    <button class="chip" data-estado="activo" onclick="setEstado('activo')">En curso</button>
+    <button class="chip" data-estado="inactivo" onclick="setEstado('inactivo')">Archivados</button>
+    <div class="toolbar-sep"></div>
+    <div class="cutoff-wrap">
+      <span class="cutoff-label">Corte al</span>
+      <input class="cutoff-input" id="cutoffDate" type="date">
+    </div>
+    <div class="toolbar-stats" id="toolbarStats"></div>
+    <button id="btnSyncPrecios" class="export-btn" onclick="sincronizarPrecios()">&#x27F3; Sync precios</button>
+    <button class="export-btn" onclick="exportCSV()">CSV</button>
+    <button class="export-btn" onclick="window.print()">PDF</button>
+  </span>
 </div>
 
 <!-- ══ TABLE ═════════════════════════════════════════════════════════════ -->
@@ -254,7 +304,12 @@
   <tfoot id="tableFoot"></tfoot>
 </table>
 </div>
+<div id="billerView" style="display:none;flex:1;overflow:auto;padding:0 24px 24px;"></div>
 </div><!-- /page-wrap -->
+
+<div class="b-modal hidden" id="billerModal" onclick="if(event.target===this)closeBillerModal()">
+  <div class="b-modal-box" id="billerModalContent"></div>
+</div>
 
 <script>
 const BASE_URL = window.location.origin;
@@ -269,6 +324,11 @@ let openDetailId = null;
 let detailCache = {};
 let pinBuffer = '';
 let pinLocked = false;
+let viewMode = 'costos';
+let billerData = null;
+let billerFiltroTipo = 'all';
+let billerFiltroEstado = 'all';
+let billerBusqueda = '';
 
 // ── AUTH CHECK ──────────────────────────────────────────────────────────
 (function() {
@@ -674,6 +734,9 @@ function renderDetailContent(id, data) {
       <tbody><tr class="subtotal-row"><td colspan="4">TOTAL TERCERIZADOS</td><td class="r" style="color:var(--amber);">$${fmtD(terc.total_usd)}</td></tr></tbody>
     </table>
 
+    <div class="sec-title">Facturación Biller</div>
+    <div id="factBiller-${id}"><div class="mono" style="font-size:10px;color:var(--muted);">Cargando...</div></div>
+
     <div class="detail-footer">
       <div class="footer-total">TOTAL INVERTIDO AL CORTE: <span style="color:var(--amber);">U$S ${fmtD(tot.total_invertido_usd)}</span></div>
       <div class="footer-line">Precio venta: ${
@@ -688,6 +751,8 @@ function renderDetailContent(id, data) {
       </div>
     </div>`;
 
+  // Load facturacion biller async
+  _loadFacturacionDetail(id, 'factBiller-' + id);
   // Scroll to detail
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -763,6 +828,346 @@ async function sincronizarPrecios() {
     setTimeout(() => { btn.textContent = '⟳ Sync precios'; }, 3000);
   }
   btn.disabled = false;
+}
+
+// ── VIEW MODE ──────────────────────────────────────────────────────────
+function setViewMode(mode) {
+  viewMode = mode;
+  document.getElementById('mode-costos').classList.toggle('active', mode === 'costos');
+  document.getElementById('mode-biller').classList.toggle('active', mode === 'biller');
+  document.getElementById('costosControls').style.display = mode === 'costos' ? 'contents' : 'none';
+  document.querySelector('.table-wrap').style.display = mode === 'costos' ? '' : 'none';
+  document.getElementById('billerView').style.display = mode === 'biller' ? '' : 'none';
+  if (mode === 'biller') {
+    if (!billerData) loadBillerData();
+    else renderBillerView();
+  }
+}
+
+// ── BILLER ─────────────────────────────────────────────────────────────
+const _bSt = () => window.AUTH.getSessionToken();
+
+async function loadBillerData() {
+  const bv = document.getElementById('billerView');
+  bv.innerHTML = '<div class="mono" style="font-size:11px;color:var(--muted);letter-spacing:2px;padding:40px 0;text-align:center;">CARGANDO FACTURACIÓN...</div>';
+  try {
+    const res = await fetch(`${BASE_URL}/api/tiempos?action=facturas-biller&st=${_bSt()}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    billerData = data;
+    renderBillerView();
+  } catch (e) {
+    bv.innerHTML = `<div style="color:var(--red);padding:40px 0;text-align:center;">${e.message}</div>`;
+  }
+}
+
+function renderBillerView() {
+  const bv = document.getElementById('billerView');
+  const comps = billerData.comprobantes || [];
+  const asociados = comps.filter(c => c.asignaciones.length > 0);
+  const sinAsociar = comps.filter(c => c.asignaciones.length === 0 && c.es_venta);
+  const totalNeto = comps.reduce((a, c) => a + (c.es_venta ? (Number(c.monto_neto_usd) || 0) * c.signo : 0), 0);
+
+  bv.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:20px 0;">
+      <div style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;">Gestión Facturación Biller</div>
+      <div style="display:flex;gap:8px;">
+        <button class="b-btn accent" onclick="document.getElementById('billerFileInput').click()">↑ IMPORTAR XLSX</button>
+        <input type="file" id="billerFileInput" accept=".xlsx,.xls" style="display:none;" onchange="billerImportFile(this)">
+      </div>
+    </div>
+    <div id="billerBanner"></div>
+    <div class="biller-metrics">
+      <div class="biller-metric"><div class="m-val">${comps.length}</div><div class="m-lbl">Comprobantes</div></div>
+      <div class="biller-metric"><div class="m-val" style="color:var(--green);">U$S ${fmtD(Math.abs(totalNeto))}</div><div class="m-lbl">Neto Ventas USD</div></div>
+      <div class="biller-metric"><div class="m-val">${asociados.length}</div><div class="m-lbl">Asociados</div></div>
+      <div class="biller-metric"><div class="m-val" style="color:${sinAsociar.length ? 'var(--red)' : 'var(--green)'};">${sinAsociar.length}</div><div class="m-lbl">Sin Asociar</div></div>
+    </div>
+    <div class="biller-bar">
+      <select id="bFiltroTipo" onchange="billerFiltroTipo=this.value;renderBillerTable()">
+        <option value="all">Todos los tipos</option>
+        <option value="e-Factura">e-Factura</option>
+        <option value="e-Ticket">e-Ticket</option>
+        <option value="Nota de Crédito de e-Factura">Nota de Crédito</option>
+      </select>
+      <select id="bFiltroEstado" onchange="billerFiltroEstado=this.value;renderBillerTable()">
+        <option value="all">Todos los estados</option>
+        <option value="asociado">Asociados</option>
+        <option value="sin_asociar">Sin asociar</option>
+      </select>
+      <input type="text" id="bBusqueda" placeholder="Buscar nº, cliente..." oninput="billerBusqueda=this.value.toLowerCase();renderBillerTable()">
+    </div>
+    <div id="billerTableWrap"></div>`;
+  renderBillerTable();
+}
+
+function renderBillerTable() {
+  const wrap = document.getElementById('billerTableWrap');
+  if (!wrap || !billerData) return;
+  let comps = [...(billerData.comprobantes || [])];
+  if (billerFiltroTipo !== 'all') comps = comps.filter(c => c.tipo_cfe === billerFiltroTipo);
+  if (billerFiltroEstado === 'asociado') comps = comps.filter(c => c.asignaciones.length > 0);
+  else if (billerFiltroEstado === 'sin_asociar') comps = comps.filter(c => c.asignaciones.length === 0 && c.es_venta);
+  if (billerBusqueda) comps = comps.filter(c =>
+    String(c.numero).includes(billerBusqueda) ||
+    (c.cliente_nombre || '').toLowerCase().includes(billerBusqueda) ||
+    (c.serie || '').toLowerCase().includes(billerBusqueda)
+  );
+
+  const rows = comps.map(c => {
+    const asig = c.asignaciones || [];
+    const odfLabel = asig.length ? asig.map(a => a.proyecto_numero).join(', ') : '—';
+    const isNC = c.tipo_cfe === 'Nota de Crédito de e-Factura';
+    const montoStyle = isNC ? 'color:var(--red);' : '';
+    const montoSign = isNC ? '-' : '';
+    const isExcl = !c.es_venta;
+
+    let estadoBadge, accionBtn;
+    if (isExcl) {
+      estadoBadge = '<span class="b-badge excl">EXCLUIDO</span>';
+      accionBtn = '';
+    } else if (asig.length && asig[0].origen === 'auto') {
+      estadoBadge = '<span class="b-badge auto">AUTO</span>';
+      accionBtn = `<button class="b-btn danger" onclick="desasociarFactura('${c.id}')">Desasociar</button>`;
+    } else if (asig.length) {
+      estadoBadge = '<span class="b-badge manual">MANUAL</span>';
+      accionBtn = `<button class="b-btn danger" onclick="desasociarFactura('${c.id}')">Desasociar</button>`;
+    } else {
+      estadoBadge = '<span class="b-badge none">SIN ASOCIAR</span>';
+      accionBtn = `<button class="b-btn accent" onclick="openAsociarModal('${c.id}')">Asociar</button>`;
+    }
+    // Multi-ODF: show edit button for associated with multiple assignments
+    if (asig.length > 1) {
+      accionBtn = `<button class="b-btn accent" onclick="openAsociarModal('${c.id}')">Ver/Editar</button> ${accionBtn}`;
+    }
+
+    return `<tr>
+      <td class="mono" style="font-size:11px;">${c.serie || ''}${c.numero || ''}</td>
+      <td style="font-size:11px;">${c.tipo_cfe || ''}</td>
+      <td class="mono" style="font-size:11px;">${formatDateDisplay(c.fecha_emision)}</td>
+      <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.cliente_nombre || '—'}</td>
+      <td><span class="num" style="${montoStyle}">${montoSign}${fmtD(Math.abs(c.monto_neto_usd || 0))}</span></td>
+      <td style="font-size:11px;">${odfLabel}</td>
+      <td>${estadoBadge}</td>
+      <td style="white-space:nowrap;">${accionBtn}</td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<table>
+    <thead><tr>
+      <th>Nº</th><th>Tipo</th><th>Fecha</th><th>Cliente</th>
+      <th class="num-col">Neto USD</th><th>ODF</th><th>Estado</th><th>Acción</th>
+    </tr></thead>
+    <tbody>${rows || '<tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px;">Sin comprobantes</td></tr>'}</tbody>
+  </table>`;
+}
+
+// ── BILLER IMPORT ──────────────────────────────────────────────────────
+async function billerImportFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  const banner = document.getElementById('billerBanner');
+  banner.innerHTML = '<div class="import-banner" style="border-color:var(--amber);background:rgba(255,214,0,.04);color:var(--amber);">Procesando archivo...</div>';
+  try {
+    const ab = await file.arrayBuffer();
+    const wb = XLSX.read(ab, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    if (!raw.length) throw new Error('Archivo vacío');
+
+    const colMap = {
+      tipo_cfe: ['tipo cfe', 'tipo', 'tipo_cfe', 'tipocfe', 'tipo comprobante'],
+      serie: ['serie'],
+      numero: ['numero', 'nro', 'número', 'nro.'],
+      fecha_emision: ['fecha emision', 'fecha emisión', 'fecha', 'fecha_emision'],
+      cliente_nombre: ['cliente', 'receptor', 'cliente_nombre', 'nombre cliente', 'razon social'],
+      documento_receptor: ['rut', 'ci', 'documento', 'documento_receptor', 'doc receptor', 'rut/ci'],
+      moneda: ['moneda'],
+      tipo_cambio: ['tipo cambio', 'tipo_cambio', 'tc', 't.c.'],
+      monto_neto: ['neto', 'monto neto', 'monto_neto', 'subtotal'],
+      monto_total: ['total', 'monto total', 'monto_total'],
+      adenda_raw: ['adenda', 'adenda_raw', 'observaciones', 'notas'],
+      estado_dgi: ['estado', 'estado dgi', 'estado_dgi'],
+    };
+    const headers = Object.keys(raw[0]);
+    const mapping = {};
+    for (const [field, aliases] of Object.entries(colMap)) {
+      const found = headers.find(h => aliases.includes(h.toLowerCase().trim()));
+      if (found) mapping[field] = found;
+    }
+    const rows = raw.map(r => {
+      const obj = {};
+      for (const [field, col] of Object.entries(mapping)) obj[field] = r[col] ?? '';
+      if (obj.fecha_emision) {
+        const d = new Date(obj.fecha_emision);
+        if (!isNaN(d)) obj.fecha_emision = d.toISOString().split('T')[0];
+      }
+      return obj;
+    }).filter(r => r.tipo_cfe && r.numero);
+    if (!rows.length) throw new Error('No se encontraron filas válidas. Verificá las columnas del Excel.');
+
+    const res = await fetch(`${BASE_URL}/api/tiempos?action=importar-facturas-biller`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ st: _bSt(), rows }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error en importación');
+    const s = data.resumen;
+    banner.innerHTML = `<div class="import-banner ok">✓ ${s.importados} importados · ${s.duplicados} duplicados · ${s.auto_asociados} auto-asociados${s.multi_odf ? ` · ${s.multi_odf} multi-ODF` : ''}${s.sin_adenda ? ` · ${s.sin_adenda} sin adenda` : ''}${s.no_venta ? ` · ${s.no_venta} no-venta` : ''}</div>`;
+    await loadBillerData();
+  } catch (e) {
+    banner.innerHTML = `<div class="import-banner err">✗ ${e.message}</div>`;
+  }
+}
+
+// ── BILLER MODAL ───────────────────────────────────────────────────────
+function openAsociarModal(facturaId) {
+  const comp = (billerData.comprobantes || []).find(c => c.id === facturaId);
+  if (!comp) return;
+  const proys = billerData.proyectos_activos || [];
+  const disponible = Math.abs(Number(comp.monto_neto_usd) || 0);
+  const existing = comp.asignaciones || [];
+  const optHtml = proys.map(p => `<option value="${p.id}">${p.numero} · ${p.nombre || ''}</option>`).join('');
+
+  let rowsHtml = '';
+  if (existing.length) {
+    rowsHtml = existing.map((a, i) => _asocRowHtml(optHtml, a.proyecto_id, Math.abs(a.monto_neto_usd || 0), facturaId, disponible)).join('');
+  } else {
+    const cands = comp.candidatos_adenda || [];
+    const matchId = cands.length === 1 ? (proys.find(p => p.numero === 'ODF-' + cands[0])?.id || '') : '';
+    rowsHtml = _asocRowHtml(optHtml, matchId, disponible, facturaId, disponible);
+  }
+
+  const box = document.getElementById('billerModalContent');
+  box.innerHTML = `
+    <div class="b-modal-title">${comp.serie || ''}${comp.numero || ''} · ${comp.tipo_cfe} · U$S ${fmtD(disponible)}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">${comp.cliente_nombre || ''}</div>
+    ${comp.candidatos_adenda?.length ? `<div style="font-size:10px;color:var(--muted);margin-bottom:12px;font-family:'Space Mono',monospace;">Candidatos adenda: ${comp.candidatos_adenda.join(', ')}</div>` : ''}
+    <div id="asocRows">${rowsHtml}</div>
+    <button class="b-btn" onclick="_addAsocRow('${facturaId}',${disponible})" style="width:100%;margin-top:6px;">+ AGREGAR ODF</button>
+    <div class="b-modal-footer">
+      <div class="mono" style="font-size:11px;color:var(--muted);" id="asocCounter"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="b-btn" onclick="closeBillerModal()">Cancelar</button>
+        <button class="b-btn accent" id="asocGuardar" onclick="guardarAsociacion('${facturaId}')">GUARDAR</button>
+      </div>
+    </div>`;
+  document.getElementById('billerModal').classList.remove('hidden');
+  _updateAsocCounter(disponible);
+}
+
+function _asocRowHtml(optHtml, selId, monto, facturaId, disponible) {
+  const selOpt = selId ? optHtml.replace(`value="${selId}"`, `value="${selId}" selected`) : optHtml;
+  return `<div class="b-modal-row">
+    <select class="asoc-proy">${selOpt}</select>
+    <input type="number" class="asoc-monto" step="0.01" min="0" value="${monto.toFixed(2)}" style="max-width:120px;" oninput="_updateAsocCounter(${disponible})">
+    <button class="b-btn danger" onclick="this.parentElement.remove();_updateAsocCounter(${disponible})" style="padding:3px 8px;">×</button>
+  </div>`;
+}
+
+function _addAsocRow(facturaId, disponible) {
+  const container = document.getElementById('asocRows');
+  const proys = billerData.proyectos_activos || [];
+  const optHtml = proys.map(p => `<option value="${p.id}">${p.numero} · ${p.nombre || ''}</option>`).join('');
+  container.insertAdjacentHTML('beforeend', _asocRowHtml(optHtml, '', 0, facturaId, disponible));
+  _updateAsocCounter(disponible);
+}
+
+function _updateAsocCounter(disponible) {
+  let total = 0;
+  document.querySelectorAll('#asocRows .asoc-monto').forEach(el => { total += Math.abs(parseFloat(el.value) || 0); });
+  const counter = document.getElementById('asocCounter');
+  const btn = document.getElementById('asocGuardar');
+  if (counter) counter.textContent = `Distribuido: $${fmtD(total)} / Disponible: $${fmtD(disponible)}`;
+  if (btn) btn.disabled = (document.querySelectorAll('#asocRows .b-modal-row').length === 0 || Math.abs(disponible - total) > 1);
+}
+
+async function guardarAsociacion(facturaId) {
+  const asignaciones = [];
+  document.querySelectorAll('#asocRows .b-modal-row').forEach(r => {
+    const proy = r.querySelector('.asoc-proy').value;
+    const monto = parseFloat(r.querySelector('.asoc-monto').value) || 0;
+    if (proy && monto > 0) asignaciones.push({ proyecto_id: proy, monto_neto_usd: monto });
+  });
+  if (!asignaciones.length) return;
+  try {
+    const res = await fetch(`${BASE_URL}/api/tiempos?action=asociar-factura-biller`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ st: _bSt(), factura_id: facturaId, asignaciones }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    closeBillerModal();
+    await loadBillerData();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function desasociarFactura(facturaId) {
+  if (!confirm('¿Desasociar este comprobante de todas las ODFs?')) return;
+  try {
+    const res = await fetch(`${BASE_URL}/api/tiempos?action=desasociar-factura-biller`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ st: _bSt(), factura_id: facturaId }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    await loadBillerData();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+function closeBillerModal() {
+  document.getElementById('billerModal').classList.add('hidden');
+}
+
+// ── FACTURACION IN DETAIL PANEL ────────────────────────────────────────
+async function _loadFacturacionDetail(prId, containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  try {
+    const res = await fetch(`${BASE_URL}/api/tiempos?action=facturacion-proyecto&proyecto_id=${prId}&st=${_bSt()}`);
+    const data = await res.json();
+    if (!data.ok) { el.innerHTML = `<div style="color:var(--muted);font-size:11px;">${data.error || 'Sin datos'}</div>`; return; }
+    if (data.venta_usd === 0) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:11px;">Sin precio de venta en Zoho</div>';
+      return;
+    }
+    const barPct = data.avance_pct != null ? Math.min(100, Math.max(0, data.avance_pct)) : 0;
+    const saldoColor = data.saldo_usd >= 0 ? 'var(--green)' : 'var(--red)';
+    let compRows = '';
+    if (data.comprobantes && data.comprobantes.length) {
+      compRows = data.comprobantes.map(c => {
+        const esNC = c.tipo_cfe === 'Nota de Crédito de e-Factura';
+        const badge = c.origen === 'auto' ? '<span class="b-badge auto">AUTO</span>' : '<span class="b-badge manual">MANUAL</span>';
+        return `<tr>
+          <td class="mono" style="font-size:11px;">${c.serie || ''}${c.numero || ''}</td>
+          <td style="font-size:11px;">${c.tipo_cfe || ''}</td>
+          <td class="mono" style="font-size:11px;">${formatDateDisplay(c.fecha_emision)}</td>
+          <td><span class="num" style="${esNC ? 'color:var(--red);' : ''}">${fmtD(c.monto_neto_usd || 0)}</span></td>
+          <td>${badge}</td>
+        </tr>`;
+      }).join('');
+    } else {
+      compRows = '<tr><td colspan="5" style="color:var(--muted);font-size:11px;">Sin comprobantes asociados</td></tr>';
+    }
+    el.innerHTML = `
+      <div class="fact-stats">
+        <div class="fs-item"><div class="fs-label">Venta Zoho</div><div class="fs-val" style="color:var(--amber);">U$S ${fmtD(data.venta_usd)}</div></div>
+        <div class="fs-item"><div class="fs-label">Facturado neto</div><div class="fs-val">U$S ${fmtD(data.facturado_usd)}</div></div>
+        <div class="fs-item"><div class="fs-label">Saldo</div><div class="fs-val" style="color:${saldoColor};">U$S ${fmtD(data.saldo_usd)}</div></div>
+        <div class="fs-item"><div class="fs-label">Avance</div><div class="fs-val">${data.avance_pct != null ? data.avance_pct + '%' : '—'}</div></div>
+      </div>
+      <div class="fact-bar"><div class="fact-bar-fill" style="width:${barPct}%;"></div></div>
+      <table class="costos-table">
+        <thead><tr><th>Nº</th><th>Tipo</th><th>Fecha</th><th class="r">Neto USD</th><th>Origen</th></tr></thead>
+        <tbody>${compRows}</tbody>
+      </table>`;
+  } catch (e) {
+    el.innerHTML = `<div style="color:var(--red);font-size:11px;">${e.message}</div>`;
+  }
 }
 
 // ── EVENT LISTENERS ─────────────────────────────────────────────────────

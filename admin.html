@@ -2032,7 +2032,7 @@ async function renderDetallePr(pr, sub) {
   const hA=hAcumPr(pr.id), hE=hEstPr(pr);
   const byCentro=hByCentro(pr.id), byOp=hByOp(pr.id);
   const _u = window.AUTH.usuarioActual();
-  const SUBS=['resumen','ítems','materiales','tiempos',...(_u?.rol_app==='admin'?['costos']:[])];
+  const SUBS=['resumen','ítems','materiales','tiempos',...(_u?.rol_app==='admin'?['costos','facturación']:[])];
 
 
   const hdrContent = editMode
@@ -2348,6 +2348,16 @@ async function renderDetallePr(pr, sub) {
     }
   }
 
+  // ── FACTURACIÓN (solo admin) ──
+  if (sub === 'facturación') {
+    html += `<div class="card" id="facturacion-pr-panel" style="position:relative;min-height:200px;">
+      <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:2px;margin-bottom:16px;">CARGANDO FACTURACIÓN…</div>
+    </div>`;
+    document.getElementById('pr-detalle').innerHTML = html;
+    _renderFacturacionPr(pr.id);
+    return;
+  }
+
   // ── COSTOS (solo admin — protegido por PIN de sección) ──
   if (sub === 'costos') {
     html += `<div class="card" id="costos-pr-panel" style="position:relative;min-height:200px;">
@@ -2635,6 +2645,105 @@ async function _renderCostosPr(prId) {
         <div class="mono" style="font-size:22px;font-weight:700;color:var(--green);">${fmtUSD(totalProyecto)}</div>
       </div>
       ${alertas}`;
+  } catch(e) {
+    if (panel) panel.innerHTML = `<div style="color:var(--red);font-size:13px;">Error: ${e.message}</div>`;
+  }
+}
+
+async function _renderFacturacionPr(prId) {
+  const panel = document.getElementById('facturacion-pr-panel');
+  if (!panel) return;
+  try {
+    const res = await fetch(`/api/tiempos?action=facturacion-proyecto&proyecto_id=${encodeURIComponent(prId)}`);
+    const data = await res.json();
+    if (!data.ok) { panel.innerHTML = `<div style="color:var(--red);font-size:13px;">${data.error || 'Error al cargar facturación'}</div>`; return; }
+
+    const fmtUSD = n => n != null ? `$${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
+    const venta = Number(data.venta_usd || 0);
+    const facturado = Number(data.facturado_usd || 0);
+    const saldo = Number(data.saldo_usd || 0);
+    const avance = Number(data.avance_pct || 0);
+    const comps = data.comprobantes || [];
+
+    // Aviso si no hay precio de venta
+    const avisoVenta = venta === 0
+      ? `<div style="background:rgba(255,214,0,.08);border:1px solid rgba(255,214,0,.25);border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#FFD600;">⚠ Sin precio de venta en Zoho</div>`
+      : '';
+
+    // Stats
+    const saldoColor = saldo <= 0 ? 'var(--green)' : '#C8832A';
+    const stats = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">VENTA ZOHO</div>
+          <div class="mono" style="font-size:18px;font-weight:700;color:#fff;">${fmtUSD(venta)}</div>
+        </div>
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">FACTURADO NETO</div>
+          <div class="mono" style="font-size:18px;font-weight:700;color:var(--green);">${fmtUSD(facturado)}</div>
+        </div>
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">SALDO</div>
+          <div class="mono" style="font-size:18px;font-weight:700;color:${saldoColor};">${fmtUSD(saldo)}</div>
+        </div>
+      </div>`;
+
+    // Barra de progreso
+    const barra = `
+      <div style="margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Avance de facturación</span>
+          <span class="mono" style="font-size:13px;font-weight:700;color:#FFD600;">${avance}%</span>
+        </div>
+        <div style="background:var(--faint);border-radius:4px;height:8px;overflow:hidden;">
+          <div style="width:${Math.min(avance, 100)}%;height:100%;background:#FFD600;border-radius:4px;transition:width .3s;"></div>
+        </div>
+      </div>`;
+
+    // Tabla de comprobantes
+    let tabla = '';
+    if (comps.length) {
+      const rows = comps.map(c => {
+        const esNC = (c.tipo || '').toUpperCase().includes('NC') || (c.tipo || '').toLowerCase().includes('crédito') || (c.tipo || '').toLowerCase().includes('credit');
+        const montoColor = esNC ? 'var(--red)' : '#fff';
+        const montoPrefix = esNC ? '-' : '';
+        const montoVal = Math.abs(Number(c.monto_neto_usd || 0));
+        const badgeBg = (c.origen || '').toUpperCase() === 'AUTO'
+          ? 'background:rgba(74,158,48,.15);color:#4a9e30;border:1px solid rgba(74,158,48,.3);'
+          : 'background:rgba(255,214,0,.1);color:#FFD600;border:1px solid rgba(255,214,0,.3);';
+        const estadoBadge = c.estado
+          ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--muted);">${c.estado}</span>`
+          : '';
+        return `<tr style="border-bottom:1px solid var(--faint);">
+          <td style="font-family:'JetBrains Mono',monospace;font-size:12px;padding:8px 0;color:#fff;">${c.numero || '—'}</td>
+          <td style="font-size:12px;color:${esNC ? 'var(--red)' : 'var(--muted)'};">${c.tipo || '—'}</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);">${c.fecha ? c.fecha.slice(0, 10) : '—'}</td>
+          <td class="mono" style="text-align:right;font-weight:600;color:${montoColor};">${montoPrefix}${fmtUSD(montoVal)}</td>
+          <td style="text-align:center;">${estadoBadge} <span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;${badgeBg}">${(c.origen || 'MANUAL').toUpperCase()}</span></td>
+        </tr>`;
+      }).join('');
+      tabla = `
+      <div class="sec-title" style="font-size:10px;margin-bottom:8px;">COMPROBANTES ASOCIADOS</div>
+      <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">
+        <thead><tr>
+          <th style="text-align:left;font-size:10px;color:var(--muted);padding:6px 0;font-weight:600;">Nº</th>
+          <th style="text-align:left;font-size:10px;color:var(--muted);font-weight:600;">TIPO</th>
+          <th style="text-align:left;font-size:10px;color:var(--muted);font-weight:600;">FECHA</th>
+          <th style="text-align:right;font-size:10px;color:var(--muted);font-weight:600;">MONTO NETO USD</th>
+          <th style="text-align:center;font-size:10px;color:var(--muted);font-weight:600;">ESTADO</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+    } else {
+      tabla = `<div style="color:var(--muted);font-size:13px;padding:16px 0;">Sin comprobantes asociados</div>`;
+    }
+
+    panel.innerHTML = `
+      <div class="sec-title" style="margin-bottom:16px;">Facturación del Proyecto</div>
+      ${avisoVenta}
+      ${stats}
+      ${barra}
+      ${tabla}`;
   } catch(e) {
     if (panel) panel.innerHTML = `<div style="color:var(--red);font-size:13px;">Error: ${e.message}</div>`;
   }
