@@ -469,7 +469,8 @@ function extraerCodigoZoho(item) {
 // Fallback: primeras 3 palabras si no hay ninguna en mayúsculas.
 function extraerNombreMueble(str) {
   if (!str) return '';
-  const matches = str.match(/\b[A-Z][A-Z0-9\/\-]*\b/g) || [];
+  // Extraer palabras 100% MAYÚSCULAS de ≥4 chars (filtra fragmentos como "BU", "ADO")
+  const matches = (str.match(/\b[A-ZÁÉÍÓÚÑ]{4,}\b/g) || []);
   if (matches.length > 0) return matches.join(' ');
   // fallback: primeras 3 palabras
   return str.split(/\s+/).slice(0, 3).join(' ');
