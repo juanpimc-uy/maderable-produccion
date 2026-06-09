@@ -2297,7 +2297,6 @@ function initCNC(esRestauracion = false) {
       const tsNum = parseInt(savedTs);
       cncPlacaNum    = parseInt(savedNumero) || 1;
       cncInicioPlaca = new Date(tsNum).toISOString();
-      cncPlacaId     = localStorage.getItem('cnc_placa_id') || null;
       const secsTranscurridos = Math.floor((Date.now() - tsNum) / 1000);
       console.log('[CNC] Timer arranca desde:', secsTranscurridos, 'segundos transcurridos');
     } else {
@@ -2391,14 +2390,13 @@ async function registrarPlaca(resultado) {
   const fin = new Date().toISOString();
   const durSecs = cncInicioPlaca ? elapsed(cncInicioPlaca) : 0;
   const numActual = cncPlacaNum;
-  const placaIdActual = cncPlacaId;   // capturar antes de limpiar
 
   _cncLimpiarPlaca(); // placa terminando — borrar del localStorage
   document.querySelectorAll('#cnc-card-corte button').forEach(b => b.disabled = true);
 
   try {
     await apiPost('cnc-placa-cerrar', {
-      placa_id: placaIdActual,
+      placa_id: cncPlacaId,
       fin,
       resultado,
       registro_trabajo_id: registroActivo.id,
