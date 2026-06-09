@@ -1099,6 +1099,7 @@ let checkState = [false, false, false, false, false];
 let proyectoSel = null;
 let itemSel     = null;
 let centroSel   = null;
+let maquinaSel  = null;
 let _modoSoloProyecto = false;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1386,13 +1387,13 @@ async function autenticar() {
     // - api/tiempos.js?action=detalle-cnc
     // Tabla registros_cnc en BD intacta.
     // ====================================================
-    /*
-    if (registroActivo && registroActivo.centro && registroActivo.centro.toUpperCase().includes('CNC')) {
+    if (registroActivo && registroActivo.centro === 'corte' && registroActivo.maquina === 'cnc') {
       proyectoSel = { id: registroActivo.proyecto_id, nombre: registroActivo.proyecto_nombre };
       itemSel     = { id: registroActivo.item_id,     nombre: registroActivo.item_nombre };
       centroSel   = registroActivo.centro;
+      maquinaSel  = 'cnc';
 
-      // PASO 4: intentar obtener placa abierta desde Supabase para restaurar timer
+      // Intentar obtener placa abierta desde Supabase para restaurar timer
       try {
         const { placa } = await apiGet('get-cnc-activo', `registro_trabajo_id=${registroActivo.id}`);
         console.log('[CNC] Placa activa en Supabase:', placa);
@@ -1403,13 +1404,11 @@ async function autenticar() {
           localStorage.setItem('cnc_placa_inicio', tsNum.toString());
           localStorage.setItem('cnc_placa_numero', String(placa.placa_numero));
         } else {
-          // No hay placa activa en Supabase — limpiar datos locales para evitar timer fantasma
           localStorage.removeItem('cnc_placa_inicio');
           localStorage.removeItem('cnc_placa_numero');
         }
       } catch (e) {
         console.log('[CNC] No se pudo obtener placa de Supabase:', e.message);
-        // Limpiar datos locales ante error para no mostrar timer incorrecto
         localStorage.removeItem('cnc_placa_inicio');
         localStorage.removeItem('cnc_placa_numero');
       }
@@ -1419,8 +1418,6 @@ async function autenticar() {
     } else {
       irAlMenu();
     }
-    */
-    irAlMenu();
   } catch (e) {
     setLoginError('Error: ' + e.message);
   } finally {
@@ -1530,6 +1527,7 @@ function iniciarSeleccion() {
   proyectoSel = null;
   itemSel = null;
   centroSel = null;
+  maquinaSel = null;
   _modoSoloProyecto = false;
   const autorizados = [...new Set(
     (empleadoActual?.centros_autorizados || []).map(c =>
@@ -1595,7 +1593,7 @@ function initTarea() {
 
 function selProyecto(id) {
   proyectoSel = proyectos.find(p => p.id === id);
-  itemSel = null; centroSel = null;
+  itemSel = null; centroSel = null; maquinaSel = null;
   document.querySelectorAll('#lista-proyectos .item-btn').forEach(b => {
     b.classList.remove('sel');
     b.style.display = b.id === 'pr-' + id ? '' : 'none';
@@ -1637,7 +1635,7 @@ function selProyecto(id) {
 function selItem(id) {
   const items = proyectoSel?.items || [];
   itemSel = items.find(i => String(i.id) === String(id)) || null;
-  centroSel = null;
+  centroSel = null; maquinaSel = null;
   document.querySelectorAll('#lista-items .item-btn').forEach(b => {
     b.classList.remove('sel');
     b.style.display = b.id === 'it-' + id ? '' : 'none';
@@ -1716,8 +1714,13 @@ function nombreCorto(nombre) {
 
 function selCentro(id, nombre) {
   centroSel = nombre;
+  maquinaSel = null;
   document.querySelectorAll('#lista-centros .centro-btn').forEach(b => b.classList.remove('sel'));
   document.getElementById('ct-' + id)?.classList.add('sel');
+
+  if (nombre === 'corte') {
+    _mostrarModalMaquinaSolo();
+  }
 
   // Verificar si es habitual
   const key = `centros_recientes_${empleadoActual.id}`;
@@ -2075,9 +2078,86 @@ function initCentroSelector() {
 
 function selCentroFinal(id, nombre) {
   centroSel = nombre;
+  maquinaSel = null;
   document.querySelectorAll('#lista-centros-selector .centro-btn').forEach(b => b.classList.remove('sel'));
   document.getElementById('ctsel-' + id)?.classList.add('sel');
 
+  if (nombre === 'corte') {
+    _mostrarModalMaquina(id, nombre);
+    return;
+  }
+  _continuarCentro(id, nombre);
+}
+
+function _mostrarModalMaquina(id, nombre) {
+  let overlay = document.getElementById('modal-maquina-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'modal-maquina-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;display:flex;align-items:center;justify-content:center;';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `
+    <div style="background:#1e1e1e;border:1px solid #333;border-radius:12px;padding:28px 24px;width:90%;max-width:360px;">
+      <div style="font-family:'Space Mono',monospace;font-size:11px;color:#888;text-transform:uppercase;letter-spacing:2px;margin-bottom:18px;text-align:center;">Seleccioná máquina</div>
+      <div style="display:flex;gap:12px;">
+        <button onclick="_selMaquina('escuadradora','${id}','${nombre}')"
+          style="flex:1;min-height:80px;background:#111;border:2px solid #333;border-radius:8px;color:#fff;font-family:'Space Mono',monospace;font-size:14px;font-weight:700;cursor:pointer;transition:border-color .15s;"
+          onmouseenter="this.style.borderColor='#FFD600'" onmouseleave="this.style.borderColor='#333'">
+          ESCUADRADORA
+        </button>
+        <button onclick="_selMaquina('cnc','${id}','${nombre}')"
+          style="flex:1;min-height:80px;background:#111;border:2px solid #333;border-radius:8px;color:#FFD600;font-family:'Space Mono',monospace;font-size:14px;font-weight:700;cursor:pointer;transition:border-color .15s;"
+          onmouseenter="this.style.borderColor='#FFD600'" onmouseleave="this.style.borderColor='#333'">
+          CNC
+        </button>
+      </div>
+      <button onclick="document.getElementById('modal-maquina-overlay').style.display='none'"
+        style="width:100%;margin-top:14px;background:transparent;border:1px solid #333;border-radius:6px;color:#888;font-family:'Space Mono',monospace;font-size:11px;padding:8px;cursor:pointer;">
+        CANCELAR
+      </button>
+    </div>`;
+  overlay.style.display = 'flex';
+}
+
+function _selMaquina(tipo, id, nombre) {
+  maquinaSel = tipo;
+  document.getElementById('modal-maquina-overlay').style.display = 'none';
+  _continuarCentro(id, nombre);
+}
+
+function _mostrarModalMaquinaSolo() {
+  let overlay = document.getElementById('modal-maquina-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'modal-maquina-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;display:flex;align-items:center;justify-content:center;';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `
+    <div style="background:#1e1e1e;border:1px solid #333;border-radius:12px;padding:28px 24px;width:90%;max-width:360px;">
+      <div style="font-family:'Space Mono',monospace;font-size:11px;color:#888;text-transform:uppercase;letter-spacing:2px;margin-bottom:18px;text-align:center;">Seleccioná máquina</div>
+      <div style="display:flex;gap:12px;">
+        <button onclick="maquinaSel='escuadradora';document.getElementById('modal-maquina-overlay').style.display='none'"
+          style="flex:1;min-height:80px;background:#111;border:2px solid #333;border-radius:8px;color:#fff;font-family:'Space Mono',monospace;font-size:14px;font-weight:700;cursor:pointer;transition:border-color .15s;"
+          onmouseenter="this.style.borderColor='#FFD600'" onmouseleave="this.style.borderColor='#333'">
+          ESCUADRADORA
+        </button>
+        <button onclick="maquinaSel='cnc';document.getElementById('modal-maquina-overlay').style.display='none'"
+          style="flex:1;min-height:80px;background:#111;border:2px solid #333;border-radius:8px;color:#FFD600;font-family:'Space Mono',monospace;font-size:14px;font-weight:700;cursor:pointer;transition:border-color .15s;"
+          onmouseenter="this.style.borderColor='#FFD600'" onmouseleave="this.style.borderColor='#333'">
+          CNC
+        </button>
+      </div>
+      <button onclick="document.getElementById('modal-maquina-overlay').style.display='none'"
+        style="width:100%;margin-top:14px;background:transparent;border:1px solid #333;border-radius:6px;color:#888;font-family:'Space Mono',monospace;font-size:11px;padding:8px;cursor:pointer;">
+        CANCELAR
+      </button>
+    </div>`;
+  overlay.style.display = 'flex';
+}
+
+function _continuarCentro(id, nombre) {
   const cv = _cvP.find(x => x.codigo === nombre);
   const reqProyecto = cv?.requiere_proyecto ?? true;
   const reqMueble   = cv?.requiere_mueble   ?? true;
@@ -2148,6 +2228,7 @@ async function confirmarTarea() {
       item_id:         itemSel?.id       || null,
       item_nombre:     itemSel?.nombre   || null,
       centro:          centroSel,
+      maquina:         maquinaSel,
     });
     registroActivo = registro;
     if (registro) registrosHoy = [...registrosHoy.filter(r => r.id !== registro.id), registro];
@@ -2159,26 +2240,12 @@ async function confirmarTarea() {
     const nuevo = [centroSel, ...prev.filter(c => c !== centroSel)].slice(0, 3);
     localStorage.setItem(key, JSON.stringify(nuevo));
 
-    // ====================================================
-    // FLUJO CNC (PLACA PICKER) — DESACTIVADO 2/5/2026
-    // Ver comentario completo en zona "Restore CNC al login".
-    // Antes esta rama abría la pantalla del placa picker para
-    // centros con "CNC" en el nombre. Ahora todos los centros
-    // (incluido CORTE) van directo al menú post-confirmación.
-    //
-    // Para reactivar: descomentar el if/else completo y ajustar
-    // la condición al centro objetivo.
-    // ====================================================
-    /*
-    if (centroSel.toUpperCase().includes('CNC')) {
+    if (centroSel === 'corte' && maquinaSel === 'cnc') {
       initCNC(); ir('pantalla-cnc');
     } else {
       toast('Tarea iniciada ✓', 'var(--green)');
       renderMenuTarea(); ir('pantalla-menu');
     }
-    */
-    toast('Tarea iniciada ✓', 'var(--green)');
-    renderMenuTarea(); ir('pantalla-menu');
   } catch (e) {
     toast('Error: ' + e.message, 'var(--red)');
     if (btn) btn.disabled = false;

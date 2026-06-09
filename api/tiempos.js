@@ -126,6 +126,51 @@ async function verificarSesion(token) {
   return data || null;
 }
 
+// ── Inyectar completado desde ledger en items de proyectos ────────────────
+async function _inyectarCompletado(proyectos) {
+  if (!proyectos.length) return proyectos;
+  const ids = proyectos.map(p => p.id);
+  const { data: logs } = await supabase
+    .from('items_completado_log')
+    .select('proyecto_id, item_id, evento, completado_en, creado_at')
+    .in('proyecto_id', ids)
+    .order('creado_at', { ascending: false });
+  if (!logs || !logs.length) return proyectos;
+  // Build map: proyecto_id:item_id → latest log entry
+  const latest = {};
+  for (const l of logs) {
+    const key = l.proyecto_id + ':' + l.item_id;
+    if (!latest[key]) latest[key] = l;
+  }
+  for (const p of proyectos) {
+    const muebles = Array.isArray(p.muebles) ? p.muebles : [];
+    for (const m of muebles) {
+      const entry = latest[p.id + ':' + m.id];
+      if (entry && entry.evento === 'completado') {
+        m.completado = true;
+        m.completado_en = entry.completado_en;
+      } else {
+        m.completado = false;
+        m.completado_en = null;
+      }
+    }
+    // Mirror to items if present
+    if (Array.isArray(p.items)) {
+      for (const it of p.items) {
+        const entry = latest[p.id + ':' + it.id];
+        if (entry && entry.evento === 'completado') {
+          it.completado = true;
+          it.completado_en = entry.completado_en;
+        } else {
+          it.completado = false;
+          it.completado_en = null;
+        }
+      }
+    }
+  }
+  return proyectos;
+}
+
 // ── Rate limiting (en memoria) ─────────────────────────────────────────────
 const _loginAttempts = new Map();
 const RATE_MAX = 5;
@@ -352,6 +397,7 @@ async function _tiempoActivoImpl(sb, { empleado_id }) {
 
 async function _iniciarTareaImpl(sb, {
   empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre,
+  maquina = null,       // 'escuadradora' | 'cnc' | null (solo para centro=corte)
   _jornada_id = null,   // pasar directamente para wrappers legacy (planta)
   _autoJornada = false, // auto-upsert jornada para wrappers legacy (oficina)
   _inicio = null,       // inicio explícito (opcional, para edición desde tiempos)
@@ -439,6 +485,7 @@ async function _iniciarTareaImpl(sb, {
       item_id:    persistirItem ? (item_id    || null) : null,
       item_nombre: persistirItem ? (item_nombre || null) : null,
       centro,
+      maquina: maquina || null,
       inicio: ahora,
       ultima_actividad: ahora,
       fin: null,
@@ -796,9 +843,10 @@ export default async function handler(req) {
     // ── POST iniciar tarea (wrapper → _iniciarTareaImpl) ──────────────────
     if (action === 'iniciar-tarea' && req.method === 'POST') {
       const { empleado_id, jornada_id, proyecto_id, proyecto_nombre,
-              item_id, item_nombre, centro, inicio } = body;
+              item_id, item_nombre, centro, inicio, maquina } = body;
       const result = await _iniciarTareaImpl(supabase, {
         empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre,
+        maquina: maquina || null,
         _jornada_id: jornada_id,
         _inicio: inicio || null,
       });
@@ -1033,6 +1081,28 @@ export default async function handler(req) {
         .filter(c => c.mostrar_dashboard_siempre === true || porCentro[c.codigo])
         .map(c => porCentro[c.codigo] || { centro: c.codigo, label: c.nombre, total: 0, sin_senal: 0, muebles: [] });
 
+      // 8. Enriquecer operarios en CNC con estado placa + tiempo
+      const { data: cncTareas } = await supabase.from('registros_trabajo')
+        .select('id, empleado_id, inicio')
+        .eq('estado', 'activo').eq('centro', 'corte').eq('maquina', 'cnc').eq('eliminada', false);
+      for (const t of (cncTareas || [])) {
+        const { data: ultimaPlaca } = await supabase.from('registros_cnc')
+          .select('placa_numero, inicio, fin').eq('registro_trabajo_id', t.id)
+          .order('creado_at', { ascending: false }).limit(1).maybeSingle();
+        const op = operariosOut.find(o => o.id === t.empleado_id);
+        if (!op) continue;
+        if (ultimaPlaca && !ultimaPlaca.fin) {
+          const desde = ultimaPlaca.inicio ? new Date(ultimaPlaca.inicio).getTime() : ahora.getTime();
+          op.cnc = { estado: 'cortando', placa_numero: ultimaPlaca.placa_numero,
+                     minutos: Math.max(0, Math.floor((ahora.getTime() - desde) / 60000)) };
+        } else {
+          const ref = ultimaPlaca?.fin || t.inicio;
+          const desde = ref ? new Date(ref).getTime() : ahora.getTime();
+          op.cnc = { estado: 'parado', placa_numero: ultimaPlaca?.placa_numero ?? null,
+                     minutos: Math.max(0, Math.floor((ahora.getTime() - desde) / 60000)) };
+        }
+      }
+
       return ok({
         timestamp: ahora.toISOString(),
         counters,
@@ -1222,14 +1292,16 @@ export default async function handler(req) {
       console.log('Consultando proyectos_cache...');
       const { data, error } = await supabase.from('proyectos_cache').select('*').eq('activo', true).order('nombre');
       console.log('Proyectos encontrados:', data?.length, error?.message);
-      return ok({ proyectos: data || [] });
+      const proyectos = await _inyectarCompletado(data || []);
+      return ok({ proyectos });
     }
 
     // ── GET todos los proyectos (para admin) ──────────────────────────────
     if (action === 'proyectos-admin' && req.method === 'GET') {
       const { data, error } = await supabase.from('proyectos_cache').select('*').order('nombre');
       if (error) throw error;
-      return ok({ proyectos: data || [] });
+      const proyectos = await _inyectarCompletado(data || []);
+      return ok({ proyectos });
     }
 
     // ── POST archivar/restaurar proyecto ────────────────────────────────
@@ -1251,7 +1323,10 @@ export default async function handler(req) {
               // legacy fields for backwards compat
               nombre, cliente, items } = body;
       const _obra = obra || nombre;
-      const _muebles = muebles || items || [];
+      const _muebles = (muebles || items || []).map(m => { const { completado, completado_en, ...rest } = m; return rest; });
+      // Preserve activo from existing row to avoid silent un-archiving
+      const { data: existing } = await supabase.from('proyectos_cache').select('activo').eq('id', id).maybeSingle();
+      const _activo = existing ? existing.activo : true;
       const { data, error } = await supabase.from('proyectos_cache')
         .upsert({
           id, nombre: numero || _obra, numero, obra: _obra,
@@ -1264,11 +1339,12 @@ export default async function handler(req) {
           sos_cargadas: sosCargadas || [],
           modulos: modulos || [],
           creado_en: creadoEn,
-          activo: true, sincronizado_at: new Date().toISOString(),
+          activo: _activo, sincronizado_at: new Date().toISOString(),
         }, { onConflict: 'id' })
         .select();
       if (error) throw error;
-      return ok({ proyecto: (data || [])[0] || null, ok: true });
+      const _synced = await _inyectarCompletado(data || []);
+      return ok({ proyecto: _synced[0] || null, ok: true });
     }
 
     // ── PATCH/POST editar jornada ─────────────────────────────────────────
@@ -2004,11 +2080,11 @@ export default async function handler(req) {
 
     // ── POST iniciar-tarea-v2 ─────────────────────────────────────────────
     if (action === 'iniciar-tarea-v2' && req.method === 'POST') {
-      const { empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre } = body;
+      const { empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre, maquina } = body;
       if (!empleado_id || !centro) return err('empleado_id y centro requeridos', 400);
       const result = await _iniciarTareaImpl(supabase, {
         empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre,
-        // _autoJornada: false — v2 requiere jornada activa explícita
+        maquina: maquina || null,
       });
       return ok({ ok: true, ...result });
     }
@@ -2233,6 +2309,7 @@ export default async function handler(req) {
       const { id, nombre, numero, obra, clienteNombre, referencia, fechaInicio, fechaEntrega,
               notas, estado, muebles, materiales, sosCargadas, modulos, creadoEn,
               activo: activoBody } = body;
+      const _muebles = (muebles || []).map(m => { const { completado, completado_en, ...rest } = m; return rest; });
       const { data, error } = await supabase.from('proyectos_cache')
         .upsert({
           id, nombre: nombre || obra || numero, numero, obra,
@@ -2240,7 +2317,7 @@ export default async function handler(req) {
           referencia: referencia || null,
           fecha_inicio: fechaInicio, fecha_entrega: fechaEntrega,
           notas, estado: estado || 'en_produccion',
-          muebles: muebles || [], items: muebles || [],
+          muebles: _muebles, items: _muebles,
           materiales: materiales || [],
           sos_cargadas: sosCargadas || [],
           modulos: modulos || [],
@@ -2250,7 +2327,70 @@ export default async function handler(req) {
         }, { onConflict: 'id' })
         .select();
       if (error) throw error;
-      return ok({ proyecto: (data || [])[0] || null, ok: true });
+      const _saved = await _inyectarCompletado(data || []);
+      return ok({ proyecto: _saved[0] || null, ok: true });
+    }
+
+    // ── POST marcar-item (completado/reabierto) ─────────────────────────
+    if (action === 'marcar-item' && req.method === 'POST') {
+      const _st = body.st || body.session_token || url.searchParams.get('st');
+      const caller = await verificarSesion(_st);
+      if (!caller || (caller.rol_app !== 'admin' && caller.rol_app !== 'oficina'))
+        return err('Solo admin u oficina', 403);
+
+      const { proyecto_id, item_id, evento } = body;
+      if (!proyecto_id || !item_id) return err('proyecto_id e item_id requeridos', 400);
+      if (evento !== 'completado' && evento !== 'reabierto') return err('evento debe ser completado o reabierto', 400);
+
+      // Idempotencia: chequear último evento de este item
+      const { data: ultimo } = await supabase
+        .from('items_completado_log')
+        .select('evento')
+        .eq('proyecto_id', proyecto_id).eq('item_id', item_id)
+        .order('creado_at', { ascending: false })
+        .limit(1).maybeSingle();
+      if (ultimo && ultimo.evento === evento)
+        return ok({ ok: true, sin_cambio: true });
+
+      let completado_en = null;
+      let es_retrabajo = false;
+      let placas_snapshot = null;
+      let item_nombre = null;
+
+      if (evento === 'completado') {
+        // Cargar proyecto para datos del item
+        const { data: proy } = await supabase
+          .from('proyectos_cache').select('muebles').eq('id', proyecto_id).maybeSingle();
+        const muebles = Array.isArray(proy?.muebles) ? proy.muebles : [];
+        const item = muebles.find(m => String(m.id) === String(item_id));
+        placas_snapshot = item?.placas || null;
+        item_nombre = item?.nombre || null;
+
+        // completado_en = max(fin) de registros_trabajo de ese item
+        const { data: regMax } = await supabase
+          .from('registros_trabajo')
+          .select('fin, es_retrabajo')
+          .eq('proyecto_id', proyecto_id).eq('item_id', item_id)
+          .not('fin', 'is', null)
+          .or('eliminada.is.null,eliminada.eq.false')
+          .order('fin', { ascending: false });
+        if (regMax && regMax.length) {
+          completado_en = regMax[0].fin;
+          es_retrabajo = regMax.some(r => r.es_retrabajo === true);
+        }
+        // Sin registros con fin → completado_en queda null (no medible)
+      }
+      // evento === 'reabierto' → completado_en queda null
+
+      const { data: inserted, error: insErr } = await supabase
+        .from('items_completado_log').insert({
+          proyecto_id, item_id, evento,
+          completado_en, es_retrabajo, placas_snapshot, item_nombre,
+          creado_por: caller.id,
+        }).select().single();
+      if (insErr) throw insErr;
+
+      return ok({ ok: true, log: inserted });
     }
 
     // ── GET órdenes de compra ─────────────────────────────────────────────
