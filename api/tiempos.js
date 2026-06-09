@@ -881,6 +881,23 @@ export default async function handler(req) {
       return ok({ placa: data });
     }
 
+    // ── POST cnc-placa-cerrar ────────────────────────────────────────────
+    if (action === 'cnc-placa-cerrar' && req.method === 'POST') {
+      const { placa_id, fin, resultado, registro_trabajo_id, empleado_id, placa_numero, inicio } = body;
+      if (placa_id) {
+        const { data, error } = await supabase.from('registros_cnc')
+          .update({ fin, resultado }).eq('id', placa_id).select().single();
+        if (error) throw error;
+        return ok({ placa: data });
+      }
+      // fallback: no hubo fila abierta → insertar completa (comportamiento viejo)
+      const { data, error } = await supabase.from('registros_cnc')
+        .insert({ registro_trabajo_id, empleado_id, placa_numero, inicio, fin, resultado })
+        .select().single();
+      if (error) throw error;
+      return ok({ placa: data });
+    }
+
     // ── GET dashboard tiempo real ─────────────────────────────────────────
     if (action === 'dashboard-live' && req.method === 'GET') {
       const hoy = new Date().toISOString().split('T')[0];

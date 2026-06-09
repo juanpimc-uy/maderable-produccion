@@ -3006,14 +3006,30 @@ function setPlacasInline(prId,mId,val){
   renderDetallePr(pr,'ítems');
 }
 
-function toggleItemCompletado(prId,itemId){
+async function toggleItemCompletado(prId,itemId){
   const pr=PROYECTOS.find(p=>p.id===prId);
   if(!pr)return;
   const m=(pr.muebles||[]).find(x=>x.id===itemId);
   if(!m)return;
-  m.completado=!m.completado;
-  syncProyectoSupabase(pr);
+  const nuevoEvento = m.completado ? 'reabierto' : 'completado';
+  const prev = m.completado;
+  m.completado = !prev;
   renderDetallePr(pr,'\u00edtems');
+  try {
+    const st = window.AUTH.getSessionToken();
+    const res = await fetch('/api/tiempos?action=marcar-item&st=' + st, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proyecto_id: prId, item_id: itemId, evento: nuevoEvento, st }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    if (data.log && data.log.completado_en) m.completado_en = data.log.completado_en;
+  } catch(e) {
+    m.completado = prev;
+    renderDetallePr(pr,'\u00edtems');
+    alert('Error al marcar item: ' + e.message);
+  }
 }
 
 function setNombreInline(prId,mId,valor){
