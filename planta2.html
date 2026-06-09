@@ -1079,7 +1079,6 @@ function initPlacaPickers() {
 let cncEstado     = 'inicio'; // 'inicio' | 'cortando' | 'idle' | 'pausado'
 let cncPlacaNum   = 1;
 let cncInicioPlaca = null;   // ISO string
-let cncPlacaId     = null;   // UUID from registros_cnc (fila abierta)
 let cncInicioIdle  = null;   // Date.now()
 let cncPlacasOk    = 0;
 let cncPlacasErr   = 0;
@@ -1404,14 +1403,9 @@ async function autenticar() {
           console.log('[CNC] Usando inicio de Supabase:', placa.inicio, '→', secsSupabase, 'seg');
           localStorage.setItem('cnc_placa_inicio', tsNum.toString());
           localStorage.setItem('cnc_placa_numero', String(placa.placa_numero));
-          cncPlacaId = placa?.id || null;
-          if (cncPlacaId) localStorage.setItem('cnc_placa_id', String(cncPlacaId));
-          else localStorage.removeItem('cnc_placa_id');
         } else {
           localStorage.removeItem('cnc_placa_inicio');
           localStorage.removeItem('cnc_placa_numero');
-          cncPlacaId = null;
-          localStorage.removeItem('cnc_placa_id');
         }
       } catch (e) {
         console.log('[CNC] No se pudo obtener placa de Supabase:', e.message);
@@ -2271,7 +2265,6 @@ function initCNC(esRestauracion = false) {
   cncPlacaNum    = 1;
   cncEstado      = 'inicio';  // 'inicio' | 'cortando' | 'idle' | 'pausado'
   cncInicioPlaca = null;
-  cncPlacaId     = null;
   cncInicioIdle  = null;
   cncPlacasOk   = 0; cncPlacasErr = 0; cncPlacasSalt = 0;
   cncDuraciones = [];
@@ -2344,7 +2337,7 @@ function actualizarBotonIdle() {
   document.getElementById('cnc-prox-num').textContent = placaSeleccionadaIdle;
 }
 
-async function arrancarCorteCNC() {
+function arrancarCorteCNC() {
   const n = placaSeleccionadaInicio;
   cncPlacaNum    = Math.max(1, n);
   cncEstado      = 'cortando';
@@ -2352,20 +2345,9 @@ async function arrancarCorteCNC() {
   _cncGuardarPlaca();
   document.getElementById('cnc-placa-timer').textContent = '00:00:00';
   renderCNCEstado();
-  try {
-    const { placa } = await apiPost('cnc-placa', {
-      registro_trabajo_id: registroActivo.id,
-      empleado_id: empleadoActual.id,
-      placa_numero: cncPlacaNum,
-      inicio: cncInicioPlaca,
-      fin: null,
-    });
-    cncPlacaId = placa?.id || null;
-    if (cncPlacaId) localStorage.setItem('cnc_placa_id', String(cncPlacaId));
-  } catch (e) { console.warn('cnc-placa abrir:', e.message); cncPlacaId = null; }
 }
 
-async function iniciarCorte() {
+function iniciarCorte() {
   const n = placaSeleccionadaIdle || cncPlacaNum;
   cncPlacaNum    = Math.max(1, n);
   cncEstado      = 'cortando';
@@ -2373,17 +2355,6 @@ async function iniciarCorte() {
   _cncGuardarPlaca();
   document.getElementById('cnc-placa-timer').textContent = '00:00:00';
   renderCNCEstado();
-  try {
-    const { placa } = await apiPost('cnc-placa', {
-      registro_trabajo_id: registroActivo.id,
-      empleado_id: empleadoActual.id,
-      placa_numero: cncPlacaNum,
-      inicio: cncInicioPlaca,
-      fin: null,
-    });
-    cncPlacaId = placa?.id || null;
-    if (cncPlacaId) localStorage.setItem('cnc_placa_id', String(cncPlacaId));
-  } catch (e) { console.warn('cnc-placa abrir:', e.message); cncPlacaId = null; }
 }
 
 async function registrarPlaca(resultado) {
@@ -2395,18 +2366,15 @@ async function registrarPlaca(resultado) {
   document.querySelectorAll('#cnc-card-corte button').forEach(b => b.disabled = true);
 
   try {
-    await apiPost('cnc-placa-cerrar', {
-      placa_id: cncPlacaId,
-      fin,
-      resultado,
+    await apiPost('cnc-placa', {
       registro_trabajo_id: registroActivo.id,
       empleado_id: empleadoActual.id,
       placa_numero: numActual,
       inicio: cncInicioPlaca,
+      fin,
+      resultado,
     });
-  } catch (e) { console.warn('cnc-placa-cerrar:', e.message); }
-  cncPlacaId = null;
-  localStorage.removeItem('cnc_placa_id');
+  } catch (e) { console.warn('cnc-placa:', e.message); }
 
   if (resultado === 'ok') {
     cncPlacasOk++;
@@ -2448,27 +2416,16 @@ async function registrarPlaca(resultado) {
   document.querySelectorAll('#cnc-card-corte button').forEach(b => b.disabled = false);
 }
 
-async function repetirPlaca() {
+function repetirPlaca() {
   document.getElementById('cnc-modal-error').style.display = 'none';
   cncEstado      = 'cortando';
   cncInicioPlaca = new Date().toISOString();
   _cncGuardarPlaca();
   document.getElementById('cnc-placa-timer').textContent = '00:00:00';
   renderCNCEstado();
-  try {
-    const { placa } = await apiPost('cnc-placa', {
-      registro_trabajo_id: registroActivo.id,
-      empleado_id: empleadoActual.id,
-      placa_numero: cncPlacaNum,
-      inicio: cncInicioPlaca,
-      fin: null,
-    });
-    cncPlacaId = placa?.id || null;
-    if (cncPlacaId) localStorage.setItem('cnc_placa_id', String(cncPlacaId));
-  } catch (e) { console.warn('cnc-placa abrir:', e.message); cncPlacaId = null; }
 }
 
-async function confirmarErrorNueva() {
+function confirmarErrorNueva() {
   const n = parseInt(document.getElementById('cnc-input-error-nueva').value) || cncPlacaNum + 1;
   document.getElementById('cnc-modal-error').style.display = 'none';
   cncPlacaNum    = Math.max(1, n);
@@ -2477,17 +2434,6 @@ async function confirmarErrorNueva() {
   _cncGuardarPlaca();
   document.getElementById('cnc-placa-timer').textContent = '00:00:00';
   renderCNCEstado();
-  try {
-    const { placa } = await apiPost('cnc-placa', {
-      registro_trabajo_id: registroActivo.id,
-      empleado_id: empleadoActual.id,
-      placa_numero: cncPlacaNum,
-      inicio: cncInicioPlaca,
-      fin: null,
-    });
-    cncPlacaId = placa?.id || null;
-    if (cncPlacaId) localStorage.setItem('cnc_placa_id', String(cncPlacaId));
-  } catch (e) { console.warn('cnc-placa abrir:', e.message); cncPlacaId = null; }
 }
 
 function confirmarSaltar() {
@@ -2510,8 +2456,6 @@ function _cncGuardarPlaca() {
 function _cncLimpiarPlaca() {
   localStorage.removeItem('cnc_placa_inicio');
   localStorage.removeItem('cnc_placa_numero');
-  localStorage.removeItem('cnc_placa_id');
-  cncPlacaId = null;
 }
 
 function abrirOpcionesCNC()  { document.getElementById('cnc-modal-opciones').style.display = 'flex'; }
@@ -2522,19 +2466,16 @@ function cambiarOperarioCNC() { cerrarOpcionesCNC(); cambiarEmpleado(); }
 function cambiarTareaCNC() {
   cerrarOpcionesCNC();
   _cncLimpiarPlaca();
-  // Registrar placa en curso como interrumpida
+  // Registrar placa en curso como saltada
   if (cncEstado === 'cortando' && cncInicioPlaca) {
-    apiPost('cnc-placa-cerrar', {
-      placa_id: cncPlacaId,
-      fin: new Date().toISOString(),
-      resultado: 'interrumpida',
+    apiPost('cnc-placa', {
       registro_trabajo_id: registroActivo.id,
       empleado_id: empleadoActual.id,
       placa_numero: cncPlacaNum,
       inicio: cncInicioPlaca,
-    }).catch(e => console.warn('cnc-placa-cerrar salida:', e.message));
-    cncPlacaId = null;
-    localStorage.removeItem('cnc_placa_id');
+      fin: new Date().toISOString(),
+      resultado: 'saltada',
+    }).catch(e => console.warn('cnc-placa salida:', e.message));
     cncPlacasSalt++;
     updateCNCResumen();
   }
