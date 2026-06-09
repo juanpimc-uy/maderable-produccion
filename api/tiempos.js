@@ -625,6 +625,54 @@ export default async function handler(req) {
       return ok({ ok: true, user: { id: user.id, nombre: user.nombre, rol_app: user.rol_app } });
     }
 
+    // ── GET sb-read (proxy lectura Supabase con service key) ────────
+    if (action === 'sb-read' && req.method === 'GET') {
+      const _st = url.searchParams.get('st');
+      const caller = await verificarSesion(_st);
+      if (!caller) return err('Sesión inválida o expirada', 403);
+
+      const path = url.searchParams.get('path');
+      if (!path) return err('path requerido', 400);
+
+      // Whitelist de tablas
+      const ALLOWED = ['proyectos_cache', 'lustre_tipos', 'empleados'];
+      const table = path.split('?')[0];
+      if (!ALLOWED.includes(table)) return err('Tabla no permitida: ' + table, 403);
+
+      // Bloquear embeds PostgREST (select con paréntesis)
+      if (/\(/.test(path)) return err('Embeds no permitidos', 400);
+
+      // Columnas seguras para empleados (nunca exponer pin/session, ni filtrar por ellos)
+      let safePath = path;
+      if (table === 'empleados') {
+        if (/pin|session/i.test(path)) return err('Consulta no permitida', 400);
+        const SAFE_COLS = 'id,nombre,cedula,email,rol_app,categoria,activo,archivado,centros_autorizados,horario_entrada,horario_salida,descanso_modalidad,pit_stop_minutos,acceso_tiempos';
+        // Reemplazar cualquier select= que venga con las columnas seguras
+        safePath = path.replace(/select=[^&]*/, 'select=' + SAFE_COLS);
+        // Si no tenía select=, agregarlo
+        if (!safePath.includes('select=')) {
+          safePath += (safePath.includes('?') ? '&' : '?') + 'select=' + SAFE_COLS;
+        }
+      }
+
+      const sbUrl = `${process.env.SUPABASE_URL || 'https://xhfeurinovvsbgobkidy.supabase.co'}/rest/v1/${safePath}`;
+      const sbKey = process.env.SUPABASE_SERVICE_KEY;
+      if (!sbKey) return err('SUPABASE_SERVICE_KEY no configurada en el servidor', 500);
+      const res = await fetch(sbUrl, {
+        headers: {
+          apikey: sbKey,
+          Authorization: `Bearer ${sbKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        return err('Supabase: ' + txt, res.status);
+      }
+      const rows = await res.json();
+      return ok({ ok: true, rows });
+    }
+
     // ── POST verificar-acceso ────────────────────────────────────────
     // Verifica passwords de secciones standalone (armado-so, recepciones-oc).
     // Env vars: ACCESO_ARMADO, ACCESO_RECEPCIONES (configurar en Vercel).

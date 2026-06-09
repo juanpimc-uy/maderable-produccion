@@ -454,13 +454,15 @@ function filtrarODFs(query){
 
 // Extrae el código de item desde el custom field cf_tipo de Zoho.
 function extraerCodigoZoho(item) {
+  const norm = (x) => (typeof x === 'string' || typeof x === 'number') ? String(x).trim() : '';
   const cfs = item.item_custom_fields;
   if (Array.isArray(cfs)) {
     const cf = cfs.find(f => f.api_name === 'cf_tipo');
-    if (cf) { const v = String(cf.value||'').trim(); if (v) return v; }
+    const v = norm(cf?.value);
+    if (v) return v;
   }
-  const directo = item.cf_tipo || item.item_code || item.sku;
-  if (directo) { const v = String(directo).trim(); if (v) return v; }
+  const v2 = norm(item.cf_tipo) || norm(item.item_code) || norm(item.sku);
+  if (v2) return v2;
   return null;
 }
 
