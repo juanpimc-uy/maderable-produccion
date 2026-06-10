@@ -670,6 +670,41 @@ export default async function handler(req) {
         return err('Supabase: ' + txt, res.status);
       }
       const rows = await res.json();
+
+      // Inyectar completado desde ledger para proyectos_cache
+      if (table === 'proyectos_cache' && Array.isArray(rows) && rows.length) {
+        const pIds = rows.map(r => r.id).filter(Boolean);
+        if (pIds.length) {
+          const { data: logs } = await supabase
+            .from('items_completado_log')
+            .select('proyecto_id, item_id, evento, completado_en, creado_at')
+            .in('proyecto_id', pIds)
+            .order('creado_at', { ascending: false });
+          if (logs && logs.length) {
+            const latest = {};
+            for (const l of logs) {
+              const key = l.proyecto_id + ':' + l.item_id;
+              if (!latest[key]) latest[key] = l;
+            }
+            for (const p of rows) {
+              const muebles = Array.isArray(p.muebles) ? p.muebles : [];
+              for (const m of muebles) {
+                const entry = latest[p.id + ':' + m.id];
+                m.completado = !!(entry && entry.evento === 'completado');
+                m.completado_en = (entry && entry.evento === 'completado') ? entry.completado_en : null;
+              }
+              if (Array.isArray(p.items)) {
+                for (const it of p.items) {
+                  const entry = latest[p.id + ':' + it.id];
+                  it.completado = !!(entry && entry.evento === 'completado');
+                  it.completado_en = (entry && entry.evento === 'completado') ? entry.completado_en : null;
+                }
+              }
+            }
+          }
+        }
+      }
+
       return ok({ ok: true, rows });
     }
 
