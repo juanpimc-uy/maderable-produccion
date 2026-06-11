@@ -279,7 +279,7 @@
     </div>
     <div class="toolbar-stats" id="toolbarStats"></div>
     <button id="btnSyncPrecios" class="export-btn" onclick="sincronizarPrecios()">&#x27F3; Sync precios</button>
-    <button class="export-btn" onclick="exportCSV()">CSV</button>
+    <button class="export-btn" onclick="exportXLSX()">XLSX</button>
     <button class="export-btn" onclick="window.print()">PDF</button>
   </span>
 </div>
@@ -296,8 +296,10 @@
       <th class="num-col">Terceriz.</th>
       <th class="num-col">Otras OC</th>
       <th class="num-col">Precio venta</th>
+      <th class="num-col">% Fact.</th>
       <th class="num-col">Saldo</th>
       <th class="num-col">Margen</th>
+      <th>Estado</th>
     </tr>
   </thead>
   <tbody id="tableBody"></tbody>
@@ -316,6 +318,7 @@ const BASE_URL = window.location.origin;
 let seccionToken = null;
 let proyectosData = [];
 let totalesData = {};
+let facturacionMap = {}; // proyecto_id → facturado_usd
 let estadoActivo = 'all';
 let timeoutHandle = null;
 let countdownHandle = null;
@@ -451,7 +454,7 @@ async function cargarInforme() {
   const params = new URLSearchParams({
     action: 'informe-proyectos',
     fecha_corte: document.getElementById('cutoffDate').value,
-    estado: estadoActivo,
+    estado: 'all',
   });
   try {
     const res = await fetch(`${BASE_URL}/api/informes?${params}`, {
@@ -466,23 +469,39 @@ async function cargarInforme() {
     totalesData = data.totales;
     openDetailId = null;
     detailCache = {};
-    renderTabla(proyectosData);
-    renderTotales(totalesData);
+    // Fetch facturacion resumen in parallel (non-blocking)
+    try {
+      const st = window.AUTH?.getSessionToken() || '';
+      const fRes = await fetch(`${BASE_URL}/api/tiempos?action=facturacion-resumen&st=${encodeURIComponent(st)}`);
+      const fData = await fRes.json();
+      facturacionMap = {};
+      if (fData.ok) for (const r of (fData.resumen || [])) facturacionMap[r.proyecto_id] = r.facturado_usd;
+    } catch(e) { console.warn('[informes] facturacion-resumen:', e.message); }
+    filtrarLocal();
   } catch (e) {
     console.error('[informes] cargarInforme', e);
   }
 }
 
-function filtrarLocal() {
+function _getFilteredData() {
+  let list = [...proyectosData];
+  // Filter by estado chip
+  if (estadoActivo === 'activo') list = list.filter(p => p.activo !== false);
+  else if (estadoActivo === 'inactivo') list = list.filter(p => p.activo === false);
+  // Filter by search
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
-  if (!q) { renderTabla(proyectosData); return; }
-  const filtered = proyectosData.filter(p =>
+  if (q) list = list.filter(p =>
     (p.nombre || '').toLowerCase().includes(q) ||
     (p.numero || '').toLowerCase().includes(q) ||
     (p.obra || '').toLowerCase().includes(q) ||
     (p.cliente_nombre || '').toLowerCase().includes(q)
   );
+  return list;
+}
+function filtrarLocal() {
+  const filtered = _getFilteredData();
   renderTabla(filtered);
+  renderTotales(filtered);
 }
 
 // ── RENDER TABLE ────────────────────────────────────────────────────────
@@ -516,6 +535,8 @@ function renderTabla(data) {
       ? `<span class="num num-accent">${fmt(p.precio_venta_usd)}</span>`
       : `<span class="num num-muted">${p.precio_venta_pendiente ? 'Ver detalle' : 'Sin SO'}</span>`;
 
+    const _factUsd = facturacionMap[p.id] || 0;
+    const _factPct = p.precio_venta_usd > 0 ? Math.round(_factUsd / p.precio_venta_usd * 100) : null;
     const archivedBadge = p.activo === false ? '<span class="archived-badge">ARCHIVADO</span>' : '';
     const rowOpacity = p.activo === false ? 'opacity:.6;' : '';
 
@@ -536,12 +557,14 @@ function renderTabla(data) {
       <td><span class="num">${fmt(p.total_tercerizados_usd)}</span></td>
       <td><span class="num">${fmt(p.total_oc_usd)}</span></td>
       <td>${precioHtml}</td>
+      <td><span class="num${_factPct != null ? '' : ' num-muted'}">${_factPct != null ? _factPct + '%' : '—'}</span></td>
       <td><span class="num ${saldoClass}">${p.saldo_usd != null ? ((p.saldo_usd >= 0 ? '+' : '') + fmt(p.saldo_usd)) : '–'}</span></td>
       <td><span class="num ${saldoClass}">${p.margen_pct != null ? fmtPct(p.margen_pct) : '–'}</span></td>
+      <td><span class="mono" style="font-size:9px;color:${p.activo === false ? '#555' : 'var(--green)'};">${p.activo === false ? 'ARCHIVADO' : 'EN CURSO'}</span></td>
     </tr>`;
     // Placeholder for detail row
     if (openDetailId === p.id) {
-      html += `<tr class="detail-row" id="detail-${p.id}"><td colspan="9"><div class="detail-panel" id="detailPanel-${p.id}"><div class="mono" style="font-size:11px;color:var(--muted);">Cargando...</div></div></td></tr>`;
+      html += `<tr class="detail-row" id="detail-${p.id}"><td colspan="11"><div class="detail-panel" id="detailPanel-${p.id}"><div class="mono" style="font-size:11px;color:var(--muted);">Cargando...</div></div></td></tr>`;
     }
   }
   tbody.innerHTML = html;
@@ -551,22 +574,33 @@ function renderTabla(data) {
   }
 }
 
-function renderTotales(t) {
+function renderTotales(data) {
+  const list = Array.isArray(data) ? data : [];
+  const n = list.length;
+  const tHoras = list.reduce((a,p) => a + (p.horas_reales_hs || 0), 0);
+  const tMat = list.reduce((a,p) => a + (p.total_materiales_usd || 0), 0);
+  const tTerc = list.reduce((a,p) => a + (p.total_tercerizados_usd || 0), 0);
+  const tOC = list.reduce((a,p) => a + (p.total_oc_usd || 0), 0);
+  const tPrecio = list.reduce((a,p) => a + (p.precio_venta_usd || 0), 0);
+  const tSaldo = list.reduce((a,p) => a + (p.saldo_usd || 0), 0);
+  const tInv = list.reduce((a,p) => a + (p.total_invertido_usd || 0), 0);
   document.getElementById('tableFoot').innerHTML = `<tr>
-    <td style="color:var(--muted);">${t.total_proyectos} proyectos</td>
-    <td><span class="num">${(t.total_horas_hs || 0).toFixed(1)} hs</span></td>
+    <td style="color:var(--muted);">${n} proyectos</td>
+    <td><span class="num">${tHoras.toFixed(1)} hs</span></td>
     <td></td>
-    <td><span class="num">${fmt(t.total_materiales_usd)}</span></td>
-    <td><span class="num">${fmt(t.total_tercerizados_usd)}</span></td>
-    <td><span class="num">${fmt(t.total_oc_usd)}</span></td>
-    <td><span class="num num-accent">${fmt(t.total_precio_venta_usd)}</span></td>
-    <td><span class="num ${(t.total_saldo_usd||0)<0?'num-danger':'num-success'}">${(t.total_saldo_usd||0)>=0?'+':''}${fmt(t.total_saldo_usd)}</span></td>
+    <td><span class="num">${fmt(tMat)}</span></td>
+    <td><span class="num">${fmt(tTerc)}</span></td>
+    <td><span class="num">${fmt(tOC)}</span></td>
+    <td><span class="num num-accent">${fmt(tPrecio)}</span></td>
+    <td></td>
+    <td><span class="num ${tSaldo<0?'num-danger':'num-success'}">${tSaldo>=0?'+':''}${fmt(tSaldo)}</span></td>
+    <td></td>
     <td></td>
   </tr>`;
   document.getElementById('toolbarStats').innerHTML = `
-    <span>${t.total_proyectos} proy</span>
-    <span>${(t.total_horas_hs||0).toFixed(0)} hs</span>
-    <span>U$S ${fmt(t.total_invertido_usd)} inv.</span>`;
+    <span>${n} proy</span>
+    <span>${tHoras.toFixed(0)} hs</span>
+    <span>U$S ${fmt(tInv)} inv.</span>`;
 }
 
 // ── DETAIL PANEL ────────────────────────────────────────────────────────
@@ -767,21 +801,30 @@ function formatDateDisplay(iso) {
 function setEstado(estado) {
   estadoActivo = estado;
   document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.estado === estado));
-  cargarInforme();
+  filtrarLocal();
 }
 
 // ── EXPORT ──────────────────────────────────────────────────────────────
-function exportCSV() {
-  const rows = [['Proyecto', 'ODF', 'Cliente', 'Hs Reales', 'Materiales USD', 'Terceriz. USD', 'Otras OC USD', 'Precio Venta USD', 'Saldo USD', 'Margen %']];
-  const data = proyectosData;
-  for (const p of data) {
-    rows.push([
-      p.nombre || p.obra, p.numero, p.cliente_nombre,
-      p.horas_reales_hs, p.total_materiales_usd, p.total_tercerizados_usd, p.total_oc_usd,
-      p.precio_venta_usd, p.saldo_usd, p.margen_pct != null ? p.margen_pct.toFixed(1) : '',
-    ]);
-  }
-  downloadCSV(rows, `informes-${document.getElementById('cutoffDate').value}.csv`);
+function exportXLSX() {
+  const data = _getFilteredData();
+  const rows = data.map(p => ({
+    'Proyecto': p.nombre || p.obra,
+    'ODF': p.numero,
+    'Cliente': p.cliente_nombre,
+    'Hs Reales': p.horas_reales_hs,
+    'Materiales USD': p.total_materiales_usd,
+    'Terceriz. USD': p.total_tercerizados_usd,
+    'Otras OC USD': p.total_oc_usd,
+    'Precio Venta USD': p.precio_venta_usd,
+    '% Facturación': p.precio_venta_usd > 0 ? Math.round((facturacionMap[p.id] || 0) / p.precio_venta_usd * 100) : '',
+    'Saldo USD': p.saldo_usd,
+    'Margen %': p.margen_pct != null ? Number(p.margen_pct.toFixed(1)) : '',
+    'Estado': p.activo === false ? 'Archivado' : 'En curso',
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Informes');
+  XLSX.writeFile(wb, `informes-${document.getElementById('cutoffDate').value}.xlsx`);
 }
 
 function exportDetailCSV(id) {
@@ -866,7 +909,7 @@ function renderBillerView() {
   const comps = billerData.comprobantes || [];
   const asociados = comps.filter(c => c.asignaciones.length > 0);
   const sinAsociar = comps.filter(c => c.asignaciones.length === 0 && c.es_venta);
-  const totalNeto = comps.reduce((a, c) => a + (c.es_venta ? (Number(c.monto_neto_usd) || 0) * c.signo : 0), 0);
+  const totalNeto = comps.reduce((a, c) => a + (c.es_venta ? (c.signo || 1) * Math.abs(Number(c.monto_neto_usd) || 0) : 0), 0);
 
   bv.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin:20px 0;">
@@ -879,7 +922,7 @@ function renderBillerView() {
     <div id="billerBanner"></div>
     <div class="biller-metrics">
       <div class="biller-metric"><div class="m-val">${comps.length}</div><div class="m-lbl">Comprobantes</div></div>
-      <div class="biller-metric"><div class="m-val" style="color:var(--green);">U$S ${fmtD(Math.abs(totalNeto))}</div><div class="m-lbl">Neto Ventas USD</div></div>
+      <div class="biller-metric"><div class="m-val" style="color:var(--green);">U$S ${fmtD(totalNeto)}</div><div class="m-lbl">Neto Ventas USD</div></div>
       <div class="biller-metric"><div class="m-val">${asociados.length}</div><div class="m-lbl">Asociados</div></div>
       <div class="biller-metric"><div class="m-val" style="color:${sinAsociar.length ? 'var(--red)' : 'var(--green)'};">${sinAsociar.length}</div><div class="m-lbl">Sin Asociar</div></div>
     </div>
@@ -947,6 +990,7 @@ function renderBillerTable() {
       <td class="mono" style="font-size:11px;">${formatDateDisplay(c.fecha_emision)}</td>
       <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.cliente_nombre || '—'}</td>
       <td><span class="num" style="${montoStyle}">${montoSign}${fmtD(Math.abs(c.monto_neto_usd || 0))}</span></td>
+      <td style="font-size:10px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);" title="${(c.adenda_raw||'').replace(/"/g,'&quot;')}">${c.adenda_raw || '—'}</td>
       <td style="font-size:11px;">${odfLabel}</td>
       <td>${estadoBadge}</td>
       <td style="white-space:nowrap;">${accionBtn}</td>
@@ -956,9 +1000,9 @@ function renderBillerTable() {
   wrap.innerHTML = `<table>
     <thead><tr>
       <th>Nº</th><th>Tipo</th><th>Fecha</th><th>Cliente</th>
-      <th class="num-col">Neto USD</th><th>ODF</th><th>Estado</th><th>Acción</th>
+      <th class="num-col">Neto USD</th><th>Adenda</th><th>ODF</th><th>Estado</th><th>Acción</th>
     </tr></thead>
-    <tbody>${rows || '<tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px;">Sin comprobantes</td></tr>'}</tbody>
+    <tbody>${rows || '<tr><td colspan="9" style="color:var(--muted);text-align:center;padding:20px;">Sin comprobantes</td></tr>'}</tbody>
   </table>`;
 }
 
@@ -982,7 +1026,7 @@ async function billerImportFile(input) {
       numero: ['numero', 'nro', 'número', 'nro.'],
       fecha_emision: ['fecha emision', 'fecha emisión', 'fecha', 'fecha_emision'],
       cliente_nombre: ['cliente', 'receptor', 'cliente_nombre', 'nombre cliente', 'nombre', 'razon social', 'razón social'],
-      documento_receptor: ['rut', 'ci', 'documento', 'documento_receptor', 'doc receptor', 'rut/ci'],
+      documento_receptor: ['rut', 'ci', 'documento', 'documento_receptor', 'doc receptor', 'documento receptor', 'rut/ci'],
       moneda: ['moneda'],
       tipo_cambio: ['tipo cambio', 'tipo_cambio', 'tc', 't.c.'],
       monto_neto: ['neto', 'monto neto', 'monto_neto', 'subtotal'],

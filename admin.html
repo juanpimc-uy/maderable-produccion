@@ -1929,9 +1929,7 @@ function renderProyectos() {
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <span style="font-family:'Space Mono',monospace;font-size:11px;color:#999;background:#111;border:1px solid #2e2e2e;border-radius:3px;padding:3px 10px;letter-spacing:1px;">${pr.numero || ''}</span>
           <div style="display:flex;gap:6px;align-items:center;">${estadoBadge}${archBadge}</div>
-          <div style="display:flex;gap:4px;">${estadoBtn}${isArchived
-            ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;" onclick="restaurarProyecto('${pr.id}',event)">↩ Restaurar</button>`
-            : `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;color:var(--muted);" onclick="archivarProyecto('${pr.id}',event)">Archivar</button>`}</div>
+          <div style="display:flex;gap:4px;">${estadoBtn}</div>
         </div>
         <div style="font-size:15px;font-weight:600;color:#ccc;margin-bottom:3px;">${pr.clienteNombre}</div>
         <div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:14px;">${pr.nombre}</div>

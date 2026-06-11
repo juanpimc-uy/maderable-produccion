@@ -4546,6 +4546,25 @@ export default async function handler(req) {
     }
 
     // ── GET facturacion-proyecto ──────────────────────────────────────────
+    // ── GET facturacion-resumen (agregado por proyecto) ──────────────────
+    if (action === 'facturacion-resumen' && req.method === 'GET') {
+      const _st = url.searchParams.get('st');
+      const caller = await verificarSesion(_st);
+      if (!caller || caller.rol_app !== 'admin')
+        return err('Solo admin', 403);
+      const { data: odfRows, error: oErr } = await supabase
+        .from('facturas_biller_odf').select('proyecto_id, monto_neto_usd');
+      if (oErr) throw oErr;
+      const byProy = {};
+      for (const r of (odfRows || [])) {
+        byProy[r.proyecto_id] = (byProy[r.proyecto_id] || 0) + (Number(r.monto_neto_usd) || 0);
+      }
+      const resumen = Object.entries(byProy).map(([proyecto_id, facturado_usd]) => ({
+        proyecto_id, facturado_usd: Math.round(facturado_usd * 100) / 100,
+      }));
+      return ok({ ok: true, resumen });
+    }
+
     if (action === 'facturacion-proyecto' && req.method === 'GET') {
       const _st = url.searchParams.get('st');
       const caller = await verificarSesion(_st);
