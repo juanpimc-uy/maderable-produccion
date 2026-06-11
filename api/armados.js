@@ -210,11 +210,23 @@ export default async function handler(req) {
       const { so_zoho_id, so_numero, oculta } = body;
       if (!so_zoho_id || !so_numero) return err('so_zoho_id y so_numero requeridos');
 
+      // Lookup proyecto_id before upsert for snapshot refresh
+      const { data: soExist } = await supabase.from('so_estado')
+        .select('proyecto_id').eq('so_zoho_id', so_zoho_id).maybeSingle();
+
       const { error } = await supabase.from('so_estado').upsert(
         { so_zoho_id, so_numero, oculta: !!oculta, actualizado_en: new Date().toISOString() },
         { onConflict: 'so_zoho_id' }
       );
       if (error) throw error;
+
+      // Fire-and-forget: refresh materiales snapshot
+      if (soExist?.proyecto_id) {
+        fetch(`${new URL(req.url).origin}/api/informes?action=recalcular-materiales`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ proyecto_id: soExist.proyecto_id }),
+        }).catch(() => {});
+      }
 
       return ok({ ok: true });
     }
@@ -224,11 +236,24 @@ export default async function handler(req) {
       const { so_zoho_id, so_numero, proyecto_id } = body;
       if (!so_zoho_id || !so_numero) return err('so_zoho_id y so_numero requeridos');
 
+      // Lookup old proyecto_id for snapshot refresh
+      const { data: soOld } = await supabase.from('so_estado')
+        .select('proyecto_id').eq('so_zoho_id', so_zoho_id).maybeSingle();
+
       const { error } = await supabase.from('so_estado').upsert(
         { so_zoho_id, so_numero, proyecto_id: proyecto_id || null, actualizado_en: new Date().toISOString() },
         { onConflict: 'so_zoho_id' }
       );
       if (error) throw error;
+
+      // Fire-and-forget: refresh snapshot for new AND old project
+      const origin = new URL(req.url).origin;
+      const refreshProy = (pid) => fetch(`${origin}/api/informes?action=recalcular-materiales`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proyecto_id: pid }),
+      }).catch(() => {});
+      if (proyecto_id) refreshProy(proyecto_id);
+      if (soOld?.proyecto_id && soOld.proyecto_id !== proyecto_id) refreshProy(soOld.proyecto_id);
 
       return ok({ ok: true });
     }

@@ -3111,6 +3111,11 @@ export default async function handler(req) {
       const { error: uErr } = await supabase
         .from('proyectos_cache').update({ materiales: mats }).eq('id', proyecto_id);
       if (uErr) throw uErr;
+      // Fire-and-forget: refresh materiales snapshot
+      fetch(`${new URL(req.url).origin}/api/informes?action=recalcular-materiales`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proyecto_id }),
+      }).catch(() => {});
       return ok({ ok: true });
     }
 

@@ -1,0 +1,11 @@
+ALTER TABLE proyectos_cache ADD COLUMN IF NOT EXISTS materiales_snapshot JSONB;
+-- Estructura esperada:
+-- {
+--   "recalculado_en": "2026-06-10T...",
+--   "sos": [
+--     { "so_numero": "SO-001", "so_zoho_id": "...", "so_date": "2026-01-15",
+--       "mueble": "...", "sin_fecha": false, "subtotal_usd": 1234.56,
+--       "items": [{ "key", "nombre", "cantidad", "unidad", "precio_unitario", "subtotal" }]
+--     }
+--   ]
+-- }

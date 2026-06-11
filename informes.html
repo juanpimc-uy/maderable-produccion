@@ -500,8 +500,8 @@ function renderTabla(data) {
   const tbody = document.getElementById('tableBody');
   let html = '';
   for (const p of data) {
-    const saldoClass = p.saldo_usd < 0 ? 'num-danger' : 'num-success';
-    const rowClass = p.saldo_usd < 0 ? 'negative' : '';
+    const saldoClass = p.saldo_usd == null ? 'num-muted' : (p.saldo_usd < 0 ? 'num-danger' : 'num-success');
+    const rowClass = p.saldo_usd != null && p.saldo_usd < 0 ? 'negative' : '';
     const zombieHtml = p.es_zombie ? `<span class="zombie-tag">&#x25B2; SIN ACT. ${p.dias_sin_actividad}d</span>` : '';
 
     // Progress bar for hours
@@ -532,12 +532,12 @@ function renderTabla(data) {
       </td>
       <td><span class="num">${p.horas_reales_hs} hs${progressHtml}</span></td>
       <td><span class="num num-muted">${p.horas_estimadas_hs != null ? p.horas_estimadas_hs + ' hs' : '-'}</span></td>
-      <td><span class="num">${fmt(p.total_materiales_usd)}</span></td>
+      <td><span class="num${p.materiales_sin_snapshot ? ' num-muted' : ''}">${p.total_materiales_usd != null ? fmt(p.total_materiales_usd) : '<span title="Abrir detalle para calcular">–</span>'}</span></td>
       <td><span class="num">${fmt(p.total_tercerizados_usd)}</span></td>
       <td><span class="num">${fmt(p.total_oc_usd)}</span></td>
       <td>${precioHtml}</td>
-      <td><span class="num ${saldoClass}">${p.saldo_usd >= 0 ? '+' : ''}${fmt(p.saldo_usd)}</span></td>
-      <td><span class="num ${saldoClass}">${fmtPct(p.margen_pct)}</span></td>
+      <td><span class="num ${saldoClass}">${p.saldo_usd != null ? ((p.saldo_usd >= 0 ? '+' : '') + fmt(p.saldo_usd)) : '–'}</span></td>
+      <td><span class="num ${saldoClass}">${p.margen_pct != null ? fmtPct(p.margen_pct) : '–'}</span></td>
     </tr>`;
     // Placeholder for detail row
     if (openDetailId === p.id) {
@@ -723,7 +723,7 @@ function renderDetailContent(id, data) {
       <tbody><tr class="subtotal-row"><td colspan="3">TOTAL COSTOS DIRECTOS</td><td class="r" style="color:var(--amber);">$${fmtD(cd.total_usd)}</td></tr></tbody>
     </table>
 
-    <div class="sec-title">Materiales <span style="font-size:9px;color:#555;font-weight:400;">(Sin filtro de fecha - total historico)</span></div>
+    <div class="sec-title">Materiales <span style="font-size:9px;color:#555;font-weight:400;">(SOs con fecha &le; corte)</span></div>
     ${matHtml}
     <table class="costos-table"><tbody><tr class="subtotal-row"><td colspan="3">TOTAL MATERIALES</td><td class="r" style="color:var(--amber);">$${fmtD(mat.total_usd)}</td></tr></tbody></table>
 

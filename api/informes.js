@@ -95,6 +95,100 @@ function calcularTotalMateriales(materiales) {
   }, 0);
 }
 
+// ── Helper A: recalcular snapshot de materiales para un proyecto ──────────
+async function recalcularMaterialesProyecto(proyectoId) {
+  const { data: proyecto } = await supabase
+    .from('proyectos_cache').select('id, materiales').eq('id', proyectoId).maybeSingle();
+  if (!proyecto) return null;
+
+  const { data: sosVinculadas } = await supabase.from('so_estado')
+    .select('so_zoho_id, so_numero, mueble, estado')
+    .eq('proyecto_id', proyectoId)
+    .or('oculta.is.null,oculta.eq.false');
+
+  const overrides = proyecto.materiales || [];
+  const sos = [];
+  let totalHistorico = 0;
+
+  if (sosVinculadas && sosVinculadas.length > 0) {
+    let zohoToken;
+    try { zohoToken = await getZohoToken(); } catch (e) {
+      console.error('[recalcularMat] token error:', e.message);
+      return null;
+    }
+    const orgId = process.env.ZOHO_ORG_ID;
+
+    for (const so of sosVinculadas) {
+      try {
+        const sUrl = `https://www.zohoapis.com/books/v3/salesorders?salesorder_number=${encodeURIComponent(so.so_numero)}&organization_id=${orgId}`;
+        const sRes = await fetch(sUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
+        const sData = await sRes.json();
+        const soFound = sData?.salesorders?.[0];
+        if (!soFound) continue;
+        const dUrl = `https://www.zohoapis.com/books/v3/salesorders/${soFound.salesorder_id}?organization_id=${orgId}`;
+        const dRes = await fetch(dUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
+        const dData = await dRes.json();
+        const soDetail = dData?.salesorder;
+        if (!soDetail) continue;
+        const lineItems = soDetail.line_items || [];
+        const soDate = soDetail.date || null;
+        const soKey = so.so_numero;
+        const soEntry = {
+          so_numero: soKey,
+          so_zoho_id: so.so_zoho_id,
+          so_date: soDate || null,
+          mueble: so.mueble || '',
+          sin_fecha: !soDate,
+          subtotal_usd: 0,
+          items: [],
+        };
+        for (const li of lineItems) {
+          const key = soKey + '::' + (li.line_item_id || '');
+          const ov = overrides.find(o => o.key === key);
+          const cu = ov?.costo_unitario_usd ?? li.rate ?? 0;
+          const cant = li.quantity || 0;
+          const subtotal = round2(cu * cant);
+          soEntry.items.push({
+            key, nombre: li.name || li.description || '', cantidad: cant,
+            unidad: li.unit || 'u', precio_unitario: cu, subtotal,
+          });
+          soEntry.subtotal_usd += subtotal;
+          totalHistorico += subtotal;
+        }
+        soEntry.subtotal_usd = round2(soEntry.subtotal_usd);
+        sos.push(soEntry);
+        await new Promise(r => setTimeout(r, 100));
+      } catch (e) { console.error('[recalcularMat] SO fetch:', so.so_numero, e.message); }
+    }
+  }
+
+  const snapshot = {
+    recalculado_en: new Date().toISOString(),
+    sos,
+  };
+
+  await supabase.from('proyectos_cache')
+    .update({
+      materiales_snapshot: snapshot,
+      costo_materiales_usd: round2(totalHistorico),
+    })
+    .eq('id', proyectoId);
+
+  return snapshot;
+}
+
+// ── Helper B: sumar materiales al corte desde snapshot ───────────────────
+function sumarMaterialesAlCorte(snapshot, fecha_corte) {
+  if (!snapshot || !Array.isArray(snapshot.sos)) return { total_usd: 0, sos_incluidas: [] };
+  const sos_incluidas = snapshot.sos.filter(so => {
+    if (so.sin_fecha) return true;
+    if (!so.so_date) return true;
+    return so.so_date.slice(0, 10) <= fecha_corte;
+  });
+  const total_usd = round2(sos_incluidas.reduce((s, so) => s + (so.subtotal_usd || 0), 0));
+  return { total_usd, sos_incluidas };
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // ENDPOINT 1 — POST verificar-seccion
 // ══════════════════════════════════════════════════════════════════════════
@@ -329,13 +423,17 @@ async function accionInformeProyectos(req, res) {
     const horas_reales_min       = reg.totalMin;
     const horas_reales_hs        = round1(horas_reales_min / 60);
     const costo_mo_usd           = round2(reg.totalCosto);
-    const total_materiales_usd   = round2(Number(proy.costo_materiales_usd || 0) || calcularTotalMateriales(proy.materiales));
+    const matSnap = proy.materiales_snapshot || null;
+    const matResult = matSnap ? sumarMaterialesAlCorte(matSnap, fecha_corte) : null;
+    const total_materiales_usd   = matResult ? matResult.total_usd : null;
     const total_tercerizados_usd = round2(part.total);
     const total_oc_usd           = round2(cost.total);
-    const total_invertido_usd    = round2(costo_mo_usd + total_materiales_usd + total_tercerizados_usd + total_oc_usd);
+    const total_invertido_usd    = total_materiales_usd != null
+      ? round2(costo_mo_usd + total_materiales_usd + total_tercerizados_usd + total_oc_usd)
+      : null;
     const precio_venta_usd       = round2(Number(proy.precio_venta_usd || 0) || calcularPrecioVenta(proy.sos_cargadas));
-    const saldo_usd              = round2(precio_venta_usd - total_invertido_usd);
-    const margen_pct             = precio_venta_usd > 0 ? round1(saldo_usd / precio_venta_usd * 100) : null;
+    const saldo_usd              = total_invertido_usd != null ? round2(precio_venta_usd - total_invertido_usd) : null;
+    const margen_pct             = (precio_venta_usd > 0 && saldo_usd != null) ? round1(saldo_usd / precio_venta_usd * 100) : null;
 
     // Última actividad (max de registros, partidas, costos)
     let fechaUltima = reg.ultimaActividad;
@@ -359,12 +457,12 @@ async function accionInformeProyectos(req, res) {
     // Acumular totales generales
     totales.total_horas_hs         += horas_reales_hs;
     totales.total_costo_mo_usd     += costo_mo_usd;
-    totales.total_materiales_usd   += total_materiales_usd;
+    totales.total_materiales_usd   += (total_materiales_usd || 0);
     totales.total_tercerizados_usd += total_tercerizados_usd;
     totales.total_oc_usd           += total_oc_usd;
-    totales.total_invertido_usd    += total_invertido_usd;
+    totales.total_invertido_usd    += (total_invertido_usd || 0);
     totales.total_precio_venta_usd += precio_venta_usd;
-    totales.total_saldo_usd        += saldo_usd;
+    totales.total_saldo_usd        += (saldo_usd || 0);
 
     return {
       id: proy.id, numero: proy.numero, nombre: proy.nombre, obra: proy.obra,
@@ -375,7 +473,7 @@ async function accionInformeProyectos(req, res) {
       horas_estimadas_hs: null,
       costo_mo_usd,
       total_materiales_usd,
-      materiales_sin_corte: true,
+      materiales_sin_snapshot: !matSnap,
       total_tercerizados_usd,
       total_oc_usd,
       total_invertido_usd,
@@ -514,56 +612,16 @@ async function accionInformeDetalle(req, res) {
   // ── Tercerizados ──────────────────────────────────────────────────────
   const terc_total = partidasItems.reduce((s, p) => s + (p.monto_usd != null ? Number(p.monto_usd) : 0), 0);
 
-  // ── Materiales (desde so_estado + Zoho line_items) ─────────────────────
-  const matPorSo = {};
-  let mat_total = 0;
+  // ── Materiales (refresh snapshot → filtrar por corte) ────────────────────
+  let snapshot;
   try {
-    const { data: sosVinculadas } = await supabase.from('so_estado')
-      .select('so_zoho_id, so_numero, mueble, estado')
-      .eq('proyecto_id', proyecto.id)
-      .or('oculta.is.null,oculta.eq.false');
-    const overrides = proyecto.materiales || [];
-    if (sosVinculadas && sosVinculadas.length > 0) {
-      const zohoTokenMat = await getZohoToken();
-      const orgIdMat = process.env.ZOHO_ORG_ID;
-      for (const so of sosVinculadas) {
-        try {
-          const sUrl = `https://www.zohoapis.com/books/v3/salesorders?salesorder_number=${encodeURIComponent(so.so_numero)}&organization_id=${orgIdMat}`;
-          const sRes = await fetch(sUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoTokenMat}` } });
-          const sData = await sRes.json();
-          const soFound = sData?.salesorders?.[0];
-          if (!soFound) continue;
-          const dUrl = `https://www.zohoapis.com/books/v3/salesorders/${soFound.salesorder_id}?organization_id=${orgIdMat}`;
-          const dRes = await fetch(dUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoTokenMat}` } });
-          const dData = await dRes.json();
-          const lineItems = dData?.salesorder?.line_items || [];
-          const soKey = so.so_numero;
-          if (!matPorSo[soKey]) matPorSo[soKey] = { so_numero: soKey, mueble: so.mueble || '', items: [], subtotal_usd: 0 };
-          for (const li of lineItems) {
-            const key = soKey + '::' + (li.line_item_id || '');
-            const ov = overrides.find(o => o.key === key);
-            const cu = ov?.costo_unitario_usd ?? li.rate ?? 0;
-            const cant = li.quantity || 0;
-            const subtotal = round2(cu * cant);
-            matPorSo[soKey].items.push({
-              key, nombre: li.name || li.description || '', cantidad: cant,
-              unidad: li.unit || 'u', precio_unitario: cu, subtotal,
-            });
-            matPorSo[soKey].subtotal_usd += subtotal;
-            mat_total += subtotal;
-          }
-        } catch (e) { console.error('[informes] mat SO fetch:', so.so_numero, e.message); }
-      }
-      // Cachear total en BD
-      await supabase.from('proyectos_cache')
-        .update({ costo_materiales_usd: round2(mat_total) })
-        .eq('id', proyecto.id);
-    }
+    snapshot = await recalcularMaterialesProyecto(proyecto.id);
   } catch (e) {
-    console.error('[informes] materiales fetch error:', e.message);
-    // Fallback a materiales JSONB de proyectos_cache
-    mat_total = calcularTotalMateriales(proyecto.materiales || []);
+    console.error('[informes] recalcularMat error:', e.message);
+    snapshot = proyecto.materiales_snapshot || null;
   }
+  const matAlCorte = sumarMaterialesAlCorte(snapshot, fecha_corte);
+  const mat_total = matAlCorte.total_usd;
 
   // ── Precio de venta (cache en BD → fallback Zoho invoice) ──────────────
   let precio_venta_usd = round2(Number(proyecto.precio_venta_usd || 0) || calcularPrecioVenta(proyecto.sos_cargadas));
@@ -642,9 +700,9 @@ async function accionInformeDetalle(req, res) {
       total_usd: round2(terc_total),
     },
     materiales: {
-      por_so:    Object.values(matPorSo).map(g => ({ ...g, subtotal_usd: round2(g.subtotal_usd) })),
+      por_so:    matAlCorte.sos_incluidas.map(g => ({ ...g, subtotal_usd: round2(g.subtotal_usd) })),
       total_usd: round2(mat_total),
-      fuente: Object.keys(matPorSo).length > 0 ? 'zoho_so' : 'sin_sos',
+      fuente: matAlCorte.sos_incluidas.length > 0 ? 'zoho_so' : 'sin_sos',
     },
     recepciones_count: recepcionesCount,
     precio_venta_fuente,
@@ -718,48 +776,67 @@ async function accionSincronizarPrecios(req, res) {
     if (i + BATCH < conNumero.length) await new Promise(r => setTimeout(r, 200));
   }
 
-  // Sincronizar materiales: para cada proyecto, sumar line_items de SOs vinculadas
+  // Sincronizar materiales snapshots en batches de 5
   const allProyIds = (proyectos || []).map(p => p.id);
   const { data: allSos } = await supabase.from('so_estado')
-    .select('so_numero, proyecto_id')
+    .select('proyecto_id')
     .in('proyecto_id', allProyIds)
     .or('oculta.is.null,oculta.eq.false');
+  const proysConSos = [...new Set((allSos || []).map(s => s.proyecto_id).filter(Boolean))];
 
-  // Agrupar SOs por proyecto
-  const sosPorProy = {};
-  (allSos || []).forEach(s => {
-    if (!s.proyecto_id) return;
-    if (!sosPorProy[s.proyecto_id]) sosPorProy[s.proyecto_id] = [];
-    sosPorProy[s.proyecto_id].push(s.so_numero);
-  });
-
-  // Procesar materiales en serie para no saturar Zoho
-  for (const [proyId, soNums] of Object.entries(sosPorProy)) {
-    let totalMat = 0;
-    try {
-      for (const soNum of soNums) {
-        const sUrl = `https://www.zohoapis.com/books/v3/salesorders?salesorder_number=${encodeURIComponent(soNum)}&organization_id=${orgId}`;
-        const sRes = await fetch(sUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
-        const sData = await sRes.json();
-        const soFound = sData?.salesorders?.[0];
-        if (!soFound) continue;
-        const dUrl = `https://www.zohoapis.com/books/v3/salesorders/${soFound.salesorder_id}?organization_id=${orgId}`;
-        const dRes = await fetch(dUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
-        const dData = await dRes.json();
-        const lineItems = dData?.salesorder?.line_items || [];
-        for (const li of lineItems) totalMat += (li.rate || 0) * (li.quantity || 0);
-        await new Promise(r => setTimeout(r, 100));
-      }
-      await supabase.from('proyectos_cache')
-        .update({ costo_materiales_usd: round2(totalMat) })
-        .eq('id', proyId);
-      materiales_ok++;
-    } catch (e) {
-      console.error('[informes] sync materiales:', proyId, e.message);
-    }
+  for (let i = 0; i < proysConSos.length; i += BATCH) {
+    const lote = proysConSos.slice(i, i + BATCH);
+    const results = await Promise.allSettled(lote.map(pid => recalcularMaterialesProyecto(pid)));
+    results.forEach(r => { if (r.status === 'fulfilled' && r.value) materiales_ok++; });
+    if (i + BATCH < proysConSos.length) await new Promise(r => setTimeout(r, 1000));
   }
 
   return ok(res, { precios_ok, precios_sin, materiales_ok, total: conNumero.length });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 6 — POST recalcular-materiales (single project, fire-and-forget from edge)
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionRecalcularMateriales(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const proyecto_id = (req.body || {}).proyecto_id || req.query.proyecto_id;
+  if (!proyecto_id) return err(res, 'proyecto_id requerido');
+  try {
+    const snap = await recalcularMaterialesProyecto(proyecto_id);
+    return ok(res, { recalculado: !!snap });
+  } catch (e) {
+    console.error('[informes] recalcular-materiales:', e.message);
+    return err(res, e.message, 500);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 7 — POST recalcular-materiales-todos
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionRecalcularMaterialesTodos(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const seccion = verificarAccesoSeccion(req);
+  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
+
+  const { data: proyectos } = await supabase.from('proyectos_cache')
+    .select('id').eq('activo', true);
+  const ids = (proyectos || []).map(p => p.id);
+
+  let recalculados = 0, fallidos = 0;
+  const BATCH = 5;
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const lote = ids.slice(i, i + BATCH);
+    const results = await Promise.allSettled(lote.map(pid => recalcularMaterialesProyecto(pid)));
+    results.forEach(r => {
+      if (r.status === 'fulfilled' && r.value) recalculados++;
+      else fallidos++;
+    });
+    if (i + BATCH < ids.length) await new Promise(r => setTimeout(r, 1000));
+  }
+
+  return ok(res, { recalculados, fallidos, total: ids.length });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -779,6 +856,8 @@ export default async function handler(req, res) {
     if (action === 'informe-proyectos')        return await accionInformeProyectos(req, res);
     if (action === 'informe-proyecto-detalle') return await accionInformeDetalle(req, res);
     if (action === 'sincronizar-precios')      return await accionSincronizarPrecios(req, res);
+    if (action === 'recalcular-materiales')   return await accionRecalcularMateriales(req, res);
+    if (action === 'recalcular-materiales-todos') return await accionRecalcularMaterialesTodos(req, res);
     return err(res, 'Acción no reconocida');
   } catch (e) {
     console.error('[informes]', action, e);
