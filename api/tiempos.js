@@ -2444,7 +2444,54 @@ export default async function handler(req) {
         }).select().single();
       if (insErr) throw insErr;
 
-      return ok({ ok: true, log: inserted });
+      // ── Recalcular estado de la ODF según items completos ──────────────
+      const { data: proyEstado } = await supabase
+        .from('proyectos_cache').select('muebles, estado').eq('id', proyecto_id).maybeSingle();
+      const mueblesAll = Array.isArray(proyEstado?.muebles) ? proyEstado.muebles : [];
+      const totalItems = mueblesAll.length;
+      const idsMuebles = new Set(mueblesAll.map(m => String(m.id)));
+
+      const { data: logsP } = await supabase
+        .from('items_completado_log')
+        .select('item_id, evento, creado_at')
+        .eq('proyecto_id', proyecto_id)
+        .order('creado_at', { ascending: false });
+      const vistoIt = {};
+      let completos = 0;
+      for (const l of (logsP || [])) {
+        if (vistoIt[l.item_id]) continue;
+        vistoIt[l.item_id] = true;
+        if (l.evento === 'completado' && idsMuebles.has(String(l.item_id))) completos++;
+      }
+
+      const estadoActual = proyEstado?.estado || 'en_produccion';
+      let nuevoEstado = estadoActual;
+      if (totalItems > 0 && completos >= totalItems) {
+        nuevoEstado = 'terminado';
+      } else if (estadoActual === 'terminado') {
+        nuevoEstado = 'en_produccion';   // se reabrió un item → vuelve a producción
+      }
+      if (nuevoEstado !== estadoActual) {
+        await supabase.from('proyectos_cache').update({ estado: nuevoEstado }).eq('id', proyecto_id);
+      }
+
+      return ok({ ok: true, log: inserted, estado: nuevoEstado });
+    }
+
+    // ── POST set-estado-proyecto (posponer / reactivar) ─────────────────
+    if (action === 'set-estado-proyecto' && req.method === 'POST') {
+      const _st = body.st || body.session_token || url.searchParams.get('st');
+      const caller = await verificarSesion(_st);
+      if (!caller || (caller.rol_app !== 'admin' && caller.rol_app !== 'oficina'))
+        return err('Solo admin u oficina', 403);
+      const { proyecto_id, estado } = body;
+      if (!proyecto_id) return err('proyecto_id requerido', 400);
+      if (estado !== 'pospuesto' && estado !== 'en_produccion')
+        return err('estado manual debe ser pospuesto o en_produccion', 400);
+      const { error: upErr } = await supabase
+        .from('proyectos_cache').update({ estado }).eq('id', proyecto_id);
+      if (upErr) throw upErr;
+      return ok({ ok: true, estado });
     }
 
     // ── GET órdenes de compra ─────────────────────────────────────────────

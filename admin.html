@@ -1820,6 +1820,41 @@ async function restaurarProyecto(prId, e) {
   }
 }
 
+async function posponerProyecto(prId, e) {
+  e.stopPropagation();
+  if (!confirm('¿Posponer este proyecto?')) return;
+  try {
+    const st = window.AUTH.getSessionToken();
+    const res = await fetch('/api/tiempos?action=set-estado-proyecto&st=' + st, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proyecto_id: prId, estado: 'pospuesto', st }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    const pr = PROYECTOS.find(p => p.id === prId);
+    if (pr) pr.estado = 'pospuesto';
+    renderProyectos();
+  } catch(e) { alert('Error al posponer: ' + e.message); }
+}
+
+async function reactivarProyecto(prId, e) {
+  e.stopPropagation();
+  try {
+    const st = window.AUTH.getSessionToken();
+    const res = await fetch('/api/tiempos?action=set-estado-proyecto&st=' + st, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proyecto_id: prId, estado: 'en_produccion', st }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    const pr = PROYECTOS.find(p => p.id === prId);
+    if (pr) pr.estado = 'en_produccion';
+    renderProyectos();
+  } catch(e) { alert('Error al reactivar: ' + e.message); }
+}
+
 function _prGetEstado(pr) {
   const hA = hAcumPr(pr.id), hE = hEstPr(pr);
   const pct = hE > 0 ? (hA / hE * 100) : 0;
@@ -1835,15 +1870,8 @@ function _prGetPct(pr) {
 
 function renderProyectos() {
   const allActivos = PROYECTOS.filter(p => !_archivados.includes(p.id));
-  const arch = PROYECTOS.filter(p => _archivados.includes(p.id));
 
-  // Determine display list based on chip
-  let displayList;
-  if (_prFiltroChip === 'archivados') {
-    displayList = [...arch];
-  } else {
-    displayList = [...allActivos];
-  }
+  let displayList = [...allActivos];
 
   // Filtro búsqueda
   if (_prBusqueda) {
@@ -1856,18 +1884,18 @@ function renderProyectos() {
     );
   }
 
-  // Filtro chip (solo para activos)
+  // Filtro chip por estado
+  const est = pr => (pr.estado || 'en_produccion');
   if (_prFiltroChip === 'en_curso') {
-    displayList = displayList.filter(pr => { const p = _prGetPct(pr); return p > 0 && p < 95; });
+    displayList = displayList.filter(pr => est(pr) === 'en_produccion' && _prGetPct(pr) <= 100);
   } else if (_prFiltroChip === 'atrasados') {
-    displayList = displayList.filter(pr => _prGetPct(pr) > 100);
+    displayList = displayList.filter(pr => est(pr) === 'en_produccion' && _prGetPct(pr) > 100);
   } else if (_prFiltroChip === 'completados') {
-    displayList = displayList.filter(pr => {
-      const p = _prGetPct(pr);
-      return p >= 95 && p <= 100;
-    });
+    displayList = displayList.filter(pr => est(pr) === 'terminado');
+  } else if (_prFiltroChip === 'pospuestos') {
+    displayList = displayList.filter(pr => est(pr) === 'pospuesto');
   }
-  // 'todos' y 'archivados' no aplican filtro adicional
+  // 'todos' → todos los no-archivados
 
   // Orden
   if (_prOrden === 'nombre') displayList.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
@@ -1882,6 +1910,17 @@ function renderProyectos() {
     const matP=pr.materiales.filter(m=>m.recibido<m.requerido).length;
     const inv=pr.modulos.filter(m=>m.estado==='en_inventario').length;
     const des=pr.modulos.filter(m=>m.estado==='despachado').length;
+    const _est = pr.estado || 'en_produccion';
+    const estadoBadge = _est === 'terminado'
+      ? `<span style="font-family:'Space Mono',monospace;font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(91,229,132,.15);color:#5be584;border:1px solid rgba(91,229,132,.4);">TERMINADO</span>`
+      : _est === 'pospuesto'
+      ? `<span style="font-family:'Space Mono',monospace;font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(255,255,255,.06);color:#888;border:1px solid var(--border);">POSPUESTO</span>`
+      : '';
+    const estadoBtn = _est === 'en_produccion'
+      ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;color:var(--muted);" onclick="posponerProyecto('${pr.id}',event)">Posponer</button>`
+      : _est === 'pospuesto'
+      ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;color:var(--muted);" onclick="reactivarProyecto('${pr.id}',event)">Reactivar</button>`
+      : '';
     const archBadge = isArchived ? `<span style="font-family:'Space Mono',monospace;font-size:9px;padding:2px 8px;border-radius:3px;background:#1e1e1e;color:#555;border:1px solid #2e2e2e;">ARCHIVADO</span>` : '';
     return `
       <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;cursor:pointer;transition:border-color .2s;${isArchived?'opacity:0.6;':''}"
@@ -1889,10 +1928,10 @@ function renderProyectos() {
         onclick="abrirDetallePr('${pr.id}')">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <span style="font-family:'Space Mono',monospace;font-size:11px;color:#999;background:#111;border:1px solid #2e2e2e;border-radius:3px;padding:3px 10px;letter-spacing:1px;">${pr.numero || ''}</span>
-          ${archBadge}
-          ${isArchived
+          <div style="display:flex;gap:6px;align-items:center;">${estadoBadge}${archBadge}</div>
+          <div style="display:flex;gap:4px;">${estadoBtn}${isArchived
             ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;" onclick="restaurarProyecto('${pr.id}',event)">↩ Restaurar</button>`
-            : `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;color:var(--muted);" onclick="archivarProyecto('${pr.id}',event)">Archivar</button>`}
+            : `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;color:var(--muted);" onclick="archivarProyecto('${pr.id}',event)">Archivar</button>`}</div>
         </div>
         <div style="font-size:15px;font-weight:600;color:#ccc;margin-bottom:3px;">${pr.clienteNombre}</div>
         <div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:14px;">${pr.nombre}</div>
@@ -1950,7 +1989,7 @@ function renderProyectos() {
   // Chips + select orden
   html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
     <span style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:#555;text-transform:uppercase;">ESTADO</span>
-    ${chipBtn('todos','TODOS')}${chipBtn('en_curso','EN CURSO')}${chipBtn('atrasados','ATRASADOS')}${chipBtn('completados','COMPLETADOS')}${chipBtn('archivados','ARCHIVADOS')}
+    ${chipBtn('todos','TODOS')}${chipBtn('en_curso','EN CURSO')}${chipBtn('atrasados','ATRASADOS')}${chipBtn('completados','COMPLETADOS')}${chipBtn('pospuestos','POSPUESTOS')}
     <div style="margin-left:auto;">
       <select onchange="_prOrden=this.value;renderProyectos();" style="background:#1e1e1e;border:1px solid #2e2e2e;border-radius:4px;padding:5px 8px;color:#777;font-family:'Space Mono',monospace;font-size:10px;outline:none;cursor:pointer;">
         <option value="nombre" ${_prOrden==='nombre'?'selected':''}>NOMBRE (A→Z)</option>
@@ -3025,6 +3064,7 @@ async function toggleItemCompletado(prId,itemId){
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Error');
     if (data.log && data.log.completado_en) m.completado_en = data.log.completado_en;
+    if (data.estado) pr.estado = data.estado;
   } catch(e) {
     m.completado = prev;
     renderDetallePr(pr,'\u00edtems');
