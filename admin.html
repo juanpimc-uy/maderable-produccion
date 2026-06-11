@@ -1834,7 +1834,8 @@ async function posponerProyecto(prId, e) {
     if (!data.ok) throw new Error(data.error || 'Error');
     const pr = PROYECTOS.find(p => p.id === prId);
     if (pr) pr.estado = 'pospuesto';
-    renderProyectos();
+    if (detallePrId === prId) renderDetallePr(pr, detalleSub);
+    else renderProyectos();
   } catch(e) { alert('Error al posponer: ' + e.message); }
 }
 
@@ -1851,7 +1852,8 @@ async function reactivarProyecto(prId, e) {
     if (!data.ok) throw new Error(data.error || 'Error');
     const pr = PROYECTOS.find(p => p.id === prId);
     if (pr) pr.estado = 'en_produccion';
-    renderProyectos();
+    if (detallePrId === prId) renderDetallePr(pr, detalleSub);
+    else renderProyectos();
   } catch(e) { alert('Error al reactivar: ' + e.message); }
 }
 
@@ -1916,11 +1918,6 @@ function renderProyectos() {
       : _est === 'pospuesto'
       ? `<span style="font-family:'Space Mono',monospace;font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(255,255,255,.06);color:#888;border:1px solid var(--border);">POSPUESTO</span>`
       : '';
-    const estadoBtn = _est === 'en_produccion'
-      ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;color:var(--muted);" onclick="posponerProyecto('${pr.id}',event)">Posponer</button>`
-      : _est === 'pospuesto'
-      ? `<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;color:var(--muted);" onclick="reactivarProyecto('${pr.id}',event)">Reactivar</button>`
-      : '';
     const archBadge = isArchived ? `<span style="font-family:'Space Mono',monospace;font-size:9px;padding:2px 8px;border-radius:3px;background:#1e1e1e;color:#555;border:1px solid #2e2e2e;">ARCHIVADO</span>` : '';
     return `
       <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;cursor:pointer;transition:border-color .2s;${isArchived?'opacity:0.6;':''}"
@@ -1929,7 +1926,6 @@ function renderProyectos() {
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <span style="font-family:'Space Mono',monospace;font-size:11px;color:#999;background:#111;border:1px solid #2e2e2e;border-radius:3px;padding:3px 10px;letter-spacing:1px;">${pr.numero || ''}</span>
           <div style="display:flex;gap:6px;align-items:center;">${estadoBadge}${archBadge}</div>
-          <div style="display:flex;gap:4px;">${estadoBtn}</div>
         </div>
         <div style="font-size:15px;font-weight:600;color:#ccc;margin-bottom:3px;">${pr.clienteNombre}</div>
         <div style="font-size:18px;font-weight:700;color:#fff;margin-bottom:14px;">${pr.nombre}</div>
@@ -2035,7 +2031,7 @@ function abrirDetallePr(prId) {
   document.getElementById('pr-lista').style.display = 'none';
   const det = document.getElementById('pr-detalle');
   det.style.display = 'block';
-  renderDetallePr(pr, 'resumen');
+  renderDetallePr(pr, 'ítems');
 }
 
 let detallePrId = null, detalleSub = 'resumen', editMode = false;
@@ -2077,7 +2073,7 @@ async function renderDetallePr(pr, sub) {
     : `<div style="font-size:11px;color:#999;font-family:'Space Mono',monospace;background:#111;border:1px solid #2e2e2e;border-radius:3px;padding:2px 10px;display:inline-block;margin-bottom:6px;">${pr.numero||''}</div><div style="font-size:13px;font-weight:600;color:#ccc;margin-bottom:2px;">${pr.clienteNombre}</div><div style="font-size:22px;font-weight:700;">${pr.referencia||pr.nombre}</div>`;
   const hdrButtons = editMode
     ? `<button class="btn btn-success btn-sm" onclick="guardarProyecto('${pr.id}','${sub}')">Guardar cambios</button><button class="btn btn-ghost btn-sm" onclick="editMode=false;renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${sub}')">Cancelar</button>`
-    : `<div style="text-align:right;margin-right:8px;"><div id="pr-horas-real" class="mono" style="font-size:13px;color:${excessColor(hA,hE)};">${fmtH(hA)} / ${fmtH(hE)} <span style="font-size:11px;">${fmtExceso(hA,hE)}</span></div><div style="font-size:10px;color:var(--muted);">real / estimado</div></div><button class="btn btn-ghost btn-sm" style="color:var(--muted);" onclick="archivarProyecto('${pr.id}',event)">Archivar</button><button class="btn btn-ghost btn-sm" onclick="editMode=true;renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${sub}')">Editar</button>`;
+    : `<div style="text-align:right;margin-right:8px;"><div id="pr-horas-real" class="mono" style="font-size:13px;color:${excessColor(hA,hE)};">${fmtH(hA)} / ${fmtH(hE)} <span style="font-size:11px;">${fmtExceso(hA,hE)}</span></div><div style="font-size:10px;color:var(--muted);">real / estimado</div></div>${(pr.estado||'en_produccion')==='en_produccion'?`<button class="btn btn-ghost btn-sm" style="color:var(--muted);" onclick="posponerProyecto('${pr.id}',event)">Posponer</button>`:(pr.estado==='pospuesto'?`<button class="btn btn-ghost btn-sm" style="color:var(--muted);" onclick="reactivarProyecto('${pr.id}',event)">Reactivar</button>`:'')}<button class="btn btn-ghost btn-sm" onclick="editMode=true;renderDetallePr(PROYECTOS.find(p=>p.id==='${pr.id}'),'${sub}')">Editar</button>`;
 
   let html = `
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
@@ -4597,7 +4593,7 @@ function abrirDetallePr(prId) {
   setTimeout(()=>{
     document.getElementById('pr-lista').style.display='none';
     document.getElementById('pr-detalle').style.display='block';
-    renderDetallePr(PROYECTOS.find(p=>p.id===prId),'resumen');
+    renderDetallePr(PROYECTOS.find(p=>p.id===prId),'ítems');
   },10);
 }
 
