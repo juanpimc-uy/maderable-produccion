@@ -270,8 +270,9 @@
     <input class="search-input" id="searchInput" type="text" placeholder="Buscar proyecto, ODF, cliente...">
     <div class="toolbar-sep"></div>
     <button class="chip active" data-estado="all" onclick="setEstado('all')">Todos</button>
-    <button class="chip" data-estado="activo" onclick="setEstado('activo')">En curso</button>
-    <button class="chip" data-estado="inactivo" onclick="setEstado('inactivo')">Archivados</button>
+    <button class="chip" data-estado="en_curso" onclick="setEstado('en_curso')">En curso</button>
+    <button class="chip" data-estado="terminado" onclick="setEstado('terminado')">Terminado</button>
+    <button class="chip" data-estado="archivado" onclick="setEstado('archivado')">Archivado</button>
     <div class="toolbar-sep"></div>
     <div class="cutoff-wrap">
       <span class="cutoff-label">Corte al</span>
@@ -469,14 +470,18 @@ async function cargarInforme() {
     totalesData = data.totales;
     openDetailId = null;
     detailCache = {};
-    // Fetch facturacion resumen in parallel (non-blocking)
+    // Fetch facturacion resumen (await antes de renderizar)
+    facturacionMap = {};
     try {
       const st = window.AUTH?.getSessionToken() || '';
       const fRes = await fetch(`${BASE_URL}/api/tiempos?action=facturacion-resumen&st=${encodeURIComponent(st)}`);
       const fData = await fRes.json();
-      facturacionMap = {};
-      if (fData.ok) for (const r of (fData.resumen || [])) facturacionMap[r.proyecto_id] = r.facturado_usd;
-    } catch(e) { console.warn('[informes] facturacion-resumen:', e.message); }
+      if (fData.ok) {
+        for (const r of (fData.resumen || [])) facturacionMap[r.proyecto_id] = r.facturado_usd;
+      } else {
+        console.warn('[informes] facturacion-resumen no ok:', fData.error || fRes.status);
+      }
+    } catch(e) { console.warn('[informes] facturacion-resumen error:', e.message); }
     filtrarLocal();
   } catch (e) {
     console.error('[informes] cargarInforme', e);
@@ -486,8 +491,9 @@ async function cargarInforme() {
 function _getFilteredData() {
   let list = [...proyectosData];
   // Filter by estado chip
-  if (estadoActivo === 'activo') list = list.filter(p => p.activo !== false);
-  else if (estadoActivo === 'inactivo') list = list.filter(p => p.activo === false);
+  if (estadoActivo === 'en_curso') list = list.filter(p => p.activo !== false && p.estado !== 'terminado');
+  else if (estadoActivo === 'terminado') list = list.filter(p => p.activo !== false && p.estado === 'terminado');
+  else if (estadoActivo === 'archivado') list = list.filter(p => p.activo === false);
   // Filter by search
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
   if (q) list = list.filter(p =>
@@ -560,7 +566,7 @@ function renderTabla(data) {
       <td><span class="num${_factPct != null ? '' : ' num-muted'}">${_factPct != null ? _factPct + '%' : '—'}</span></td>
       <td><span class="num ${saldoClass}">${p.saldo_usd != null ? ((p.saldo_usd >= 0 ? '+' : '') + fmt(p.saldo_usd)) : '–'}</span></td>
       <td><span class="num ${saldoClass}">${p.margen_pct != null ? fmtPct(p.margen_pct) : '–'}</span></td>
-      <td><span class="mono" style="font-size:9px;color:${p.activo === false ? '#555' : 'var(--green)'};">${p.activo === false ? 'ARCHIVADO' : 'EN CURSO'}</span></td>
+      <td><span class="mono" style="font-size:9px;color:${p.activo === false ? '#555' : p.estado === 'terminado' ? 'var(--blue)' : 'var(--green)'};">${p.activo === false ? 'ARCHIVADO' : p.estado === 'terminado' ? 'TERMINADO' : 'EN CURSO'}</span></td>
     </tr>`;
     // Placeholder for detail row
     if (openDetailId === p.id) {
@@ -819,7 +825,7 @@ function exportXLSX() {
     '% Facturación': p.precio_venta_usd > 0 ? Math.round((facturacionMap[p.id] || 0) / p.precio_venta_usd * 100) : '',
     'Saldo USD': p.saldo_usd,
     'Margen %': p.margen_pct != null ? Number(p.margen_pct.toFixed(1)) : '',
-    'Estado': p.activo === false ? 'Archivado' : 'En curso',
+    'Estado': p.activo === false ? 'Archivado' : p.estado === 'terminado' ? 'Terminado' : 'En curso',
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
@@ -1015,9 +1021,9 @@ async function billerImportFile(input) {
   banner.innerHTML = '<div class="import-banner" style="border-color:var(--amber);background:rgba(255,214,0,.04);color:var(--amber);">Procesando archivo...</div>';
   try {
     const ab = await file.arrayBuffer();
-    const wb = XLSX.read(ab, { type: 'array' });
+    const wb = XLSX.read(ab, { type: 'array', raw: true, cellDates: false });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    const raw = XLSX.utils.sheet_to_json(ws, { defval: '', raw: true });
     if (!raw.length) throw new Error('Archivo vacío');
 
     const colMap = {
@@ -1044,8 +1050,13 @@ async function billerImportFile(input) {
       const obj = {};
       for (const [field, col] of Object.entries(mapping)) obj[field] = r[col] ?? '';
       if (obj.fecha_emision) {
-        const d = new Date(obj.fecha_emision);
-        if (!isNaN(d)) obj.fecha_emision = d.toISOString().split('T')[0];
+        const fs = String(obj.fecha_emision).trim();
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(fs)) {
+          const [d, m, y] = fs.split('/');
+          obj.fecha_emision = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+        } else if (/^\d{4}-\d{2}-\d{2}/.test(fs)) {
+          obj.fecha_emision = fs.split('T')[0];
+        }
       }
       return obj;
     }).filter(r => r.tipo_cfe && r.numero);
