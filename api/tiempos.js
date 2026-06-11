@@ -4306,7 +4306,7 @@ export default async function handler(req) {
       const registros = rows.map(r => {
         const es_venta = TIPOS_VENTA.has(r.tipo_cfe);
         const signo = r.tipo_cfe === 'Nota de Crédito de e-Factura' ? -1 : 1;
-        const monto_neto = Number(r.monto_neto) || 0;
+        const monto_neto = Math.abs(Number(r.monto_neto) || 0);
         let monto_neto_usd = 0;
         if (r.moneda === 'USD') monto_neto_usd = monto_neto;
         else if (r.moneda === 'UYU' && tcUyuUsd > 0) monto_neto_usd = Math.round(monto_neto / tcUyuUsd * 100) / 100;
@@ -4320,7 +4320,7 @@ export default async function handler(req) {
           moneda: r.moneda,
           tipo_cambio: Number(r.tipo_cambio) || null,
           monto_neto,
-          monto_total: Number(r.monto_total) || 0,
+          monto_total: Math.abs(Number(r.monto_total) || 0),
           monto_neto_usd,
           adenda_raw: r.adenda_raw != null ? String(r.adenda_raw) : null,
           estado_dgi: r.estado_dgi || null,
@@ -4427,11 +4427,11 @@ export default async function handler(req) {
         };
       });
 
-      const { data: proyActivos, error: pErr } = await supabase
-        .from('proyectos_cache').select('id, numero, nombre').eq('activo', true).order('numero');
+      const { data: proysTodos, error: pErr } = await supabase
+        .from('proyectos_cache').select('id, numero, nombre').order('numero');
       if (pErr) throw pErr;
 
-      return ok({ ok: true, comprobantes, proyectos_activos: proyActivos || [] });
+      return ok({ ok: true, comprobantes, proyectos: proysTodos || [] });
     }
 
     // ── POST asociar-factura-biller ──────────────────────────────────────
@@ -4457,11 +4457,11 @@ export default async function handler(req) {
       // Validate projects
       const proyIds = asigs.map(a => a.proyecto_id);
       const { data: proyectos } = await supabase
-        .from('proyectos_cache').select('id, numero').eq('activo', true).in('id', proyIds);
+        .from('proyectos_cache').select('id, numero').in('id', proyIds);
       const proyMap = {};
       (proyectos || []).forEach(p => { proyMap[p.id] = p.numero; });
       for (const a of asigs) {
-        if (!proyMap[a.proyecto_id]) return err('Proyecto no encontrado o inactivo: ' + a.proyecto_id, 400);
+        if (!proyMap[a.proyecto_id]) return err('Proyecto no encontrado: ' + a.proyecto_id, 400);
       }
 
       // Delete existing and reinsert

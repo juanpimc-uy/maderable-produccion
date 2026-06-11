@@ -1031,7 +1031,7 @@ async function billerImportFile(input) {
 function openAsociarModal(facturaId) {
   const comp = (billerData.comprobantes || []).find(c => c.id === facturaId);
   if (!comp) return;
-  const proys = billerData.proyectos_activos || [];
+  const proys = billerData.proyectos || [];
   const disponible = Math.abs(Number(comp.monto_neto_usd) || 0);
   const existing = comp.asignaciones || [];
   const optHtml = proys.map(p => `<option value="${p.id}">${p.numero} · ${p.nombre || ''}</option>`).join('');
@@ -1074,7 +1074,7 @@ function _asocRowHtml(optHtml, selId, monto, facturaId, disponible) {
 
 function _addAsocRow(facturaId, disponible) {
   const container = document.getElementById('asocRows');
-  const proys = billerData.proyectos_activos || [];
+  const proys = billerData.proyectos || [];
   const optHtml = proys.map(p => `<option value="${p.id}">${p.numero} · ${p.nombre || ''}</option>`).join('');
   container.insertAdjacentHTML('beforeend', _asocRowHtml(optHtml, '', 0, facturaId, disponible));
   _updateAsocCounter(disponible);
