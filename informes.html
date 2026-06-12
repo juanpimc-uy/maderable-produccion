@@ -333,6 +333,7 @@ let billerData = null;
 let billerFiltroTipo = 'all';
 let billerFiltroEstado = 'all';
 let billerBusqueda = '';
+let billerSortDir = 'desc'; // 'asc' | 'desc'
 
 // ── AUTH CHECK ──────────────────────────────────────────────────────────
 (function() {
@@ -950,6 +951,11 @@ function renderBillerView() {
   renderBillerTable();
 }
 
+function toggleBillerSort() {
+  billerSortDir = billerSortDir === 'desc' ? 'asc' : 'desc';
+  renderBillerTable();
+}
+
 function renderBillerTable() {
   const wrap = document.getElementById('billerTableWrap');
   if (!wrap || !billerData) return;
@@ -962,6 +968,17 @@ function renderBillerTable() {
     (c.cliente_nombre || '').toLowerCase().includes(billerBusqueda) ||
     (c.serie || '').toLowerCase().includes(billerBusqueda)
   );
+
+  // Sort by the DISPLAYED date (formatDateDisplay output DD/MM/YYYY → YYYYMMDD)
+  const _fechaVis = c => {
+    const vis = formatDateDisplay(c.fecha_emision); // DD/MM/YYYY
+    if (!vis || vis === '-') return 0;
+    const [d, m, y] = vis.split('/');
+    return Number(y + m + d);
+  };
+  comps.sort((a, b) => billerSortDir === 'desc'
+    ? _fechaVis(b) - _fechaVis(a)
+    : _fechaVis(a) - _fechaVis(b));
 
   const rows = comps.map(c => {
     const asig = c.asignaciones || [];
@@ -1005,7 +1022,7 @@ function renderBillerTable() {
 
   wrap.innerHTML = `<table>
     <thead><tr>
-      <th>Nº</th><th>Tipo</th><th>Fecha</th><th>Cliente</th>
+      <th>Nº</th><th>Tipo</th><th style="cursor:pointer;user-select:none;" onclick="toggleBillerSort()">Fecha <span style="color:${billerSortDir?'#FFD600':'var(--muted)'};font-size:8px;">${billerSortDir==='asc'?'▲':'▼'}</span></th><th>Cliente</th>
       <th class="num-col">Neto USD</th><th>Adenda</th><th>ODF</th><th>Estado</th><th>Acción</th>
     </tr></thead>
     <tbody>${rows || '<tr><td colspan="9" style="color:var(--muted);text-align:center;padding:20px;">Sin comprobantes</td></tr>'}</tbody>

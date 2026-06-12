@@ -2446,7 +2446,7 @@ export default async function handler(req) {
 
       // ── Recalcular estado de la ODF según items completos ──────────────
       const { data: proyEstado } = await supabase
-        .from('proyectos_cache').select('muebles, estado').eq('id', proyecto_id).maybeSingle();
+        .from('proyectos_cache').select('muebles, estado, numero').eq('id', proyecto_id).maybeSingle();
       const mueblesAll = Array.isArray(proyEstado?.muebles) ? proyEstado.muebles : [];
       const totalItems = mueblesAll.length;
       const idsMuebles = new Set(mueblesAll.map(m => String(m.id)));
@@ -2471,11 +2471,43 @@ export default async function handler(req) {
       } else if (estadoActual === 'terminado') {
         nuevoEstado = 'en_produccion';   // se reabrió un item → vuelve a producción
       }
+      let odfTerminada = false;
       if (nuevoEstado !== estadoActual) {
         await supabase.from('proyectos_cache').update({ estado: nuevoEstado }).eq('id', proyecto_id);
+
+        if (nuevoEstado === 'terminado') {
+          const { data: comps } = await supabase
+            .from('items_completado_log')
+            .select('completado_en')
+            .eq('proyecto_id', proyecto_id)
+            .not('completado_en', 'is', null)
+            .order('completado_en', { ascending: false })
+            .limit(1);
+          const odfCompletadoEn = (comps && comps.length) ? comps[0].completado_en : null;
+          await supabase.from('odf_completado_log').insert({
+            proyecto_id,
+            numero: proyEstado?.numero || null,
+            evento: 'completada',
+            completado_en: odfCompletadoEn,
+            items_total: totalItems,
+            items_completos: completos,
+            zoho_ok: false,
+            creado_por: caller.id,
+          });
+          odfTerminada = true;
+        } else if (estadoActual === 'terminado') {
+          await supabase.from('odf_completado_log').insert({
+            proyecto_id,
+            numero: proyEstado?.numero || null,
+            evento: 'reabierta',
+            items_total: totalItems,
+            items_completos: completos,
+            creado_por: caller.id,
+          });
+        }
       }
 
-      return ok({ ok: true, log: inserted, estado: nuevoEstado });
+      return ok({ ok: true, log: inserted, estado: nuevoEstado, odf_terminada: odfTerminada });
     }
 
     // ── POST set-estado-proyecto (posponer / reactivar) ─────────────────
