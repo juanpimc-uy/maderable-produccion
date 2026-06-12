@@ -559,13 +559,13 @@ function renderTabla(data) {
       </td>
       <td><span class="num">${p.horas_reales_hs} hs${progressHtml}</span></td>
       <td><span class="num num-muted">${p.horas_estimadas_hs != null ? p.horas_estimadas_hs + ' hs' : '-'}</span></td>
-      <td><span class="num${p.materiales_sin_snapshot ? ' num-muted' : ''}">${p.total_materiales_usd != null ? fmt(p.total_materiales_usd) : '<span title="Abrir detalle para calcular">–</span>'}</span></td>
+      <td><span class="num">${fmt(p.total_materiales_usd)}</span></td>
       <td><span class="num">${fmt(p.total_tercerizados_usd)}</span></td>
       <td><span class="num">${fmt(p.total_oc_usd)}</span></td>
       <td>${precioHtml}</td>
       <td><span class="num${_factPct != null ? '' : ' num-muted'}">${_factPct != null ? _factPct + '%' : '—'}</span></td>
       <td><span class="num${p.saldo_cobranza_usd != null ? '' : ' num-muted'}">${p.saldo_cobranza_usd != null ? (p.saldo_cobranza_usd === 0 ? '<span style="color:var(--green);">PAGO</span>' : fmt(p.saldo_cobranza_usd)) : '—'}</span></td>
-      <td><span class="num" style="opacity:${p.estado === 'terminado' ? '1' : '0.4'};color:${p.margen_pct != null && p.margen_pct >= 0 ? 'var(--green)' : 'var(--red)'};">${p.margen_pct != null ? fmtPct(p.margen_pct) : '—'}</span></td>
+      <td>${p.margen_pct != null ? `<span class="num" style="opacity:${p.estado === 'terminado' ? '1' : '0.4'};color:${p.margen_pct >= 0 ? 'var(--green)' : 'var(--red)'};">${fmtPct(p.margen_pct)}</span>` : '<span class="num num-muted">—</span>'}</td>
       <td><span class="mono" style="font-size:9px;color:${p.activo === false ? '#555' : p.estado === 'terminado' ? 'var(--blue)' : 'var(--green)'};">${p.activo === false ? 'ARCHIVADO' : p.estado === 'terminado' ? 'TERMINADO' : 'EN CURSO'}</span></td>
     </tr>`;
     // Placeholder for detail row

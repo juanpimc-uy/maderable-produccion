@@ -437,17 +437,13 @@ async function accionInformeProyectos(req, res) {
     const horas_reales_min       = reg.totalMin;
     const horas_reales_hs        = round1(horas_reales_min / 60);
     const costo_mo_usd           = round2(reg.totalCosto);
-    const matSnap = proy.materiales_snapshot || null;
-    const matResult = matSnap ? sumarMaterialesAlCorte(matSnap, fecha_corte) : null;
-    const total_materiales_usd   = matResult ? matResult.total_usd : null;
+    const total_materiales_usd   = round2(Number(proy.costo_materiales_usd || 0));
     const total_tercerizados_usd = round2(part.total);
     const total_oc_usd           = round2(cost.total);
-    const total_invertido_usd    = total_materiales_usd != null
-      ? round2(costo_mo_usd + total_materiales_usd + total_tercerizados_usd + total_oc_usd)
-      : null;
+    const total_invertido_usd    = round2(costo_mo_usd + total_materiales_usd + total_tercerizados_usd + total_oc_usd);
     const precio_venta_usd       = round2(Number(proy.precio_venta_usd || 0) || calcularPrecioVenta(proy.sos_cargadas));
-    const saldo_usd              = total_invertido_usd != null ? round2(precio_venta_usd - total_invertido_usd) : null;
-    const margen_pct             = (precio_venta_usd > 0 && saldo_usd != null) ? round1(saldo_usd / precio_venta_usd * 100) : null;
+    const saldo_usd              = round2(precio_venta_usd - total_invertido_usd);
+    const margen_pct             = precio_venta_usd > 0 ? round1(saldo_usd / precio_venta_usd * 100) : null;
 
     // Última actividad (max de registros, partidas, costos)
     let fechaUltima = reg.ultimaActividad;
@@ -487,7 +483,6 @@ async function accionInformeProyectos(req, res) {
       horas_estimadas_hs: null,
       costo_mo_usd,
       total_materiales_usd,
-      materiales_sin_snapshot: !matSnap,
       total_tercerizados_usd,
       total_oc_usd,
       total_invertido_usd,
@@ -790,12 +785,16 @@ async function accionSincronizarPrecios(req, res) {
           } else {
             precios_sin++;
           }
-          // Saldo cobranza: sum(balance) normalizado a USD
+          // Saldo cobranza: sum(balance neto sin IVA) normalizado a USD
           const totalBalance = allInvoices.reduce((s, inv_i) => {
             const bal = Number(inv_i.balance) || 0;
             if (!bal) return s;
-            if (inv_i.currency_code === 'USD') return s + bal;
-            return tcUyuUsd > 0 ? s + (bal / tcUyuUsd) : s;
+            const subT = Number(inv_i.sub_total) || 0;
+            const totT = Number(inv_i.total) || 0;
+            if (totT === 0) return s;
+            const netoBal = bal * (subT / totT);
+            if (inv_i.currency_code === 'USD') return s + netoBal;
+            return tcUyuUsd > 0 ? s + (netoBal / tcUyuUsd) : s;
           }, 0);
           updateFields.saldo_cobranza_usd = round2(totalBalance);
           await supabase.from('proyectos_cache').update(updateFields).eq('id', p.id);
