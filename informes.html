@@ -526,8 +526,7 @@ function renderTabla(data) {
   const tbody = document.getElementById('tableBody');
   let html = '';
   for (const p of data) {
-    const saldoClass = p.saldo_usd == null ? 'num-muted' : (p.saldo_usd < 0 ? 'num-danger' : 'num-success');
-    const rowClass = p.saldo_usd != null && p.saldo_usd < 0 ? 'negative' : '';
+    const rowClass = p.margen_pct != null && p.margen_pct < 0 ? 'negative' : '';
     const zombieHtml = p.es_zombie ? `<span class="zombie-tag">&#x25B2; SIN ACT. ${p.dias_sin_actividad}d</span>` : '';
 
     // Progress bar for hours
@@ -565,8 +564,8 @@ function renderTabla(data) {
       <td><span class="num">${fmt(p.total_oc_usd)}</span></td>
       <td>${precioHtml}</td>
       <td><span class="num${_factPct != null ? '' : ' num-muted'}">${_factPct != null ? _factPct + '%' : '—'}</span></td>
-      <td><span class="num ${saldoClass}">${p.saldo_usd != null ? ((p.saldo_usd >= 0 ? '+' : '') + fmt(p.saldo_usd)) : '–'}</span></td>
-      <td><span class="num ${saldoClass}">${p.margen_pct != null ? fmtPct(p.margen_pct) : '–'}</span></td>
+      <td><span class="num${p.saldo_cobranza_usd != null ? '' : ' num-muted'}">${p.saldo_cobranza_usd != null ? (p.saldo_cobranza_usd === 0 ? '<span style="color:var(--green);">PAGO</span>' : fmt(p.saldo_cobranza_usd)) : '—'}</span></td>
+      <td><span class="num" style="opacity:${p.estado === 'terminado' ? '1' : '0.4'};color:${p.margen_pct != null && p.margen_pct >= 0 ? 'var(--green)' : 'var(--red)'};">${p.margen_pct != null ? fmtPct(p.margen_pct) : '—'}</span></td>
       <td><span class="mono" style="font-size:9px;color:${p.activo === false ? '#555' : p.estado === 'terminado' ? 'var(--blue)' : 'var(--green)'};">${p.activo === false ? 'ARCHIVADO' : p.estado === 'terminado' ? 'TERMINADO' : 'EN CURSO'}</span></td>
     </tr>`;
     // Placeholder for detail row
@@ -589,7 +588,7 @@ function renderTotales(data) {
   const tTerc = list.reduce((a,p) => a + (p.total_tercerizados_usd || 0), 0);
   const tOC = list.reduce((a,p) => a + (p.total_oc_usd || 0), 0);
   const tPrecio = list.reduce((a,p) => a + (p.precio_venta_usd || 0), 0);
-  const tSaldo = list.reduce((a,p) => a + (p.saldo_usd || 0), 0);
+  const tSaldoCob = list.reduce((a,p) => a + (p.saldo_cobranza_usd || 0), 0);
   const tInv = list.reduce((a,p) => a + (p.total_invertido_usd || 0), 0);
   document.getElementById('tableFoot').innerHTML = `<tr>
     <td style="color:var(--muted);">${n} proyectos</td>
@@ -600,7 +599,7 @@ function renderTotales(data) {
     <td><span class="num">${fmt(tOC)}</span></td>
     <td><span class="num num-accent">${fmt(tPrecio)}</span></td>
     <td></td>
-    <td><span class="num ${tSaldo<0?'num-danger':'num-success'}">${tSaldo>=0?'+':''}${fmt(tSaldo)}</span></td>
+    <td><span class="num">${fmt(tSaldoCob)}</span></td>
     <td></td>
     <td></td>
   </tr>`;
@@ -824,7 +823,7 @@ function exportXLSX() {
     'Otras OC USD': p.total_oc_usd,
     'Precio Venta USD': p.precio_venta_usd,
     '% Facturación': p.precio_venta_usd > 0 ? Math.round((facturacionMap[p.id] || 0) / p.precio_venta_usd * 100) : '',
-    'Saldo USD': p.saldo_usd,
+    'Saldo Cobranza USD': p.saldo_cobranza_usd != null ? p.saldo_cobranza_usd : '',
     'Margen %': p.margen_pct != null ? Number(p.margen_pct.toFixed(1)) : '',
     'Estado': p.activo === false ? 'Archivado' : p.estado === 'terminado' ? 'Terminado' : 'En curso',
   }));

@@ -495,6 +495,7 @@ async function accionInformeProyectos(req, res) {
       precio_venta_pendiente: precio_venta_usd === 0,
       saldo_usd,
       margen_pct,
+      saldo_cobranza_usd: proy.saldo_cobranza_usd != null ? round2(Number(proy.saldo_cobranza_usd)) : null,
       dias_sin_actividad,
       es_zombie,
       fecha_ultima_actividad: fechaUltima ? fechaUltima.toISOString() : null,
@@ -755,6 +756,12 @@ async function accionSincronizarPrecios(req, res) {
 
   let precios_ok = 0, precios_sin = 0, materiales_ok = 0;
 
+  // TC UYU→USD para normalizar balances
+  const { data: tcRow } = await supabase
+    .from('tipo_cambio').select('valor')
+    .eq('moneda_origen', 'UYU').eq('moneda_destino', 'USD').maybeSingle();
+  const tcUyuUsd = tcRow ? Number(tcRow.valor) : 0;
+
   // Procesar en lotes de 5 para precios
   const BATCH = 5;
   for (let i = 0; i < conNumero.length; i += BATCH) {
@@ -766,7 +773,8 @@ async function accionSincronizarPrecios(req, res) {
           headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` },
         });
         const zData = await zRes.json();
-        const inv = zData?.invoices?.[0];
+        const allInvoices = zData?.invoices || [];
+        const inv = allInvoices[0];
         if (inv?.invoice_id) {
           const detUrl = `https://www.zohoapis.com/books/v3/invoices/${inv.invoice_id}?organization_id=${orgId}`;
           const detRes = await fetch(detUrl, {
@@ -774,15 +782,25 @@ async function accionSincronizarPrecios(req, res) {
           });
           const detData = await detRes.json();
           const invDetail = detData?.invoice;
+          // Precio venta desde sub_total de la primera factura
+          const updateFields = {};
           if (invDetail?.sub_total != null && Number(invDetail.sub_total) > 0) {
-            await supabase.from('proyectos_cache')
-              .update({ precio_venta_usd: round2(Number(invDetail.sub_total)) })
-              .eq('id', p.id);
+            updateFields.precio_venta_usd = round2(Number(invDetail.sub_total));
             precios_ok++;
           } else {
             precios_sin++;
           }
+          // Saldo cobranza: sum(balance) normalizado a USD
+          const totalBalance = allInvoices.reduce((s, inv_i) => {
+            const bal = Number(inv_i.balance) || 0;
+            if (!bal) return s;
+            if (inv_i.currency_code === 'USD') return s + bal;
+            return tcUyuUsd > 0 ? s + (bal / tcUyuUsd) : s;
+          }, 0);
+          updateFields.saldo_cobranza_usd = round2(totalBalance);
+          await supabase.from('proyectos_cache').update(updateFields).eq('id', p.id);
         } else {
+          await supabase.from('proyectos_cache').update({ saldo_cobranza_usd: null }).eq('id', p.id);
           precios_sin++;
         }
       } catch { precios_sin++; }
