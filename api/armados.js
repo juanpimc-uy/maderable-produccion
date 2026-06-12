@@ -220,12 +220,14 @@ export default async function handler(req) {
       );
       if (error) throw error;
 
-      // Fire-and-forget: refresh materiales snapshot
+      // Refresh materiales snapshot (await — edge no tiene waitUntil)
       if (soExist?.proyecto_id) {
-        fetch(`${new URL(req.url).origin}/api/informes?action=recalcular-materiales`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ proyecto_id: soExist.proyecto_id }),
-        }).catch(() => {});
+        try {
+          await fetch(`${new URL(req.url).origin}/api/informes?action=recalcular-materiales`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ proyecto_id: soExist.proyecto_id }),
+          });
+        } catch (_) {}
       }
 
       return ok({ ok: true });
@@ -246,14 +248,18 @@ export default async function handler(req) {
       );
       if (error) throw error;
 
-      // Fire-and-forget: refresh snapshot for new AND old project
+      // Refresh materiales snapshot (await — edge no tiene waitUntil)
       const origin = new URL(req.url).origin;
-      const refreshProy = (pid) => fetch(`${origin}/api/informes?action=recalcular-materiales`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proyecto_id: pid }),
-      }).catch(() => {});
-      if (proyecto_id) refreshProy(proyecto_id);
-      if (soOld?.proyecto_id && soOld.proyecto_id !== proyecto_id) refreshProy(soOld.proyecto_id);
+      const refreshProy = async (pid) => {
+        try {
+          await fetch(`${origin}/api/informes?action=recalcular-materiales`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ proyecto_id: pid }),
+          });
+        } catch (_) {}
+      };
+      if (proyecto_id) await refreshProy(proyecto_id);
+      if (soOld?.proyecto_id && soOld.proyecto_id !== proyecto_id) await refreshProy(soOld.proyecto_id);
 
       return ok({ ok: true });
     }

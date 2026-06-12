@@ -92,6 +92,19 @@
   .bb-obr{background:rgba(16,185,129,.12);color:var(--obr);}
 
 
+  /* ── CNC Sidebar ── */
+  .cnc-sidebar{position:fixed;right:0;top:0;width:54px;height:100vh;background:#0d0d10;border-left:1px solid var(--brd);display:flex;flex-direction:column;align-items:center;z-index:100;padding:8px 0;}
+  .cnc-sidebar.hidden{display:none;}
+  .cnc-title{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;letter-spacing:2px;color:var(--cor);writing-mode:vertical-rl;transform:rotate(180deg);margin-bottom:8px;}
+  .cnc-pct{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--tx1);line-height:1;}
+  .cnc-placas{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--tx3);margin:4px 0 8px;}
+  .cnc-bar-wrap{flex:1;width:24px;background:#111;border-radius:4px;overflow:hidden;display:flex;flex-direction:column-reverse;position:relative;}
+  .cnc-seg{width:100%;flex-shrink:0;transition:height .3s;}
+  .cnc-seg.corte{background:var(--cor);}
+  .cnc-seg.parado{background:#2a2a30;}
+  .cnc-seg.descanso{background:repeating-linear-gradient(45deg,#1a1a1e,#1a1a1e 2px,#222 2px,#222 4px);}
+  body.has-cnc #screen-dash{margin-right:54px;}
+
   /* ── Responsive ── */
   @media(max-width:900px){.main{grid-template-columns:1fr;} .lane{grid-template-columns:120px 1fr 60px;}}
   @media(max-width:480px){.hdr{flex-direction:column;gap:10px;padding:12px 16px;} .hdr-stats{gap:16px;} .main{padding:12px 16px;} .pf{padding:8px 16px 20px;} .leg{padding:8px 16px;}}
@@ -258,6 +271,14 @@
 
 </div>
 
+<!-- ═══ CNC SIDEBAR ═════════════════════════════════════════════════════════ -->
+<div class="cnc-sidebar hidden" id="cnc-sidebar">
+  <div class="cnc-title">CNC</div>
+  <div class="cnc-pct" id="cnc-pct">0%</div>
+  <div class="cnc-placas" id="cnc-placas">0 pl</div>
+  <div class="cnc-bar-wrap" id="cnc-bar"></div>
+</div>
+
 <script>
 const FLAG_KEY = 'planta_publica_auth';
 
@@ -320,7 +341,9 @@ function mostrarDash() {
   }
   cargarSnapshot();
   cargarBottom();
+  cargarCNC();
   setInterval(cargarSnapshot, 60000);
+  setInterval(cargarCNC, 60000);
   setInterval(cargarBottom, 600000); // cada 10 min (Zoho rate limit)
   mantenerPantallaActiva();
 }
@@ -551,6 +574,39 @@ function renderBottom(data) {
       </div>`;
     }).join('');
   }
+}
+
+// ── CNC sidebar ──────────────────────────────────────────────────────────────
+async function cargarCNC() {
+  try {
+    const r = await fetch('/api/tiempos?action=cnc-timeline').then(res => res.json());
+    if (!r.ok || !r.segmentos || !r.segmentos.length) {
+      document.getElementById('cnc-sidebar').classList.add('hidden');
+      document.body.classList.remove('has-cnc');
+      return;
+    }
+    renderCNC(r);
+  } catch(e) {
+    document.getElementById('cnc-sidebar').classList.add('hidden');
+    document.body.classList.remove('has-cnc');
+  }
+}
+
+function renderCNC(data) {
+  const sidebar = document.getElementById('cnc-sidebar');
+  sidebar.classList.remove('hidden');
+  document.body.classList.add('has-cnc');
+
+  document.getElementById('cnc-pct').textContent = data.porcentaje_corte + '%';
+  document.getElementById('cnc-placas').textContent = data.placas_cortadas + ' pl';
+
+  const totalMin = data.segmentos.reduce((s, seg) => s + seg.minutos, 0);
+  if (totalMin === 0) { document.getElementById('cnc-bar').innerHTML = ''; return; }
+
+  document.getElementById('cnc-bar').innerHTML = data.segmentos.map(seg => {
+    const pct = (seg.minutos / totalMin * 100).toFixed(1);
+    return `<div class="cnc-seg ${seg.tipo}" style="height:${pct}%;" title="${seg.inicio}–${seg.fin} ${seg.tipo} (${seg.minutos}m)"></div>`;
+  }).join('');
 }
 
 // ── Clock ────────────────────────────────────────────────────────────────────

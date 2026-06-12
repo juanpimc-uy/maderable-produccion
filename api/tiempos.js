@@ -126,6 +126,31 @@ async function verificarSesion(token) {
   return data || null;
 }
 
+// ── Helper: push segmento CNC con split en descanso ──────────────────────
+function _pushSegmento(segmentos, tipo, desde, hasta, descInicio, descFin, fmtHM) {
+  // If the segment doesn't overlap descanso, push as-is
+  if (hasta <= descInicio || desde >= descFin) {
+    const mins = Math.max(0, Math.round((hasta - desde) / 60000));
+    if (mins > 0) segmentos.push({ tipo, minutos: mins, inicio: fmtHM(desde), fin: fmtHM(hasta) });
+    return;
+  }
+  // Before descanso
+  if (desde < descInicio) {
+    const mins = Math.round((descInicio - desde) / 60000);
+    if (mins > 0) segmentos.push({ tipo, minutos: mins, inicio: fmtHM(desde), fin: fmtHM(descInicio) });
+  }
+  // Descanso itself
+  const dStart = desde > descInicio ? desde : descInicio;
+  const dEnd = hasta < descFin ? hasta : descFin;
+  const dMins = Math.max(0, Math.round((dEnd - dStart) / 60000));
+  if (dMins > 0) segmentos.push({ tipo: 'descanso', minutos: dMins, inicio: fmtHM(dStart), fin: fmtHM(dEnd) });
+  // After descanso
+  if (hasta > descFin) {
+    const mins = Math.round((hasta - descFin) / 60000);
+    if (mins > 0) segmentos.push({ tipo, minutos: mins, inicio: fmtHM(descFin), fin: fmtHM(hasta) });
+  }
+}
+
 // ── Inyectar completado desde ledger en items de proyectos ────────────────
 async function _inyectarCompletado(proyectos) {
   if (!proyectos.length) return proyectos;
@@ -1890,6 +1915,90 @@ export default async function handler(req) {
       return ok({ placas: data || [] });
     }
 
+    // ── GET cnc-timeline (timeline CNC del día para TV pública) ──────────
+    if (action === 'cnc-timeline' && req.method === 'GET') {
+      // Fecha hoy en UTC-3
+      const ahora = new Date();
+      const uty = new Date(ahora.getTime() - 3 * 60 * 60 * 1000);
+      const hoyStr = uty.toISOString().split('T')[0];
+      const inicioDelDia = hoyStr + 'T00:00:00-03:00';
+      const ahoraISO = ahora.toISOString();
+
+      const { data: registros, error: rErr } = await supabase
+        .from('registros_cnc')
+        .select('inicio, fin, resultado, placa_numero')
+        .gte('inicio', inicioDelDia)
+        .order('inicio', { ascending: true });
+      if (rErr) throw rErr;
+
+      const regs = (registros || []).filter(r => r.inicio);
+      if (!regs.length) {
+        return ok({ ok: true, porcentaje_corte: 0, placas_cortadas: 0, segmentos: [] });
+      }
+
+      // Placas completadas (con fin y resultado=ok)
+      const placas_cortadas = regs.filter(r => r.fin && r.resultado === 'ok').length;
+
+      // Build timeline segments
+      const fmtHM = (d) => {
+        const uy = new Date(d.getTime() - 3 * 60 * 60 * 1000);
+        const h = String(uy.getUTCHours()).padStart(2, '0');
+        const m = String(uy.getUTCMinutes()).padStart(2, '0');
+        return `${h}:${m}`;
+      };
+
+      const segmentos = [];
+      let cursor = new Date(regs[0].inicio);
+      const descansoInicio = new Date(hoyStr + 'T12:00:00-03:00');
+      const descansoFin = new Date(hoyStr + 'T13:00:00-03:00');
+
+      for (const r of regs) {
+        const rInicio = new Date(r.inicio);
+        const rFin = r.fin ? new Date(r.fin) : new Date(ahoraISO);
+
+        // Gap before this record = parado
+        if (rInicio > cursor) {
+          _pushSegmento(segmentos, 'parado', cursor, rInicio, descansoInicio, descansoFin, fmtHM);
+        }
+
+        // The record itself = corte
+        if (rFin > rInicio) {
+          _pushSegmento(segmentos, 'corte', rInicio, rFin, descansoInicio, descansoFin, fmtHM);
+        }
+
+        if (rFin > cursor) cursor = rFin;
+      }
+
+      // Trailing gap (parado until now) — solo si hay actividad humana en CORTE
+      if (cursor < ahora) {
+        const hayPlacaAbierta = regs.some(r => !r.fin);
+        let agregarTrailing = hayPlacaAbierta;
+        if (!agregarTrailing) {
+          const { data: activosCorte } = await supabase
+            .from('registros_trabajo')
+            .select('id')
+            .eq('estado', 'activo')
+            .eq('centro', 'corte')
+            .limit(1);
+          agregarTrailing = (activosCorte && activosCorte.length > 0);
+        }
+        if (agregarTrailing) {
+          _pushSegmento(segmentos, 'parado', cursor, ahora, descansoInicio, descansoFin, fmtHM);
+        }
+      }
+
+      // Calculate percentages (excluding descanso)
+      let minCorte = 0, minParado = 0;
+      for (const s of segmentos) {
+        if (s.tipo === 'corte') minCorte += s.minutos;
+        else if (s.tipo === 'parado') minParado += s.minutos;
+      }
+      const totalActivo = minCorte + minParado;
+      const porcentaje_corte = totalActivo > 0 ? Math.round(minCorte / totalActivo * 100) : 0;
+
+      return ok({ ok: true, porcentaje_corte, placas_cortadas, segmentos });
+    }
+
     // ── GET último registro por centro/proyecto/ítem ──────────────────────
     if (action === 'ultimo-registro' && req.method === 'GET') {
       const centro      = url.searchParams.get('centro');
@@ -3190,11 +3299,13 @@ export default async function handler(req) {
       const { error: uErr } = await supabase
         .from('proyectos_cache').update({ materiales: mats }).eq('id', proyecto_id);
       if (uErr) throw uErr;
-      // Fire-and-forget: refresh materiales snapshot
-      fetch(`${new URL(req.url).origin}/api/informes?action=recalcular-materiales`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proyecto_id }),
-      }).catch(() => {});
+      // Refresh materiales snapshot (await — edge no tiene waitUntil)
+      try {
+        await fetch(`${new URL(req.url).origin}/api/informes?action=recalcular-materiales`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ proyecto_id }),
+        });
+      } catch (_) {}
       return ok({ ok: true });
     }
 
