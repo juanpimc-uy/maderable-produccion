@@ -93,17 +93,31 @@
 
 
   /* ── CNC Sidebar ── */
-  .cnc-sidebar{position:fixed;right:0;top:0;width:54px;height:100vh;background:#0d0d10;border-left:1px solid var(--brd);display:flex;flex-direction:column;align-items:center;z-index:100;padding:8px 0;}
+  .cnc-sidebar{width:160px;display:flex;flex-direction:column;gap:4px;flex-shrink:0;}
   .cnc-sidebar.hidden{display:none;}
-  .cnc-title{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;letter-spacing:2px;color:var(--cor);writing-mode:vertical-rl;transform:rotate(180deg);margin-bottom:8px;}
-  .cnc-pct{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--tx1);line-height:1;}
-  .cnc-placas{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--tx3);margin:4px 0 8px;}
-  .cnc-bar-wrap{flex:1;width:24px;background:#111;border-radius:4px;overflow:hidden;display:flex;flex-direction:column-reverse;position:relative;}
-  .cnc-seg{width:100%;flex-shrink:0;transition:height .3s;}
-  .cnc-seg.corte{background:var(--cor);}
-  .cnc-seg.parado{background:#2a2a30;}
-  .cnc-seg.descanso{background:repeating-linear-gradient(45deg,#1a1a1e,#1a1a1e 2px,#222 2px,#222 4px);}
-  body.has-cnc #screen-dash{margin-right:54px;}
+  .cnc-header{background:var(--surf);border:1px solid var(--brd);border-radius:6px;padding:4px;text-align:center;}
+  .cnc-bar-container{background:var(--surf);border:1px solid var(--brd);border-radius:6px;padding:6px;flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+  .cnc-rows{flex:1;display:flex;flex-direction:column;min-height:0;width:100%;}
+  .cnc-row{display:flex;align-items:center;justify-content:center;gap:6px;min-height:0;}
+  .cnc-row-seg{width:32px;height:100%;flex-shrink:0;}
+  .cnc-row:first-child .cnc-row-seg{border-radius:4px 4px 0 0;}
+  .cnc-row:last-child .cnc-row-seg{border-radius:0 0 4px 4px;}
+  .cnc-row-seg.corte{background:var(--obr);}
+  .cnc-row-seg.parado{background:var(--arm);}
+  .cnc-row-seg.descanso{background:var(--coo);opacity:0.35;}
+  .cnc-row-label{width:40px;flex-shrink:0;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--tx3);text-align:left;line-height:1;overflow:hidden;white-space:nowrap;}
+  .cnc-row-label.lbl-corte{color:var(--obr);}
+  .cnc-row-label.lbl-parado{color:var(--arm);}
+  .cnc-footer{background:var(--surf);border:1px solid var(--brd);border-radius:6px;padding:4px;text-align:center;}
+  .cnc-placas-label{font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--tx3);text-transform:uppercase;letter-spacing:.2px;margin-bottom:1px;}
+  .cnc-placas-count{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:bold;color:var(--obr);margin-bottom:3px;line-height:1;}
+  .cnc-mini-legend{display:flex;gap:4px;justify-content:center;font-size:7px;color:var(--tx3);}
+  .cnc-legend-item{display:flex;align-items:center;gap:2px;}
+  .cnc-legend-box{width:4px;height:4px;border-radius:1px;}
+  .cnc-legend-box.corte{background:var(--obr);}
+  .cnc-legend-box.parado{background:var(--arm);}
+  .cnc-percentage-footer{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--obr);margin-top:2px;font-weight:bold;}
+  .content-with-sidebar{display:flex;flex:1;min-height:0;overflow:hidden;}
 
   /* ── Responsive ── */
   @media(max-width:900px){.main{grid-template-columns:1fr;} .lane{grid-template-columns:120px 1fr 60px;}}
@@ -236,47 +250,61 @@
     <div class="leg-ot"><div class="ld" style="background:var(--red)"></div>+9H en turno</div>
   </div>
 
-  <div class="main">
-    <div>
-      <div class="sh"><span class="sp pl">Planta</span><div class="sl"></div><span class="sc" id="sc-pl">0</span></div>
-      <div class="grid grid-pl" id="tv-planta"></div>
+  <div class="content-with-sidebar">
+    <div style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
+      <div class="main">
+        <div>
+          <div class="sh"><span class="sp pl">Planta</span><div class="sl"></div><span class="sc" id="sc-pl">0</span></div>
+          <div class="grid grid-pl" id="tv-planta"></div>
+        </div>
+        <div>
+          <div class="sh"><span class="sp of">Oficina</span><div class="sl"></div><span class="sc" id="sc-of">0</span></div>
+          <div class="grid grid-of" id="tv-oficina"></div>
+        </div>
+      </div>
+
+      <!-- ═══ BOTTOM: Recepciones + Kitting ═══════════════════════════════════ -->
+      <div class="bottom">
+        <div class="bottom-tabs" id="bottom-tabs" style="display:none">
+          <button class="btab active-rec" onclick="switchTab('rec')">📦 Recepciones</button>
+          <button class="btab" onclick="switchTab('kit')">🧩 Kitting SO</button>
+        </div>
+        <div class="panel-half rec">
+          <div class="panel-hdr rec-hdr">
+            <div class="phdr-title">RECEPCIONES OC</div>
+            <div class="phdr-badge" id="rec-badge">0</div>
+          </div>
+          <div class="panel-body" id="tv-rec"></div>
+        </div>
+        <div class="panel-half kit">
+          <div class="panel-hdr kit-hdr">
+            <div class="phdr-title">KITTING SO</div>
+            <div class="phdr-badge" id="kit-badge">0</div>
+          </div>
+          <div class="panel-body" id="tv-kit"></div>
+        </div>
+      </div>
     </div>
-    <div>
-      <div class="sh"><span class="sp of">Oficina</span><div class="sl"></div><span class="sc" id="sc-of">0</span></div>
-      <div class="grid grid-of" id="tv-oficina"></div>
+
+    <!-- ═══ CNC SIDEBAR ═════════════════════════════════════════════════════ -->
+    <div class="cnc-sidebar hidden" id="cnc-sidebar">
+      <div class="cnc-header">
+        <div class="cnc-placas-label">Placas</div>
+        <div class="cnc-placas-count" id="cnc-placas-count">—</div>
+      </div>
+      <div class="cnc-bar-container">
+        <div class="cnc-rows" id="cnc-rows"></div>
+      </div>
+      <div class="cnc-footer">
+        <div class="cnc-mini-legend">
+          <div class="cnc-legend-item"><div class="cnc-legend-box corte"></div><span>Corte</span></div>
+          <div class="cnc-legend-item"><div class="cnc-legend-box parado"></div><span>Parado</span></div>
+        </div>
+        <div class="cnc-percentage-footer" id="cnc-percentage">—</div>
+      </div>
     </div>
   </div>
 
-  <!-- ═══ BOTTOM: Recepciones + Kitting ═══════════════════════════════════ -->
-  <div class="bottom">
-    <div class="bottom-tabs" id="bottom-tabs" style="display:none">
-      <button class="btab active-rec" onclick="switchTab('rec')">📦 Recepciones</button>
-      <button class="btab" onclick="switchTab('kit')">🧩 Kitting SO</button>
-    </div>
-    <div class="panel-half rec">
-      <div class="panel-hdr rec-hdr">
-        <div class="phdr-title">RECEPCIONES OC</div>
-        <div class="phdr-badge" id="rec-badge">0</div>
-      </div>
-      <div class="panel-body" id="tv-rec"></div>
-    </div>
-    <div class="panel-half kit">
-      <div class="panel-hdr kit-hdr">
-        <div class="phdr-title">KITTING SO</div>
-        <div class="phdr-badge" id="kit-badge">0</div>
-      </div>
-      <div class="panel-body" id="tv-kit"></div>
-    </div>
-  </div>
-
-</div>
-
-<!-- ═══ CNC SIDEBAR ═════════════════════════════════════════════════════════ -->
-<div class="cnc-sidebar hidden" id="cnc-sidebar">
-  <div class="cnc-title">CNC</div>
-  <div class="cnc-pct" id="cnc-pct">0%</div>
-  <div class="cnc-placas" id="cnc-placas">0 pl</div>
-  <div class="cnc-bar-wrap" id="cnc-bar"></div>
 </div>
 
 <script>
@@ -582,31 +610,44 @@ async function cargarCNC() {
     const r = await fetch('/api/tiempos?action=cnc-timeline').then(res => res.json());
     if (!r.ok || !r.segmentos || !r.segmentos.length) {
       document.getElementById('cnc-sidebar').classList.add('hidden');
-      document.body.classList.remove('has-cnc');
       return;
     }
     renderCNC(r);
   } catch(e) {
     document.getElementById('cnc-sidebar').classList.add('hidden');
-    document.body.classList.remove('has-cnc');
   }
 }
 
 function renderCNC(data) {
   const sidebar = document.getElementById('cnc-sidebar');
   sidebar.classList.remove('hidden');
-  document.body.classList.add('has-cnc');
 
-  document.getElementById('cnc-pct').textContent = data.porcentaje_corte + '%';
-  document.getElementById('cnc-placas').textContent = data.placas_cortadas + ' pl';
+  const { porcentaje_corte, segmentos, placas_cortadas } = data;
+  document.getElementById('cnc-percentage').textContent = `${Math.round(porcentaje_corte || 0)}%`;
+  document.getElementById('cnc-placas-count').textContent = placas_cortadas ?? '0';
 
-  const totalMin = data.segmentos.reduce((s, seg) => s + seg.minutos, 0);
-  if (totalMin === 0) { document.getElementById('cnc-bar').innerHTML = ''; return; }
+  const fmtMinCnc = (m) => {
+    const h = Math.floor(m/60), mm = m % 60;
+    if (h > 0 && mm > 0) return `${h}h${mm}m`;
+    if (h > 0) return `${h}h`;
+    return `${mm}m`;
+  };
 
-  document.getElementById('cnc-bar').innerHTML = data.segmentos.map(seg => {
-    const pct = (seg.minutos / totalMin * 100).toFixed(1);
-    return `<div class="cnc-seg ${seg.tipo}" style="height:${pct}%;" title="${seg.inicio}–${seg.fin} ${seg.tipo} (${seg.minutos}m)"></div>`;
-  }).join('');
+  const rowsEl = document.getElementById('cnc-rows');
+  if (segmentos && segmentos.length) {
+    const totalMin = segmentos.reduce((s, x) => s + (x.minutos || 0), 0) || 1;
+    rowsEl.innerHTML = segmentos.map(seg => {
+      const pct = ((seg.minutos || 0) / totalMin) * 100;
+      const lblClass = seg.tipo === 'corte' ? 'lbl-corte' : (seg.tipo === 'parado' ? 'lbl-parado' : '');
+      const label = pct >= 2.5 && seg.minutos ? fmtMinCnc(seg.minutos) : '';
+      return `<div class="cnc-row" style="flex:${pct} 0 0;">
+        <div class="cnc-row-seg ${seg.tipo}"></div>
+        <div class="cnc-row-label ${lblClass}">${label}</div>
+      </div>`;
+    }).join('');
+  } else {
+    rowsEl.innerHTML = '<div class="cnc-row" style="flex:1;"><div class="cnc-row-seg" style="background:var(--coo);opacity:0.15;"></div><div class="cnc-row-label"></div></div>';
+  }
 }
 
 // ── Clock ────────────────────────────────────────────────────────────────────

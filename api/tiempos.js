@@ -3302,7 +3302,8 @@ export default async function handler(req) {
       // Refresh materiales snapshot (await — edge no tiene waitUntil)
       try {
         await fetch(`${new URL(req.url).origin}/api/informes?action=recalcular-materiales`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-internal-secret': process.env.INTERNAL_SECRET || '' },
           body: JSON.stringify({ proyecto_id }),
         });
       } catch (_) {}

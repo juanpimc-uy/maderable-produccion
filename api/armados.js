@@ -224,7 +224,8 @@ export default async function handler(req) {
       if (soExist?.proyecto_id) {
         try {
           await fetch(`${new URL(req.url).origin}/api/informes?action=recalcular-materiales`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-internal-secret': process.env.INTERNAL_SECRET || '' },
             body: JSON.stringify({ proyecto_id: soExist.proyecto_id }),
           });
         } catch (_) {}
@@ -253,7 +254,8 @@ export default async function handler(req) {
       const refreshProy = async (pid) => {
         try {
           await fetch(`${origin}/api/informes?action=recalcular-materiales`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-internal-secret': process.env.INTERNAL_SECRET || '' },
             body: JSON.stringify({ proyecto_id: pid }),
           });
         } catch (_) {}

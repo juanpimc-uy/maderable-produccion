@@ -926,8 +926,9 @@ async function accionCongelarOdf(req, res) {
 
 async function accionRecalcularMateriales(req, res) {
   if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
-  // Sin auth estricto: llamado internamente desde edge (tiempos/armados) sin headers de sesión.
-  // Solo escribe cache (materiales_snapshot), no expone datos.
+  const internalSecret = process.env.INTERNAL_SECRET;
+  if (!internalSecret || req.headers['x-internal-secret'] !== internalSecret)
+    return err(res, 'No autorizado', 401);
   const proyecto_id = (req.body || {}).proyecto_id || req.query.proyecto_id;
   if (!proyecto_id) return err(res, 'proyecto_id requerido');
   try {
