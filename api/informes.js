@@ -63,6 +63,20 @@ async function verificarSesionAdmin(req) {
   return data;
 }
 
+async function verificarSesionAdminOficina(req) {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
+  if (!token) return null;
+  const { data } = await supabase
+    .from('empleados')
+    .select('id, rol_app, nombre')
+    .eq('session_token', token)
+    .gt('session_expires_at', new Date().toISOString())
+    .maybeSingle();
+  if (!data || (data.rol_app !== 'admin' && data.rol_app !== 'oficina')) return null;
+  return data;
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function getIp(req) {
@@ -794,8 +808,101 @@ async function accionSincronizarPrecios(req, res) {
   return ok(res, { precios_ok, precios_sin, materiales_ok, total: conNumero.length });
 }
 
+// ── Helper: obtener precio de venta desde Zoho Invoice para un proyecto ──
+async function obtenerPrecioVenta(numero) {
+  if (!numero) return null;
+  const zohoToken = await getZohoToken();
+  const orgId = process.env.ZOHO_ORG_ID;
+  const searchUrl = `https://www.zohoapis.com/books/v3/invoices?organization_id=${orgId}&search_text=${encodeURIComponent(numero)}`;
+  const zRes = await fetch(searchUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
+  const zData = await zRes.json();
+  const inv = zData?.invoices?.[0];
+  if (!inv?.invoice_id) return null;
+  const detUrl = `https://www.zohoapis.com/books/v3/invoices/${inv.invoice_id}?organization_id=${orgId}`;
+  const detRes = await fetch(detUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
+  const detData = await detRes.json();
+  const invDetail = detData?.invoice;
+  if (invDetail?.sub_total != null && Number(invDetail.sub_total) > 0) {
+    return round2(Number(invDetail.sub_total));
+  }
+  return null;
+}
+
 // ══════════════════════════════════════════════════════════════════════════
-// ENDPOINT 6 — POST recalcular-materiales (single project, fire-and-forget from edge)
+// ENDPOINT 6 — POST congelar-odf (precio+costo desde Zoho al completar ODF)
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionCongelarOdf(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const caller = await verificarSesionAdminOficina(req);
+  if (!caller) return err(res, 'Sesión inválida o sin permisos', 401);
+
+  const proyecto_id = (req.body || {}).proyecto_id;
+  if (!proyecto_id) return err(res, 'proyecto_id requerido');
+
+  const { data: proyecto } = await supabase
+    .from('proyectos_cache').select('id, numero').eq('id', proyecto_id).maybeSingle();
+  if (!proyecto) return err(res, 'Proyecto no encontrado', 404);
+
+  let zohoError = null;
+
+  // 1. Precio de venta desde Zoho Invoice
+  try {
+    const precio = await obtenerPrecioVenta(proyecto.numero);
+    if (precio != null) {
+      await supabase.from('proyectos_cache')
+        .update({ precio_venta_usd: precio })
+        .eq('id', proyecto_id);
+    }
+  } catch (e) {
+    console.error('[congelar-odf] precio error:', e.message);
+    zohoError = e.message;
+  }
+
+  // 2. Costo materiales (refresh snapshot)
+  try {
+    await recalcularMaterialesProyecto(proyecto_id);
+  } catch (e) {
+    console.error('[congelar-odf] materiales error:', e.message);
+    if (!zohoError) zohoError = e.message;
+  }
+
+  // 3. Releer valores frescos
+  const { data: fresh } = await supabase
+    .from('proyectos_cache').select('precio_venta_usd, costo_materiales_usd')
+    .eq('id', proyecto_id).maybeSingle();
+
+  // 4. Actualizar último evento 'completada' en odf_completado_log
+  const { data: ultimoEvento } = await supabase
+    .from('odf_completado_log')
+    .select('id')
+    .eq('proyecto_id', proyecto_id).eq('evento', 'completada')
+    .order('creado_at', { ascending: false })
+    .limit(1).maybeSingle();
+
+  if (ultimoEvento) {
+    await supabase.from('odf_completado_log').update({
+      precio_venta_snapshot: fresh?.precio_venta_usd || null,
+      costo_materiales_snapshot: fresh?.costo_materiales_usd || null,
+      zoho_ok: !zohoError,
+    }).eq('id', ultimoEvento.id);
+  }
+
+  if (zohoError && !ultimoEvento) {
+    return ok(res, { precio: fresh?.precio_venta_usd, costo: fresh?.costo_materiales_usd, zoho_ok: false, zoho_error: zohoError, sin_evento: true });
+  }
+
+  return ok(res, {
+    precio: fresh?.precio_venta_usd || null,
+    costo: fresh?.costo_materiales_usd || null,
+    zoho_ok: !zohoError,
+    sin_evento: !ultimoEvento,
+    ...(zohoError ? { zoho_error: zohoError } : {}),
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 7 — POST recalcular-materiales (single project, fire-and-forget from edge)
 // ══════════════════════════════════════════════════════════════════════════
 
 async function accionRecalcularMateriales(req, res) {
@@ -856,6 +963,7 @@ export default async function handler(req, res) {
     if (action === 'informe-proyectos')        return await accionInformeProyectos(req, res);
     if (action === 'informe-proyecto-detalle') return await accionInformeDetalle(req, res);
     if (action === 'sincronizar-precios')      return await accionSincronizarPrecios(req, res);
+    if (action === 'congelar-odf')            return await accionCongelarOdf(req, res);
     if (action === 'recalcular-materiales')   return await accionRecalcularMateriales(req, res);
     if (action === 'recalcular-materiales-todos') return await accionRecalcularMaterialesTodos(req, res);
     return err(res, 'Acción no reconocida');

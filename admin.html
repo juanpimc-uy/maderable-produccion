@@ -3059,6 +3059,14 @@ async function toggleItemCompletado(prId,itemId){
     if (!data.ok) throw new Error(data.error || 'Error');
     if (data.log && data.log.completado_en) m.completado_en = data.log.completado_en;
     if (data.estado) pr.estado = data.estado;
+    if (data.odf_terminada) {
+      fetch('/api/informes?action=congelar-odf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json',
+                   'Authorization': 'Bearer ' + window.AUTH.getSessionToken() },
+        body: JSON.stringify({ proyecto_id: prId }),
+      }).catch(() => {});
+    }
   } catch(e) {
     m.completado = prev;
     renderDetallePr(pr,'\u00edtems');
