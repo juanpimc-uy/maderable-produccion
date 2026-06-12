@@ -630,8 +630,8 @@ async function accionInformeDetalle(req, res) {
     console.error('[informes] recalcularMat error:', e.message);
     snapshot = proyecto.materiales_snapshot || null;
   }
-  const matAlCorte = sumarMaterialesAlCorte(snapshot, fecha_corte);
-  const mat_total = matAlCorte.total_usd;
+  const matAlCorte = snapshot ? sumarMaterialesAlCorte(snapshot, fecha_corte) : null;
+  const mat_total = matAlCorte ? matAlCorte.total_usd : null;
 
   // ── Precio de venta (cache en BD → fallback Zoho invoice) ──────────────
   let precio_venta_usd = round2(Number(proyecto.precio_venta_usd || 0) || calcularPrecioVenta(proyecto.sos_cargadas));
@@ -671,9 +671,11 @@ async function accionInformeDetalle(req, res) {
   }
 
   // ── Totales ───────────────────────────────────────────────────────────
-  const total_invertido = round2(round2(moTotalUsd) + round2(mat_total) + round2(terc_total) + round2(costos_total));
-  const saldo  = round2(precio_venta_usd - total_invertido);
-  const margen = precio_venta_usd > 0 ? round1(saldo / precio_venta_usd * 100) : null;
+  const total_invertido = mat_total != null
+    ? round2(round2(moTotalUsd) + round2(mat_total) + round2(terc_total) + round2(costos_total))
+    : null;
+  const saldo  = total_invertido != null ? round2(precio_venta_usd - total_invertido) : null;
+  const margen = (precio_venta_usd > 0 && saldo != null) ? round1(saldo / precio_venta_usd * 100) : null;
 
   // ── Recepciones (conteo) ──────────────────────────────────────────────
   const recepcionesCount = recepciones.filter(r => {
@@ -710,9 +712,9 @@ async function accionInformeDetalle(req, res) {
       total_usd: round2(terc_total),
     },
     materiales: {
-      por_so:    matAlCorte.sos_incluidas.map(g => ({ ...g, subtotal_usd: round2(g.subtotal_usd) })),
-      total_usd: round2(mat_total),
-      fuente: matAlCorte.sos_incluidas.length > 0 ? 'zoho_so' : 'sin_sos',
+      por_so:    matAlCorte ? matAlCorte.sos_incluidas.map(g => ({ ...g, subtotal_usd: round2(g.subtotal_usd) })) : [],
+      total_usd: mat_total != null ? round2(mat_total) : null,
+      fuente: matAlCorte && matAlCorte.sos_incluidas.length > 0 ? 'zoho_so' : 'sin_calcular',
     },
     recepciones_count: recepcionesCount,
     precio_venta_fuente,
@@ -924,6 +926,8 @@ async function accionCongelarOdf(req, res) {
 
 async function accionRecalcularMateriales(req, res) {
   if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  // Sin auth estricto: llamado internamente desde edge (tiempos/armados) sin headers de sesión.
+  // Solo escribe cache (materiales_snapshot), no expone datos.
   const proyecto_id = (req.body || {}).proyecto_id || req.query.proyecto_id;
   if (!proyecto_id) return err(res, 'proyecto_id requerido');
   try {
