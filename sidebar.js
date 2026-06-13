@@ -23,7 +23,11 @@
     ]},
     { id: 'stock',        icon: '⬡', label: 'Stock Placas', page: 'stock-placas.html',  section: null,         roles: ['admin', 'oficina'], hidden: true },
     { id: 'despacho',     icon: '⇥', label: 'Despacho',     page: 'despacho.html',      section: null,         roles: ['admin', 'oficina'], hidden: true },
-    { id: 'informes',     icon: '📊', label: 'Informes',    page: 'informes.html',      section: null,         roles: ['admin'] },
+    { id: 'informes-group', icon: '📊', label: 'Informes', group: true, roles: ['admin'], children: [
+      { id: 'inf-costos',  icon: '◉', label: 'Costos',            page: 'informes.html?vista=costos',  section: null, roles: ['admin'] },
+      { id: 'inf-facturas',icon: '◈', label: 'Facturas',          page: 'informes.html?vista=facturas', section: null, roles: ['admin'] },
+      { id: 'inf-lean',    icon: '◇', label: 'Indicadores Lean',  page: 'informes.html?vista=lean',    section: null, roles: ['admin'] },
+    ]},
     { id: 'ajustes',      icon: GEAR_SVG, label: 'Ajustes', page: 'admin.html',         section: 'ajustes',    roles: ['admin'], iconIsHtml: true },
   ];
 
@@ -46,7 +50,7 @@
       'armado-so-planta.html':'armado-so',
       'recepciones-oc.html': 'recepciones',
       'despacho.html':       'despacho',
-      'informes.html':       'informes',
+      'informes.html':       (() => { const v = new URLSearchParams(location.search).get('vista'); return v === 'facturas' ? 'inf-facturas' : v === 'lean' ? 'inf-lean' : 'inf-costos'; })(),
       'config-formula.html': 'materiales',
     };
     return map[PAGE] || null;
