@@ -1409,7 +1409,8 @@ async function accionCostosFlujo(req, res) {
       .select('total_usd')
       .gte('fecha', desde).lte('fecha', hasta)
       .not('total_usd', 'is', null)
-      .not('es_material', 'is', false),
+      .not('es_material', 'is', false)
+      .not('estado', 'in', '(cancelled,draft,rejected)'),
     supabase.from('so_estado')
       .select('total_usd')
       .gte('fecha', desde).lte('fecha', hasta)
