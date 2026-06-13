@@ -517,7 +517,7 @@ table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
     <!-- Mueble -->
     <div class="modal-section" id="modal-mueble-section">
       <span class="modal-label">MUEBLE</span>
-      <input class="modal-input" type="text" id="modal-mueble" placeholder="Nombre del mueble...">
+      <select class="modal-input" id="modal-mueble"><option value="">— sin mueble —</option></select>
     </div>
     <!-- Nueva tarea (solo sesión activa) -->
     <div id="modal-nueva-tarea-wrap"></div>
@@ -970,6 +970,23 @@ let _modalLiveTimer = null;
 let _modalProyId    = null;
 let _modalProyNombre = null;
 
+function _populateMuebleSelect(selectEl, proyId, currentItemId, currentItemNombre) {
+  const proy = _proyectosT.find(p => p.id === proyId);
+  const muebles = Array.isArray(proy?.muebles) ? proy.muebles : [];
+  let html = '<option value="">— sin mueble —</option>';
+  let found = false;
+  for (const m of muebles) {
+    const label = [m.codigo, m.nombre].filter(Boolean).join(' · ');
+    const sel = String(m.id) === String(currentItemId) ? ' selected' : '';
+    if (sel) found = true;
+    html += `<option value="${m.id}"${sel}>${label}</option>`;
+  }
+  if (currentItemId && !found) {
+    html += `<option value="${currentItemId}" selected>${currentItemNombre || currentItemId} (actual)</option>`;
+  }
+  selectEl.innerHTML = html;
+}
+
 function _tModalOpen(sesionId, jornadaId, empNombre) {
   const sesiones = _tSessionsByJornada.get(jornadaId) || [];
   const sorted   = [...sesiones].sort((a,b) => new Date(a.inicio) - new Date(b.inicio));
@@ -1037,7 +1054,7 @@ function _tModalOpen(sesionId, jornadaId, empNombre) {
   // Mueble
   const cv = _cvT.find(c => c.codigo === s.centro);
   document.getElementById('modal-mueble-section').style.display = cv?.requiere_mueble ? '' : 'none';
-  document.getElementById('modal-mueble').value = s.item_nombre || '';
+  _populateMuebleSelect(document.getElementById('modal-mueble'), _modalProyId, s.item_id, s.item_nombre);
 
   // Nueva tarea mini-form (solo sesión activa)
   const ntWrap = document.getElementById('modal-nueva-tarea-wrap');
@@ -1147,6 +1164,7 @@ function _tModalPickProy(id, nombre) {
   _modalProyNombre = nombre;
   document.getElementById('modal-proyecto').value = nombre;
   document.getElementById('modal-proy-results').classList.remove('open');
+  _populateMuebleSelect(document.getElementById('modal-mueble'), id, null, null);
 }
 
 // ── Nueva tarea mini-form ─────────────────────────────────────────────────
@@ -1244,7 +1262,9 @@ async function _tModalGuardar() {
   const newFin    = activo ? undefined : _hmToISO(document.getElementById('modal-fin').value, s.inicio);
   const selChip   = document.querySelector('#modal-centros .centro-chip.selected');
   const newCentro = selChip?.dataset.codigo;
-  const newMueble = document.getElementById('modal-mueble').value || null;
+  const muebleSel = document.getElementById('modal-mueble');
+  const newItemId = muebleSel.value || null;
+  const newItemNombre = newItemId ? muebleSel.selectedOptions[0]?.textContent?.replace(/\s*\(actual\)$/, '') || null : null;
 
   // Build patch for this session
   const patch = {};
@@ -1255,7 +1275,10 @@ async function _tModalGuardar() {
     patch.proyecto_id     = _modalProyId;
     patch.proyecto_nombre = _modalProyNombre;
   }
-  if (newMueble !== (s.item_nombre || null)) patch.item_nombre = newMueble;
+  if (newItemId !== (s.item_id || null)) {
+    patch.item_id = newItemId;
+    patch.item_nombre = newItemNombre;
+  }
 
   // Linked time patches for adjacent sessions
   const linkedPatches = [];
@@ -1368,7 +1391,8 @@ function _tAgregarSesionSinJornada() {
         <div><label style="font-size:9px;color:var(--muted);display:block;margin-bottom:2px;">INICIO</label><input type="time" id="asj-inicio" step="60" style="background:var(--card);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;outline:none;"></div>
         <div><label style="font-size:9px;color:var(--muted);display:block;margin-bottom:2px;">FIN</label><input type="time" id="asj-fin" step="60" style="background:var(--card);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;outline:none;"></div>
         <div><label style="font-size:9px;color:var(--muted);display:block;margin-bottom:2px;">CENTRO</label><select id="asj-centro" style="background:var(--card);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;outline:none;"><option value="">—</option>${centroOpts}</select></div>
-        <div><label style="font-size:9px;color:var(--muted);display:block;margin-bottom:2px;">PROYECTO</label><input type="text" id="asj-proy" list="proyectos-dl" placeholder="proyecto…" style="background:var(--card);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;outline:none;width:140px;"></div>
+        <div><label style="font-size:9px;color:var(--muted);display:block;margin-bottom:2px;">PROYECTO</label><input type="text" id="asj-proy" list="proyectos-dl" placeholder="proyecto…" onchange="_tAsjProyChanged()" style="background:var(--card);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;outline:none;width:140px;"></div>
+        <div><label style="font-size:9px;color:var(--muted);display:block;margin-bottom:2px;">MUEBLE</label><select id="asj-mueble" style="background:var(--card);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;outline:none;"><option value="">—</option></select></div>
       </div>
       <div style="display:flex;gap:8px;">
         <button class="btn-load" style="font-size:10px;padding:4px 12px;" id="asj-btn" onclick="_tConfirmarAgregarSinJornada()">✓ AGREGAR</button>
@@ -1376,6 +1400,17 @@ function _tAgregarSesionSinJornada() {
       </div>
     </div>`;
   result.appendChild(div);
+}
+
+function _tAsjProyChanged() {
+  const proyVal = document.getElementById('asj-proy')?.value || '';
+  const opt = _proyectosT.find(p => {
+    const label = [p.numero, p.nombre].filter(Boolean).join(' · ');
+    return label === proyVal || p.nombre === proyVal;
+  });
+  const sel = document.getElementById('asj-mueble');
+  if (sel && opt) { _populateMuebleSelect(sel, opt.id, null, null); }
+  else if (sel) { sel.innerHTML = '<option value="">—</option>'; }
 }
 
 async function _tConfirmarAgregarSinJornada() {
@@ -1410,6 +1445,8 @@ async function _tConfirmarAgregarSinJornada() {
         estado: 'finalizado',
         proyecto_id: opt ? opt.id : null,
         proyecto_nombre: opt ? opt.nombre : (proyVal || null),
+        item_id: document.getElementById('asj-mueble')?.value || null,
+        item_nombre: document.getElementById('asj-mueble')?.value ? document.getElementById('asj-mueble').selectedOptions[0]?.textContent || null : null,
       }),
     });
     const json = await res.json();
@@ -1434,8 +1471,8 @@ function _tAgregarSesion(jornadaId, btn) {
     <td><input class="ses-input" type="time" id="add-inicio-${jornadaId}" step="60"></td>
     <td><input class="ses-input" type="time" id="add-fin-${jornadaId}" step="60"></td>
     <td><select class="ses-select" id="add-centro-${jornadaId}"><option value="">—</option>${centroOpts}</select></td>
-    <td><input class="ses-input" type="text" id="add-proy-${jornadaId}" list="proyectos-dl" placeholder="proyecto…"></td>
-    <td><input class="ses-input" type="text" id="add-mueble-${jornadaId}" placeholder="mueble…"></td>
+    <td><input class="ses-input" type="text" id="add-proy-${jornadaId}" list="proyectos-dl" placeholder="proyecto…" onchange="_tAddProyChanged('${jornadaId}')"></td>
+    <td><select class="ses-select" id="add-mueble-${jornadaId}"><option value="">—</option></select></td>
     <td><select class="ses-select" id="add-estado-${jornadaId}">
       <option value="finalizado">finalizado</option>
       <option value="activo">activo</option>
@@ -1447,13 +1484,26 @@ function _tAgregarSesion(jornadaId, btn) {
   tbody.appendChild(tr);
 }
 
+function _tAddProyChanged(jid) {
+  const proyVal = document.getElementById(`add-proy-${jid}`)?.value || '';
+  const opt = _proyectosT.find(p => {
+    const label = [p.numero, p.nombre].filter(Boolean).join(' · ');
+    return label === proyVal || p.nombre === proyVal;
+  });
+  const sel = document.getElementById(`add-mueble-${jid}`);
+  if (sel && opt) { _populateMuebleSelect(sel, opt.id, null, null); }
+  else if (sel) { sel.innerHTML = '<option value="">—</option>'; }
+}
+
 async function _tConfirmarAgregar(jid, btn) {
   btn.disabled = true;
   const inicioTime = document.getElementById(`add-inicio-${jid}`)?.value;
   const finTime    = document.getElementById(`add-fin-${jid}`)?.value;
   const centro     = document.getElementById(`add-centro-${jid}`)?.value;
   const proyVal    = document.getElementById(`add-proy-${jid}`)?.value || '';
-  const mueble     = document.getElementById(`add-mueble-${jid}`)?.value || '';
+  const muebleSel  = document.getElementById(`add-mueble-${jid}`);
+  const addItemId  = muebleSel?.value || null;
+  const addItemNom = addItemId ? muebleSel.selectedOptions[0]?.textContent || null : null;
   const estado     = document.getElementById(`add-estado-${jid}`)?.value;
 
   if (!inicioTime || !centro) { alert('Inicio y centro son obligatorios'); btn.disabled = false; return; }
@@ -1478,9 +1528,10 @@ async function _tConfirmarAgregar(jid, btn) {
         fin,
         centro,
         estado: estado || 'finalizado',
-        proyecto_id:    opt ? opt.id   : null,
+        proyecto_id:     opt ? opt.id   : null,
         proyecto_nombre: opt ? opt.nombre : (proyVal || null),
-        item_nombre:    mueble || null,
+        item_id:         addItemId,
+        item_nombre:     addItemNom,
       }),
     });
     const json = await res.json();

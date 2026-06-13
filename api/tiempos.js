@@ -1636,15 +1636,31 @@ export default async function handler(req) {
       if (estado === 'finalizado' && !finEfectivo)
         return err('Para marcar como finalizado se requiere un fin', 400);
 
-      // Validación de centro si viene en el body
-      if (centro !== undefined) {
-        const { data: cvES, error: cvESErr } = await supabase
-          .from('centros_virtuales').select('activo, requiere_proyecto').eq('codigo', centro).maybeSingle();
-        if (cvESErr) throw cvESErr;
-        if (!cvES || !cvES.activo) return err('Centro no válido o inactivo', 400);
-        if (cvES.requiere_proyecto) {
-          const proyEfectivo = proyecto_id !== undefined ? proyecto_id : regS.proyecto_id;
-          if (!proyEfectivo) return err('El centro seleccionado requiere un proyecto', 400);
+      // Validación de centro + mueble si el patch toca centro/proyecto/item
+      let _forceNullItem = false;
+      if (centro !== undefined || proyecto_id !== undefined || item_id !== undefined) {
+        const centroEfectivo = centro !== undefined ? centro : regS.centro;
+        const proyEfectivo   = proyecto_id !== undefined ? proyecto_id : regS.proyecto_id;
+        if (centroEfectivo) {
+          const { data: cvES, error: cvESErr } = await supabase
+            .from('centros_virtuales').select('activo, requiere_proyecto, requiere_mueble').eq('codigo', centroEfectivo).maybeSingle();
+          if (cvESErr) throw cvESErr;
+          if (centro !== undefined && (!cvES || !cvES.activo)) return err('Centro no válido o inactivo', 400);
+          if (cvES) {
+            if (cvES.requiere_proyecto && !proyEfectivo) return err('El centro seleccionado requiere un proyecto', 400);
+            if (cvES.requiere_mueble) {
+              const itemEfectivo = item_id !== undefined ? item_id : regS.item_id;
+              if (!itemEfectivo) return err('item_id requerido para este centro', 400);
+              if (proyEfectivo && itemEfectivo) {
+                const { data: prCV } = await supabase.from('proyectos_cache').select('muebles').eq('id', proyEfectivo).maybeSingle();
+                const mubs = Array.isArray(prCV?.muebles) ? prCV.muebles : [];
+                if (!mubs.some(m => String(m.id) === String(itemEfectivo)))
+                  return err('El item especificado no existe en el proyecto', 400);
+              }
+            } else {
+              _forceNullItem = true;
+            }
+          }
         }
       }
 
@@ -1659,8 +1675,12 @@ export default async function handler(req) {
       if (centro          !== undefined) camposS.centro          = centro;
       if (proyecto_id     !== undefined) camposS.proyecto_id     = proyecto_id;
       if (proyecto_nombre !== undefined) camposS.proyecto_nombre = proyecto_nombre;
-      if (item_id         !== undefined) camposS.item_id         = item_id;
-      if (item_nombre     !== undefined) camposS.item_nombre     = item_nombre;
+      if (_forceNullItem) {
+        camposS.item_id = null; camposS.item_nombre = null;
+      } else {
+        if (item_id         !== undefined) camposS.item_id         = item_id;
+        if (item_nombre     !== undefined) camposS.item_nombre     = item_nombre;
+      }
       if (estado          !== undefined) camposS.estado          = estado;
 
       const { data: regSUpd, error: uSErr } = await supabase
@@ -1725,11 +1745,20 @@ export default async function handler(req) {
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
       const { data: cvAg, error: cvAgErr } = await supabase
-        .from('centros_virtuales').select('activo, requiere_proyecto').eq('codigo', centro).maybeSingle();
+        .from('centros_virtuales').select('activo, requiere_proyecto, requiere_mueble').eq('codigo', centro).maybeSingle();
       if (cvAgErr) throw cvAgErr;
       if (!cvAg || !cvAg.activo) return err('Centro no válido o inactivo', 400);
       if (cvAg.requiere_proyecto && !proyecto_id)
         return err('El centro seleccionado requiere un proyecto', 400);
+      if (cvAg.requiere_mueble) {
+        if (!item_id) return err('item_id requerido para este centro', 400);
+        if (proyecto_id) {
+          const { data: prAg } = await supabase.from('proyectos_cache').select('muebles').eq('id', proyecto_id).maybeSingle();
+          const mubsAg = Array.isArray(prAg?.muebles) ? prAg.muebles : [];
+          if (!mubsAg.some(m => String(m.id) === String(item_id)))
+            return err('El item especificado no existe en el proyecto', 400);
+        }
+      }
 
       const inicioISO  = new Date(inicio).toISOString();
 

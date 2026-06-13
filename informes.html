@@ -280,6 +280,7 @@
     </div>
     <div class="toolbar-stats" id="toolbarStats"></div>
     <button id="btnSyncPrecios" class="export-btn" onclick="sincronizarPrecios()">&#x27F3; Sync precios</button>
+    <button id="btnSyncMuebles" class="export-btn" onclick="_syncPreciosMuebles(true)">&#x27F3; Precios muebles</button>
     <button class="export-btn" onclick="exportXLSX()">XLSX</button>
     <button class="export-btn" onclick="window.print()">PDF</button>
   </span>
@@ -875,6 +876,58 @@ async function sincronizarPrecios() {
   } catch (e) {
     btn.textContent = 'Error de red';
     setTimeout(() => { btn.textContent = '⟳ Sync precios'; }, 3000);
+  }
+  btn.disabled = false;
+}
+
+// ── SINCRONIZAR PRECIOS MUEBLES ──────────────────────────────────────────
+async function _syncPreciosMuebles(dry) {
+  if (!dry && !confirm('¿Escribir los precios en los muebles?')) return;
+  const btn = document.getElementById('btnSyncMuebles');
+  btn.disabled = true;
+  btn.textContent = dry ? 'Probando...' : 'Sincronizando...';
+  try {
+    const res = await fetch(`${BASE_URL}/api/informes?action=sincronizar-precios-muebles${dry ? '&dry=1' : ''}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${seccionToken}` },
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.msg || 'Error');
+    let html = `<div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin:12px 24px;font-family:'IBM Plex Mono',monospace;font-size:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span style="font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;">${dry ? 'PRUEBA' : 'RESULTADO'} — Precios de muebles (Zoho)</span>
+        <div style="display:flex;gap:6px;">
+          ${dry ? `<button class="export-btn" onclick="_syncPreciosMuebles(false)">Sincronizar</button>` : ''}
+          <button class="export-btn" onclick="this.closest('div[style]').remove()">Cerrar</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:20px;margin-bottom:8px;">
+        <span>Proyectos: <strong>${data.proyectos}</strong></span>
+        <span style="color:var(--green);">Con precio: <strong>${data.muebles_con_precio}</strong></span>
+        <span style="color:var(--muted);">Sin precio: <strong>${data.muebles_sin_precio}</strong></span>
+      </div>`;
+    if (data.proyectos_a_revisar && data.proyectos_a_revisar.length) {
+      html += `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+        <span style="color:var(--amber);font-size:10px;">PROYECTOS A REVISAR (dif &gt;10%)</span>`;
+      for (const p of data.proyectos_a_revisar) {
+        html += `<div style="color:var(--text);font-size:11px;margin-top:4px;">${p.numero}: suma muebles U\$S ${p.suma_muebles} vs cacheado U\$S ${p.precio_cacheado}</div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    // Insert after toolbar
+    const existing = document.getElementById('sync-muebles-result');
+    if (existing) existing.remove();
+    const div = document.createElement('div');
+    div.id = 'sync-muebles-result';
+    div.innerHTML = html;
+    document.querySelector('.toolbar').after(div);
+    btn.textContent = dry ? `✓ ${data.muebles_con_precio} con precio` : `✓ Sincronizado`;
+    setTimeout(() => { btn.textContent = '⟳ Precios muebles'; }, 3000);
+  } catch (e) {
+    btn.textContent = 'Error';
+    alert('Error: ' + e.message);
+    setTimeout(() => { btn.textContent = '⟳ Precios muebles'; }, 3000);
   }
   btn.disabled = false;
 }

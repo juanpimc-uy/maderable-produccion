@@ -325,14 +325,9 @@ async function accionInformeProyectos(req, res) {
   const corteEnd = fecha_corte + 'T23:59:59.999Z';
   const hoy = new Date();
 
-  // Fetch todo en paralelo
-  const [proyectosR, registrosR, empleadosR, tarifasR, partidasR, costosR] = await Promise.all([
+  // Fetch en paralelo (registros_trabajo se pagina aparte)
+  const [proyectosR, empleadosR, tarifasR, partidasR, costosR] = await Promise.all([
     supabase.from('proyectos_cache').select('*'),
-    supabase.from('registros_trabajo')
-      .select('empleado_id, proyecto_id, inicio, fin')
-      .not('fin', 'is', null)
-      .or('eliminada.is.null,eliminada.eq.false')
-      .lte('inicio', corteEnd),
     supabase.from('empleados').select('id, nombre, categoria'),
     supabase.from('tarifas_horarias').select('categoria, monto_usd'),
     supabase.from('partidas_terceros')
@@ -346,8 +341,25 @@ async function accionInformeProyectos(req, res) {
       .lte('fecha', fecha_corte),
   ]);
 
+  // Paginar registros_trabajo en lotes de 1000
+  const PAGE = 1000;
+  let registros = [];
+  let offset = 0;
+  while (true) {
+    const { data: lote, error: rErr } = await supabase.from('registros_trabajo')
+      .select('empleado_id, proyecto_id, inicio, fin')
+      .not('fin', 'is', null)
+      .or('eliminada.is.null,eliminada.eq.false')
+      .lte('inicio', corteEnd)
+      .order('id', { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    if (rErr) throw rErr;
+    registros = registros.concat(lote || []);
+    if (!lote || lote.length < PAGE) break;
+    offset += PAGE;
+  }
+
   const proyectos  = proyectosR.data  || [];
-  const registros  = registrosR.data  || [];
   const empleados  = empleadosR.data  || [];
   const tarifas    = tarifasR.data    || [];
   const partidas   = partidasR.data   || [];
@@ -437,13 +449,17 @@ async function accionInformeProyectos(req, res) {
     const horas_reales_min       = reg.totalMin;
     const horas_reales_hs        = round1(horas_reales_min / 60);
     const costo_mo_usd           = round2(reg.totalCosto);
-    const total_materiales_usd   = round2(Number(proy.costo_materiales_usd || 0));
+    const matSnap = proy.materiales_snapshot || null;
+    const matResult = matSnap ? sumarMaterialesAlCorte(matSnap, fecha_corte) : null;
+    const total_materiales_usd   = matResult ? matResult.total_usd : null;
     const total_tercerizados_usd = round2(part.total);
     const total_oc_usd           = round2(cost.total);
-    const total_invertido_usd    = round2(costo_mo_usd + total_materiales_usd + total_tercerizados_usd + total_oc_usd);
+    const total_invertido_usd    = total_materiales_usd != null
+      ? round2(costo_mo_usd + total_materiales_usd + total_tercerizados_usd + total_oc_usd)
+      : null;
     const precio_venta_usd       = round2(Number(proy.precio_venta_usd || 0) || calcularPrecioVenta(proy.sos_cargadas));
-    const saldo_usd              = round2(precio_venta_usd - total_invertido_usd);
-    const margen_pct             = precio_venta_usd > 0 ? round1(saldo_usd / precio_venta_usd * 100) : null;
+    const saldo_usd              = total_invertido_usd != null ? round2(precio_venta_usd - total_invertido_usd) : null;
+    const margen_pct             = (precio_venta_usd > 0 && saldo_usd != null) ? round1(saldo_usd / precio_venta_usd * 100) : null;
 
     // Última actividad (max de registros, partidas, costos)
     let fechaUltima = reg.ultimaActividad;
@@ -969,6 +985,460 @@ async function accionRecalcularMaterialesTodos(req, res) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 9 — POST sincronizar-precios-muebles
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionSincronizarPreciosMuebles(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const seccion = verificarAccesoSeccion(req);
+  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
+
+  const dry = req.query.dry === '1';
+
+  // 1. Proyectos activos con muebles
+  const { data: proyectos } = await supabase
+    .from('proyectos_cache').select('id, numero, muebles, precio_venta_usd').eq('activo', true);
+  const proysConMuebles = (proyectos || []).filter(p => Array.isArray(p.muebles) && p.muebles.length);
+
+  // 2. TC UYU→USD
+  const { data: tcRow } = await supabase
+    .from('tipo_cambio').select('valor')
+    .eq('moneda_origen', 'UYU').eq('moneda_destino', 'USD').maybeSingle();
+  const tcUyuUsd = tcRow ? Number(tcRow.valor) : 0;
+
+  // 3. Zoho token
+  let zohoToken;
+  try { zohoToken = await getZohoToken(); } catch (e) {
+    return err(res, 'No se pudo obtener token de Zoho: ' + e.message, 502);
+  }
+  const orgId = process.env.ZOHO_ORG_ID;
+
+  // 4. Collect unique odfIds
+  const odfIdSet = new Set();
+  for (const p of proysConMuebles) {
+    for (const m of p.muebles) {
+      if (m.odfId) odfIdSet.add(m.odfId);
+    }
+  }
+  const odfIds = [...odfIdSet];
+
+  // 5. Fetch invoices by id in batches of 5
+  const invoiceCache = {};
+  const BATCH = 5;
+  for (let i = 0; i < odfIds.length; i += BATCH) {
+    const lote = odfIds.slice(i, i + BATCH);
+    await Promise.all(lote.map(async (odfId) => {
+      try {
+        const detUrl = `https://www.zohoapis.com/books/v3/invoices/${odfId}?organization_id=${orgId}`;
+        const detRes = await fetch(detUrl, {
+          headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` },
+        });
+        const detData = await detRes.json();
+        if (detData?.invoice) invoiceCache[odfId] = detData.invoice;
+      } catch (e) {
+        console.warn('[sync-precios-muebles] fetch error:', odfId, e.message);
+      }
+    }));
+    if (i + BATCH < odfIds.length) await new Promise(r => setTimeout(r, 1000));
+  }
+
+  // 6. Process each project
+  let mueblesConPrecio = 0, mueblesSinPrecio = 0;
+  const proyectosARevisar = [];
+  const detalle = [];
+  const ahora = new Date().toISOString();
+
+  for (const proy of proysConMuebles) {
+    const muebles = proy.muebles;
+    let sumaPreciosMuebles = 0;
+    let proyModificado = false;
+
+    for (const m of muebles) {
+      // Skip: no odfId
+      if (!m.odfId) { mueblesSinPrecio++; continue; }
+
+      // Skip: manual mueble (id = mf_<timestamp largo>)
+      const idMatch = String(m.id).match(/^mf_(\d+)$/);
+      if (!idMatch) { mueblesSinPrecio++; continue; }
+      const idx = Number(idMatch[1]);
+      if (idx > 1000) { mueblesSinPrecio++; continue; }
+
+      const invoice = invoiceCache[m.odfId];
+      if (!invoice || !Array.isArray(invoice.line_items)) { mueblesSinPrecio++; continue; }
+
+      const linea = invoice.line_items[idx];
+      if (!linea) {
+        m.precio_venta_usd = null;
+        m.precio_fuente = 'zoho_factura';
+        m.precio_match = 'sin_match';
+        m.precio_sync_at = ahora;
+        mueblesSinPrecio++;
+        proyModificado = true;
+        if (dry) detalle.push({ proyecto: proy.numero, mueble_id: m.id, codigo: m.codigo, precio_usd: null, match: 'sin_match', currency: invoice.currency_code });
+        continue;
+      }
+
+      // Cross-check name
+      const lineDesc = ((linea.name || '') + ' ' + (linea.description || '')).toLowerCase();
+      const mNombre = (m.nombre || '').toLowerCase();
+      const mCodigo = (m.codigo || '').toLowerCase();
+      const crossOk = !mNombre || lineDesc.includes(mNombre.split(' ')[0]) || (mCodigo && lineDesc.includes(mCodigo));
+
+      if (!crossOk) {
+        m.precio_venta_usd = null;
+        m.precio_fuente = 'zoho_factura';
+        m.precio_match = 'sin_match';
+        m.precio_sync_at = ahora;
+        mueblesSinPrecio++;
+        proyModificado = true;
+        if (dry) detalle.push({ proyecto: proy.numero, mueble_id: m.id, codigo: m.codigo, precio_usd: null, match: 'sin_match', currency: invoice.currency_code });
+        continue;
+      }
+
+      // Calcular precio según moneda de la factura — solo USD o UYU, nunca adivinar
+      const precioOrigen = linea.item_total != null ? Number(linea.item_total)
+        : (Number(linea.rate || 0) * Number(linea.quantity || 1));
+      let precioUsd = null;
+      let tcAplicado = null;
+      let matchTipo = 'indice';
+      const moneda = invoice.currency_code;
+      if (moneda === 'USD') {
+        precioUsd = round2(precioOrigen);
+      } else if (moneda === 'UYU') {
+        if (tcUyuUsd > 0) {
+          precioUsd = round2(precioOrigen / tcUyuUsd);
+          tcAplicado = tcUyuUsd;
+        } else {
+          precioUsd = null; // UYU sin TC disponible
+        }
+      } else {
+        precioUsd = null;            // ni USD ni UYU: no convertir a ojo
+        matchTipo = 'moneda_no_soportada';
+      }
+
+      m.precio_venta_usd = precioUsd;
+      m.precio_fuente = 'zoho_factura';
+      m.precio_tc = tcAplicado;
+      m.precio_match = matchTipo;
+      m.precio_sync_at = ahora;
+      proyModificado = true;
+
+      if (precioUsd != null) {
+        mueblesConPrecio++;
+        sumaPreciosMuebles += precioUsd;
+      } else {
+        mueblesSinPrecio++;
+      }
+
+      if (dry) detalle.push({ proyecto: proy.numero, mueble_id: m.id, codigo: m.codigo, precio_usd: precioUsd, match: matchTipo, currency: moneda });
+    }
+
+    // Validation: sum vs cached precio_venta_usd
+    const precioCacheado = Number(proy.precio_venta_usd || 0);
+    if (precioCacheado > 0 && sumaPreciosMuebles > 0) {
+      const dif = Math.abs(sumaPreciosMuebles - precioCacheado);
+      if (dif / precioCacheado > 0.10) {
+        proyectosARevisar.push({
+          id: proy.id, numero: proy.numero,
+          suma_muebles: round2(sumaPreciosMuebles),
+          precio_cacheado: round2(precioCacheado),
+        });
+      }
+    }
+
+    // Write (only if not dry and modified)
+    if (!dry && proyModificado) {
+      await supabase.from('proyectos_cache')
+        .update({ muebles })
+        .eq('id', proy.id);
+    }
+  }
+
+  const result = {
+    dry,
+    proyectos: proysConMuebles.length,
+    muebles_con_precio: mueblesConPrecio,
+    muebles_sin_precio: mueblesSinPrecio,
+    proyectos_a_revisar: proyectosARevisar,
+  };
+  if (dry) result.detalle = detalle;
+  return ok(res, result);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Handler principal
+// ══════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 10 — POST sincronizar-kitting
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionSincronizarKitting(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const seccion = verificarAccesoSeccion(req);
+  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
+
+  const dry = req.query.dry === '1';
+
+  // SO con zoho id
+  const { data: sos, error: soErr } = await supabase
+    .from('so_estado').select('so_zoho_id, so_numero, proyecto_id')
+    .not('so_zoho_id', 'is', null);
+  if (soErr) throw soErr;
+  if (!sos || !sos.length) return ok(res, { dry, sos: 0, proyectos: 0, sin_total: 0 });
+
+  // TC
+  const { data: tcRow } = await supabase
+    .from('tipo_cambio').select('valor')
+    .eq('moneda_origen', 'UYU').eq('moneda_destino', 'USD').maybeSingle();
+  const tcUyuUsd = tcRow ? Number(tcRow.valor) : 0;
+
+  let zohoToken;
+  try { zohoToken = await getZohoToken(); } catch (e) {
+    return err(res, 'No se pudo obtener token de Zoho: ' + e.message, 502);
+  }
+  const orgId = process.env.ZOHO_ORG_ID;
+
+  // Fetch SO details in batches of 200 ids
+  const soMap = {}; // so_zoho_id → zoho SO object
+  const BATCH = 200;
+  const allIds = sos.map(s => s.so_zoho_id);
+  for (let i = 0; i < allIds.length; i += BATCH) {
+    const lote = allIds.slice(i, i + BATCH);
+    const idsParam = lote.join(',');
+    try {
+      const url = `https://www.zohoapis.com/books/v3/salesorders?organization_id=${orgId}&salesorder_ids=${encodeURIComponent(idsParam)}`;
+      const zRes = await fetch(url, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
+      const zData = await zRes.json();
+      for (const so of (zData?.salesorders || [])) {
+        soMap[so.salesorder_id] = so;
+      }
+    } catch (e) {
+      console.warn('[sync-kitting] batch fetch error:', e.message);
+    }
+    if (i + BATCH < allIds.length) await new Promise(r => setTimeout(r, 1000));
+  }
+
+  // Process each SO
+  let sinTotal = 0;
+  const monedas = {};
+  const porProyecto = {}; // proyecto_id → sum total_usd
+  const ahora = new Date().toISOString();
+
+  for (const so of sos) {
+    const z = soMap[so.so_zoho_id];
+    if (!z) { sinTotal++; continue; }
+
+    const moneda = z.currency_code || 'USD';
+    monedas[moneda] = (monedas[moneda] || 0) + 1;
+    const totalOrigen = Number(z.total) || 0;
+    let totalUsd = null;
+
+    if (moneda === 'USD') {
+      totalUsd = round2(totalOrigen);
+    } else if (moneda === 'UYU') {
+      totalUsd = tcUyuUsd > 0 ? round2(totalOrigen / tcUyuUsd) : null;
+    }
+    // Other currencies: totalUsd stays null
+
+    if (totalUsd == null) sinTotal++;
+
+    if (!dry) {
+      await supabase.from('so_estado').update({
+        total_usd: totalUsd,
+        fecha: z.date || null,
+        moneda,
+        sync_at: ahora,
+      }).eq('so_zoho_id', so.so_zoho_id);
+    }
+
+    if (totalUsd != null && so.proyecto_id) {
+      porProyecto[so.proyecto_id] = (porProyecto[so.proyecto_id] || 0) + totalUsd;
+    }
+  }
+
+  // Recalculate costo_kitting_usd from so_estado (source of truth, not in-memory accumulator)
+  const proyIds = [...new Set(sos.map(s => s.proyecto_id).filter(Boolean))];
+  if (!dry && proyIds.length) {
+    const { data: sumsDB } = await supabase
+      .from('so_estado')
+      .select('proyecto_id, total_usd')
+      .in('proyecto_id', proyIds)
+      .not('total_usd', 'is', null);
+    const sumByProy = {};
+    for (const r of (sumsDB || [])) {
+      sumByProy[r.proyecto_id] = (sumByProy[r.proyecto_id] || 0) + Number(r.total_usd);
+    }
+    for (const pid of proyIds) {
+      await supabase.from('proyectos_cache')
+        .update({ costo_kitting_usd: round2(sumByProy[pid] || 0) })
+        .eq('id', pid);
+    }
+  }
+
+  return ok(res, {
+    dry,
+    sos: sos.length,
+    proyectos: proyIds.length,
+    sin_total: sinTotal,
+    monedas,
+    por_proyecto: dry ? Object.entries(porProyecto).map(([id, suma]) => ({ id, suma: round2(suma) })) : undefined,
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 11 — POST sincronizar-compras
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionSincronizarCompras(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const seccion = verificarAccesoSeccion(req);
+  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
+
+  const dry = req.query.dry === '1';
+
+  // TC
+  const { data: tcRow } = await supabase
+    .from('tipo_cambio').select('valor')
+    .eq('moneda_origen', 'UYU').eq('moneda_destino', 'USD').maybeSingle();
+  const tcUyuUsd = tcRow ? Number(tcRow.valor) : 0;
+
+  let zohoToken;
+  try { zohoToken = await getZohoToken(); } catch (e) {
+    return err(res, 'No se pudo obtener token de Zoho: ' + e.message, 502);
+  }
+  const orgId = process.env.ZOHO_ORG_ID;
+
+  // Date range (default last 90 days)
+  const hoy = new Date();
+  const hace90 = new Date(hoy.getTime() - 90 * 86400000);
+  const dateAfter = req.query.date_after || hace90.toISOString().split('T')[0];
+  const dateBefore = req.query.date_before || hoy.toISOString().split('T')[0];
+
+  // Paginate purchase orders from Zoho
+  let allPOs = [];
+  let page = 1;
+  let hasMore = true;
+  while (hasMore) {
+    const url = `https://www.zohoapis.com/books/v3/purchaseorders?organization_id=${orgId}&date_after=${dateAfter}&date_before=${dateBefore}&per_page=200&page=${page}`;
+    const zRes = await fetch(url, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
+    const zData = await zRes.json();
+    const pos = zData?.purchaseorders || [];
+    allPOs = allPOs.concat(pos);
+    hasMore = zData?.page_context?.has_more_page === true;
+    page++;
+    if (hasMore) await new Promise(r => setTimeout(r, 1000));
+  }
+
+  // Process and upsert
+  const ahora = new Date().toISOString();
+  let upserted = 0;
+  const sumasPorMoneda = {};
+
+  for (const po of allPOs) {
+    const moneda = po.currency_code || 'USD';
+    const totalOrigen = Number(po.total) || 0;
+    let totalUsd = null;
+
+    if (moneda === 'USD') {
+      totalUsd = round2(totalOrigen);
+    } else if (moneda === 'UYU') {
+      totalUsd = tcUyuUsd > 0 ? round2(totalOrigen / tcUyuUsd) : null;
+    }
+
+    sumasPorMoneda[moneda] = (sumasPorMoneda[moneda] || 0) + (totalUsd || 0);
+
+    if (!dry) {
+      const { error: upErr } = await supabase.from('compras_oc').upsert({
+        oc_numero: po.purchaseorder_number,
+        oc_zoho_id: po.purchaseorder_id,
+        proveedor: po.vendor_name || null,
+        fecha: po.date || null,
+        total_original: totalOrigen,
+        moneda,
+        total_usd: totalUsd,
+        estado: po.status || null,
+        sync_at: ahora,
+      }, { onConflict: 'oc_numero' });
+      if (upErr) console.warn('[sync-compras] upsert error:', po.purchaseorder_number, upErr.message);
+      else upserted++;
+    } else {
+      upserted++;
+    }
+  }
+
+  return ok(res, {
+    dry,
+    purchase_orders: allPOs.length,
+    upserted,
+    sumas_por_moneda: sumasPorMoneda,
+    rango: { desde: dateAfter, hasta: dateBefore },
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 12 — GET costos-flujo
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionCostosFlujo(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const seccion = verificarAccesoSeccion(req);
+  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
+
+  const periodo = req.query.periodo || 'mes';
+  const hoy = new Date();
+  let desde, hasta;
+
+  if (periodo === 'mes') {
+    desde = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
+    hasta = hoy.toISOString().split('T')[0];
+  } else if (periodo === 'anio') {
+    desde = `${hoy.getFullYear()}-01-01`;
+    hasta = hoy.toISOString().split('T')[0];
+  } else {
+    // ultimo_anio: 12 meses móviles
+    const hace12 = new Date(hoy);
+    hace12.setMonth(hace12.getMonth() - 12);
+    desde = hace12.toISOString().split('T')[0];
+    hasta = hoy.toISOString().split('T')[0];
+  }
+
+  // Parallel queries
+  const [comprasR, kittingR, ocDirectoR] = await Promise.all([
+    supabase.from('compras_oc')
+      .select('total_usd')
+      .gte('fecha', desde).lte('fecha', hasta)
+      .not('total_usd', 'is', null)
+      .not('es_material', 'is', false),
+    supabase.from('so_estado')
+      .select('total_usd')
+      .gte('fecha', desde).lte('fecha', hasta)
+      .not('total_usd', 'is', null),
+    supabase.from('costos_directos_proyecto')
+      .select('monto_usd')
+      .eq('tipo', 'oc')
+      .gte('fecha', desde).lte('fecha', hasta),
+  ]);
+
+  const comprado_usd = round2((comprasR.data || []).reduce((s, r) => s + (Number(r.total_usd) || 0), 0));
+  const asignado_kitting_usd = round2((kittingR.data || []).reduce((s, r) => s + (Number(r.total_usd) || 0), 0));
+  const asignado_oc_directo_usd = round2((ocDirectoR.data || []).reduce((s, r) => s + (Number(r.monto_usd) || 0), 0));
+  const asignado_usd = round2(asignado_kitting_usd + asignado_oc_directo_usd);
+  const gap_usd = round2(comprado_usd - asignado_usd);
+
+  return ok(res, {
+    periodo,
+    desde,
+    hasta,
+    comprado_usd,
+    asignado_kitting_usd,
+    asignado_oc_directo_usd,
+    asignado_usd,
+    gap_usd,
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // Handler principal
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -988,6 +1458,10 @@ export default async function handler(req, res) {
     if (action === 'congelar-odf')            return await accionCongelarOdf(req, res);
     if (action === 'recalcular-materiales')   return await accionRecalcularMateriales(req, res);
     if (action === 'recalcular-materiales-todos') return await accionRecalcularMaterialesTodos(req, res);
+    if (action === 'sincronizar-precios-muebles') return await accionSincronizarPreciosMuebles(req, res);
+    if (action === 'sincronizar-kitting')        return await accionSincronizarKitting(req, res);
+    if (action === 'sincronizar-compras')        return await accionSincronizarCompras(req, res);
+    if (action === 'costos-flujo')               return await accionCostosFlujo(req, res);
     return err(res, 'Acción no reconocida');
   } catch (e) {
     console.error('[informes]', action, e);
