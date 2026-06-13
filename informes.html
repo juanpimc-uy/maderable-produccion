@@ -264,6 +264,7 @@
   <div class="mode-toggle">
     <button class="mode-btn active" id="mode-costos" onclick="setViewMode('costos')">COSTOS</button>
     <button class="mode-btn" id="mode-biller" onclick="setViewMode('biller')">BILLER</button>
+    <button class="mode-btn" id="mode-lean" onclick="setViewMode('lean')">INDICADORES LEAN</button>
   </div>
   <div class="toolbar-sep"></div>
   <span id="costosControls" style="display:contents;">
@@ -309,6 +310,7 @@
 </table>
 </div>
 <div id="billerView" style="display:none;flex:1;overflow:auto;padding:0 24px 24px;"></div>
+<div id="leanView" style="display:none;flex:1;overflow:auto;padding:20px 24px 24px;"></div>
 </div><!-- /page-wrap -->
 
 <div class="b-modal hidden" id="billerModal" onclick="if(event.target===this)closeBillerModal()">
@@ -932,17 +934,60 @@ async function _syncPreciosMuebles(dry) {
   btn.disabled = false;
 }
 
+// ── INDICADORES LEAN ─────────────────────────────────────────────────────
+let _leanPeriodo = 'mes';
+
+function _renderLeanView() {
+  const lv = document.getElementById('leanView');
+  lv.innerHTML = `
+    <div style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;margin-bottom:16px;">Indicadores Lean</div>
+    <div style="display:flex;gap:6px;margin-bottom:16px;">
+      <button class="chip${_leanPeriodo==='mes'?' active':''}" onclick="_leanPeriodo='mes';_cargarLean('mes');_renderLeanView();">Este mes</button>
+      <button class="chip${_leanPeriodo==='anio'?' active':''}" onclick="_leanPeriodo='anio';_cargarLean('anio');_renderLeanView();">Este año</button>
+      <button class="chip${_leanPeriodo==='ultimo_anio'?' active':''}" onclick="_leanPeriodo='ultimo_anio';_cargarLean('ultimo_anio');_renderLeanView();">Último año</button>
+    </div>
+    <div id="leanResult" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);">Cargando...</div>`;
+}
+
+async function _cargarLean(periodo) {
+  const el = document.getElementById('leanResult');
+  if (!el) return;
+  el.textContent = 'Cargando...';
+  try {
+    const res = await fetch(`${BASE_URL}/api/informes?action=costos-flujo&periodo=${periodo}`, {
+      headers: { Authorization: 'Bearer ' + seccionToken },
+    });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.msg || 'Error');
+    el.innerHTML = `
+      <div style="color:var(--text);margin-bottom:6px;">Período: <strong>${d.desde}</strong> a <strong>${d.hasta}</strong></div>
+      <div style="margin-top:10px;">Comprado USD: <strong style="color:var(--amber);">${d.comprado_usd}</strong></div>
+      <div>Asignado kitting USD: <strong>${d.asignado_kitting_usd}</strong></div>
+      <div>Asignado OC directo USD: <strong>${d.asignado_oc_directo_usd}</strong></div>
+      <div>Asignado total USD: <strong>${d.asignado_usd}</strong></div>
+      <div style="margin-top:8px;">Gap USD: <strong style="color:${d.gap_usd >= 0 ? 'var(--green)' : 'var(--red)'};">${d.gap_usd}</strong></div>`;
+  } catch (e) {
+    el.textContent = 'Error: ' + e.message;
+  }
+}
+
 // ── VIEW MODE ──────────────────────────────────────────────────────────
 function setViewMode(mode) {
   viewMode = mode;
   document.getElementById('mode-costos').classList.toggle('active', mode === 'costos');
   document.getElementById('mode-biller').classList.toggle('active', mode === 'biller');
+  document.getElementById('mode-lean').classList.toggle('active', mode === 'lean');
   document.getElementById('costosControls').style.display = mode === 'costos' ? 'contents' : 'none';
   document.querySelector('.table-wrap').style.display = mode === 'costos' ? '' : 'none';
   document.getElementById('billerView').style.display = mode === 'biller' ? '' : 'none';
+  document.getElementById('leanView').style.display = mode === 'lean' ? '' : 'none';
   if (mode === 'biller') {
     if (!billerData) loadBillerData();
     else renderBillerView();
+  }
+  if (mode === 'lean') {
+    _renderLeanView();
+    _cargarLean(_leanPeriodo);
   }
 }
 
