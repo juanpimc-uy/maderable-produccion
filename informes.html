@@ -177,7 +177,7 @@
   .mode-btn:first-child{border-radius:4px 0 0 4px;}
   .mode-btn:last-child{border-radius:0 4px 4px 0;border-left:0;}
   .mode-btn.active{background:rgba(255,214,0,.1);border-color:var(--amber);color:var(--amber);}
-  /* ── BILLER ── */
+  /* ── FACTURAS ── */
   .biller-metrics{display:flex;gap:12px;margin-bottom:20px;}
   .biller-metric{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px 16px;text-align:center;}
   .biller-metric .m-val{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:var(--amber);}
@@ -265,12 +265,6 @@
 
 <!-- ══ TOOLBAR ═══════════════════════════════════════════════════════════ -->
 <div class="toolbar">
-  <div class="mode-toggle">
-    <button class="mode-btn active" id="mode-costos" onclick="setViewMode('costos')">COSTOS</button>
-    <button class="mode-btn" id="mode-biller" onclick="setViewMode('facturas')">FACTURAS</button>
-    <button class="mode-btn" id="mode-lean" onclick="setViewMode('lean')">INDICADORES</button>
-  </div>
-  <div class="toolbar-sep"></div>
   <span id="costosControls" style="display:contents;">
     <input class="search-input" id="searchInput" type="text" placeholder="Buscar proyecto, ODF, cliente...">
     <div class="toolbar-sep"></div>
@@ -313,7 +307,7 @@
   <tfoot id="tableFoot"></tfoot>
 </table>
 </div>
-<div id="billerView" style="display:none;flex:1;overflow:auto;padding:0 24px 24px;"></div>
+<div id="facturasView" style="display:none;flex:1;overflow:auto;padding:0 24px 24px;"></div>
 <div id="leanView" style="display:none;flex:1;overflow:auto;padding:20px 24px 24px;"></div>
 </div><!-- /page-wrap -->
 
@@ -351,9 +345,19 @@ let billerSortDir = 'desc'; // 'asc' | 'desc'
   document.getElementById('cutoffDate').value = new Date().toISOString().split('T')[0];
 })();
 
+// ── Restore session from sessionStorage ─────────────────────────────────
+try {
+  const saved = JSON.parse(sessionStorage.getItem('informes_sec') || 'null');
+  if (saved && saved.token && saved.exp > Date.now()) {
+    seccionToken = saved.token;
+    tokenExpiry = saved.exp;
+    _iniciarSesionInformes();
+  }
+} catch(e) {}
+
 // ── PIN ─────────────────────────────────────────────────────────────────
 const pinTextEl = document.getElementById('pinTextInput');
-pinTextEl.focus();
+if (!seccionToken) pinTextEl.focus();
 
 function pinInput(digit) {
   if (pinLocked || pinBuffer.length >= 4) return;
@@ -404,13 +408,8 @@ async function submitPin() {
     if (data.ok) {
       seccionToken = data.token;
       tokenExpiry = Date.now() + (data.expires_in * 1000);
-      document.getElementById('pinOverlay').classList.add('hidden');
-      document.getElementById('pageWrap').style.display = 'flex';
-      startCountdown();
-      const _vistaParam = new URLSearchParams(window.location.search).get('vista');
-      const _vistaInicial = _vistaParam === 'facturas' ? 'facturas' : _vistaParam === 'lean' ? 'lean' : 'costos';
-      setViewMode(_vistaInicial);
-      cargarInforme();
+      try { sessionStorage.setItem('informes_sec', JSON.stringify({ token: seccionToken, exp: tokenExpiry })); } catch(e) {}
+      _iniciarSesionInformes();
     } else {
       showPinError(data.msg || 'PIN incorrecto');
       if (res.status === 429) {
@@ -434,6 +433,16 @@ function showPinError(msg) {
   setTimeout(() => { dots.forEach(d => d.classList.remove('error')); pinTextEl.classList.remove('error'); pinTextEl.focus(); }, 600);
 }
 
+function _iniciarSesionInformes() {
+  document.getElementById('pinOverlay').classList.add('hidden');
+  document.getElementById('pageWrap').style.display = 'flex';
+  startCountdown();
+  const _vistaParam = new URLSearchParams(window.location.search).get('vista');
+  const _vistaInicial = _vistaParam === 'facturas' ? 'facturas' : _vistaParam === 'lean' ? 'lean' : 'costos';
+  setViewMode(_vistaInicial);
+  cargarInforme();
+}
+
 // ── SESSION COUNTDOWN ───────────────────────────────────────────────────
 function startCountdown() {
   clearInterval(countdownHandle);
@@ -449,6 +458,7 @@ function startCountdown() {
       seccionToken = null;
       openDetailId = null;
       detailCache = {};
+      try { sessionStorage.removeItem('informes_sec'); } catch(e) {}
       document.getElementById('pinOverlay').classList.remove('hidden');
       document.getElementById('pageWrap').style.display = 'none';
       pinBuffer = '';
@@ -784,7 +794,7 @@ function renderDetailContent(id, data) {
       <tbody><tr class="subtotal-row"><td colspan="4">TOTAL TERCERIZADOS</td><td class="r" style="color:var(--amber);">$${fmtD(terc.total_usd)}</td></tr></tbody>
     </table>
 
-    <div class="sec-title">Facturación Biller</div>
+    <div class="sec-title">Facturación</div>
     <div id="factBiller-${id}"><div class="mono" style="font-size:10px;color:var(--muted);">Cargando...</div></div>
 
     <div class="detail-footer">
@@ -801,7 +811,7 @@ function renderDetailContent(id, data) {
       </div>
     </div>`;
 
-  // Load facturacion biller async
+  // Load facturacion async
   _loadFacturacionDetail(id, 'factBiller-' + id);
   // Scroll to detail
   panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -981,12 +991,9 @@ async function _cargarLean(periodo) {
 // ── VIEW MODE ──────────────────────────────────────────────────────────
 function setViewMode(mode) {
   viewMode = mode;
-  document.getElementById('mode-costos').classList.toggle('active', mode === 'costos');
-  document.getElementById('mode-biller').classList.toggle('active', mode === 'facturas');
-  document.getElementById('mode-lean').classList.toggle('active', mode === 'lean');
   document.getElementById('costosControls').style.display = mode === 'costos' ? 'contents' : 'none';
   document.querySelector('.table-wrap').style.display = mode === 'costos' ? '' : 'none';
-  document.getElementById('billerView').style.display = mode === 'facturas' ? '' : 'none';
+  document.getElementById('facturasView').style.display = mode === 'facturas' ? '' : 'none';
   document.getElementById('leanView').style.display = mode === 'lean' ? '' : 'none';
   if (mode === 'facturas') {
     if (!billerData) loadBillerData();
@@ -998,11 +1005,11 @@ function setViewMode(mode) {
   }
 }
 
-// ── BILLER ─────────────────────────────────────────────────────────────
+// ── FACTURAS ─────────────────────────────────────────────────────────────
 const _bSt = () => window.AUTH.getSessionToken();
 
 async function loadBillerData() {
-  const bv = document.getElementById('billerView');
+  const bv = document.getElementById('facturasView');
   bv.innerHTML = '<div class="mono" style="font-size:11px;color:var(--muted);letter-spacing:2px;padding:40px 0;text-align:center;">CARGANDO FACTURACIÓN...</div>';
   try {
     const res = await fetch(`${BASE_URL}/api/tiempos?action=facturas-biller&st=${_bSt()}`);
@@ -1016,7 +1023,7 @@ async function loadBillerData() {
 }
 
 function renderBillerView() {
-  const bv = document.getElementById('billerView');
+  const bv = document.getElementById('facturasView');
   const comps = billerData.comprobantes || [];
   const asociados = comps.filter(c => c.asignaciones.length > 0);
   const sinAsociar = comps.filter(c => c.asignaciones.length === 0 && c.es_venta);
@@ -1024,7 +1031,7 @@ function renderBillerView() {
 
   bv.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin:20px 0;">
-      <div style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;">Gestión Facturación Biller</div>
+      <div style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;">Gestión Facturación</div>
       <div style="display:flex;gap:8px;">
         <button class="b-btn accent" onclick="document.getElementById('billerFileInput').click()">↑ IMPORTAR XLSX</button>
         <input type="file" id="billerFileInput" accept=".xlsx,.xls" style="display:none;" onchange="billerImportFile(this)">
@@ -1133,7 +1140,7 @@ function renderBillerTable() {
   </table>`;
 }
 
-// ── BILLER IMPORT ──────────────────────────────────────────────────────
+// ── FACTURAS IMPORT ──────────────────────────────────────────────────────
 async function billerImportFile(input) {
   const file = input.files[0];
   if (!file) return;
@@ -1193,17 +1200,17 @@ async function billerImportFile(input) {
     try { data = JSON.parse(text); } catch {
       throw new Error(`Error del servidor (${res.status}) — el archivo puede ser muy grande o la operación tardó demasiado. Intentá con un período más corto.`);
     }
-    if (!data.ok) { console.error('Biller import response:', data); throw new Error(data.error || 'Error en importación'); }
+    if (!data.ok) { console.error('Facturas import response:', data); throw new Error(data.error || 'Error en importación'); }
     const s = data.resumen;
     banner.innerHTML = `<div class="import-banner ok">✓ ${s.importados} importados · ${s.duplicados} duplicados · ${s.auto_asociados} auto-asociados${s.multi_odf ? ` · ${s.multi_odf} multi-ODF` : ''}${s.sin_adenda ? ` · ${s.sin_adenda} sin adenda` : ''}${s.no_venta ? ` · ${s.no_venta} no-venta` : ''}</div>`;
     await loadBillerData();
   } catch (e) {
-    console.error('Biller import error:', e);
+    console.error('Facturas import error:', e);
     banner.innerHTML = `<div class="import-banner err">✗ ${e?.message || e?.error || JSON.stringify(e) || 'Error desconocido'}</div>`;
   }
 }
 
-// ── BILLER MODAL ───────────────────────────────────────────────────────
+// ── FACTURAS MODAL ───────────────────────────────────────────────────────
 function openAsociarModal(facturaId) {
   const comp = (billerData.comprobantes || []).find(c => c.id === facturaId);
   if (!comp) return;
