@@ -335,6 +335,7 @@ let billerFiltroTipo = 'all';
 let billerFiltroEstado = 'all';
 let billerBusqueda = '';
 let billerSortDir = 'desc'; // 'asc' | 'desc'
+const _bSt = () => window.AUTH.getSessionToken();
 
 // ── AUTH CHECK ──────────────────────────────────────────────────────────
 (function() {
@@ -1006,7 +1007,6 @@ function setViewMode(mode) {
 }
 
 // ── FACTURAS ─────────────────────────────────────────────────────────────
-const _bSt = () => window.AUTH.getSessionToken();
 
 async function loadBillerData() {
   const bv = document.getElementById('facturasView');
