@@ -150,7 +150,7 @@
   .footer-saldo{font-family:'Space Mono',monospace;font-size:14px;font-weight:700;margin-top:8px;}
 
   /* ── RESPONSIVE / PRINT ─────────────────────────────────── */
-  .page-wrap{display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+  .page-wrap{display:flex;flex-direction:column;flex:1;height:100%;overflow:hidden;}
   @media print {
     @page { size: A4 landscape; margin: 10mm 8mm; }
     body { background: white !important; color: black !important; font-size: 9px !important; }
@@ -216,6 +216,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
+<div style="display:flex;height:100vh;overflow:hidden;">
+<script src="sidebar.js"></script>
+<div id="sidebar-root"></div>
+<div style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;">
 <!-- ══ PIN OVERLAY ═══════════════════════════════════════════════════════ -->
 <div class="pin-overlay" id="pinOverlay">
   <div class="pin-box">
@@ -1367,5 +1371,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && pinBuffer.length === 4) submitPin();
 });
 </script>
+</div><!-- /content column -->
+</div><!-- /shell flex -->
 </body>
 </html>
