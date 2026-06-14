@@ -459,7 +459,6 @@ function _iniciarSesionInformes() {
   startCountdown();
   const _vistaParam = new URLSearchParams(window.location.search).get('vista');
   const _vistaInicial = _vistaParam === 'facturas' ? 'facturas' : _vistaParam === 'lean' ? 'lean' : 'costos';
-  console.log('[lean-debug] vistaInicial:', _vistaInicial);
   setViewMode(_vistaInicial);
   if (_vistaInicial === 'costos') cargarInforme();
 }
@@ -974,62 +973,210 @@ async function _syncPreciosMuebles(dry) {
 
 // ── INDICADORES LEAN ─────────────────────────────────────────────────────
 let _leanPeriodo = 'mes';
-const _leanFmtUsd = n => n != null ? Math.round(n).toLocaleString('es-UY') : '—';
+let _leanYm = '';
+let _leanUnidad = 'muebles';
+const _lf = n => n != null ? Math.round(n).toLocaleString('es-UY') : '—';
+const _lfD = n => n != null ? n.toLocaleString('es-UY', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—';
+const _leanAuth = () => ({ headers: { Authorization: 'Bearer ' + seccionToken } });
+const _leanPQ = () => _leanPeriodo === 'elegir' ? `periodo=elegir&ym=${_leanYm}` : `periodo=${_leanPeriodo}`;
+
+const ETAPA_LABEL = { sin_iniciar:'Sin iniciar', shop_drawing:'Shop Drawing', modelado:'Modelado', cam:'CAM', corte:'Corte', enchapado:'Enchapado', armado:'Armado', colocacion:'Colocación' };
+const ETAPA_COLOR = { sin_iniciar:'#555', shop_drawing:'#9f7aea', modelado:'#8b5cf6', cam:'#06b6d4', corte:'#ef4444', enchapado:'#f59e0b', armado:'#10b981', colocacion:'#3b82f6' };
 
 function _renderLeanView() {
   const lv = document.getElementById('leanView');
-  const tb = (id, label) => `<button class="lean-tb${_leanPeriodo===id?' active':''}" onclick="_leanPeriodo='${id}';_cargarLean('${id}');">${label}</button>`;
+  const tb = (id, label) => `<button class="lean-tb${_leanPeriodo===id?' active':''}" onclick="_leanSetPeriodo('${id}')">${label}</button>`;
   lv.innerHTML = `
-    <div class="lean-card">
-      <div class="lean-hdr">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="width:10px;height:10px;background:#FFD600;border-radius:2px;flex-shrink:0;"></div>
-          <span class="lean-title">Compras vs asignación</span>
-        </div>
-        <div class="lean-toggle">${tb('mes','Este mes')}${tb('anio','Este año')}${tb('ultimo_anio','Último año')}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:12px;height:12px;background:#FFD600;border-radius:2px;"></div>
+        <span style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;letter-spacing:.5px;">Indicadores Lean</span>
       </div>
-      <div id="leanBody" class="lean-body"><span style="color:#555;">Cargando...</span></div>
-    </div>`;
-}
-
-function _renderLeanBody(d) {
-  const el = document.getElementById('leanBody');
-  if (!el) return;
-  el.innerHTML = `
-    <div class="lean-heads">
-      <div class="lean-head">
-        <div class="lean-head-label">Comprado <span style="font-size:8px;color:#555;">(OC material)</span></div>
-        <div class="lean-head-val">${_leanFmtUsd(d.comprado_usd)}</div>
-      </div>
-      <div class="lean-head">
-        <div class="lean-head-label">Asignado</div>
-        <div class="lean-head-val">${_leanFmtUsd(d.asignado_usd)}</div>
-      </div>
-      <div class="lean-head">
-        <div class="lean-head-label">Sin asignar <span style="font-size:8px;">(desfase)</span></div>
-        <div class="lean-head-val" style="color:#FFD600;">${_leanFmtUsd(d.gap_usd)}</div>
+      <div class="lean-toggle">
+        ${tb('mes','Este mes')}${tb('anio','Este año')}${tb('ultimo_anio','Último año')}
+        <button class="lean-tb${_leanPeriodo==='elegir'?' active':''}" onclick="_leanElegirMes()">Elegir mes</button>
       </div>
     </div>
-    <div class="lean-desglose">asignado = SO kitting <strong>${_leanFmtUsd(d.asignado_kitting_usd)}</strong> + OC directo <strong>${_leanFmtUsd(d.asignado_oc_directo_usd)}</strong></div>`;
+    <div id="lean-s1" style="margin-bottom:16px;"></div>
+    <div id="lean-s3" style="margin-bottom:16px;"></div>
+    <div id="lean-s4" style="margin-bottom:16px;"></div>
+    <div id="lean-s5" style="margin-bottom:16px;"></div>`;
+  _cargarLeanTodo();
 }
 
-async function _cargarLean(periodo) {
-  const el = document.getElementById('leanBody');
-  if (!el) return;
-  el.innerHTML = '<span style="color:#555;">Cargando...</span>';
-  // Update toggle active state without full re-render
+function _leanSetPeriodo(p) {
+  _leanPeriodo = p;
   document.querySelectorAll('.lean-tb').forEach(b => b.classList.remove('active'));
-  document.querySelector(`.lean-tb[onclick*="'${periodo}'"]`)?.classList.add('active');
+  document.querySelectorAll('.lean-tb').forEach(b => { if (b.textContent.trim() === {mes:'Este mes',anio:'Este año',ultimo_anio:'Último año',elegir:'Elegir mes'}[p]) b.classList.add('active'); });
+  _cargarLeanPeriodicas();
+}
+
+function _leanElegirMes() {
+  const ym = prompt('Mes (YYYY-MM):', new Date().toISOString().slice(0, 7));
+  if (!ym || !/^\d{4}-\d{2}$/.test(ym)) return;
+  _leanYm = ym;
+  _leanPeriodo = 'elegir';
+  document.querySelectorAll('.lean-tb').forEach(b => b.classList.remove('active'));
+  document.querySelector('.lean-tb:last-child')?.classList.add('active');
+  _cargarLeanPeriodicas();
+}
+
+function _cargarLeanTodo() {
+  _cargarS1();
+  _cargarLeanPeriodicas();
+}
+
+function _cargarLeanPeriodicas() {
+  _cargarS3(); _cargarS4(); _cargarS5();
+}
+
+// ── ① Carga por etapa (WIP actual, no depende del período) ──────────────
+async function _cargarS1() {
+  const el = document.getElementById('lean-s1');
+  if (!el) return;
+  el.innerHTML = '<div class="lean-card"><div class="lean-body"><span style="color:#555;">Cargando carga por etapa...</span></div></div>';
   try {
-    const res = await fetch(`${BASE_URL}/api/informes?action=costos-flujo&periodo=${periodo}`, {
-      headers: { Authorization: 'Bearer ' + seccionToken },
-    });
+    const res = await fetch(`${BASE_URL}/api/informes?action=lean-carga-etapa&unidad=${_leanUnidad}`, _leanAuth());
     const d = await res.json();
     if (!d.ok) throw new Error(d.msg || 'Error');
-    _renderLeanBody(d);
-  } catch (e) {
-    el.innerHTML = `<span style="color:var(--red);">Error: ${e.message}</span>`;
-  }
+    const maxVal = Math.max(...d.etapas.map(e => e[_leanUnidad] || 0), 1);
+    const unitLabel = { muebles:'Muebles', placas:'Placas', horas:'Horas' }[_leanUnidad];
+    const utb = (u, l) => `<button class="lean-tb${_leanUnidad===u?' active':''}" onclick="_leanUnidad='${u}';_cargarS1();">${l}</button>`;
+    const bars = d.etapas.map(e => {
+      const val = e[_leanUnidad] || 0;
+      const pct = Math.round(val / maxVal * 100);
+      const col = ETAPA_COLOR[e.etapa] || '#555';
+      const cut = (e.etapa === 'sin_iniciar' || e.es_cuello) ? 'background-image:repeating-linear-gradient(135deg,transparent,transparent 3px,rgba(0,0,0,.3) 3px,rgba(0,0,0,.3) 5px);' : '';
+      const badge = e.es_cuello ? ' <span style="font-size:7px;background:rgba(255,90,90,.15);color:#ff5a5a;padding:1px 5px;border-radius:2px;margin-left:4px;">CUELLO</span>' : '';
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <span style="font-family:'Space Mono',monospace;font-size:9px;color:#888;width:85px;text-align:right;flex-shrink:0;">${ETAPA_LABEL[e.etapa] || e.etapa}${badge}</span>
+        <div style="flex:1;height:18px;background:#111;border-radius:3px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${col};border-radius:3px;${cut}transition:width .3s;"></div>
+        </div>
+        <span style="font-family:'Space Mono',monospace;font-size:10px;color:${col};width:40px;text-align:right;flex-shrink:0;">${val}</span>
+      </div>`;
+    }).join('');
+    el.innerHTML = `<div class="lean-card">
+      <div class="lean-hdr">
+        <div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;background:#FFD600;border-radius:2px;"></div><span class="lean-title">① Carga por etapa</span></div>
+        <div class="lean-toggle">${utb('muebles','Muebles')}${utb('placas','Placas')}${utb('horas','Horas')}</div>
+      </div>
+      <div class="lean-body">
+        <div style="font-family:'Space Mono',monospace;font-size:10px;color:#555;margin-bottom:8px;">${d.total_muebles} muebles en producción · unidad: ${unitLabel}</div>
+        ${bars}
+      </div>
+    </div>`;
+  } catch (e) { el.innerHTML = `<div class="lean-card"><div class="lean-body" style="color:#ff5a5a;">Error: ${e.message}</div></div>`; }
+}
+
+// ── ③ En la cocina (WIP) ────────────────────────────────────────────────
+async function _cargarS3() {
+  const el = document.getElementById('lean-s3');
+  if (!el) return;
+  el.innerHTML = '<div class="lean-card"><div class="lean-body"><span style="color:#555;">Cargando...</span></div></div>';
+  try {
+    const res = await fetch(`${BASE_URL}/api/informes?action=lean-cocina-wip&${_leanPQ()}`, _leanAuth());
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.msg || 'Error');
+    el.innerHTML = `<div class="lean-card">
+      <div class="lean-hdr"><div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;background:#FFD600;border-radius:2px;"></div><span class="lean-title">③ En la cocina</span></div></div>
+      <div class="lean-body" style="display:flex;gap:24px;">
+        <div style="flex:1;">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Throughput vs OE</div>
+          <div style="background:#111;border:1px dashed #333;border-radius:6px;padding:20px;text-align:center;">
+            <span style="font-family:'Space Mono',monospace;font-size:10px;color:#666;">BLOQUEADO · falta precio por mueble</span>
+          </div>
+        </div>
+        <div style="width:220px;flex-shrink:0;">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Horas en la cocina</div>
+          <div style="font-family:'Space Mono',monospace;font-size:36px;font-weight:700;color:#FFD600;line-height:1;margin-bottom:8px;">${_lf(d.hs_curso)}<span style="font-size:14px;color:#555;"> hs</span></div>
+          <div style="font-family:'Space Mono',monospace;font-size:10px;color:#888;margin-bottom:4px;">${d.proyectos_curso} proyectos en curso</div>
+          <div style="font-family:'Space Mono',monospace;font-size:10px;color:#555;">Cerrados en período: ${_lf(d.hs_cerrados)} hs</div>
+        </div>
+      </div>
+    </div>`;
+  } catch (e) { el.innerHTML = `<div class="lean-card"><div class="lean-body" style="color:#ff5a5a;">Error: ${e.message}</div></div>`; }
+}
+
+// ── ④ Compras vs asignación ─────────────────────────────────────────────
+async function _cargarS4() {
+  const el = document.getElementById('lean-s4');
+  if (!el) return;
+  el.innerHTML = '<div class="lean-card"><div class="lean-body"><span style="color:#555;">Cargando...</span></div></div>';
+  try {
+    const res = await fetch(`${BASE_URL}/api/informes?action=costos-flujo&${_leanPQ()}`, _leanAuth());
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.msg || 'Error');
+    el.innerHTML = `<div class="lean-card">
+      <div class="lean-hdr"><div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;background:#FFD600;border-radius:2px;"></div><span class="lean-title">④ Compras vs asignación</span></div></div>
+      <div class="lean-body">
+        <div class="lean-heads">
+          <div class="lean-head"><div class="lean-head-label">Comprado <span style="font-size:8px;color:#555;">(OC material)</span></div><div class="lean-head-val">${_lf(d.comprado_usd)}</div></div>
+          <div class="lean-head"><div class="lean-head-label">Asignado</div><div class="lean-head-val">${_lf(d.asignado_usd)}</div></div>
+          <div class="lean-head"><div class="lean-head-label">Sin asignar <span style="font-size:8px;">(desfase)</span></div><div class="lean-head-val" style="color:#FFD600;">${_lf(d.gap_usd)}</div></div>
+        </div>
+        <div class="lean-desglose">asignado = SO kitting <strong>${_lf(d.asignado_kitting_usd)}</strong> + OC directo <strong>${_lf(d.asignado_oc_directo_usd)}</strong></div>
+      </div>
+    </div>`;
+  } catch (e) { el.innerHTML = `<div class="lean-card"><div class="lean-body" style="color:#ff5a5a;">Error: ${e.message}</div></div>`; }
+}
+
+// ── ⑤ CNC ───────────────────────────────────────────────────────────────
+async function _cargarS5() {
+  const el = document.getElementById('lean-s5');
+  if (!el) return;
+  el.innerHTML = '<div class="lean-card"><div class="lean-body"><span style="color:#555;">Cargando CNC...</span></div></div>';
+  try {
+    const res = await fetch(`${BASE_URL}/api/informes?action=lean-cnc-dia&${_leanPQ()}`, _leanAuth());
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.msg || 'Error');
+    const dias = d.placas_dia || [];
+    const maxP = Math.max(...dias.map(x => x.placas_ok), 1);
+    const hoyStr = new Date().toISOString().split('T')[0];
+    const barsHtml = dias.length ? dias.map(x => {
+      const pct = Math.round(x.placas_ok / maxP * 100);
+      const isHoy = x.dia === hoyStr;
+      const col = isHoy ? '#FFD600' : '#46d17e';
+      const lbl = x.dia.slice(5); // MM-DD
+      return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;">
+        <div style="width:100%;height:80px;display:flex;flex-direction:column;justify-content:flex-end;">
+          <div style="width:100%;height:${pct}%;background:${col};border-radius:3px 3px 0 0;min-height:${x.placas_ok?'2px':'0'};position:relative;">
+            ${d.promedio_placas_ok > 0 ? '' : ''}
+          </div>
+        </div>
+        <span style="font-family:'Space Mono',monospace;font-size:7px;color:${isHoy?'#FFD600':'#555'};margin-top:3px;">${lbl}</span>
+        <span style="font-family:'Space Mono',monospace;font-size:8px;color:${isHoy?'#FFD600':'#888'};">${x.placas_ok}</span>
+      </div>`;
+    }).join('') : '<span style="color:#555;font-size:10px;">Sin datos CNC en el período</span>';
+
+    const ef = d.efectividad;
+    const efBar = ef.turno_min > 0 ? `
+      <div style="display:flex;height:14px;border-radius:3px;overflow:hidden;margin:8px 0;">
+        <div style="width:${ef.pct}%;background:#46d17e;" title="En corte"></div>
+        <div style="flex:1;background:#ff5a5a;" title="Detenido"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:'Space Mono',monospace;font-size:9px;">
+        <span style="color:#46d17e;">Corte ${_lfD(ef.en_corte_min)}m</span>
+        <span style="color:#ff5a5a;">Detenido ${_lfD(ef.detenido_min)}m</span>
+        <span style="color:#555;">Turno ${_lfD(ef.turno_min)}m</span>
+      </div>` : '<div style="font-size:10px;color:#555;">Sin turno CNC hoy</div>';
+
+    el.innerHTML = `<div class="lean-card">
+      <div class="lean-hdr"><div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;background:#FFD600;border-radius:2px;"></div><span class="lean-title">⑤ CNC</span></div></div>
+      <div class="lean-body" style="display:flex;gap:20px;">
+        <div style="flex:1;">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:#555;text-transform:uppercase;margin-bottom:6px;">Placas OK / día <span style="color:#FFD600;">promedio ${_lfD(d.promedio_placas_ok)}</span></div>
+          <div style="display:flex;gap:2px;align-items:flex-end;">${barsHtml}</div>
+        </div>
+        <div style="width:220px;flex-shrink:0;">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:#555;text-transform:uppercase;margin-bottom:6px;">Efectividad hoy</div>
+          <div style="font-family:'Space Mono',monospace;font-size:28px;font-weight:700;color:${ef.pct >= 70 ? '#46d17e' : '#FFD600'};line-height:1;">${ef.pct}%</div>
+          ${efBar}
+          ${ef.operario ? `<div style="font-family:'Space Mono',monospace;font-size:9px;color:#555;margin-top:6px;">Operario: ${ef.operario}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  } catch (e) { el.innerHTML = `<div class="lean-card"><div class="lean-body" style="color:#ff5a5a;">Error: ${e.message}</div></div>`; }
 }
 
 // ── VIEW MODE ──────────────────────────────────────────────────────────
@@ -1044,7 +1191,6 @@ function setViewMode(mode) {
     else renderBillerView();
   }
   if (mode === 'lean') {
-    console.log('[lean-debug] entrando a lean mode', { leanView: document.getElementById('leanView') });
     _renderLeanView();
     _cargarLean(_leanPeriodo);
   }

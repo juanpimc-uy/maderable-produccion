@@ -1166,6 +1166,355 @@ async function accionSincronizarPreciosMuebles(req, res) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 13 — GET throughput-mensual
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionThroughputMensual(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const seccion = verificarAccesoSeccion(req);
+  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
+
+  const mesesParam = parseInt(req.query.meses) || 12;
+  const OE = 55000;
+
+  // Proyectos terminados con precio
+  const { data: proys, error: pErr } = await supabase
+    .from('proyectos_cache')
+    .select('id, fecha_inicio, precio_venta_usd, costo_kitting_usd')
+    .eq('activo', true)
+    .eq('estado', 'terminado')
+    .gt('precio_venta_usd', 0);
+  if (pErr) throw pErr;
+  if (!proys || !proys.length) return ok(res, { oe_mensual_usd: OE, datos: [] });
+
+  // Max(fin) por proyecto de registros_trabajo
+  const proyIds = proys.map(p => p.id);
+  const { data: regFins, error: rErr } = await supabase
+    .from('registros_trabajo')
+    .select('proyecto_id, fin')
+    .in('proyecto_id', proyIds)
+    .not('fin', 'is', null)
+    .or('eliminada.is.null,eliminada.eq.false')
+    .order('fin', { ascending: false });
+  if (rErr) throw rErr;
+
+  const maxFinByProy = {};
+  for (const r of (regFins || [])) {
+    if (!maxFinByProy[r.proyecto_id]) maxFinByProy[r.proyecto_id] = r.fin;
+  }
+
+  // Generate YYYY-MM range helper
+  function mesRange(desde, hasta) {
+    const meses = [];
+    const [ay, am] = desde.split('-').map(Number);
+    const [by, bm] = hasta.split('-').map(Number);
+    let y = ay, m = am;
+    while (y < by || (y === by && m <= bm)) {
+      meses.push(`${y}-${String(m).padStart(2, '0')}`);
+      m++;
+      if (m > 12) { m = 1; y++; }
+    }
+    return meses.length ? meses : [desde.slice(0, 7)];
+  }
+
+  // Accumulate throughput per month
+  const bucket = {}; // YYYY-MM → { throughput: 0, proyectos: Set }
+
+  for (const p of proys) {
+    const inicio = (p.fecha_inicio || '').slice(0, 10);
+    if (!inicio || inicio.length < 7) continue;
+
+    const finRaw = maxFinByProy[p.id];
+    const fin = finRaw ? finRaw.slice(0, 10) : inicio;
+
+    const inicioMes = inicio.slice(0, 7);
+    const finMes = fin.slice(0, 7);
+
+    const throughputTotal = round2(Number(p.precio_venta_usd) - Number(p.costo_kitting_usd || 0));
+    const meses = mesRange(inicioMes, finMes);
+    const porMes = round2(throughputTotal / meses.length);
+
+    for (const mes of meses) {
+      if (!bucket[mes]) bucket[mes] = { throughput: 0, proyectos: new Set() };
+      bucket[mes].throughput += porMes;
+      bucket[mes].proyectos.add(p.id);
+    }
+  }
+
+  // Build output limited to last N months
+  const hoy = new Date();
+  const limiteDesde = new Date(hoy);
+  limiteDesde.setMonth(limiteDesde.getMonth() - mesesParam + 1);
+  const desdeMes = `${limiteDesde.getFullYear()}-${String(limiteDesde.getMonth() + 1).padStart(2, '0')}`;
+  const hastaMes = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  const mesesSalida = mesRange(desdeMes, hastaMes);
+
+  const datos = mesesSalida.map(mes => {
+    const b = bucket[mes];
+    const throughput_usd = b ? round2(b.throughput) : 0;
+    return {
+      mes,
+      throughput_usd,
+      oe_usd: OE,
+      gano_mes: throughput_usd > OE,
+      proyectos_contribuyendo: b ? b.proyectos.size : 0,
+    };
+  });
+
+  return ok(res, { oe_mensual_usd: OE, datos });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 14 — GET lean-carga-etapa
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionLeanCargaEtapa(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const seccion = verificarAccesoSeccion(req);
+  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
+
+  const unidad = req.query.unidad || 'muebles'; // muebles | placas | horas
+
+  const { data: rows, error: qErr } = await supabase.rpc('_lean_noop', {}).maybeSingle();
+  // RPC not available — run via raw supabase queries instead
+
+  // 1. Projects en_produccion with muebles
+  const { data: proys } = await supabase
+    .from('proyectos_cache').select('id, muebles')
+    .eq('activo', true).eq('estado', 'en_produccion');
+
+  const allMuebles = [];
+  for (const p of (proys || [])) {
+    const mubs = Array.isArray(p.muebles) ? p.muebles : [];
+    for (const m of mubs) {
+      const placas = Number(m.placas) || 0;
+      let horas = 0;
+      if (m.horas && typeof m.horas === 'object') {
+        horas = Object.values(m.horas).reduce((s, v) => s + (Number(v) || 0), 0);
+      }
+      allMuebles.push({ proyecto_id: p.id, mueble_id: m.id, placas, horas });
+    }
+  }
+
+  // 2. Last centro per proyecto (for colocacion check)
+  const proyIds = (proys || []).map(p => p.id);
+  const { data: projRegs } = await supabase
+    .from('registros_trabajo')
+    .select('proyecto_id, centro, inicio')
+    .in('proyecto_id', proyIds)
+    .or('eliminada.is.null,eliminada.eq.false')
+    .in('centro', ['shop_drawing','obra','modelado','cam','corte','enchapado','armado','macizo','electrica','herreria','colocacion'])
+    .order('inicio', { ascending: false });
+
+  const projLast = {};
+  for (const r of (projRegs || [])) {
+    if (!projLast[r.proyecto_id]) projLast[r.proyecto_id] = r.centro;
+  }
+
+  // 3. Last centro per mueble (item_id)
+  const muebleIds = allMuebles.map(m => m.mueble_id).filter(Boolean);
+  let muebleLast = {};
+  if (muebleIds.length) {
+    const { data: mRegs } = await supabase
+      .from('registros_trabajo')
+      .select('item_id, centro, inicio')
+      .in('item_id', muebleIds)
+      .or('eliminada.is.null,eliminada.eq.false')
+      .in('centro', ['shop_drawing','obra','modelado','cam','corte','enchapado','armado','macizo','electrica','herreria'])
+      .order('inicio', { ascending: false });
+    for (const r of (mRegs || [])) {
+      if (!muebleLast[r.item_id]) muebleLast[r.item_id] = r.centro;
+    }
+  }
+
+  // 4. Classify each mueble
+  const ETAPAS_ORDEN = ['sin_iniciar','shop_drawing','modelado','cam','corte','enchapado','armado','colocacion'];
+  const buckets = {};
+  for (const e of ETAPAS_ORDEN) buckets[e] = { muebles: 0, placas: 0, horas: 0 };
+
+  for (const m of allMuebles) {
+    const plCentro = projLast[m.proyecto_id];
+    const mlCentro = muebleLast[m.mueble_id];
+    let etapa;
+    if (plCentro === 'colocacion') etapa = 'colocacion';
+    else if (mlCentro && ['shop_drawing','obra'].includes(mlCentro)) etapa = 'shop_drawing';
+    else if (mlCentro && ['armado','macizo','electrica','herreria'].includes(mlCentro)) etapa = 'armado';
+    else if (mlCentro) etapa = ETAPAS_ORDEN.includes(mlCentro) ? mlCentro : 'sin_iniciar';
+    else etapa = 'sin_iniciar';
+
+    buckets[etapa].muebles++;
+    buckets[etapa].placas += m.placas;
+    buckets[etapa].horas += m.horas;
+  }
+
+  // Find cuello (max for the chosen unit, excluding sin_iniciar and colocacion)
+  const plantaEtapas = ETAPAS_ORDEN.filter(e => e !== 'sin_iniciar' && e !== 'colocacion');
+  let cuello = null, cuelloVal = 0;
+  for (const e of plantaEtapas) {
+    const v = buckets[e][unidad] || 0;
+    if (v > cuelloVal) { cuelloVal = v; cuello = e; }
+  }
+
+  const etapas = ETAPAS_ORDEN.map(e => ({
+    etapa: e,
+    muebles: buckets[e].muebles,
+    placas: buckets[e].placas,
+    horas: round1(buckets[e].horas),
+    es_cuello: e === cuello,
+  }));
+
+  return ok(res, { unidad, total_muebles: allMuebles.length, cuello, etapas });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 15 — GET lean-cocina-wip
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionLeanCocinaWip(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const seccion = verificarAccesoSeccion(req);
+  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
+
+  const { periodo, desde, hasta } = _parsePeriodo(req.query);
+  const EXCLUIR = ['descanso','reunion','compras','coordinacion','presu'];
+
+  const { data: regs } = await supabase
+    .from('registros_trabajo')
+    .select('proyecto_id, inicio, fin')
+    .not('fin', 'is', null)
+    .or('eliminada.is.null,eliminada.eq.false')
+    .not('centro', 'in', `(${EXCLUIR.join(',')})`)
+    .gte('inicio', desde + 'T00:00:00')
+    .lte('inicio', hasta + 'T23:59:59');
+
+  // Get project states
+  const proyIdsAll = [...new Set((regs || []).map(r => r.proyecto_id).filter(Boolean))];
+  let proyEstados = {};
+  if (proyIdsAll.length) {
+    const { data: ps } = await supabase
+      .from('proyectos_cache').select('id, estado, activo')
+      .in('id', proyIdsAll);
+    for (const p of (ps || [])) proyEstados[p.id] = p;
+  }
+
+  let hs_curso = 0, hs_cerrados = 0;
+  const proyCurso = new Set();
+
+  for (const r of (regs || [])) {
+    const dur = (new Date(r.fin) - new Date(r.inicio)) / 3600000;
+    if (dur <= 0) continue;
+    const p = proyEstados[r.proyecto_id];
+    if (p && p.estado === 'terminado') {
+      hs_cerrados += dur;
+    } else {
+      hs_curso += dur;
+      if (r.proyecto_id && p && p.activo !== false) proyCurso.add(r.proyecto_id);
+    }
+  }
+
+  return ok(res, {
+    periodo, desde, hasta,
+    hs_curso: round1(hs_curso),
+    hs_cerrados: round1(hs_cerrados),
+    proyectos_curso: proyCurso.size,
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 16 — GET lean-cnc-dia
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionLeanCncDia(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const seccion = verificarAccesoSeccion(req);
+  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
+
+  const { periodo, desde, hasta } = _parsePeriodo(req.query);
+
+  // Placas por día
+  const { data: placas } = await supabase
+    .from('registros_cnc')
+    .select('inicio, fin, resultado')
+    .not('inicio', 'is', null)
+    .gte('inicio', desde + 'T00:00:00')
+    .lte('inicio', hasta + 'T23:59:59');
+
+  const porDia = {};
+  for (const p of (placas || [])) {
+    const dia = p.inicio.slice(0, 10);
+    if (!porDia[dia]) porDia[dia] = { ok: 0, error: 0, saltada: 0 };
+    const res_tipo = p.resultado || 'saltada';
+    if (res_tipo === 'ok') porDia[dia].ok++;
+    else if (res_tipo === 'error') porDia[dia].error++;
+    else porDia[dia].saltada++;
+  }
+
+  const diasArr = Object.entries(porDia)
+    .map(([dia, v]) => ({ dia, placas_ok: v.ok, placas_error: v.error, placas_saltada: v.saltada }))
+    .sort((a, b) => a.dia.localeCompare(b.dia));
+  const promedio = diasArr.length ? round1(diasArr.reduce((s, d) => s + d.placas_ok, 0) / diasArr.length) : 0;
+
+  // Efectividad hoy
+  const hoyStr = new Date().toISOString().split('T')[0];
+  const placasHoy = (placas || []).filter(p => p.inicio.slice(0, 10) === hoyStr);
+  let en_corte_sec = 0;
+  for (const p of placasHoy) {
+    if (p.fin) en_corte_sec += (new Date(p.fin) - new Date(p.inicio)) / 1000;
+  }
+
+  // Turno: span from registros_trabajo linked via registro_trabajo_id
+  const regIds = [...new Set(placasHoy.map(p => p.registro_trabajo_id).filter(Boolean))];
+  let turno_sec = 0;
+  let operario = null;
+  if (regIds.length) {
+    // We don't have registro_trabajo_id in our select — re-query today's cnc with it
+    const { data: cncHoy } = await supabase
+      .from('registros_cnc')
+      .select('registro_trabajo_id, placa_numero, resultado, empleado_id')
+      .gte('inicio', hoyStr + 'T00:00:00')
+      .lte('inicio', hoyStr + 'T23:59:59')
+      .order('inicio', { ascending: false });
+    const rtIds = [...new Set((cncHoy || []).map(c => c.registro_trabajo_id).filter(Boolean))];
+    if (rtIds.length) {
+      const { data: rts } = await supabase
+        .from('registros_trabajo')
+        .select('id, inicio, fin, empleado_id')
+        .in('id', rtIds);
+      for (const rt of (rts || [])) {
+        const fin = rt.fin ? new Date(rt.fin) : new Date();
+        turno_sec += (fin - new Date(rt.inicio)) / 1000;
+      }
+    }
+    // Last placa + operario
+    const ultima = (cncHoy || [])[0];
+    if (ultima) {
+      const { data: emp } = await supabase
+        .from('empleados').select('nombre').eq('id', ultima.empleado_id).maybeSingle();
+      operario = emp?.nombre || null;
+    }
+  }
+
+  const en_corte_min = round1(en_corte_sec / 60);
+  const turno_min = round1(turno_sec / 60);
+  const detenido_min = round1(Math.max(0, turno_min - en_corte_min));
+  const efectividad_pct = turno_min > 0 ? round1(en_corte_min / turno_min * 100) : 0;
+  const ultimaPlaca = placasHoy.length ? { numero: Math.max(...placasHoy.filter(p => p.resultado === 'ok').map(p => p.placa_numero || 0)), resultado: placasHoy[0]?.resultado } : null;
+
+  return ok(res, {
+    periodo, desde, hasta,
+    placas_dia: diasArr,
+    promedio_placas_ok: promedio,
+    efectividad: {
+      pct: efectividad_pct,
+      en_corte_min, detenido_min, turno_min,
+      ultima_placa: ultimaPlaca,
+      operario,
+      aproximada: true,
+    },
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // Handler principal
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -1380,28 +1729,38 @@ async function accionSincronizarCompras(req, res) {
 // ENDPOINT 12 — GET costos-flujo
 // ══════════════════════════════════════════════════════════════════════════
 
-async function accionCostosFlujo(req, res) {
-  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
-  const seccion = verificarAccesoSeccion(req);
-  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
-
-  const periodo = req.query.periodo || 'mes';
+// ── Helper: parsear período desde query ─────────────────────────────────
+function _parsePeriodo(query) {
+  const periodo = query.periodo || 'mes';
   const hoy = new Date();
   let desde, hasta;
-
-  if (periodo === 'mes') {
+  if (periodo === 'elegir' && query.ym) {
+    const [y, m] = query.ym.split('-').map(Number);
+    desde = `${y}-${String(m).padStart(2, '0')}-01`;
+    const last = new Date(y, m, 0).getDate();
+    const hastaDate = (y === hoy.getFullYear() && m === hoy.getMonth() + 1) ? hoy.toISOString().split('T')[0] : `${y}-${String(m).padStart(2, '0')}-${last}`;
+    hasta = hastaDate;
+  } else if (periodo === 'mes') {
     desde = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
     hasta = hoy.toISOString().split('T')[0];
   } else if (periodo === 'anio') {
     desde = `${hoy.getFullYear()}-01-01`;
     hasta = hoy.toISOString().split('T')[0];
   } else {
-    // ultimo_anio: 12 meses móviles
     const hace12 = new Date(hoy);
     hace12.setMonth(hace12.getMonth() - 12);
     desde = hace12.toISOString().split('T')[0];
     hasta = hoy.toISOString().split('T')[0];
   }
+  return { periodo, desde, hasta };
+}
+
+async function accionCostosFlujo(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const seccion = verificarAccesoSeccion(req);
+  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
+
+  const { periodo, desde, hasta } = _parsePeriodo(req.query);
 
   // Parallel queries
   const [comprasR, kittingR, ocDirectoR] = await Promise.all([
@@ -1463,6 +1822,10 @@ export default async function handler(req, res) {
     if (action === 'sincronizar-kitting')        return await accionSincronizarKitting(req, res);
     if (action === 'sincronizar-compras')        return await accionSincronizarCompras(req, res);
     if (action === 'costos-flujo')               return await accionCostosFlujo(req, res);
+    if (action === 'throughput-mensual')          return await accionThroughputMensual(req, res);
+    if (action === 'lean-carga-etapa')           return await accionLeanCargaEtapa(req, res);
+    if (action === 'lean-cocina-wip')            return await accionLeanCocinaWip(req, res);
+    if (action === 'lean-cnc-dia')               return await accionLeanCncDia(req, res);
     return err(res, 'Acción no reconocida');
   } catch (e) {
     console.error('[informes]', action, e);
