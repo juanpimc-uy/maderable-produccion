@@ -440,6 +440,7 @@ function _iniciarSesionInformes() {
   startCountdown();
   const _vistaParam = new URLSearchParams(window.location.search).get('vista');
   const _vistaInicial = _vistaParam === 'facturas' ? 'facturas' : _vistaParam === 'lean' ? 'lean' : 'costos';
+  console.log('[lean-debug] vistaInicial:', _vistaInicial);
   setViewMode(_vistaInicial);
   if (_vistaInicial === 'costos') cargarInforme();
 }
@@ -956,6 +957,7 @@ async function _syncPreciosMuebles(dry) {
 let _leanPeriodo = 'mes';
 
 function _renderLeanView() {
+  console.log('[lean-debug] _renderLeanView llamada');
   const lv = document.getElementById('leanView');
   lv.innerHTML = `
     <div style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;margin-bottom:16px;">Indicadores Lean</div>
@@ -968,6 +970,7 @@ function _renderLeanView() {
 }
 
 async function _cargarLean(periodo) {
+  console.log('[lean-debug] _cargarLean llamada con periodo:', periodo);
   const el = document.getElementById('leanResult');
   if (!el) return;
   el.textContent = 'Cargando...';
@@ -1001,6 +1004,7 @@ function setViewMode(mode) {
     else renderBillerView();
   }
   if (mode === 'lean') {
+    console.log('[lean-debug] entrando a lean mode', { leanView: document.getElementById('leanView') });
     _renderLeanView();
     _cargarLean(_leanPeriodo);
   }
