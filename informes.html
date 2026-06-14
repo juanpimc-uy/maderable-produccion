@@ -441,7 +441,7 @@ function _iniciarSesionInformes() {
   const _vistaParam = new URLSearchParams(window.location.search).get('vista');
   const _vistaInicial = _vistaParam === 'facturas' ? 'facturas' : _vistaParam === 'lean' ? 'lean' : 'costos';
   setViewMode(_vistaInicial);
-  cargarInforme();
+  if (_vistaInicial === 'costos') cargarInforme();
 }
 
 // ── SESSION COUNTDOWN ───────────────────────────────────────────────────
