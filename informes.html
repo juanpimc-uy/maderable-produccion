@@ -212,6 +212,25 @@
   .fact-stats .fs-val{font-weight:700;}
   .fact-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:12px;}
   .fact-bar-fill{height:100%;background:var(--amber);border-radius:3px;transition:width .3s;}
+
+  /* ── LEAN CARD ── */
+  .lean-card{background:#1e1e1e;border:1px solid #2a2a2a;border-radius:10px;padding:20px 24px;max-width:720px;}
+  .lean-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+  .lean-title{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:.5px;color:#e8e8e8;}
+  .lean-toggle{display:flex;gap:0;}
+  .lean-tb{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.3px;padding:4px 10px;border:1px solid #333;background:transparent;color:#666;cursor:pointer;transition:all .12s;}
+  .lean-tb:first-child{border-radius:4px 0 0 4px;}
+  .lean-tb:last-child{border-radius:0 4px 4px 0;border-left:0;}
+  .lean-tb:not(:first-child):not(:last-child){border-left:0;}
+  .lean-tb.active{background:#FFD600;color:#000;border-color:#FFD600;font-weight:700;}
+  .lean-tb:hover:not(.active){border-color:#555;color:#aaa;}
+  .lean-body{min-height:60px;}
+  .lean-heads{display:flex;gap:24px;margin-bottom:16px;}
+  .lean-head{flex:1;}
+  .lean-head-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.5px;color:#666;text-transform:uppercase;margin-bottom:4px;}
+  .lean-head-val{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:#e8e8e8;line-height:1;}
+  .lean-desglose{font-family:'Space Mono',monospace;font-size:10px;color:#555;padding-top:12px;border-top:1px solid #2a2a2a;}
+  .lean-desglose strong{color:#888;}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -955,40 +974,61 @@ async function _syncPreciosMuebles(dry) {
 
 // ── INDICADORES LEAN ─────────────────────────────────────────────────────
 let _leanPeriodo = 'mes';
+const _leanFmtUsd = n => n != null ? Math.round(n).toLocaleString('es-UY') : '—';
 
 function _renderLeanView() {
-  console.log('[lean-debug] _renderLeanView llamada');
   const lv = document.getElementById('leanView');
+  const tb = (id, label) => `<button class="lean-tb${_leanPeriodo===id?' active':''}" onclick="_leanPeriodo='${id}';_cargarLean('${id}');">${label}</button>`;
   lv.innerHTML = `
-    <div style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;margin-bottom:16px;">Indicadores Lean</div>
-    <div style="display:flex;gap:6px;margin-bottom:16px;">
-      <button class="chip${_leanPeriodo==='mes'?' active':''}" onclick="_leanPeriodo='mes';_cargarLean('mes');_renderLeanView();">Este mes</button>
-      <button class="chip${_leanPeriodo==='anio'?' active':''}" onclick="_leanPeriodo='anio';_cargarLean('anio');_renderLeanView();">Este año</button>
-      <button class="chip${_leanPeriodo==='ultimo_anio'?' active':''}" onclick="_leanPeriodo='ultimo_anio';_cargarLean('ultimo_anio');_renderLeanView();">Último año</button>
+    <div class="lean-card">
+      <div class="lean-hdr">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:10px;height:10px;background:#FFD600;border-radius:2px;flex-shrink:0;"></div>
+          <span class="lean-title">Compras vs asignación</span>
+        </div>
+        <div class="lean-toggle">${tb('mes','Este mes')}${tb('anio','Este año')}${tb('ultimo_anio','Último año')}</div>
+      </div>
+      <div id="leanBody" class="lean-body"><span style="color:#555;">Cargando...</span></div>
+    </div>`;
+}
+
+function _renderLeanBody(d) {
+  const el = document.getElementById('leanBody');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="lean-heads">
+      <div class="lean-head">
+        <div class="lean-head-label">Comprado <span style="font-size:8px;color:#555;">(OC material)</span></div>
+        <div class="lean-head-val">${_leanFmtUsd(d.comprado_usd)}</div>
+      </div>
+      <div class="lean-head">
+        <div class="lean-head-label">Asignado</div>
+        <div class="lean-head-val">${_leanFmtUsd(d.asignado_usd)}</div>
+      </div>
+      <div class="lean-head">
+        <div class="lean-head-label">Sin asignar <span style="font-size:8px;">(desfase)</span></div>
+        <div class="lean-head-val" style="color:#FFD600;">${_leanFmtUsd(d.gap_usd)}</div>
+      </div>
     </div>
-    <div id="leanResult" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);">Cargando...</div>`;
+    <div class="lean-desglose">asignado = SO kitting <strong>${_leanFmtUsd(d.asignado_kitting_usd)}</strong> + OC directo <strong>${_leanFmtUsd(d.asignado_oc_directo_usd)}</strong></div>`;
 }
 
 async function _cargarLean(periodo) {
-  console.log('[lean-debug] _cargarLean llamada con periodo:', periodo);
-  const el = document.getElementById('leanResult');
+  const el = document.getElementById('leanBody');
   if (!el) return;
-  el.textContent = 'Cargando...';
+  el.innerHTML = '<span style="color:#555;">Cargando...</span>';
+  // Update toggle active state without full re-render
+  document.querySelectorAll('.lean-tb').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.lean-tb[onclick*="'${periodo}'"]`)?.classList.add('active');
   try {
     const res = await fetch(`${BASE_URL}/api/informes?action=costos-flujo&periodo=${periodo}`, {
       headers: { Authorization: 'Bearer ' + seccionToken },
     });
     const d = await res.json();
     if (!d.ok) throw new Error(d.msg || 'Error');
-    el.innerHTML = `
-      <div style="color:var(--text);margin-bottom:6px;">Período: <strong>${d.desde}</strong> a <strong>${d.hasta}</strong></div>
-      <div style="margin-top:10px;">Comprado USD: <strong style="color:var(--amber);">${d.comprado_usd}</strong></div>
-      <div>Asignado kitting USD: <strong>${d.asignado_kitting_usd}</strong></div>
-      <div>Asignado OC directo USD: <strong>${d.asignado_oc_directo_usd}</strong></div>
-      <div>Asignado total USD: <strong>${d.asignado_usd}</strong></div>
-      <div style="margin-top:8px;">Gap USD: <strong style="color:${d.gap_usd >= 0 ? 'var(--green)' : 'var(--red)'};">${d.gap_usd}</strong></div>`;
+    _renderLeanBody(d);
   } catch (e) {
-    el.textContent = 'Error: ' + e.message;
+    el.innerHTML = `<span style="color:var(--red);">Error: ${e.message}</span>`;
   }
 }
 
