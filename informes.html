@@ -1086,7 +1086,7 @@ async function _cargarS1() {
       const cuelloTag = isCuello ? '<span class="cuellotag">CUELLO</span>' : '';
       const marginTop = isCuello ? 'margin-top:16px;' : '';
       const arrow = showArrow ? '<span class="arr">→</span>' : '';
-      return `<div class="st${isCuello?' cuello':''}">${cuelloTag}<div class="cnt" style="${marginTop}${cntStyle}">${val}</div><div class="pl"><b>${e.placas}</b>pl · ${_lfD(e.horas)}h</div><div class="bar${cutClass}" style="${barStyle}"></div><div class="lbl" style="${lblStyle}">${ETAPA_LABEL[e.etapa]}</div>${arrow}</div>`;
+      return `<div class="st${isCuello?' cuello':''}" style="cursor:pointer;" onclick="_leanDrillEtapa('${e.etapa}')">${cuelloTag}<div class="cnt" style="${marginTop}${cntStyle}">${val}</div><div class="pl"><b>${e.placas}</b>pl · ${_lfD(e.horas)}h</div><div class="bar${cutClass}" style="${barStyle}"></div><div class="lbl" style="${lblStyle}">${ETAPA_LABEL[e.etapa]}</div>${arrow}</div>`;
     }
 
     const sinIniciar = etapas.find(e => e.etapa === 'sin_iniciar');
@@ -1296,6 +1296,49 @@ function _renderS6() {
   </div>`;
 }
 
+// ── Drill-down etapa ─────────────────────────────────────────────────────
+async function _leanDrillEtapa(etapa) {
+  // Remove existing panel
+  document.getElementById('lean-drill')?.remove();
+  const panel = document.createElement('div');
+  panel.id = 'lean-drill';
+  panel.style.cssText = 'position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;';
+  panel.onclick = e => { if (e.target === panel) panel.remove(); };
+  panel.innerHTML = `<div style="background:#181818;border:1px solid #2a2a2a;border-radius:10px;padding:20px 24px;width:90%;max-width:700px;max-height:80vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <span style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;">${ETAPA_LABEL[etapa] || etapa} — detalle muebles</span>
+      <button onclick="document.getElementById('lean-drill').remove()" style="background:none;border:1px solid #333;border-radius:4px;color:#888;cursor:pointer;padding:2px 8px;font-size:14px;">✕</button>
+    </div>
+    <div id="lean-drill-body" style="font-family:'Space Mono',monospace;font-size:11px;color:#555;">Cargando...</div>
+  </div>`;
+  document.body.appendChild(panel);
+
+  try {
+    const res = await fetch(`${BASE_URL}/api/informes?action=lean-carga-etapa-detalle&etapa=${etapa}`, _leanAuth());
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.msg || 'Error');
+    const body = document.getElementById('lean-drill-body');
+    if (!d.muebles.length) { body.textContent = 'Sin muebles en esta etapa'; return; }
+    body.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px;">
+      <thead><tr style="border-bottom:1px solid #2a2a2a;">
+        <th style="text-align:left;padding:4px 6px;color:#888;font-size:9px;">PROYECTO</th>
+        <th style="text-align:left;padding:4px 6px;color:#888;font-size:9px;">CÓDIGO</th>
+        <th style="text-align:left;padding:4px 6px;color:#888;font-size:9px;">NOMBRE</th>
+        <th style="text-align:right;padding:4px 6px;color:#888;font-size:9px;">PLACAS</th>
+      </tr></thead>
+      <tbody>${d.muebles.map(m => `<tr style="border-bottom:1px solid #1a1a1a;">
+        <td style="padding:4px 6px;color:#aaa;">${m.proyecto||'—'}</td>
+        <td style="padding:4px 6px;color:#FFD600;">${m.codigo||'—'}</td>
+        <td style="padding:4px 6px;color:#ccc;">${m.nombre||'—'}</td>
+        <td style="padding:4px 6px;text-align:right;color:${m.placas > 100 ? '#ff5a5a' : '#ccc'};">${m.placas}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  } catch (e) {
+    const body = document.getElementById('lean-drill-body');
+    if (body) body.innerHTML = `<span style="color:#ff5a5a;">Error: ${e.message}</span>`;
+  }
+}
+
 // ── VIEW MODE ──────────────────────────────────────────────────────────
 function setViewMode(mode) {
   viewMode = mode;
@@ -1307,8 +1350,9 @@ function setViewMode(mode) {
     if (!billerData) loadBillerData();
     else renderBillerView();
   }
+  document.querySelector('.toolbar').style.display = mode === 'lean' ? 'none' : '';
   if (mode === 'lean') {
-    _renderLeanView();
+    try { _renderLeanView(); } catch(e) { console.error('[lean] render error:', e); }
   }
 }
 

@@ -1288,6 +1288,7 @@ async function accionLeanCargaEtapa(req, res) {
     const mubs = Array.isArray(p.muebles) ? p.muebles : [];
     for (const m of mubs) {
       const placas = Number(m.placas) || 0;
+      if (placas >= 999) continue; // skip placeholder muebles (MANTENIMIENTO, CAMION, etc.)
       let horas = 0;
       if (m.horas && typeof m.horas === 'object') {
         horas = Object.values(m.horas).reduce((s, v) => s + (Number(v) || 0), 0);
@@ -1367,6 +1368,75 @@ async function accionLeanCargaEtapa(req, res) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 14b — GET lean-carga-etapa-detalle
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionLeanCargaEtapaDetalle(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const seccion = verificarAccesoSeccion(req);
+  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
+
+  const etapa = req.query.etapa;
+  if (!etapa) return err(res, 'etapa requerido');
+
+  // Same classification logic as lean-carga-etapa
+  const { data: proys } = await supabase
+    .from('proyectos_cache').select('id, numero, nombre, muebles')
+    .eq('activo', true).eq('estado', 'en_produccion');
+
+  const allMuebles = [];
+  for (const p of (proys || [])) {
+    const mubs = Array.isArray(p.muebles) ? p.muebles : [];
+    for (const m of mubs) {
+      const placasD = Number(m.placas) || 0;
+      if (placasD >= 999) continue;
+      allMuebles.push({ proyecto_id: p.id, proyecto_numero: p.numero, proyecto_nombre: p.nombre, mueble_id: m.id, nombre: m.nombre || '', codigo: m.codigo || '', placas: placasD });
+    }
+  }
+
+  const proyIds = (proys || []).map(p => p.id);
+  const { data: projRegs } = await supabase
+    .from('registros_trabajo').select('proyecto_id, centro, inicio')
+    .in('proyecto_id', proyIds)
+    .or('eliminada.is.null,eliminada.eq.false')
+    .in('centro', ['shop_drawing','obra','modelado','cam','corte','enchapado','armado','macizo','electrica','herreria','colocacion'])
+    .order('inicio', { ascending: false });
+  const projLast = {};
+  for (const r of (projRegs || [])) { if (!projLast[r.proyecto_id]) projLast[r.proyecto_id] = r.centro; }
+
+  const muebleIds = allMuebles.map(m => m.mueble_id).filter(Boolean);
+  let muebleLast = {};
+  if (muebleIds.length) {
+    const { data: mRegs } = await supabase
+      .from('registros_trabajo').select('item_id, centro, inicio')
+      .in('item_id', muebleIds)
+      .or('eliminada.is.null,eliminada.eq.false')
+      .in('centro', ['shop_drawing','obra','modelado','cam','corte','enchapado','armado','macizo','electrica','herreria'])
+      .order('inicio', { ascending: false });
+    for (const r of (mRegs || [])) { if (!muebleLast[r.item_id]) muebleLast[r.item_id] = r.centro; }
+  }
+
+  const resultado = [];
+  for (const m of allMuebles) {
+    const plCentro = projLast[m.proyecto_id];
+    const mlCentro = muebleLast[m.mueble_id];
+    let etapaCalc;
+    if (plCentro === 'colocacion') etapaCalc = 'colocacion';
+    else if (mlCentro && ['shop_drawing','obra'].includes(mlCentro)) etapaCalc = 'shop_drawing';
+    else if (mlCentro && ['armado','macizo','electrica','herreria'].includes(mlCentro)) etapaCalc = 'armado';
+    else if (mlCentro) etapaCalc = mlCentro;
+    else etapaCalc = 'sin_iniciar';
+
+    if (etapaCalc === etapa) {
+      resultado.push({ proyecto: m.proyecto_numero || m.proyecto_nombre, nombre: m.nombre, codigo: m.codigo, placas: m.placas });
+    }
+  }
+
+  resultado.sort((a, b) => b.placas - a.placas);
+  return ok(res, { etapa, muebles: resultado });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // ENDPOINT 15 — GET lean-cocina-wip
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -1375,16 +1445,38 @@ async function accionLeanCocinaWip(req, res) {
   const seccion = verificarAccesoSeccion(req);
   if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
 
-  const { periodo, desde, hasta } = _parsePeriodo(req.query);
+  const { periodo } = _parsePeriodo(req.query);
+  // Calendar boundaries matching the tested SQL: desde inclusive, hasta exclusive
+  const hoy = new Date();
+  let desde, hasta;
+  if (periodo === 'mes') {
+    desde = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
+    const nextM = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
+    hasta = `${nextM.getFullYear()}-${String(nextM.getMonth() + 1).padStart(2, '0')}-01`;
+  } else if (periodo === 'anio') {
+    desde = `${hoy.getFullYear()}-01-01`;
+    hasta = `${hoy.getFullYear() + 1}-01-01`;
+  } else if (periodo === 'elegir' && req.query.ym) {
+    const [y, m] = req.query.ym.split('-').map(Number);
+    desde = `${y}-${String(m).padStart(2, '0')}-01`;
+    const nextM = new Date(y, m, 1);
+    hasta = `${nextM.getFullYear()}-${String(nextM.getMonth() + 1).padStart(2, '0')}-01`;
+  } else {
+    const hace12 = new Date(hoy); hace12.setMonth(hace12.getMonth() - 12);
+    desde = `${hace12.getFullYear()}-${String(hace12.getMonth() + 1).padStart(2, '0')}-01`;
+    const nextM = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
+    hasta = `${nextM.getFullYear()}-${String(nextM.getMonth() + 1).padStart(2, '0')}-01`;
+  }
 
-  // JOIN registros_trabajo × proyectos_cache, matching the tested SQL
+  // Exact SQL: r.inicio >= desde AND r.inicio < hasta, r.fin IS NOT NULL,
+  // coalesce(eliminada,false)=false, centro NOT IN (...)
   const { data: regs } = await supabase
     .from('registros_trabajo')
     .select('proyecto_id, inicio, fin, centro')
     .not('fin', 'is', null)
     .or('eliminada.is.null,eliminada.eq.false')
-    .gte('inicio', desde + 'T00:00:00')
-    .lt('inicio', hasta + 'T24:00:00');
+    .gte('inicio', desde)
+    .lt('inicio', hasta);
 
   const EXCLUIR = new Set(['descanso','reunion','compras','coordinacion','presu']);
   const filtrados = (regs || []).filter(r => r.proyecto_id && !EXCLUIR.has(r.centro));
@@ -1403,7 +1495,7 @@ async function accionLeanCocinaWip(req, res) {
 
   for (const r of filtrados) {
     const p = proyEstados[r.proyecto_id];
-    if (!p) continue; // skip registros without matching project
+    if (!p) continue;
     const dur = (new Date(r.fin) - new Date(r.inicio)) / 3600000;
     if (dur <= 0) continue;
     if (p.estado === 'terminado') {
@@ -1416,8 +1508,8 @@ async function accionLeanCocinaWip(req, res) {
 
   return ok(res, {
     periodo, desde, hasta,
-    hs_curso: round1(hs_curso),
-    hs_cerrados: round1(hs_cerrados),
+    hs_curso: Math.round(hs_curso),
+    hs_cerrados: Math.round(hs_cerrados),
     proyectos_curso: proyCurso.size,
   });
 }
@@ -1880,6 +1972,7 @@ export default async function handler(req, res) {
     if (action === 'costos-flujo')               return await accionCostosFlujo(req, res);
     if (action === 'throughput-mensual')          return await accionThroughputMensual(req, res);
     if (action === 'lean-carga-etapa')           return await accionLeanCargaEtapa(req, res);
+    if (action === 'lean-carga-etapa-detalle')   return await accionLeanCargaEtapaDetalle(req, res);
     if (action === 'lean-cocina-wip')            return await accionLeanCocinaWip(req, res);
     if (action === 'lean-cnc-dia')               return await accionLeanCncDia(req, res);
     if (action === 'lean-compras-serie')         return await accionLeanComprasSerie(req, res);
