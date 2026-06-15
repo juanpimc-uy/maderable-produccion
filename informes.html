@@ -383,6 +383,18 @@ let billerBusqueda = '';
 let billerSortDir = 'desc'; // 'asc' | 'desc'
 const _bSt = () => window.AUTH.getSessionToken();
 
+// ── Lean state (must be before any render call) ─────────────────────────
+let _leanPeriodo = 'mes';
+let _leanYm = '';
+let _leanUnidad = 'placas';
+const _lf = n => n != null ? Math.round(n).toLocaleString('es-UY') : '—';
+const _lfD = n => n != null ? n.toLocaleString('es-UY', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—';
+const _leanAuth = () => ({ headers: { Authorization: 'Bearer ' + seccionToken } });
+const _leanPQ = () => _leanPeriodo === 'elegir' ? `periodo=elegir&ym=${_leanYm}` : `periodo=${_leanPeriodo}`;
+const ETAPA_LABEL = { sin_iniciar:'Sin iniciar', shop_drawing:'Shop Drawing', modelado:'Modelado', cam:'CAM', corte:'Corte', enchapado:'Enchapado', armado:'Armado', colocacion:'Colocación' };
+const ETAPA_COLOR = { sin_iniciar:'#565656', shop_drawing:'#4f7fff', modelado:'#4f7fff', cam:'#4f7fff', corte:'#8a8a3a', enchapado:'#8a8a3a', armado:'#8a8a3a', colocacion:'#8a8a3a' };
+const ETAPA_GRUPO = { sin_iniciar:'pre', shop_drawing:'oficina', modelado:'oficina', cam:'oficina', corte:'planta', enchapado:'planta', armado:'planta', colocacion:'planta' };
+
 // ── AUTH CHECK ──────────────────────────────────────────────────────────
 (function() {
   if (!window.AUTH || !window.AUTH.esAdmin()) {
@@ -999,17 +1011,6 @@ async function _syncPreciosMuebles(dry) {
 }
 
 // ── INDICADORES LEAN ─────────────────────────────────────────────────────
-let _leanPeriodo = 'mes';
-let _leanYm = '';
-let _leanUnidad = 'placas';
-const _lf = n => n != null ? Math.round(n).toLocaleString('es-UY') : '—';
-const _lfD = n => n != null ? n.toLocaleString('es-UY', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—';
-const _leanAuth = () => ({ headers: { Authorization: 'Bearer ' + seccionToken } });
-const _leanPQ = () => _leanPeriodo === 'elegir' ? `periodo=elegir&ym=${_leanYm}` : `periodo=${_leanPeriodo}`;
-
-const ETAPA_LABEL = { sin_iniciar:'Sin iniciar', shop_drawing:'Shop Drawing', modelado:'Modelado', cam:'CAM', corte:'Corte', enchapado:'Enchapado', armado:'Armado', colocacion:'Colocación' };
-const ETAPA_COLOR = { sin_iniciar:'#565656', shop_drawing:'#4f7fff', modelado:'#4f7fff', cam:'#4f7fff', corte:'#8a8a3a', enchapado:'#8a8a3a', armado:'#8a8a3a', colocacion:'#8a8a3a' };
-const ETAPA_GRUPO = { sin_iniciar:'pre', shop_drawing:'oficina', modelado:'oficina', cam:'oficina', corte:'planta', enchapado:'planta', armado:'planta', colocacion:'planta' };
 
 function _renderLeanView() {
   const lv = document.getElementById('leanView');
