@@ -602,23 +602,26 @@ function _colapsarGrupos(list) {
   const noAgrupados = list.filter(p => !agrupados.has(p.id));
   const filasSinteticas = [];
   for (const g of _gruposInf) {
+    // Visibilidad: aparece si al menos un miembro pasa el filtro
     const miembrosEnLista = list.filter(p => (g.miembros || []).some(m => m.id === p.id));
     if (!miembrosEnLista.length) continue;
-    const horas_reales_hs = miembrosEnLista.reduce((a, p) => a + (p.horas_reales_hs || 0), 0);
-    const horas_estimadas_hs = miembrosEnLista.reduce((a, p) => a + (p.horas_estimadas_hs || 0), 0);
-    const total_materiales_usd = miembrosEnLista.reduce((a, p) => a + (p.total_materiales_usd || 0), 0);
-    const total_tercerizados_usd = miembrosEnLista.reduce((a, p) => a + (p.total_tercerizados_usd || 0), 0);
-    const total_oc_usd = miembrosEnLista.reduce((a, p) => a + (p.total_oc_usd || 0), 0);
-    const precio_venta_usd = miembrosEnLista.reduce((a, p) => a + (p.precio_venta_usd || 0), 0);
-    const saldo_cobranza_usd = miembrosEnLista.reduce((a, p) => a + (p.saldo_cobranza_usd || 0), 0);
-    const total_invertido_usd = miembrosEnLista.reduce((a, p) => a + (p.total_invertido_usd || 0), 0);
-    const _factGrupo = miembrosEnLista.reduce((a, p) => a + (facturacionMap[p.id] || 0), 0);
+    // Suma: SIEMPRE todos los miembros (desde proyectosData sin filtrar)
+    const miembrosFull = proyectosData.filter(p => (g.miembros || []).some(m => m.id === p.id));
+    const horas_reales_hs = miembrosFull.reduce((a, p) => a + (p.horas_reales_hs || 0), 0);
+    const horas_estimadas_hs = miembrosFull.reduce((a, p) => a + (p.horas_estimadas_hs || 0), 0);
+    const total_materiales_usd = miembrosFull.reduce((a, p) => a + (p.total_materiales_usd || 0), 0);
+    const total_tercerizados_usd = miembrosFull.reduce((a, p) => a + (p.total_tercerizados_usd || 0), 0);
+    const total_oc_usd = miembrosFull.reduce((a, p) => a + (p.total_oc_usd || 0), 0);
+    const precio_venta_usd = miembrosFull.reduce((a, p) => a + (p.precio_venta_usd || 0), 0);
+    const saldo_cobranza_usd = miembrosFull.reduce((a, p) => a + (p.saldo_cobranza_usd || 0), 0);
+    const total_invertido_usd = miembrosFull.reduce((a, p) => a + (p.total_invertido_usd || 0), 0);
+    const _factGrupo = miembrosFull.reduce((a, p) => a + (facturacionMap[p.id] || 0), 0);
     const margen_pct = precio_venta_usd > 0 ? Math.round((precio_venta_usd - total_invertido_usd) / precio_venta_usd * 1000) / 10 : null;
-    const todosTerminados = miembrosEnLista.every(p => p.estado === 'terminado');
+    const todosTerminados = miembrosFull.every(p => p.estado === 'terminado');
     filasSinteticas.push({
-      _isGrupo: true, _grupoId: g.id, _miembrosIds: miembrosEnLista.map(p => p.id),
-      id: 'grp-' + g.id, nombre: g.nombre, numero: '⛓ ' + miembrosEnLista.length + ' ODF',
-      cliente_nombre: miembrosEnLista[0].cliente_nombre,
+      _isGrupo: true, _grupoId: g.id, _miembrosIds: miembrosFull.map(p => p.id),
+      id: 'grp-' + g.id, nombre: g.nombre, numero: '⛓ ' + miembrosFull.length + ' ODF',
+      cliente_nombre: miembrosFull[0].cliente_nombre,
       horas_reales_hs, horas_estimadas_hs, total_materiales_usd, total_tercerizados_usd,
       total_oc_usd, precio_venta_usd, saldo_cobranza_usd, total_invertido_usd,
       margen_pct, _factUsdGrupo: _factGrupo,
