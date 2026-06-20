@@ -2106,16 +2106,26 @@ async function _prCrearGrupo() {
   } catch(e) { alert('Error: ' + e.message); }
 }
 
-async function abrirDetalleGrupo(grupoId) {
+function abrirDetalleGrupo(grupoId) {
+  renderDetalleGrupo(grupoId, 'ítems');
+}
+
+let _grpDetalleId = null, _grpDetalleSub = 'ítems';
+let _pinCostosGrupoId = null;
+
+async function renderDetalleGrupo(grupoId, sub) {
   clearTimers();
   const grupo = GRUPOS.find(g => g.id === grupoId);
   if (!grupo) return;
+  _grpDetalleId = grupoId;
+  _grpDetalleSub = sub;
   document.getElementById('pr-lista').style.display = 'none';
   const det = document.getElementById('pr-detalle');
   det.style.display = 'block';
 
   const miembros = PROYECTOS.filter(p => (grupo.miembros || []).some(m => m.id === p.id));
   const u = window.AUTH.usuarioActual();
+  const SUBS = ['ítems', 'materiales', 'miembros', ...(u?.rol_app === 'admin' ? ['costos'] : [])];
 
   let html = `
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
@@ -2124,79 +2134,172 @@ async function abrirDetalleGrupo(grupoId) {
         <div style="font-size:11px;color:var(--amber);font-family:'JetBrains Mono',monospace;margin-bottom:4px;">⛓ GRUPO · ${miembros.length} ODF</div>
         <div style="font-size:22px;font-weight:700;">${grupo.nombre}</div>
       </div>
-      <button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="_grpEliminar('${grupoId}')">Desagrupar</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-      <div>
-        <div class="sec-title">Miembros</div>
-        ${miembros.map(m => {
-          const pct = hEstPr(m) > 0 ? Math.round(hAcumPr(m.id) / hEstPr(m) * 100) : 0;
-          return `<div style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;">
-            <div style="flex:1;cursor:pointer;" onclick="abrirDetallePr('${m.id}')">
-              <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--amber);">${m.numero}</span>
-              <span style="font-size:12px;color:#ccc;margin-left:6px;">${m.nombre}</span>
-              <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-left:8px;">${pct}%</span>
-            </div>
-            <button onclick="_grpQuitarMiembro('${grupoId}','${m.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;" title="Quitar del grupo">✕</button>
-          </div>`;
-        }).join('')}
-        <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px;" onclick="_grpAgregarMiembro('${grupoId}')">+ AGREGAR ODF</button>
-      </div>
-      <div id="grp-costos-panel">
-        <div class="sec-title">Costos del Paquete</div>
-        <div style="color:var(--muted);font-size:11px;">Cargando costos...</div>
-      </div>
+    <div class="sub-tabs">
+      ${SUBS.map(s => `<button class="sub-tab ${sub === s ? 'active' : ''}" onclick="renderDetalleGrupo('${grupoId}','${s}')">${s}</button>`).join('')}
     </div>`;
 
-  det.innerHTML = html;
+  // ── ÍTEMS ──
+  if (sub === 'ítems') {
+    html += `<div style="display:flex;flex-direction:column;gap:16px;">`;
+    for (const m of miembros) {
+      const items = m.muebles || m.items || [];
+      html += `<div>
+        <div style="cursor:pointer;padding:8px 12px;background:var(--panel);border:1px solid var(--border);border-radius:6px 6px 0 0;display:flex;align-items:center;gap:8px;" onclick="abrirDetallePr('${m.id}')">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--amber);font-weight:700;">${m.numero}</span>
+          <span style="font-size:12px;color:#ccc;">${m.nombre}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-left:auto;">${items.length} ítems</span>
+        </div>
+        <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;padding:8px 12px;">`;
+      if (items.length) {
+        for (const it of items) {
+          const hA2 = hAcumIt(m.id, it.id);
+          const hEst = it.hEst || Object.values(it.horas || {}).reduce((a, v) => a + Number(v || 0), 0) * (it.cant || 1);
+          const pctIt = hEst > 0 ? Math.min(100, Math.round(hA2 / hEst * 100)) : 0;
+          html += `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--faint);">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--amber);width:50px;">${it.codigo || '—'}</span>
+            <span style="font-size:11px;flex:1;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.nombre || '—'}</span>
+            <div style="width:60px;height:4px;background:var(--faint);border-radius:2px;overflow:hidden;"><div style="height:100%;width:${pctIt}%;background:var(--amber);border-radius:2px;"></div></div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);width:35px;text-align:right;">${pctIt}%</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${it.completado ? 'var(--green)' : 'var(--muted)'};">${it.completado ? '✓' : ''}</span>
+          </div>`;
+        }
+      } else {
+        html += `<div style="color:var(--muted);font-size:11px;padding:8px 0;">Sin ítems</div>`;
+      }
+      html += `</div></div>`;
+    }
+    html += `</div>`;
+    det.innerHTML = html;
+    return;
+  }
 
-  // Load costos
+  // ── MATERIALES ──
+  if (sub === 'materiales') {
+    html += `<div id="grp-mat-panel" style="min-height:100px;"><div style="color:var(--muted);font-size:11px;">Cargando materiales...</div></div>`;
+    det.innerHTML = html;
+    const matPanel = document.getElementById('grp-mat-panel');
+    let matHtml = '';
+    for (const m of miembros) {
+      matHtml += `<div style="margin-bottom:16px;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--amber);font-weight:700;margin-bottom:6px;">${m.numero} — ${m.nombre}</div>
+        <div id="grp-mat-${m.id}"><div style="color:var(--muted);font-size:10px;">Cargando...</div></div>
+      </div>`;
+    }
+    matPanel.innerHTML = matHtml;
+    // Fetch materiales for each member
+    for (const m of miembros) {
+      try {
+        const res = await fetch(`/api/tiempos?action=materiales-proyecto&proyecto_id=${encodeURIComponent(m.id)}`);
+        const data = await res.json();
+        const el = document.getElementById(`grp-mat-${m.id}`);
+        if (!el) continue;
+        if (!data.ok || !(data.materiales || []).length) { el.innerHTML = '<div style="color:var(--muted);font-size:10px;">Sin materiales</div>'; continue; }
+        el.innerHTML = data.materiales.map(so => `<div style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:8px 12px;margin-bottom:4px;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--amber);">${so.so_numero} <span style="color:var(--muted);">· ${so.mueble || ''}</span></div>
+          ${(so.lineas || []).map(l => `<div style="display:flex;gap:8px;padding:3px 0;font-size:11px;color:#ccc;border-bottom:1px solid var(--faint);">
+            <span style="flex:1;">${l.nombre || '—'}</span><span class="mono" style="color:var(--muted);">×${l.cantidad} ${l.unidad || ''}</span>
+          </div>`).join('') || '<div style="color:var(--muted);font-size:10px;">Sin líneas</div>'}
+        </div>`).join('');
+      } catch(e) {
+        const el = document.getElementById(`grp-mat-${m.id}`);
+        if (el) el.innerHTML = `<div style="color:var(--red);font-size:10px;">Error</div>`;
+      }
+    }
+    return;
+  }
+
+  // ── MIEMBROS ──
+  if (sub === 'miembros') {
+    html += `<div>
+      ${miembros.map(m => {
+        const pct = hEstPr(m) > 0 ? Math.round(hAcumPr(m.id) / hEstPr(m) * 100) : 0;
+        return `<div style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;cursor:pointer;" onclick="abrirDetallePr('${m.id}')">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--amber);">${m.numero}</span>
+            <span style="font-size:12px;color:#ccc;margin-left:6px;">${m.nombre}</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-left:8px;">${pct}%</span>
+          </div>
+          <button onclick="_grpQuitarMiembro('${grupoId}','${m.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;" title="Quitar del grupo">✕</button>
+        </div>`;
+      }).join('')}
+      <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px;" onclick="_grpAgregarMiembro('${grupoId}')">+ AGREGAR ODF</button>
+      <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px;color:var(--red);" onclick="_grpEliminar('${grupoId}')">Desagrupar</button>
+    </div>`;
+    det.innerHTML = html;
+    return;
+  }
+
+  // ── COSTOS (gateado por PIN) ──
+  if (sub === 'costos') {
+    html += `<div class="card" id="costos-pr-panel" style="position:relative;min-height:200px;">
+      <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:2px;margin-bottom:16px;">CARGANDO COSTOS…</div>
+    </div>`;
+    det.innerHTML = html;
+    if (window._seccionToken && Date.now() < (window._seccionTokenExp || 0)) {
+      _renderCostosGrupo(grupoId);
+    } else {
+      _pinCostosGrupoId = grupoId;
+      _mostrarPinCostos(grupoId);
+    }
+    return;
+  }
+
+  det.innerHTML = html;
+}
+
+async function _renderCostosGrupo(grupoId) {
+  const panel = document.getElementById('costos-pr-panel');
+  if (!panel) return;
+  const u = window.AUTH.usuarioActual();
   try {
     const res = await fetch(`/api/tiempos?action=costos-grupo&grupo_id=${grupoId}&admin_id=${u.id}`);
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Error');
-    const panel = document.getElementById('grp-costos-panel');
-    if (!panel) return;
     const fmtUSD = n => n != null ? `$${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
     const fmtH2 = h => `${Number(h).toFixed(1)}h`;
     const catLabel = {directo:'Directo',indirecto:'Indirecto',tecnico:'Técnico',administrativo:'Administrativo'};
     const mo = data.mano_obra;
     const margen = data.venta_total_usd > 0 ? Math.round((data.venta_total_usd - data.total_proyecto_usd) / data.venta_total_usd * 100) : null;
+    const moRows = mo.por_categoria.length
+      ? mo.por_categoria.map(r => `<tr>
+          <td style="font-size:12px;">${catLabel[r.categoria]||r.categoria}</td>
+          <td class="mono" style="text-align:right;">${fmtH2(r.horas)}</td>
+          <td class="mono" style="text-align:right;color:var(--muted);">${fmtUSD(r.tarifa_usd)}</td>
+          <td class="mono" style="text-align:right;font-weight:600;">${fmtUSD(r.subtotal_usd)}</td>
+        </tr>`).join('')
+      : `<tr><td colspan="4" style="color:var(--muted);font-size:12px;padding:8px 0;">Sin registros de trabajo</td></tr>`;
     panel.innerHTML = `
-      <div class="sec-title">Costos del Paquete</div>
-      <div style="display:flex;gap:16px;margin-bottom:16px;">
-        <div style="flex:1;background:#111;border-radius:6px;padding:10px;text-align:center;">
-          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;">Venta</div>
-          <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--amber);">${fmtUSD(data.venta_total_usd)}</div>
-        </div>
-        <div style="flex:1;background:#111;border-radius:6px;padding:10px;text-align:center;">
-          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;">Costo</div>
-          <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;">${fmtUSD(data.total_proyecto_usd)}</div>
-        </div>
-        <div style="flex:1;background:#111;border-radius:6px;padding:10px;text-align:center;">
-          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;">Margen</div>
-          <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:${margen != null && margen >= 0 ? 'var(--green)' : 'var(--red)'};">${margen != null ? margen + '%' : '—'}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div class="sec-title" style="margin:0;">Costos del Grupo (USD)</div>
+        <div style="display:flex;align-items:baseline;gap:8px;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#666;text-transform:uppercase;">TOTAL</span>
+          <span class="mono" style="font-size:18px;font-weight:700;color:#FFD600;">${fmtUSD(data.total_proyecto_usd)}</span>
         </div>
       </div>
-      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;">MO ${fmtUSD(mo.total_usd)} · Mat ${fmtUSD(data.materiales.total_usd)} · CD ${fmtUSD(data.costos_directos.total_usd)} · Terc ${fmtUSD(data.tercerizados.total_usd)}</div>
-      <table style="width:100%;border-collapse:collapse;font-size:11px;">
-        <thead><tr style="border-bottom:1px solid var(--border);">
-          <th style="text-align:left;padding:4px 0;color:var(--muted);font-size:9px;">Categoría</th>
-          <th style="text-align:right;padding:4px 0;color:var(--muted);font-size:9px;">Horas</th>
-          <th style="text-align:right;padding:4px 0;color:var(--muted);font-size:9px;">$/h</th>
-          <th style="text-align:right;padding:4px 0;color:var(--muted);font-size:9px;">Subtotal</th>
-        </tr></thead>
-        <tbody>${mo.por_categoria.map(r => `<tr>
-          <td style="padding:3px 0;">${catLabel[r.categoria]||r.categoria}</td>
-          <td style="text-align:right;padding:3px 0;" class="mono">${fmtH2(r.horas)}</td>
-          <td style="text-align:right;padding:3px 0;color:var(--muted);" class="mono">${fmtUSD(r.tarifa_usd)}</td>
-          <td style="text-align:right;padding:3px 0;font-weight:600;" class="mono">${fmtUSD(r.subtotal_usd)}</td>
-        </tr>`).join('') || '<tr><td colspan="4" style="color:var(--muted);padding:8px 0;">Sin MO</td></tr>'}</tbody>
+      <div style="display:flex;gap:12px;margin-bottom:16px;">
+        <div style="flex:1;background:#111;border-radius:6px;padding:10px;text-align:center;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;">Venta</div>
+          <div class="mono" style="font-size:16px;font-weight:700;color:var(--amber);">${fmtUSD(data.venta_total_usd)}</div>
+        </div>
+        <div style="flex:1;background:#111;border-radius:6px;padding:10px;text-align:center;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;">Margen</div>
+          <div class="mono" style="font-size:16px;font-weight:700;color:${margen != null && margen >= 0 ? 'var(--green)' : 'var(--red)'};">${margen != null ? margen + '%' : '—'}</div>
+        </div>
+        <div style="flex:1;background:#111;border-radius:6px;padding:10px;text-align:center;">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;">Saldo</div>
+          <div class="mono" style="font-size:16px;font-weight:700;">${fmtUSD(data.saldo_total_usd)}</div>
+        </div>
+      </div>
+      <div class="sec-title" style="font-size:10px;margin-bottom:8px;">MANO DE OBRA</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr><th style="text-align:left;font-size:11px;color:var(--muted);padding:6px 0;">Categoría</th><th style="text-align:right;font-size:11px;color:var(--muted);">Horas</th><th style="text-align:right;font-size:11px;color:var(--muted);">$/h</th><th style="text-align:right;font-size:11px;color:var(--muted);">Subtotal</th></tr></thead>
+        <tbody>${moRows}</tbody>
+        <tfoot><tr style="border-top:1px solid var(--border);"><td colspan="2" style="font-size:12px;color:var(--muted);padding:8px 0;font-family:'JetBrains Mono',monospace;">TOTAL MO</td><td></td><td class="mono" style="text-align:right;font-size:14px;font-weight:700;">${fmtUSD(mo.total_usd)}</td></tr></tfoot>
       </table>
-      ${data.saldo_total_usd != null ? `<div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:10px;">Saldo cobranza: ${fmtUSD(data.saldo_total_usd)}</div>` : ''}`;
+      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-top:12px;">Mat ${fmtUSD(data.materiales.total_usd)} · CD ${fmtUSD(data.costos_directos.total_usd)} · Terc ${fmtUSD(data.tercerizados.total_usd)}</div>`;
   } catch(e) {
-    const panel = document.getElementById('grp-costos-panel');
-    if (panel) panel.innerHTML = `<div style="color:var(--red);font-size:11px;">Error: ${e.message}</div>`;
+    panel.innerHTML = `<div style="color:var(--red);font-size:11px;">Error: ${e.message}</div>`;
   }
 }
 
@@ -2624,7 +2727,7 @@ async function renderDetallePr(pr, sub) {
       <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:2px;margin-bottom:16px;">CARGANDO COSTOS…</div>
     </div>`;
     document.getElementById('pr-detalle').innerHTML = html;
-    // Verificar PIN de sección antes de mostrar costos
+    _pinCostosGrupoId = null; // ensure group flag is clear for ODF costos
     if (window._seccionToken && Date.now() < (window._seccionTokenExp || 0)) {
       _renderCostosPr(pr.id);
     } else {
@@ -6771,7 +6874,12 @@ async function _submitPinCostos() {
       window._seccionTokenExp = Date.now() + (data.expires_in * 1000);
       const overlay = document.getElementById('pin-costos-overlay');
       if (overlay) overlay.remove();
-      _renderCostosPr(_pinCostosPrId);
+      if (_pinCostosGrupoId) {
+        _renderCostosGrupo(_pinCostosGrupoId);
+        _pinCostosGrupoId = null;
+      } else {
+        _renderCostosPr(_pinCostosPrId);
+      }
     } else {
       if (msg) msg.textContent = data.msg || 'PIN incorrecto';
       _pinCostosBuffer = '';
