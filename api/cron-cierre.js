@@ -1,6 +1,7 @@
 // api/cron-cierre.js
-// Cron nocturno: cierra sesiones huérfanas (registros_trabajo con fin IS NULL)
-// de días anteriores, seteando fin = 18:00 UY del día que empezó.
+// Cron nocturno: marca sesiones huérfanas (registros_trabajo con fin IS NULL)
+// de días anteriores como pendientes (anomalia=true, estado='pausado'),
+// dejándolas abiertas (fin null) para resolución manual.
 //
 // Protegido con CRON_SECRET en env vars de Vercel.
 // Schedule: 30 2 * * * (02:30 UTC = 23:30 UY)
@@ -45,33 +46,24 @@ export default async function handler(req) {
 
     if (qErr) throw qErr;
     if (!huerfanas || huerfanas.length === 0) {
-      return new Response(JSON.stringify({ ok: true, cerradas: 0 }), { status: 200, headers: CORS });
+      return new Response(JSON.stringify({ ok: true, marcadas: 0 }), { status: 200, headers: CORS });
     }
 
-    let cerradas = 0;
+    let marcadas = 0;
     for (const reg of huerfanas) {
-      // fin = 18:00 UY del día que empezó la sesión
-      const inicioDate = new Date(reg.inicio);
-      // Convertir a fecha UY
-      const inicioUY = new Date(inicioDate.getTime() - 3 * 60 * 60 * 1000);
-      const fechaStr = inicioUY.toISOString().split('T')[0]; // YYYY-MM-DD en UY
-      // 18:00 UY = 21:00 UTC
-      const finISO = fechaStr + 'T21:00:00.000Z';
-
       const { error: uErr } = await supabase
         .from('registros_trabajo')
         .update({
-          fin: finISO,
           estado: 'pausado',
           anomalia: true,
           anomalia_aprobada: null,
         })
         .eq('id', reg.id);
 
-      if (!uErr) cerradas++;
+      if (!uErr) marcadas++;
     }
 
-    return new Response(JSON.stringify({ ok: true, cerradas }), { status: 200, headers: CORS });
+    return new Response(JSON.stringify({ ok: true, marcadas }), { status: 200, headers: CORS });
   } catch (e) {
     return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: CORS });
   }
