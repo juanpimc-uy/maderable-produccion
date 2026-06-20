@@ -973,7 +973,7 @@ export default async function handler(req) {
     // ── GET jornada de hoy para un empleado ──────────────────────────────
     if (action === 'jornada-hoy' && req.method === 'GET') {
       const empleado_id = url.searchParams.get('empleado_id');
-      const hoy = new Date().toISOString().split('T')[0];
+      const hoy = hoyUY();
       const { data } = await supabase
         .from('jornadas').select('*').eq('empleado_id', empleado_id).eq('fecha', hoy).maybeSingle();
       return ok({ jornada: data });
@@ -1036,7 +1036,7 @@ export default async function handler(req) {
 
     // ── GET dashboard tiempo real ─────────────────────────────────────────
     if (action === 'dashboard-live' && req.method === 'GET') {
-      const hoy = new Date().toISOString().split('T')[0];
+      const hoy = hoyUY();
       const [{ data: jornadas }, { data: activos }, { data: todos }, { data: cnc_activo }] = await Promise.all([
         supabase.from('jornadas').select('*, empleados(id,nombre,categoria,centros_autorizados,horario_entrada)').eq('fecha', hoy),
         supabase.from('registros_trabajo').select('*').eq('estado', 'activo'),
@@ -1049,7 +1049,7 @@ export default async function handler(req) {
     // ── GET dashboard-snapshot (U1.B — vista completa para admin) ────────────
     if (action === 'dashboard-snapshot' && req.method === 'GET') {
       const ahora = new Date();
-      const hoy = ahora.toISOString().split('T')[0];
+      const hoy = hoyUY();
       const UMBRAL_SIN_SENAL_MIN = 15;
 
       // 1. Pull paralelo: empleados activos + jornadas hoy + registros activos + catálogo centros
@@ -1270,7 +1270,7 @@ export default async function handler(req) {
       if (!empleado_id) return err('empleado_id requerido', 400);
 
       const ahora = new Date();
-      const hoy   = ahora.toISOString().split('T')[0];
+      const hoy   = hoyUY();
 
       // 1. Pull paralelo: jornada hoy + registro activo del empleado + proyectos activos
       //    + registros activos globales + nombres de empleados
@@ -1434,9 +1434,9 @@ export default async function handler(req) {
     // ── GET registros de trabajo de un empleado hoy ───────────────────────
     if (action === 'registros-hoy' && req.method === 'GET') {
       const empleado_id = url.searchParams.get('empleado_id');
-      const hoy = new Date().toISOString().split('T')[0];
+      const hoy = hoyUY();
       const { data } = await supabase.from('registros_trabajo').select('*')
-        .eq('empleado_id', empleado_id).gte('inicio', hoy).order('inicio', { ascending: false });
+        .eq('empleado_id', empleado_id).gte('inicio', hoy + 'T00:00:00-03:00').order('inicio', { ascending: false });
       return ok({ registros: data });
     }
 
@@ -2257,7 +2257,7 @@ export default async function handler(req) {
     if (action === 'jornadas-abiertas-anteriores' && req.method === 'GET') {
       const empleado_id = url.searchParams.get('empleado_id');
       if (!empleado_id) return err('empleado_id requerido', 400);
-      const hoy = new Date().toISOString().split('T')[0];
+      const hoy = hoyUY();
       const { data: jornadasHuerfanas, error: jHErr } = await supabase
         .from('jornadas')
         .select('id, fecha, entrada')
@@ -3048,7 +3048,7 @@ export default async function handler(req) {
       if (!empleado_id) return err('empleado_id requerido', 400);
 
       const fechaParam = url.searchParams.get('fecha');
-      const hoy = new Date().toISOString().split('T')[0];
+      const hoy = hoyUY();
       const fecha = fechaParam || hoy;
       const esHoy = fecha === hoy;
       const ahora = new Date();
