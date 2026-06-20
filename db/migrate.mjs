@@ -57,10 +57,15 @@ async function ensureTable(client) {
 }
 
 async function getApplied(client) {
-  const { rows } = await client.query(
-    'SELECT version, checksum FROM public.schema_migrations ORDER BY version'
-  );
-  return new Map(rows.map((r) => [r.version, r.checksum]));
+  try {
+    const { rows } = await client.query(
+      'SELECT version, checksum FROM public.schema_migrations ORDER BY version'
+    );
+    return new Map(rows.map((r) => [r.version, r.checksum]));
+  } catch (e) {
+    if (e.code === '42P01') return new Map(); // la tabla aún no existe → 0 aplicadas
+    throw e;
+  }
 }
 
 async function main() {
@@ -73,7 +78,7 @@ async function main() {
   const client = new pg.Client({ connectionString, ssl: { rejectUnauthorized: false } });
   await client.connect();
   try {
-    await ensureTable(client);
+    if (cmd === 'up') await ensureTable(client); // status NO escribe nada (solo lectura)
     const applied = await getApplied(client);
     const files = migrationFiles();
 
