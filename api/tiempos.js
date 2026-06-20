@@ -486,7 +486,19 @@ async function _iniciarTareaImpl(sb, {
     }
   }
 
-  // 5. Cerrar registro activo anterior como 'pausado'
+  // 5. Guard: bloquear si el mueble está completado (antes de cualquier mutación)
+  if (!es_descanso && item_id && proyecto_id) {
+    const { data: ultEvento } = await sb.from('items_completado_log')
+      .select('evento')
+      .eq('proyecto_id', proyecto_id).eq('item_id', item_id)
+      .order('creado_at', { ascending: false })
+      .limit(1).maybeSingle();
+    if (ultEvento && ultEvento.evento === 'completado') {
+      throw new ApiError('Mueble completado. Reabrir antes de fichar horas.', 400);
+    }
+  }
+
+  // 6. Cerrar registro activo anterior como 'pausado'
   // Si era un descanso, _finalizarTareaImpl acumula sus minutos en jornadas.descanso_minutos
   const { data: activoPrev } = await sb.from('registros_trabajo')
     .select('id').eq('empleado_id', empleado_id).eq('estado', 'activo').maybeSingle();
@@ -498,7 +510,7 @@ async function _iniciarTareaImpl(sb, {
     });
   }
 
-  // 6. Insertar nuevo registro
+  // 7. Insertar nuevo registro
   // item_id se persiste siempre que venga informado y no sea descanso
   const persistirItem = !es_descanso && (item_id != null);
   const { data, error } = await sb.from('registros_trabajo')
