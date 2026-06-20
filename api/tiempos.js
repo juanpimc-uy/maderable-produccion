@@ -577,13 +577,22 @@ async function _iniciarTareaImpl(sb, {
   // 6. Cerrar registro activo anterior como 'pausado'
   // Si era un descanso, _finalizarTareaImpl acumula sus minutos en jornadas.descanso_minutos
   const { data: activoPrev } = await sb.from('registros_trabajo')
-    .select('id').eq('empleado_id', empleado_id).eq('estado', 'activo').maybeSingle();
+    .select('id, inicio').eq('empleado_id', empleado_id).eq('estado', 'activo').maybeSingle();
   if (activoPrev) {
-    await _finalizarTareaImpl(sb, {
-      empleado_id,
-      registro_id: activoPrev.id,
-      estado_final: 'pausado',
-    });
+    const inicioUYdate = new Date(activoPrev.inicio)
+      .toLocaleDateString('en-CA', { timeZone: 'America/Montevideo' });
+    if (inicioUYdate < hoy) {
+      // Tarea previa de un día anterior: NO fabricar fin, marcar pendiente (igual que el cron)
+      await sb.from('registros_trabajo')
+        .update({ estado: 'pausado', anomalia: true, anomalia_aprobada: null })
+        .eq('id', activoPrev.id);
+    } else {
+      await _finalizarTareaImpl(sb, {
+        empleado_id,
+        registro_id: activoPrev.id,
+        estado_final: 'pausado',
+      });
+    }
   }
 
   // 7. Insertar nuevo registro
