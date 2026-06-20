@@ -2306,6 +2306,21 @@ export default async function handler(req) {
       return ok({ ok: true, jornadas: jornadasConMeta });
     }
 
+    // ── GET pendientes de tiempos (panel admin) ──────────────────────────
+    if (action === 'pendientes' && req.method === 'GET') {
+      const admin_id = url.searchParams.get('admin_id');
+      if (!admin_id) return err('admin_id requerido', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin') {
+        return new Response(JSON.stringify({ ok: false, error: 'No autorizado' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      const { data, error } = await supabase.rpc('tiempos_pendientes');
+      if (error) throw error;
+      return ok({ ok: true, ...data });
+    }
+
     // ── POST cerrar-jornada-huerfana ──────────────────────────────────────
     if (action === 'cerrar-jornada-huerfana' && req.method === 'POST') {
       const { empleado_id, jornada_id, modo, salida_manual } = body;
