@@ -2413,6 +2413,51 @@ export default async function handler(req) {
       return ok({ ok: true, jornada: data });
     }
 
+    // ── POST resolver-implausible (corregir o eliminar segmento/tarea >15h, admin) ──
+    if (action === 'resolver-implausible' && req.method === 'POST') {
+      const { admin_id, tipo, ref_id, accion, nuevo_fin } = body;
+      // tipo: 'segmento'|'tarea' · accion: 'corregir'|'eliminar' · nuevo_fin: ISO (solo corregir)
+      if (!admin_id || !tipo || !ref_id || !accion) return err('admin_id, tipo, ref_id y accion requeridos', 400);
+      if (!['segmento','tarea'].includes(tipo)) return err('tipo inválido', 400);
+      if (!['corregir','eliminar'].includes(accion)) return err('accion inválida', 400);
+      const { data: caller } = await supabase.from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin') return err('No autorizado', 403);
+
+      if (tipo === 'tarea') {
+        if (accion === 'eliminar') {
+          const { error } = await supabase.from('registros_trabajo').update({ eliminada: true }).eq('id', ref_id);
+          if (error) throw error;
+          return ok({ ok: true });
+        }
+        if (!nuevo_fin) return err('nuevo_fin requerido para corregir', 400);
+        const { data: r } = await supabase.from('registros_trabajo').select('inicio').eq('id', ref_id).maybeSingle();
+        if (!r) return err('Tarea no encontrada', 404);
+        if (new Date(nuevo_fin) <= new Date(r.inicio)) return err('El fin debe ser posterior al inicio', 400);
+        const { error } = await supabase.from('registros_trabajo').update({ fin: nuevo_fin, estado: 'finalizado' }).eq('id', ref_id);
+        if (error) throw error;
+        return ok({ ok: true });
+      }
+
+      // tipo === 'segmento'
+      const { data: seg } = await supabase.from('jornada_segmentos').select('id, entrada, jornada_id').eq('id', ref_id).maybeSingle();
+      if (!seg) return err('Segmento no encontrado', 404);
+      if (accion === 'corregir') {
+        if (!nuevo_fin) return err('nuevo_fin requerido para corregir', 400);
+        if (new Date(nuevo_fin) <= new Date(seg.entrada)) return err('La salida debe ser posterior a la entrada', 400);
+        await supabase.from('jornada_segmentos').update({ salida: nuevo_fin }).eq('id', ref_id);
+      } else {
+        await supabase.from('jornada_segmentos').delete().eq('id', ref_id);
+      }
+      const { data: segs } = await supabase.from('jornada_segmentos').select('entrada, salida').eq('jornada_id', seg.jornada_id);
+      const entradas = (segs || []).map(x => x.entrada).filter(Boolean).sort();
+      const salidas  = (segs || []).map(x => x.salida).filter(Boolean).sort();
+      await supabase.from('jornadas').update({
+        entrada: entradas[0] || null,
+        salida:  salidas.length ? salidas[salidas.length - 1] : null,
+      }).eq('id', seg.jornada_id);
+      return ok({ ok: true });
+    }
+
     // ── POST iniciar-tarea-v2 ─────────────────────────────────────────────
     if (action === 'iniciar-tarea-v2' && req.method === 'POST') {
       const { empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre, maquina } = body;
