@@ -391,9 +391,9 @@ const _lf = n => n != null ? Math.round(n).toLocaleString('es-UY') : '—';
 const _lfD = n => n != null ? n.toLocaleString('es-UY', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—';
 const _leanAuth = () => ({ headers: { Authorization: 'Bearer ' + seccionToken } });
 const _leanPQ = () => _leanPeriodo === 'elegir' ? `periodo=elegir&ym=${_leanYm}` : `periodo=${_leanPeriodo}`;
-const ETAPA_LABEL = { sin_iniciar:'Sin iniciar', shop_drawing:'Shop Drawing', modelado:'Modelado', cam:'CAM', corte:'Corte', enchapado:'Enchapado', armado:'Armado', colocacion:'Colocación' };
-const ETAPA_COLOR = { sin_iniciar:'#565656', shop_drawing:'#4f7fff', modelado:'#4f7fff', cam:'#4f7fff', corte:'#8a8a3a', enchapado:'#8a8a3a', armado:'#8a8a3a', colocacion:'#8a8a3a' };
-const ETAPA_GRUPO = { sin_iniciar:'pre', shop_drawing:'oficina', modelado:'oficina', cam:'oficina', corte:'planta', enchapado:'planta', armado:'planta', colocacion:'planta' };
+const ETAPA_LABEL = { sin_registro_propio:'Sin registro propio', shop_drawing:'Shop Drawing', modelado:'Modelado', cam:'CAM', corte:'Corte', enchapado:'Enchapado', armado:'Armado', colocacion:'Colocación', fuera:'Fuera / Despachado' };
+const ETAPA_COLOR = { sin_registro_propio:'#565656', shop_drawing:'#4f7fff', modelado:'#4f7fff', cam:'#4f7fff', corte:'#8a8a3a', enchapado:'#8a8a3a', armado:'#8a8a3a', colocacion:'#8a8a3a', fuera:'#2a6e4a' };
+const ETAPA_GRUPO = { sin_registro_propio:'pre', shop_drawing:'oficina', modelado:'oficina', cam:'oficina', corte:'planta', enchapado:'planta', armado:'planta', colocacion:'planta', fuera:'salida' };
 
 // ── AUTH CHECK ──────────────────────────────────────────────────────────
 (function() {
@@ -1090,29 +1090,33 @@ async function _cargarS1() {
       return `<div class="st${isCuello?' cuello':''}" style="cursor:pointer;" onclick="_leanDrillEtapa('${e.etapa}')">${cuelloTag}<div class="cnt" style="${marginTop}${cntStyle}">${val}</div><div class="pl"><b>${e.placas}</b>pl · ${_lfD(e.horas)}h</div><div class="bar${cutClass}" style="${barStyle}"></div><div class="lbl" style="${lblStyle}">${ETAPA_LABEL[e.etapa]}</div>${arrow}</div>`;
     }
 
-    const sinIniciar = etapas.find(e => e.etapa === 'sin_iniciar');
+    const sinRegistro = etapas.find(e => e.etapa === 'sin_registro_propio');
     const oficina = etapas.filter(e => ETAPA_GRUPO[e.etapa] === 'oficina');
     const planta = etapas.filter(e => ETAPA_GRUPO[e.etapa] === 'planta');
+    const salida = etapas.filter(e => ETAPA_GRUPO[e.etapa] === 'salida');
 
-    const backlogHtml = sinIniciar ? stHtml(sinIniciar, true) : '';
+    const backlogHtml = sinRegistro ? stHtml(sinRegistro, true) : '';
     const oficinaHtml = oficina.map((e, i) => stHtml(e, i < oficina.length - 1)).join('');
     const plantaHtml = planta.map((e, i) => stHtml(e, i < planta.length - 1)).join('');
+    const salidaHtml = salida.map(e => stHtml(e, false)).join('');
 
     el.innerHTML = `<div class="lean-card">
       <div class="lean-hdr">
         <div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;background:#FFD600;border-radius:2px;"></div><span class="lean-title">① Carga por etapa</span>
         <span style="font-family:'Space Mono',monospace;font-size:9px;color:#555;margin-left:8px;">${d.total_muebles} muebles en producción</span></div>
-        <div class="lean-toggle">${utb('muebles','Muebles')}${utb('placas','Placas')}${utb('horas','Horas')}</div>
+        <div class="lean-toggle">${utb('muebles','Muebles')}${utb('placas','Placas')}${utb('horas','Horas (est.)')}</div>
       </div>
       <div class="lean-body">
         <div style="display:flex;gap:6px;margin-bottom:12px;">
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:#4f7fff;">■ OFICINA</span>
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:#8a8a3a;">■ PLANTA</span>
+          <span style="font-family:'Space Mono',monospace;font-size:9px;color:#2a6e4a;">■ FUERA</span>
         </div>
         <div class="stages">
           <div class="grp backlog">${backlogHtml}</div>
           <div class="grp oficina">${oficinaHtml}</div>
           <div class="grp planta">${plantaHtml}</div>
+          ${salidaHtml ? `<div class="grp salida">${salidaHtml}</div>` : ''}
         </div>
       </div>
     </div>`;

@@ -1265,6 +1265,66 @@ async function accionThroughputMensual(req, res) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// ── Shared: clasificar mueble en etapa ───────────────────────────────────
+const ETAPAS_ORDEN = ['sin_registro_propio','shop_drawing','modelado','cam','corte','enchapado','armado','colocacion','fuera'];
+
+function clasificarMueble(proyecto_id, mueble_id, projLast, muebleLast, despachadosSet) {
+  if (despachadosSet.has(proyecto_id + '|' + mueble_id)) return 'fuera';
+  const plCentro = projLast[proyecto_id];
+  if (plCentro === 'colocacion') return 'colocacion';
+  const mlCentro = muebleLast[proyecto_id + '|' + mueble_id];
+  if (mlCentro && ['shop_drawing', 'obra'].includes(mlCentro)) return 'shop_drawing';
+  if (mlCentro && ['armado', 'macizo', 'electrica', 'herreria'].includes(mlCentro)) return 'armado';
+  if (mlCentro) return ETAPAS_ORDEN.includes(mlCentro) ? mlCentro : 'sin_registro_propio';
+  return 'sin_registro_propio';
+}
+
+// ── Shared: queries de último centro + despachos ─────────────────────────
+const CENTROS_PROYECTO = ['shop_drawing','obra','modelado','cam','corte','enchapado','armado','macizo','electrica','herreria','colocacion'];
+const CENTROS_MUEBLE   = ['shop_drawing','obra','modelado','cam','corte','enchapado','armado','macizo','electrica','herreria'];
+
+function _coalesceTs(r) {
+  return r.ultima_actividad || r.fin || r.inicio || '';
+}
+
+async function _fetchLeanContexto(proyIds, muebleIds) {
+  const [projRegsR, mRegsR, despR] = await Promise.all([
+    supabase.from('registros_trabajo')
+      .select('proyecto_id, centro, inicio, fin, ultima_actividad')
+      .in('proyecto_id', proyIds)
+      .or('eliminada.is.null,eliminada.eq.false')
+      .in('centro', CENTROS_PROYECTO),
+    muebleIds.length
+      ? supabase.from('registros_trabajo')
+          .select('proyecto_id, item_id, centro, inicio, fin, ultima_actividad')
+          .in('item_id', muebleIds)
+          .or('eliminada.is.null,eliminada.eq.false')
+          .in('centro', CENTROS_MUEBLE)
+      : Promise.resolve({ data: [] }),
+    supabase.from('despachos_muebles')
+      .select('proyecto_id, mf_n')
+      .eq('despachado_full', true),
+  ]);
+
+  // projLast: último centro por proyecto (por coalesce desc)
+  const projRegs = (projRegsR.data || []).sort((a, b) => _coalesceTs(b).localeCompare(_coalesceTs(a)));
+  const projLast = {};
+  for (const r of projRegs) { if (!projLast[r.proyecto_id]) projLast[r.proyecto_id] = r.centro; }
+
+  // muebleLast: último centro por proyecto+mueble (clave compuesta, por coalesce desc)
+  const mRegs = (mRegsR.data || []).sort((a, b) => _coalesceTs(b).localeCompare(_coalesceTs(a)));
+  const muebleLast = {};
+  for (const r of mRegs) {
+    const k = r.proyecto_id + '|' + r.item_id;
+    if (!muebleLast[k]) muebleLast[k] = r.centro;
+  }
+
+  // despachadosSet
+  const despachadosSet = new Set((despR.data || []).map(d => d.proyecto_id + '|' + d.mf_n));
+
+  return { projLast, muebleLast, despachadosSet };
+}
+
 // ENDPOINT 14 — GET lean-carga-etapa
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -1274,9 +1334,6 @@ async function accionLeanCargaEtapa(req, res) {
   if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
 
   const unidad = req.query.unidad || 'muebles'; // muebles | placas | horas
-
-  const { data: rows, error: qErr } = await supabase.rpc('_lean_noop', {}).maybeSingle();
-  // RPC not available — run via raw supabase queries instead
 
   // 1. Projects en_produccion with muebles
   const { data: proys } = await supabase
@@ -1297,58 +1354,23 @@ async function accionLeanCargaEtapa(req, res) {
     }
   }
 
-  // 2. Last centro per proyecto (for colocacion check)
+  // 2. Fetch contexto (último centro proyecto/mueble + despachos)
   const proyIds = (proys || []).map(p => p.id);
-  const { data: projRegs } = await supabase
-    .from('registros_trabajo')
-    .select('proyecto_id, centro, inicio')
-    .in('proyecto_id', proyIds)
-    .or('eliminada.is.null,eliminada.eq.false')
-    .in('centro', ['shop_drawing','obra','modelado','cam','corte','enchapado','armado','macizo','electrica','herreria','colocacion'])
-    .order('inicio', { ascending: false });
-
-  const projLast = {};
-  for (const r of (projRegs || [])) {
-    if (!projLast[r.proyecto_id]) projLast[r.proyecto_id] = r.centro;
-  }
-
-  // 3. Last centro per mueble (item_id)
   const muebleIds = allMuebles.map(m => m.mueble_id).filter(Boolean);
-  let muebleLast = {};
-  if (muebleIds.length) {
-    const { data: mRegs } = await supabase
-      .from('registros_trabajo')
-      .select('item_id, centro, inicio')
-      .in('item_id', muebleIds)
-      .or('eliminada.is.null,eliminada.eq.false')
-      .in('centro', ['shop_drawing','obra','modelado','cam','corte','enchapado','armado','macizo','electrica','herreria'])
-      .order('inicio', { ascending: false });
-    for (const r of (mRegs || [])) {
-      if (!muebleLast[r.item_id]) muebleLast[r.item_id] = r.centro;
-    }
-  }
+  const { projLast, muebleLast, despachadosSet } = await _fetchLeanContexto(proyIds, muebleIds);
 
-  // 4. Classify each mueble
-  const ETAPAS_ORDEN = ['sin_iniciar','shop_drawing','modelado','cam','corte','enchapado','armado','colocacion'];
+  // 3. Classify each mueble
   const buckets = {};
   for (const e of ETAPAS_ORDEN) buckets[e] = { muebles: 0, placas: 0, horas: 0 };
 
   for (const m of allMuebles) {
-    const plCentro = projLast[m.proyecto_id];
-    const mlCentro = muebleLast[m.mueble_id];
-    let etapa;
-    if (plCentro === 'colocacion') etapa = 'colocacion';
-    else if (mlCentro && ['shop_drawing','obra'].includes(mlCentro)) etapa = 'shop_drawing';
-    else if (mlCentro && ['armado','macizo','electrica','herreria'].includes(mlCentro)) etapa = 'armado';
-    else if (mlCentro) etapa = ETAPAS_ORDEN.includes(mlCentro) ? mlCentro : 'sin_iniciar';
-    else etapa = 'sin_iniciar';
-
+    const etapa = clasificarMueble(m.proyecto_id, m.mueble_id, projLast, muebleLast, despachadosSet);
     buckets[etapa].muebles++;
     buckets[etapa].placas += m.placas;
     buckets[etapa].horas += m.horas;
   }
 
-  // Find cuello (max PLACAS in planta, always by placas regardless of selected unit)
+  // Find cuello (max PLACAS in planta, excluding 'fuera')
   const plantaEtapas = ['corte','enchapado','armado','colocacion'];
   let cuello = null, cuelloVal = 0;
   for (const e of plantaEtapas) {
@@ -1379,7 +1401,6 @@ async function accionLeanCargaEtapaDetalle(req, res) {
   const etapa = req.query.etapa;
   if (!etapa) return err(res, 'etapa requerido');
 
-  // Same classification logic as lean-carga-etapa
   const { data: proys } = await supabase
     .from('proyectos_cache').select('id, numero, nombre, muebles')
     .eq('activo', true).eq('estado', 'en_produccion');
@@ -1395,38 +1416,12 @@ async function accionLeanCargaEtapaDetalle(req, res) {
   }
 
   const proyIds = (proys || []).map(p => p.id);
-  const { data: projRegs } = await supabase
-    .from('registros_trabajo').select('proyecto_id, centro, inicio')
-    .in('proyecto_id', proyIds)
-    .or('eliminada.is.null,eliminada.eq.false')
-    .in('centro', ['shop_drawing','obra','modelado','cam','corte','enchapado','armado','macizo','electrica','herreria','colocacion'])
-    .order('inicio', { ascending: false });
-  const projLast = {};
-  for (const r of (projRegs || [])) { if (!projLast[r.proyecto_id]) projLast[r.proyecto_id] = r.centro; }
-
   const muebleIds = allMuebles.map(m => m.mueble_id).filter(Boolean);
-  let muebleLast = {};
-  if (muebleIds.length) {
-    const { data: mRegs } = await supabase
-      .from('registros_trabajo').select('item_id, centro, inicio')
-      .in('item_id', muebleIds)
-      .or('eliminada.is.null,eliminada.eq.false')
-      .in('centro', ['shop_drawing','obra','modelado','cam','corte','enchapado','armado','macizo','electrica','herreria'])
-      .order('inicio', { ascending: false });
-    for (const r of (mRegs || [])) { if (!muebleLast[r.item_id]) muebleLast[r.item_id] = r.centro; }
-  }
+  const { projLast, muebleLast, despachadosSet } = await _fetchLeanContexto(proyIds, muebleIds);
 
   const resultado = [];
   for (const m of allMuebles) {
-    const plCentro = projLast[m.proyecto_id];
-    const mlCentro = muebleLast[m.mueble_id];
-    let etapaCalc;
-    if (plCentro === 'colocacion') etapaCalc = 'colocacion';
-    else if (mlCentro && ['shop_drawing','obra'].includes(mlCentro)) etapaCalc = 'shop_drawing';
-    else if (mlCentro && ['armado','macizo','electrica','herreria'].includes(mlCentro)) etapaCalc = 'armado';
-    else if (mlCentro) etapaCalc = mlCentro;
-    else etapaCalc = 'sin_iniciar';
-
+    const etapaCalc = clasificarMueble(m.proyecto_id, m.mueble_id, projLast, muebleLast, despachadosSet);
     if (etapaCalc === etapa) {
       resultado.push({ proyecto: m.proyecto_numero || m.proyecto_nombre, nombre: m.nombre, codigo: m.codigo, placas: m.placas });
     }
@@ -1664,6 +1659,207 @@ async function accionLeanComprasSerie(req, res) {
   });
 
   return ok(res, { periodo, desde, hasta, serie });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 18 — POST importar-factura-lineas
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionImportarFacturaLineas(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const seccion = verificarAccesoSeccion(req);
+  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
+
+  const page = parseInt(req.query.page || req.body?.page) || 1;
+  const per_page = parseInt(req.query.per_page || req.body?.per_page) || 20;
+
+  let zohoToken;
+  try { zohoToken = await getZohoToken(); } catch (e) {
+    return err(res, 'No se pudo obtener token de Zoho: ' + e.message, 502);
+  }
+  const orgId = process.env.ZOHO_ORG_ID;
+
+  // 1. List invoices (page)
+  const listUrl = `https://www.zohoapis.com/books/v3/invoices?organization_id=${orgId}&per_page=${per_page}&page=${page}&sort_column=date&sort_order=D`;
+  const listRes = await fetch(listUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
+  const listData = await listRes.json();
+  const invoices = (listData?.invoices || []).filter(inv => inv.status !== 'void' && inv.status !== 'draft');
+  const has_more = listData?.page_context?.has_more_page === true;
+
+  // 2. Lookup proyectos_cache by numero for project matching
+  const invNumbers = [...new Set(invoices.map(i => i.invoice_number).filter(Boolean))];
+  let proyByNumero = {};
+  if (invNumbers.length) {
+    const { data: proys } = await supabase.from('proyectos_cache').select('id, numero').in('numero', invNumbers);
+    for (const p of (proys || [])) {
+      if (!proyByNumero[p.numero]) proyByNumero[p.numero] = [];
+      proyByNumero[p.numero].push(p.id);
+    }
+  }
+
+  // 3. Fetch details in batches of 5
+  let procesadas = 0, lineas_upsert = 0, sinProyecto = 0;
+  const conflictos = [];
+  const BATCH = 5;
+
+  for (let i = 0; i < invoices.length; i += BATCH) {
+    const lote = invoices.slice(i, i + BATCH);
+    await Promise.all(lote.map(async (inv) => {
+      try {
+        const detUrl = `https://www.zohoapis.com/books/v3/invoices/${inv.invoice_id}?organization_id=${orgId}`;
+        const detRes = await fetch(detUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
+        const detData = await detRes.json();
+        const invoice = detData?.invoice;
+        if (!invoice) return;
+        procesadas++;
+
+        const lineItems = invoice.line_items || [];
+        const invNum = invoice.invoice_number;
+        const matches = proyByNumero[invNum] || [];
+        const proyecto_id = matches.length === 1 ? matches[0] : null;
+        if (matches.length > 1 && invNum) conflictos.push(invNum);
+        else if (matches.length === 0 && invNum) sinProyecto++;
+
+        const rows = lineItems.map(li => {
+          const cfs = li.item_custom_fields || [];
+          const cfTipo = cfs.find(f => f.api_name === 'cf_tipo');
+          const cf_tipo = cfTipo ? (String(cfTipo.value || '').trim() || null) : null;
+          return {
+            id: String(li.line_item_id),
+            invoice_id: inv.invoice_id,
+            invoice_number: invNum,
+            proyecto_id,
+            cf_tipo,
+            descripcion: li.description || null,
+            cantidad: Number(li.quantity) || 0,
+            monto_usd: round2((Number(li.bcy_rate) || 0) * (Number(li.quantity) || 0)),
+            moneda: invoice.currency_code || null,
+            tipo_cambio: Number(invoice.exchange_rate) || null,
+            descuento_factura_pct: Number(invoice.discount_percent) || null,
+            fecha: invoice.date || null,
+            estado_factura: invoice.status || null,
+            importado_en: new Date().toISOString(),
+          };
+        });
+
+        if (rows.length) {
+          const { error: upErr } = await supabase.from('factura_lineas').upsert(rows, { onConflict: 'id' });
+          if (upErr) console.warn('[importar-factura-lineas] upsert error:', invNum, upErr.message);
+          else lineas_upsert += rows.length;
+        }
+      } catch (e) {
+        console.warn('[importar-factura-lineas] invoice error:', inv.invoice_id, e.message);
+      }
+    }));
+    if (i + BATCH < invoices.length) await new Promise(r => setTimeout(r, 1000));
+  }
+
+  return ok(res, {
+    ok: true,
+    page,
+    procesadas,
+    lineas_upsert,
+    conflictos: [...new Set(conflictos)],
+    sin_proyecto: sinProyecto,
+    has_more,
+    next_page: has_more ? page + 1 : null,
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT 19 — GET reconciliar-facturas
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionReconciliarFacturas(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const seccion = verificarAccesoSeccion(req);
+  if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
+
+  // All lines with proyecto_id set
+  const { data: lineas } = await supabase.from('factura_lineas')
+    .select('invoice_number, proyecto_id, cf_tipo, monto_usd')
+    .not('proyecto_id', 'is', null);
+
+  // Group by invoice_number
+  const porInv = {};
+  for (const l of (lineas || [])) {
+    if (!porInv[l.invoice_number]) porInv[l.invoice_number] = { proyecto_id: l.proyecto_id, lineas: [] };
+    porInv[l.invoice_number].lineas.push(l);
+  }
+
+  // Load matching projects
+  const proyIds = [...new Set(Object.values(porInv).map(v => v.proyecto_id))];
+  const proyMap = {};
+  if (proyIds.length) {
+    const { data: proys } = await supabase.from('proyectos_cache')
+      .select('id, numero, precio_venta_usd, muebles')
+      .in('id', proyIds);
+    for (const p of (proys || [])) proyMap[p.id] = p;
+  }
+
+  const proyectos = [];
+  let totalLineas = 0, totalErp = 0, totalDiff = 0;
+  let totalMatch = 0, totalNoMatch = 0, totalSinLinea = 0;
+
+  for (const [invNum, group] of Object.entries(porInv)) {
+    const proy = proyMap[group.proyecto_id];
+    if (!proy) continue;
+
+    const suma_lineas_usd = round2(group.lineas.reduce((s, l) => s + (Number(l.monto_usd) || 0), 0));
+    const precio_erp = round2(Number(proy.precio_venta_usd) || 0);
+    const diff = round2(suma_lineas_usd - precio_erp);
+
+    // Code coverage: cf_tipo vs muebles[].codigo
+    const muebles = Array.isArray(proy.muebles) ? proy.muebles : [];
+    const codigosProyecto = new Set(muebles.map(m => m.codigo).filter(Boolean));
+    const cfTipos = group.lineas.map(l => l.cf_tipo).filter(Boolean);
+
+    let lineas_con_match = 0, lineas_sin_match = 0;
+    for (const cf of cfTipos) {
+      if (codigosProyecto.has(cf)) lineas_con_match++;
+      else lineas_sin_match++;
+    }
+    const muebles_sin_linea = [...codigosProyecto].filter(c => !cfTipos.includes(c)).length;
+
+    totalLineas += suma_lineas_usd;
+    totalErp += precio_erp;
+    totalDiff += diff;
+    totalMatch += lineas_con_match;
+    totalNoMatch += lineas_sin_match;
+    totalSinLinea += muebles_sin_linea;
+
+    proyectos.push({
+      invoice_number: invNum,
+      proyecto_id: group.proyecto_id,
+      proyecto_numero: proy.numero,
+      suma_lineas_usd,
+      precio_erp,
+      diff,
+      cobertura: {
+        lineas_con_match,
+        lineas_sin_match,
+        muebles_sin_linea,
+        total_lineas: group.lineas.length,
+        total_muebles: muebles.length,
+      },
+    });
+  }
+
+  proyectos.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+
+  return ok(res, {
+    ok: true,
+    proyectos,
+    totales: {
+      proyectos: proyectos.length,
+      suma_lineas_usd: round2(totalLineas),
+      suma_erp_usd: round2(totalErp),
+      diff_total: round2(totalDiff),
+      lineas_con_match: totalMatch,
+      lineas_sin_match: totalNoMatch,
+      muebles_sin_linea: totalSinLinea,
+    },
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1976,6 +2172,8 @@ export default async function handler(req, res) {
     if (action === 'lean-cocina-wip')            return await accionLeanCocinaWip(req, res);
     if (action === 'lean-cnc-dia')               return await accionLeanCncDia(req, res);
     if (action === 'lean-compras-serie')         return await accionLeanComprasSerie(req, res);
+    if (action === 'importar-factura-lineas')   return await accionImportarFacturaLineas(req, res);
+    if (action === 'reconciliar-facturas')      return await accionReconciliarFacturas(req, res);
     return err(res, 'Acción no reconocida');
   } catch (e) {
     console.error('[informes]', action, e);
