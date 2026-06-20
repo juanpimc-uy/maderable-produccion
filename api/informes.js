@@ -1428,7 +1428,11 @@ async function accionLeanCargaEtapaDetalle(req, res) {
     for (const m of mubs) {
       const placasD = Number(m.placas) || 0;
       if (placasD >= 999) continue;
-      allMuebles.push({ proyecto_id: p.id, proyecto_numero: p.numero, proyecto_nombre: p.nombre, mueble_id: m.id, nombre: m.nombre || '', codigo: m.codigo || '', placas: placasD });
+      let horasD = 0;
+      if (m.horas && typeof m.horas === 'object') {
+        horasD = Object.values(m.horas).reduce((s, v) => s + (Number(v) || 0), 0);
+      }
+      allMuebles.push({ proyecto_id: p.id, proyecto_numero: p.numero, proyecto_nombre: p.nombre, mueble_id: m.id, nombre: m.nombre || '', codigo: m.codigo || '', placas: placasD, horas: horasD, precio: (m.precio_venta_usd != null ? Number(m.precio_venta_usd) : null) });
     }
   }
 
@@ -1440,7 +1444,7 @@ async function accionLeanCargaEtapaDetalle(req, res) {
   for (const m of allMuebles) {
     const etapaCalc = clasificarMueble(m.proyecto_id, m.mueble_id, projLast, muebleLast, despachadosSet, completadosSet);
     if (etapaCalc === etapa) {
-      resultado.push({ proyecto: m.proyecto_numero || m.proyecto_nombre, proyecto_nombre: m.proyecto_nombre, nombre: m.nombre, codigo: m.codigo, placas: m.placas });
+      resultado.push({ proyecto: m.proyecto_numero || m.proyecto_nombre, proyecto_nombre: m.proyecto_nombre, proyecto_id: m.proyecto_id, nombre: m.nombre, codigo: m.codigo, placas: m.placas, horas: round1(m.horas), precio: m.precio });
     }
   }
 

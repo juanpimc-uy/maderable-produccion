@@ -7738,6 +7738,10 @@ function _initApp() {
       }).catch(() => {});
     }
     if (_pendientes.length > 0) { await cargarTodoDesdeSupabase(); }
+    // Deep-link: ?proyecto=<id> abre ese proyecto
+    const _qp = new URLSearchParams(location.search);
+    const _prDeep = _qp.get('proyecto');
+    if (_prDeep && PROYECTOS.some(p => p.id === _prDeep)) abrirDetallePr(_prDeep);
   });
   iniciarAutoRefresh();
   initTimerBar();

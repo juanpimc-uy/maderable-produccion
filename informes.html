@@ -1439,12 +1439,16 @@ async function _leanDrillEtapa(etapa) {
         <th style="text-align:left;padding:4px 6px;color:#888;font-size:9px;">CÓDIGO</th>
         <th style="text-align:left;padding:4px 6px;color:#888;font-size:9px;">NOMBRE</th>
         <th style="text-align:right;padding:4px 6px;color:#888;font-size:9px;">PLACAS</th>
+        <th style="text-align:right;padding:4px 6px;color:#888;font-size:9px;">HORAS</th>
+        <th style="text-align:right;padding:4px 6px;color:#888;font-size:9px;">VALOR</th>
       </tr></thead>
-      <tbody>${d.muebles.map(m => `<tr style="border-bottom:1px solid #1a1a1a;">
+      <tbody>${d.muebles.map(m => `<tr style="border-bottom:1px solid #1a1a1a;cursor:pointer;" title="Abrir proyecto" onclick="if('${m.proyecto_id||''}') window.open('/admin.html?proyecto='+encodeURIComponent('${m.proyecto_id||''}'),'_blank');">
         <td style="padding:4px 6px;color:#aaa;">${m.proyecto||'—'}${m.proyecto_nombre ? ' — '+m.proyecto_nombre : ''}</td>
         <td style="padding:4px 6px;color:#FFD600;">${m.codigo||'—'}</td>
         <td style="padding:4px 6px;color:#ccc;">${m.nombre||'—'}</td>
         <td style="padding:4px 6px;text-align:right;color:${m.placas > 100 ? '#ff5a5a' : '#ccc'};">${m.placas}</td>
+        <td style="padding:4px 6px;text-align:right;color:#aaa;">${_lfD(m.horas)}h</td>
+        <td style="padding:4px 6px;text-align:right;color:#ccc;">${m.precio != null ? '$'+Number(m.precio).toLocaleString('es-UY',{maximumFractionDigits:0}) : '<span style="color:#555;">—</span>'}</td>
       </tr>`).join('')}</tbody>
     </table>`;
   } catch (e) {
