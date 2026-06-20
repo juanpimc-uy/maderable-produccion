@@ -2297,10 +2297,144 @@ async function _renderCostosGrupo(grupoId) {
         <tbody>${moRows}</tbody>
         <tfoot><tr style="border-top:1px solid var(--border);"><td colspan="2" style="font-size:12px;color:var(--muted);padding:8px 0;font-family:'JetBrains Mono',monospace;">TOTAL MO</td><td></td><td class="mono" style="text-align:right;font-size:14px;font-weight:700;">${fmtUSD(mo.total_usd)}</td></tr></tfoot>
       </table>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-top:12px;">Mat ${fmtUSD(data.materiales.total_usd)} · CD ${fmtUSD(data.costos_directos.total_usd)} · Terc ${fmtUSD(data.tercerizados.total_usd)}</div>`;
+      <div class="sec-title" style="font-size:10px;margin-top:20px;margin-bottom:8px;">MATERIALES</div>
+      <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:4px;">
+        ${_grpMatHtml(data, fmtUSD)}
+        <div style="border-top:1px solid var(--border);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;">TOTAL MATERIALES</span>
+          <span class="mono" style="font-size:14px;font-weight:700;">${fmtUSD(data.materiales.total_usd)}</span>
+        </div>
+      </div>
+
+      <div class="sec-title" style="font-size:10px;margin-top:20px;margin-bottom:8px;">COSTOS DIRECTOS (OC)</div>
+      ${_grpCdHtml(data, fmtUSD)}
+
+      ${_grpTercHtml(data, fmtUSD)}
+
+      <div style="border-top:2px solid var(--border);margin-top:16px;padding-top:12px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;">TOTAL GRUPO</div>
+        <div class="mono" style="font-size:22px;font-weight:700;color:var(--green);">${fmtUSD(data.total_proyecto_usd)}</div>
+      </div>
+      ${(data.sin_costear?.registros_sin_categoria ? '<div style="color:#C8832A;font-size:12px;margin-top:6px;">⚠ ' + data.sin_costear.registros_sin_categoria + ' registro(s) sin categoría — no costeados</div>' : '')}
+      ${(data.sin_costear?.materiales_sin_costo ? '<div style="color:#C8832A;font-size:12px;margin-top:4px;">⚠ ' + data.sin_costear.materiales_sin_costo + ' material(es) sin precio — no costeados</div>' : '')}`;
   } catch(e) {
     panel.innerHTML = `<div style="color:var(--red);font-size:11px;">Error: ${e.message}</div>`;
   }
+}
+
+function _grpMatHtml(data, fmtUSD) {
+  const items = data.materiales.items || [];
+  if (!items.length) return '<div style="color:var(--muted);font-size:12px;padding:16px 14px;">Sin materiales</div>';
+  // Group by proyecto (ODF numero)
+  const byPr = {};
+  items.forEach(m => {
+    const key = m.proyecto || '—';
+    if (!byPr[key]) byPr[key] = { items: [], subtotal: 0 };
+    byPr[key].items.push(m);
+    if (m.costo_total_usd != null) byPr[key].subtotal += m.costo_total_usd;
+  });
+  let html = '';
+  Object.keys(byPr).forEach((prNum, gi) => {
+    const g = byPr[prNum];
+    const gId = 'gmat-grp-' + gi;
+    html += `<div style="${gi > 0 ? 'border-top:1px solid #1e1e1e;' : ''}">`;
+    html += `<div onclick="var b=document.getElementById('${gId}');var open=b.style.display!=='none';b.style.display=open?'none':'block';this.querySelector('.mat-chev').textContent=open?'\\u25B6':'\\u25BC';" style="background:#161616;border-left:3px solid #FFD600;padding:8px 14px;font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;display:flex;align-items:center;gap:6px;cursor:pointer;transition:background .15s;" onmouseenter="this.style.background='#1a1a1a'" onmouseleave="this.style.background='#161616'">
+      <span class="mat-chev" style="font-size:9px;color:#888;">▶</span>
+      <span style="color:#FFD600;font-weight:700;">ODF ${prNum}</span><span style="color:#555;">·</span><span style="color:#888;flex:1;">${g.items.length} ítem${g.items.length !== 1 ? 's' : ''}</span>
+      <span class="mono" style="font-size:11px;font-weight:700;color:#fff;">${fmtUSD(g.subtotal)}</span>
+    </div>`;
+    html += `<div id="${gId}" style="display:none;"><table style="width:100%;border-collapse:collapse;">
+      <thead><tr>
+        <th style="text-align:left;font-size:10px;color:var(--muted);padding:4px 14px;font-weight:600;">Ítem</th>
+        <th style="text-align:right;font-size:10px;color:var(--muted);padding:4px 6px;font-weight:600;">Cant.</th>
+        <th style="text-align:right;font-size:10px;color:var(--muted);padding:4px 6px;font-weight:600;">Unid.</th>
+        <th style="text-align:right;font-size:10px;color:var(--muted);padding:4px 6px;font-weight:600;">$/u</th>
+        <th style="text-align:right;font-size:10px;color:var(--muted);padding:4px 14px;font-weight:600;">Total</th>
+      </tr></thead><tbody>`;
+    g.items.forEach(m => {
+      html += `<tr>
+        <td style="font-size:12px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 14px;" title="${m.nombre||''}">${m.nombre||'—'}</td>
+        <td class="mono" style="text-align:right;font-size:11px;padding:5px 6px;">${m.cantidad}</td>
+        <td class="mono" style="text-align:right;font-size:11px;color:var(--muted);padding:5px 6px;">${m.unidad||'u'}</td>
+        <td class="mono" style="text-align:right;font-size:11px;padding:5px 6px;">${m.costo_unitario_usd != null ? fmtUSD(m.costo_unitario_usd) : '<span style="color:#C8832A;font-size:10px;">sin costo</span>'}</td>
+        <td class="mono" style="text-align:right;font-size:11px;font-weight:600;padding:5px 14px;">${m.costo_total_usd != null ? fmtUSD(m.costo_total_usd) : '—'}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div></div>';
+  });
+  return html;
+}
+
+function _grpCdHtml(data, fmtUSD) {
+  const items = data.costos_directos.items || [];
+  const miembros = data.miembros || [];
+  const numMap = Object.fromEntries(miembros.map(m => [m.id, m.numero]));
+  if (!items.length) return '<div style="color:var(--muted);font-size:12px;padding:8px 0;">Sin costos directos</div>';
+  // Group by proyecto
+  const byPr = {};
+  items.forEach(c => {
+    const prNum = numMap[c.proyecto_id] || '—';
+    if (!byPr[prNum]) byPr[prNum] = { items: [], subtotal: 0 };
+    byPr[prNum].items.push(c);
+    byPr[prNum].subtotal += Number(c.monto_usd || 0);
+  });
+  let html = '';
+  Object.keys(byPr).forEach(prNum => {
+    const g = byPr[prNum];
+    html += `<div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:8px;margin-bottom:4px;">ODF ${prNum}</div>`;
+    html += `<table style="width:100%;border-collapse:collapse;margin-bottom:4px;">
+      <thead><tr>
+        <th style="text-align:left;font-size:11px;color:var(--muted);padding:6px 0;font-weight:600;">OC / Desc.</th>
+        <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">Fecha</th>
+        <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">Orig.</th>
+        <th style="text-align:right;font-size:11px;color:var(--muted);font-weight:600;">USD</th>
+      </tr></thead><tbody>`;
+    g.items.forEach(c => {
+      const desc = c.tipo === 'oc' ? (c.oc_numero || '—') : (c.descripcion || '—');
+      const fecha = c.fecha ? c.fecha.slice(0, 10) : '—';
+      const montoOrig = c.moneda_original && c.moneda_original !== 'USD' ? `${Number(c.monto_original).toLocaleString('en-US',{maximumFractionDigits:2})} ${c.moneda_original}` : '—';
+      html += `<tr>
+        <td style="font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${desc}">${desc}</td>
+        <td class="mono" style="text-align:right;color:var(--muted);">${fecha}</td>
+        <td class="mono" style="text-align:right;color:var(--muted);">${montoOrig}</td>
+        <td class="mono" style="text-align:right;font-weight:600;">${fmtUSD(c.monto_usd)}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+  });
+  html += `<div style="border-top:1px solid var(--border);padding:8px 0;display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;">TOTAL CD</span>
+    <span class="mono" style="font-size:14px;font-weight:700;">${fmtUSD(data.costos_directos.total_usd)}</span>
+  </div>`;
+  return html;
+}
+
+function _grpTercHtml(data, fmtUSD) {
+  const items = data.tercerizados.items || [];
+  if (!items.length) return '';
+  const html = `
+  <div class="sec-title" style="font-size:10px;margin-top:20px;margin-bottom:8px;">PROCESOS TERCERIZADOS</div>
+  <div style="overflow-x:auto;margin-bottom:4px;"><table style="width:100%;border-collapse:collapse;">
+    <thead><tr>
+      <th style="text-align:left;font-size:10px;color:var(--muted);padding:6px 0;font-weight:600;">ODF</th>
+      <th style="text-align:left;font-size:10px;color:var(--muted);font-weight:600;">ENV</th>
+      <th style="text-align:left;font-size:10px;color:var(--muted);font-weight:600;">Proveedor</th>
+      <th style="text-align:left;font-size:10px;color:var(--muted);font-weight:600;">Mueble</th>
+      <th style="text-align:right;font-size:10px;color:var(--muted);font-weight:600;">USD</th>
+    </tr></thead>
+    <tbody>${items.map(tp => `<tr>
+      <td style="font-size:11px;color:var(--muted);">${tp.proyecto_num||'—'}</td>
+      <td><span style="font-family:'JetBrains Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;background:#0a1a2a;color:var(--blue);border:1px solid #1a2a3a;">${tp.numero_envio||'—'}</span></td>
+      <td style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${tp.proveedor_nombre||'—'}</td>
+      <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${tp.mueble_nombre||''}">${tp.mueble_nombre||'—'}</td>
+      <td class="mono" style="text-align:right;font-weight:600;">${fmtUSD(tp.monto_usd)}</td>
+    </tr>`).join('')}</tbody>
+    <tfoot><tr style="border-top:1px solid var(--border);">
+      <td colspan="4" style="font-size:12px;color:var(--muted);padding:8px 0;font-family:'JetBrains Mono',monospace;">TOTAL TERCERIZADOS</td>
+      <td class="mono" style="text-align:right;font-size:14px;font-weight:700;">${fmtUSD(data.tercerizados.total_usd)}</td>
+    </tr></tfoot>
+  </table></div>`;
+  return html;
 }
 
 async function _grpQuitarMiembro(grupoId, proyId) {
