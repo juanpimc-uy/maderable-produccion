@@ -351,15 +351,15 @@ function _procesarSesiones(sesiones, ahora, descansoModalidad, tomoDescanso) {
 
 // ── Helpers unificados ─────────────────────────────────────────────────────
 
+function hoyUY() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Montevideo' }); // 'YYYY-MM-DD'
+}
+
 async function _entradaImpl(sb, { empleado_id }) {
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = hoyUY();
   const ahora = new Date().toISOString();
   const { data: emp } = await sb
     .from('empleados').select('horario_entrada, horario_salida').eq('id', empleado_id).single();
-  const [h, m] = (emp?.horario_entrada || '08:00').split(':');
-  const esperado = new Date();
-  esperado.setHours(parseInt(h), parseInt(m), 0, 0);
-  const tarde = new Date() > new Date(esperado.getTime() + 10 * 60000);
 
   // Detectar sesiones huérfanas de días anteriores (fin IS NULL, inicio < hoy UY)
   const hoyUYstart = hoy + 'T00:00:00-03:00';
@@ -369,10 +369,54 @@ async function _entradaImpl(sb, { empleado_id }) {
     .is('fin', null)
     .lt('inicio', hoyUYstart);
 
-  const { data, error } = await sb.from('jornadas')
-    .upsert({ empleado_id, fecha: hoy, entrada: ahora, tarde, salida: null }, { onConflict: 'empleado_id,fecha' })
-    .select().single();
-  if (error) throw error;
+  // Buscar jornada existente hoy
+  const { data: jornadaExistente } = await sb.from('jornadas')
+    .select('*')
+    .eq('empleado_id', empleado_id).eq('fecha', hoy)
+    .maybeSingle();
+
+  let data;
+  if (!jornadaExistente) {
+    // Primera entrada del día: crear jornada + segmento #1
+    const [h, m] = (emp?.horario_entrada || '08:00').split(':');
+    const esperado = new Date();
+    esperado.setHours(parseInt(h), parseInt(m), 0, 0);
+    const tarde = new Date() > new Date(esperado.getTime() + 10 * 60000);
+
+    const { data: nuevaJ, error } = await sb.from('jornadas')
+      .insert({ empleado_id, fecha: hoy, entrada: ahora, tarde, salida: null })
+      .select().single();
+    if (error) throw error;
+    data = nuevaJ;
+
+    // Segmento #1 abierto
+    const { error: segErr } = await sb.from('jornada_segmentos')
+      .insert({ jornada_id: data.id, entrada: ahora });
+    if (segErr) throw segErr;
+  } else {
+    // Ya existe jornada hoy — no tocar entrada ni tarde
+    data = jornadaExistente;
+
+    // ¿Hay segmento abierto?
+    const { data: segAbierto } = await sb.from('jornada_segmentos')
+      .select('id')
+      .eq('jornada_id', data.id).is('salida', null)
+      .maybeSingle();
+
+    if (!segAbierto) {
+      // Re-apertura: nuevo segmento + limpiar salida de jornada
+      const { error: segErr } = await sb.from('jornada_segmentos')
+        .insert({ jornada_id: data.id, entrada: ahora });
+      if (segErr) throw segErr;
+
+      const { data: updated, error: updErr } = await sb.from('jornadas')
+        .update({ salida: null })
+        .eq('id', data.id).select().single();
+      if (updErr) throw updErr;
+      data = updated;
+    }
+    // Si ya hay segmento abierto → idempotente, no hacer nada
+  }
 
   const result = { jornada: data };
   if (huerfanas && huerfanas.length > 0) {
@@ -388,16 +432,34 @@ async function _entradaImpl(sb, { empleado_id }) {
 }
 
 async function _salidaImpl(sb, { empleado_id }) {
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = hoyUY();
   const ahora = new Date().toISOString();
-  // Cerrar TODOS los registros con fin IS NULL como 'finalizado' al marcar salida
+  const hoyUYstart = hoy + 'T00:00:00-03:00';
+  // Cerrar registros abiertos de HOY como 'finalizado' al marcar salida
   const { data: abiertos } = await sb.from('registros_trabajo')
-    .select('id').eq('empleado_id', empleado_id).is('fin', null);
+    .select('id').eq('empleado_id', empleado_id).is('fin', null)
+    .gte('inicio', hoyUYstart);
   if (abiertos && abiertos.length > 0) {
     await sb.from('registros_trabajo')
       .update({ fin: ahora, estado: 'finalizado' })
-      .eq('empleado_id', empleado_id).is('fin', null);
+      .eq('empleado_id', empleado_id).is('fin', null)
+      .gte('inicio', hoyUYstart);
   }
+
+  // Buscar jornada de hoy para cerrar segmento abierto
+  const { data: jornada } = await sb.from('jornadas')
+    .select('id')
+    .eq('empleado_id', empleado_id).eq('fecha', hoy)
+    .maybeSingle();
+
+  if (jornada) {
+    // Cerrar segmento abierto
+    await sb.from('jornada_segmentos')
+      .update({ salida: ahora })
+      .eq('jornada_id', jornada.id).is('salida', null);
+  }
+
+  // Actualizar jornadas.salida (cache)
   const { data } = await sb.from('jornadas')
     .update({ salida: ahora })
     .eq('empleado_id', empleado_id).eq('fecha', hoy).is('salida', null)
@@ -427,7 +489,7 @@ async function _iniciarTareaImpl(sb, {
   _autoJornada = false, // auto-upsert jornada para wrappers legacy (oficina)
   _inicio = null,       // inicio explícito (opcional, para edición desde tiempos)
 }) {
-  const hoy  = new Date().toISOString().split('T')[0];
+  const hoy  = hoyUY();
   const ahora = _inicio || new Date().toISOString();
 
   // 1. Verificar empleado activo y obtener rol + centros autorizados
