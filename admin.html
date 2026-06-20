@@ -1175,6 +1175,7 @@ async function cargarTodoDesdeSupabase() {
       // Sincronizar _archivados con BD (activo=false = archivado)
       _archivados = (data || []).filter(p => p.activo === false).map(p => p.id);
       localStorage.setItem('proyectos_archivados', JSON.stringify(_archivados));
+      await cargarGrupos();
     } catch(e) {
       console.error('Error cargando proyectos:', e);
       anyError = true;
@@ -1408,6 +1409,7 @@ function mapProyectoFromDB(p) {
     ...p,
     nombre: p.nombre || p.obra || '',
     clienteNombre: p.clienteNombre || p.cliente_nombre || p.cliente || '',
+    grupo_id: p.grupo_id || null,
     muebles,
     items: muebles.map(m => ({
       id: m.id,
@@ -1422,6 +1424,20 @@ function mapProyectoFromDB(p) {
 }
 
 let PROYECTOS = [];
+let GRUPOS = [];
+let _prModoAgrupar = false;
+let _prGrupoNombre = '';
+const _prSeleccion = new Set();
+
+async function cargarGrupos() {
+  const u = window.AUTH.usuarioActual();
+  if (!u || u.rol_app !== 'admin') { GRUPOS = []; return; }
+  try {
+    const r = await fetch(`/api/tiempos?action=listar-grupos&admin_id=${u.id}`);
+    const d = await r.json();
+    GRUPOS = d.ok ? (d.grupos || []) : [];
+  } catch(e) { console.warn('Error cargando grupos:', e); GRUPOS = []; }
+}
 
 const CENTRO_COLORS_ADM = {
   colocacion:'#FFD600', armado:'#00cfa8', corte:'#5ba3f5',
@@ -1908,7 +1924,8 @@ function renderProyectos() {
   const isShowingArchived = _prFiltroChip === 'archivados';
 
   function cardHtml(pr, isArchived) {
-    const hA=hAcumPr(pr.id),hE=hEstPr(pr);
+    const hA = pr._isGrupo ? pr.hA : hAcumPr(pr.id);
+    const hE = pr._isGrupo ? pr.hE : hEstPr(pr);
     const matP=pr.materiales.filter(m=>m.recibido<m.requerido).length;
     const inv=pr.modulos.filter(m=>m.estado==='en_inventario').length;
     const des=pr.modulos.filter(m=>m.estado==='despachado').length;
@@ -1922,9 +1939,10 @@ function renderProyectos() {
     return `
       <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:20px;cursor:pointer;transition:border-color .2s;${isArchived?'opacity:0.6;':''}"
         onmouseenter="this.style.borderColor='var(--amber)'" onmouseleave="this.style.borderColor='var(--border)'"
-        onclick="abrirDetallePr('${pr.id}')">
+        onclick="${_prModoAgrupar && !pr._isGrupo ? `event.stopPropagation();_prToggleSel('${pr.id}')` : (pr._isGrupo ? `abrirDetalleGrupo('${pr._grupoId}')` : `abrirDetallePr('${pr.id}')`)}">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-          <span style="font-family:'Space Mono',monospace;font-size:11px;color:#999;background:#111;border:1px solid #2e2e2e;border-radius:3px;padding:3px 10px;letter-spacing:1px;">${pr.numero || ''}</span>
+          ${_prModoAgrupar && !pr._isGrupo ? `<input type="checkbox" ${_prSeleccion.has(pr.id)?'checked':''} onclick="event.stopPropagation();_prToggleSel('${pr.id}')" style="margin-right:8px;">` : ''}
+          <span style="font-family:'Space Mono',monospace;font-size:11px;color:#999;background:#111;border:1px solid #2e2e2e;border-radius:3px;padding:3px 10px;letter-spacing:1px;">${pr._isGrupo ? '⛓ '+pr._grupoNombre : (pr.numero || '')}</span>
           <div style="display:flex;gap:6px;align-items:center;">${estadoBadge}${archBadge}</div>
         </div>
         <div style="font-size:15px;font-weight:600;color:#ccc;margin-bottom:3px;">${pr.clienteNombre}</div>
@@ -1946,7 +1964,8 @@ function renderProyectos() {
   }
 
   function rowHtml(pr, isArchived) {
-    const hA=hAcumPr(pr.id),hE=hEstPr(pr);
+    const hA = pr._isGrupo ? pr.hA : hAcumPr(pr.id);
+    const hE = pr._isGrupo ? pr.hE : hEstPr(pr);
     const pct = hE > 0 ? Math.round(hA/hE*100) : 0;
     const barColor = pct > 100 ? '#e03030' : pct >= 70 ? '#4ade80' : pct >= 20 ? '#FFD600' : '#3a7fd4';
     const barW = Math.min(100, pct);
@@ -1955,8 +1974,11 @@ function renderProyectos() {
     else if (pct >= 100) { badgeStyle='background:#1e1010;color:#d03030;border:1px solid #3d1818;'; badgeText='ATRASADO'; }
     else if (pct > 0) { badgeStyle='background:#162014;color:#4a9e30;border:1px solid #243d1c;'; badgeText='ACTIVO'; }
     else { badgeStyle='background:#0d1a2e;color:#3a7fd4;border:1px solid #1a3050;'; badgeText='ACTIVO'; }
-    return `<div style="display:grid;grid-template-columns:1.5fr 1fr 120px 50px 60px 90px;align-items:center;padding:10px 14px;border-left:2px solid transparent;transition:all .15s;cursor:pointer;background:var(--faint);${isArchived?'opacity:0.6;':''}" onmouseenter="this.style.background='var(--panel)';this.style.borderLeftColor='var(--amber)'" onmouseleave="this.style.background='var(--faint)';this.style.borderLeftColor='transparent'" onclick="abrirDetallePr('${pr.id}')">
-      <div style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pr.nombre}</div>
+    const _rowClick = _prModoAgrupar && !pr._isGrupo ? `_prToggleSel('${pr.id}')` : (pr._isGrupo ? `abrirDetalleGrupo('${pr._grupoId}')` : `abrirDetallePr('${pr.id}')`);
+    const _rowSel = _prModoAgrupar && !pr._isGrupo && _prSeleccion.has(pr.id);
+    return `<div style="display:grid;grid-template-columns:${_prModoAgrupar && !pr._isGrupo ? '24px ' : ''}1.5fr 1fr 120px 50px 60px 90px;align-items:center;padding:10px 14px;border-left:2px solid ${_rowSel?'var(--amber)':'transparent'};transition:all .15s;cursor:pointer;background:${_rowSel?'rgba(255,214,0,.04)':'var(--faint)'};${isArchived?'opacity:0.6;':''}" onmouseenter="this.style.background='var(--panel)';this.style.borderLeftColor='var(--amber)'" onmouseleave="this.style.background='${_rowSel?'rgba(255,214,0,.04)':'var(--faint)'}';this.style.borderLeftColor='${_rowSel?'var(--amber)':'transparent'}'" onclick="${_rowClick}">
+      ${_prModoAgrupar && !pr._isGrupo ? `<input type="checkbox" ${_rowSel?'checked':''} onclick="event.stopPropagation();_prToggleSel('${pr.id}')" style="accent-color:var(--amber);">` : ''}
+      <div style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pr._isGrupo ? '⛓ '+pr._grupoNombre : pr.nombre}</div>
       <div style="font-size:11px;color:#777;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${pr.clienteNombre || ''}</div>
       <div style="height:4px;background:#0f0f0f;border-radius:2px;overflow:hidden;"><div style="height:100%;width:${barW}%;background:${barColor};border-radius:2px;"></div></div>
       <div style="font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:${barColor};">${pct}%</div>
@@ -1969,7 +1991,27 @@ function renderProyectos() {
   const chipBtn = (id, label) => `<button onclick="_prFiltroChip='${id}';renderProyectos();" style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.5px;padding:5px 12px;border-radius:4px;border:1px solid ${_prFiltroChip===id?'#FFD600':'#2e2e2e'};background:${_prFiltroChip===id?'#FFD600':'#1e1e1e'};color:${_prFiltroChip===id?'#000':'#777'};cursor:pointer;font-weight:${_prFiltroChip===id?'700':'400'};transition:all .15s;">${label}</button>`;
   const vistaBtn = (id, icon) => `<span onclick="_prVista='${id}';localStorage.setItem('proyectos_vista','${id}');renderProyectos();" style="cursor:pointer;font-size:16px;color:${_prVista===id?'#FFD600':'#555'};">${icon}</span>`;
 
-  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><div class="sec-title" style="margin:0;">Proyectos</div><div style="display:flex;gap:8px;"><button class="btn btn-ghost btn-sm" onclick="syncTodosProyectos()" title="Sincroniza todos los proyectos de localStorage a Supabase para que aparezcan en Planta v2">↑ Sincronizar todos a planta</button><a href="nuevo-proyecto.html" style="text-decoration:none;"><button class="btn btn-primary">+ Nuevo Proyecto</button></a></div></div>`;
+  // Build set of grouped project ids
+  const _grupoIds = new Set();
+  GRUPOS.forEach(g => (g.miembros || []).forEach(m => _grupoIds.add(m.id)));
+
+  // Inject synthetic group entries into displayList
+  const soloList = displayList.filter(pr => !_grupoIds.has(pr.id));
+  const grupoEntries = GRUPOS.filter(g => {
+    const miembroIds = (g.miembros || []).map(m => m.id);
+    return miembroIds.some(id => displayList.some(pr => pr.id === id));
+  }).map(g => {
+    const miembros = PROYECTOS.filter(p => (g.miembros || []).some(m => m.id === p.id));
+    const hA = miembros.reduce((s, p) => s + hAcumPr(p.id), 0);
+    const hE = miembros.reduce((s, p) => s + hEstPr(p), 0);
+    const allItems = miembros.flatMap(p => p.muebles || p.items || []);
+    return { _isGrupo: true, _grupoId: g.id, _grupoNombre: g.nombre, _miembros: miembros, hA, hE, items: allItems, numero: miembros.map(m => m.numero).join(', '), nombre: g.nombre, clienteNombre: miembros[0]?.clienteNombre || '', materiales: [], modulos: [] };
+  });
+  displayList = [...grupoEntries, ...soloList];
+
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><div class="sec-title" style="margin:0;">Proyectos</div><div style="display:flex;gap:8px;">
+    <button class="btn ${_prModoAgrupar?'btn-primary':'btn-ghost'} btn-sm" onclick="_prModoAgrupar=!_prModoAgrupar;_prSeleccion.clear();renderProyectos();">⛓ AGRUPAR</button>
+    <button class="btn btn-ghost btn-sm" onclick="syncTodosProyectos()" title="Sincroniza todos los proyectos de localStorage a Supabase para que aparezcan en Planta v2">↑ Sincronizar todos a planta</button><a href="nuevo-proyecto.html" style="text-decoration:none;"><button class="btn btn-primary">+ Nuevo Proyecto</button></a></div></div>`;
 
   // Buscador + toggle vista
   html += `<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
@@ -2017,11 +2059,196 @@ function renderProyectos() {
     html += `</div>`;
   }
 
+  // Agrupar bar
+  if (_prModoAgrupar) {
+    html += `<div style="position:fixed;bottom:0;left:200px;right:0;background:var(--panel);border-top:2px solid var(--amber);padding:12px 24px;display:flex;align-items:center;gap:12px;z-index:100;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--amber);">${_prSeleccion.size} seleccionados</span>
+      <input id="grp-nombre-input" type="text" value="${_prGrupoNombre.replace(/"/g,'&quot;')}" placeholder="Nombre del grupo…" oninput="_prGrupoNombre=this.value" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:6px 10px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;width:200px;">
+      <button class="btn btn-ghost btn-sm" onclick="_prModoAgrupar=false;_prSeleccion.clear();_prGrupoNombre='';renderProyectos();">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="_prCrearGrupo()" ${_prSeleccion.size < 2 ? 'disabled' : ''}>CREAR GRUPO</button>
+    </div>`;
+  }
+
   document.getElementById('pr-lista').innerHTML = html;
 
   // Restore focus on search input
   const si = document.getElementById('pr-search-input');
   if (si && _prBusqueda) { si.focus(); si.selectionStart = si.selectionEnd = _prBusqueda.length; }
+  // Restore focus on group name input if active
+  if (_prModoAgrupar && _prGrupoNombre) {
+    const gi = document.getElementById('grp-nombre-input');
+    if (gi) { gi.focus(); gi.selectionStart = gi.selectionEnd = _prGrupoNombre.length; }
+  }
+}
+
+function _prToggleSel(id) {
+  if (_prSeleccion.has(id)) _prSeleccion.delete(id); else _prSeleccion.add(id);
+  renderProyectos();
+}
+
+async function _prCrearGrupo() {
+  const nombre = document.getElementById('grp-nombre-input')?.value?.trim();
+  if (!nombre) { alert('Ingresá un nombre para el grupo'); return; }
+  if (_prSeleccion.size < 2) { alert('Seleccioná al menos 2 proyectos'); return; }
+  const u = window.AUTH.usuarioActual();
+  try {
+    const res = await fetch('/api/tiempos?action=crear-grupo', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_id: u.id, nombre, miembros: [..._prSeleccion] }),
+    });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || 'Error');
+    _prModoAgrupar = false;
+    _prSeleccion.clear();
+    _prGrupoNombre = '';
+    await cargarGrupos();
+    renderProyectos();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function abrirDetalleGrupo(grupoId) {
+  clearTimers();
+  const grupo = GRUPOS.find(g => g.id === grupoId);
+  if (!grupo) return;
+  document.getElementById('pr-lista').style.display = 'none';
+  const det = document.getElementById('pr-detalle');
+  det.style.display = 'block';
+
+  const miembros = PROYECTOS.filter(p => (grupo.miembros || []).some(m => m.id === p.id));
+  const u = window.AUTH.usuarioActual();
+
+  let html = `
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+      <button class="back-btn" onclick="volverListaPr()">← Proyectos</button>
+      <div style="flex:1;">
+        <div style="font-size:11px;color:var(--amber);font-family:'JetBrains Mono',monospace;margin-bottom:4px;">⛓ GRUPO · ${miembros.length} ODF</div>
+        <div style="font-size:22px;font-weight:700;">${grupo.nombre}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="_grpEliminar('${grupoId}')">Desagrupar</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div>
+        <div class="sec-title">Miembros</div>
+        ${miembros.map(m => {
+          const pct = hEstPr(m) > 0 ? Math.round(hAcumPr(m.id) / hEstPr(m) * 100) : 0;
+          return `<div style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;">
+            <div style="flex:1;cursor:pointer;" onclick="abrirDetallePr('${m.id}')">
+              <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--amber);">${m.numero}</span>
+              <span style="font-size:12px;color:#ccc;margin-left:6px;">${m.nombre}</span>
+              <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-left:8px;">${pct}%</span>
+            </div>
+            <button onclick="_grpQuitarMiembro('${grupoId}','${m.id}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;" title="Quitar del grupo">✕</button>
+          </div>`;
+        }).join('')}
+        <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px;" onclick="_grpAgregarMiembro('${grupoId}')">+ AGREGAR ODF</button>
+      </div>
+      <div id="grp-costos-panel">
+        <div class="sec-title">Costos del Paquete</div>
+        <div style="color:var(--muted);font-size:11px;">Cargando costos...</div>
+      </div>
+    </div>`;
+
+  det.innerHTML = html;
+
+  // Load costos
+  try {
+    const res = await fetch(`/api/tiempos?action=costos-grupo&grupo_id=${grupoId}&admin_id=${u.id}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    const panel = document.getElementById('grp-costos-panel');
+    if (!panel) return;
+    const fmtUSD = n => n != null ? `$${Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
+    const fmtH2 = h => `${Number(h).toFixed(1)}h`;
+    const catLabel = {directo:'Directo',indirecto:'Indirecto',tecnico:'Técnico',administrativo:'Administrativo'};
+    const mo = data.mano_obra;
+    const margen = data.venta_total_usd > 0 ? Math.round((data.venta_total_usd - data.total_proyecto_usd) / data.venta_total_usd * 100) : null;
+    panel.innerHTML = `
+      <div class="sec-title">Costos del Paquete</div>
+      <div style="display:flex;gap:16px;margin-bottom:16px;">
+        <div style="flex:1;background:#111;border-radius:6px;padding:10px;text-align:center;">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;">Venta</div>
+          <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--amber);">${fmtUSD(data.venta_total_usd)}</div>
+        </div>
+        <div style="flex:1;background:#111;border-radius:6px;padding:10px;text-align:center;">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;">Costo</div>
+          <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;">${fmtUSD(data.total_proyecto_usd)}</div>
+        </div>
+        <div style="flex:1;background:#111;border-radius:6px;padding:10px;text-align:center;">
+          <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-transform:uppercase;">Margen</div>
+          <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:${margen != null && margen >= 0 ? 'var(--green)' : 'var(--red)'};">${margen != null ? margen + '%' : '—'}</div>
+        </div>
+      </div>
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:12px;">MO ${fmtUSD(mo.total_usd)} · Mat ${fmtUSD(data.materiales.total_usd)} · CD ${fmtUSD(data.costos_directos.total_usd)} · Terc ${fmtUSD(data.tercerizados.total_usd)}</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="text-align:left;padding:4px 0;color:var(--muted);font-size:9px;">Categoría</th>
+          <th style="text-align:right;padding:4px 0;color:var(--muted);font-size:9px;">Horas</th>
+          <th style="text-align:right;padding:4px 0;color:var(--muted);font-size:9px;">$/h</th>
+          <th style="text-align:right;padding:4px 0;color:var(--muted);font-size:9px;">Subtotal</th>
+        </tr></thead>
+        <tbody>${mo.por_categoria.map(r => `<tr>
+          <td style="padding:3px 0;">${catLabel[r.categoria]||r.categoria}</td>
+          <td style="text-align:right;padding:3px 0;" class="mono">${fmtH2(r.horas)}</td>
+          <td style="text-align:right;padding:3px 0;color:var(--muted);" class="mono">${fmtUSD(r.tarifa_usd)}</td>
+          <td style="text-align:right;padding:3px 0;font-weight:600;" class="mono">${fmtUSD(r.subtotal_usd)}</td>
+        </tr>`).join('') || '<tr><td colspan="4" style="color:var(--muted);padding:8px 0;">Sin MO</td></tr>'}</tbody>
+      </table>
+      ${data.saldo_total_usd != null ? `<div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:10px;">Saldo cobranza: ${fmtUSD(data.saldo_total_usd)}</div>` : ''}`;
+  } catch(e) {
+    const panel = document.getElementById('grp-costos-panel');
+    if (panel) panel.innerHTML = `<div style="color:var(--red);font-size:11px;">Error: ${e.message}</div>`;
+  }
+}
+
+async function _grpQuitarMiembro(grupoId, proyId) {
+  if (!confirm('¿Quitar este proyecto del grupo?')) return;
+  const u = window.AUTH.usuarioActual();
+  try {
+    const res = await fetch('/api/tiempos?action=quitar-miembro', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_id: u.id, grupo_id: grupoId, proyecto_id: proyId }),
+    });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || 'Error');
+    await cargarGrupos();
+    abrirDetalleGrupo(grupoId);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function _grpAgregarMiembro(grupoId) {
+  const sinGrupo = PROYECTOS.filter(p => !p.grupo_id && p.activo !== false);
+  if (!sinGrupo.length) { alert('No hay proyectos disponibles'); return; }
+  const opciones = sinGrupo.map(p => `${p.numero} — ${p.nombre}`).join('\n');
+  const sel = prompt('Ingresá el número de ODF a agregar:\n\n' + opciones);
+  if (!sel) return;
+  const proy = sinGrupo.find(p => p.numero === sel.trim() || p.numero === sel.split(' ')[0].trim());
+  if (!proy) { alert('Proyecto no encontrado'); return; }
+  const u = window.AUTH.usuarioActual();
+  try {
+    const res = await fetch('/api/tiempos?action=agregar-miembro', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_id: u.id, grupo_id: grupoId, proyecto_id: proy.id }),
+    });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || 'Error');
+    await cargarGrupos();
+    abrirDetalleGrupo(grupoId);
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function _grpEliminar(grupoId) {
+  if (!confirm('¿Desagrupar este grupo? Los proyectos vuelven a ser individuales.')) return;
+  const u = window.AUTH.usuarioActual();
+  try {
+    const res = await fetch('/api/tiempos?action=eliminar-grupo', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_id: u.id, grupo_id: grupoId }),
+    });
+    const d = await res.json();
+    if (!d.ok) throw new Error(d.error || 'Error');
+    await cargarGrupos();
+    volverListaPr();
+  } catch(e) { alert('Error: ' + e.message); }
 }
 
 function abrirDetallePr(prId) {

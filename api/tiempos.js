@@ -4785,6 +4785,271 @@ export default async function handler(req) {
       return ok({ ok: true, venta_usd, facturado_usd, saldo_usd, avance_pct, comprobantes });
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // GRUPOS DE PROYECTOS
+    // ══════════════════════════════════════════════════════════════════════
+
+    // ── Helper: recalcular odf_principal_id ──────────────────────────────
+    async function _recalcularPrincipal(grupoId) {
+      const { data: miembros } = await supabase
+        .from('proyectos_cache').select('id, creado_en')
+        .eq('grupo_id', grupoId)
+        .order('creado_en', { ascending: true })
+        .order('id', { ascending: true })
+        .limit(1);
+      const principal = miembros?.[0]?.id || null;
+      await supabase.from('grupos_proyecto')
+        .update({ odf_principal_id: principal })
+        .eq('id', grupoId);
+    }
+
+    // ── GET listar-grupos (admin) ────────────────────────────────────────
+    if (action === 'listar-grupos' && req.method === 'GET') {
+      const admin_id = url.searchParams.get('admin_id');
+      if (!admin_id) return err('admin_id requerido', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      const { data: grupos } = await supabase
+        .from('grupos_proyecto').select('*').order('creado_en', { ascending: false });
+      const { data: allProys } = await supabase
+        .from('proyectos_cache').select('id, numero, nombre, creado_en, grupo_id')
+        .not('grupo_id', 'is', null);
+
+      const miembrosPorGrupo = {};
+      for (const p of (allProys || [])) {
+        if (!miembrosPorGrupo[p.grupo_id]) miembrosPorGrupo[p.grupo_id] = [];
+        miembrosPorGrupo[p.grupo_id].push({ id: p.id, numero: p.numero, nombre: p.nombre, creado_en: p.creado_en });
+      }
+
+      const result = (grupos || []).map(g => ({
+        id: g.id, nombre: g.nombre, odf_principal_id: g.odf_principal_id,
+        miembros: miembrosPorGrupo[g.id] || [],
+      }));
+      return ok({ ok: true, grupos: result });
+    }
+
+    // ── POST crear-grupo (admin) ─────────────────────────────────────────
+    if (action === 'crear-grupo' && req.method === 'POST') {
+      const { admin_id, nombre, miembros } = body;
+      if (!admin_id) return err('admin_id requerido', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      if (!nombre || !nombre.trim()) return err('nombre requerido', 400);
+      if (!Array.isArray(miembros) || miembros.length < 2) return err('Se requieren al menos 2 miembros', 400);
+
+      // Validar que todos existen y no están agrupados
+      const { data: proys } = await supabase
+        .from('proyectos_cache').select('id, grupo_id').in('id', miembros);
+      if (!proys || proys.length !== miembros.length) return err('Uno o más proyecto_id no encontrados', 400);
+      const yaAgrupados = proys.filter(p => p.grupo_id);
+      if (yaAgrupados.length) return err('Proyectos ya agrupados: ' + yaAgrupados.map(p => p.id).join(', '), 400);
+
+      const grupoId = 'grp_' + Date.now();
+      const { error: gErr } = await supabase.from('grupos_proyecto')
+        .insert({ id: grupoId, nombre: nombre.trim(), creado_por: admin_id, creado_en: new Date().toISOString() });
+      if (gErr) throw gErr;
+
+      const { error: uErr } = await supabase.from('proyectos_cache')
+        .update({ grupo_id: grupoId }).in('id', miembros);
+      if (uErr) throw uErr;
+
+      await _recalcularPrincipal(grupoId);
+      return ok({ ok: true, grupo_id: grupoId });
+    }
+
+    // ── POST agregar-miembro (admin) ─────────────────────────────────────
+    if (action === 'agregar-miembro' && req.method === 'POST') {
+      const { admin_id, grupo_id, proyecto_id } = body;
+      if (!admin_id || !grupo_id || !proyecto_id) return err('admin_id, grupo_id y proyecto_id requeridos', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      const { data: grupo } = await supabase.from('grupos_proyecto').select('id').eq('id', grupo_id).maybeSingle();
+      if (!grupo) return err('Grupo no encontrado', 404);
+      const { data: proy } = await supabase.from('proyectos_cache').select('id, grupo_id').eq('id', proyecto_id).maybeSingle();
+      if (!proy) return err('Proyecto no encontrado', 404);
+      if (proy.grupo_id) return err('Proyecto ya pertenece a un grupo', 400);
+
+      await supabase.from('proyectos_cache').update({ grupo_id }).eq('id', proyecto_id);
+      await _recalcularPrincipal(grupo_id);
+      return ok({ ok: true });
+    }
+
+    // ── POST quitar-miembro (admin) ──────────────────────────────────────
+    if (action === 'quitar-miembro' && req.method === 'POST') {
+      const { admin_id, grupo_id, proyecto_id } = body;
+      if (!admin_id || !grupo_id || !proyecto_id) return err('admin_id, grupo_id y proyecto_id requeridos', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      await supabase.from('proyectos_cache')
+        .update({ grupo_id: null })
+        .eq('id', proyecto_id).eq('grupo_id', grupo_id);
+      await _recalcularPrincipal(grupo_id);
+      return ok({ ok: true });
+    }
+
+    // ── POST eliminar-grupo (admin) ──────────────────────────────────────
+    if (action === 'eliminar-grupo' && req.method === 'POST') {
+      const { admin_id, grupo_id } = body;
+      if (!admin_id || !grupo_id) return err('admin_id y grupo_id requeridos', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      await supabase.from('proyectos_cache').update({ grupo_id: null }).eq('grupo_id', grupo_id);
+      await supabase.from('grupos_proyecto').delete().eq('id', grupo_id);
+      return ok({ ok: true });
+    }
+
+    // ── GET costos-grupo (admin) ─────────────────────────────────────────
+    if (action === 'costos-grupo' && req.method === 'GET') {
+      const grupo_id = url.searchParams.get('grupo_id');
+      const admin_id = url.searchParams.get('admin_id');
+      if (!grupo_id) return err('grupo_id requerido', 400);
+      if (!admin_id) return err('admin_id requerido', 400);
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede ver costos' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      // Miembros del grupo
+      const { data: members } = await supabase
+        .from('proyectos_cache')
+        .select('id, numero, nombre, obra, cliente_nombre, materiales, precio_venta_usd, saldo_cobranza_usd')
+        .eq('grupo_id', grupo_id);
+      if (!members || !members.length) return err('Grupo sin miembros', 404);
+
+      const memberIds = members.map(m => m.id);
+      const memberNumeros = members.map(m => m.numero).filter(Boolean);
+
+      // Registros de trabajo finalizados de TODOS los miembros
+      const { data: regs, error: rErr } = await supabase
+        .from('registros_trabajo')
+        .select('inicio, fin, empleado_id')
+        .in('proyecto_id', memberIds)
+        .not('fin', 'is', null)
+        .eq('eliminada', false);
+      if (rErr) throw rErr;
+
+      // Categorías de empleados
+      const empIds = [...new Set((regs || []).map(r => r.empleado_id))];
+      let catMap = {};
+      if (empIds.length) {
+        const { data: emps } = await supabase
+          .from('empleados').select('id, categoria').in('id', empIds);
+        catMap = Object.fromEntries((emps || []).map(e => [e.id, e.categoria]));
+      }
+
+      // Tarifas
+      const { data: tarifasArr } = await supabase
+        .from('tarifas_horarias').select('categoria, monto_usd');
+      const tarifaMap = Object.fromEntries((tarifasArr || []).map(t => [t.categoria, t.monto_usd]));
+
+      // MO por categoría
+      const horasCat = {};
+      let registros_sin_categoria = 0;
+      for (const r of (regs || [])) {
+        const cat = catMap[r.empleado_id];
+        if (!cat) { registros_sin_categoria++; continue; }
+        const horas = (new Date(r.fin) - new Date(r.inicio)) / 3600000;
+        horasCat[cat] = (horasCat[cat] || 0) + horas;
+      }
+      const CATS = ['directo','indirecto','tecnico','administrativo'];
+      const por_categoria = CATS
+        .filter(c => horasCat[c] !== undefined)
+        .map(c => {
+          const horas = Math.round(horasCat[c] * 10) / 10;
+          return {
+            categoria: c, horas,
+            tarifa_usd: tarifaMap[c] || 0,
+            subtotal_usd: Math.round(horas * (tarifaMap[c] || 0) * 100) / 100,
+          };
+        });
+      const total_horas = por_categoria.reduce((a, x) => a + x.horas, 0);
+      const mo_total_usd = por_categoria.reduce((a, x) => a + x.subtotal_usd, 0);
+
+      // Materiales: concatenar arrays de todos los miembros
+      let mat_total_usd = 0, materiales_sin_costo = 0;
+      const matItems = [];
+      for (const pr of members) {
+        for (const m of (pr.materiales || [])) {
+          const cant = m.requerido || m.cantidad || 0;
+          const cu = m.costo_unitario_usd != null ? Number(m.costo_unitario_usd) : null;
+          if (cu == null) materiales_sin_costo++;
+          const ct = cu != null ? Math.round(cant * cu * 100) / 100 : null;
+          if (ct != null) mat_total_usd += ct;
+          matItems.push({ proyecto: pr.numero, nombre: m.nombre, cantidad: cant, unidad: m.unidad, costo_unitario_usd: cu, costo_total_usd: ct });
+        }
+      }
+
+      // Costos directos de TODOS los miembros
+      const { data: costosDir, error: cdErr } = await supabase
+        .from('costos_directos_proyecto')
+        .select('id, tipo, descripcion, monto_usd, fecha, moneda_original, monto_original, tc_aplicado, oc_numero, oc_total_usd, creado_en, proyecto_id')
+        .in('proyecto_id', memberIds)
+        .order('fecha', { ascending: false });
+      if (cdErr) throw cdErr;
+      const costos_directos = costosDir || [];
+      const costos_directos_total_usd = costos_directos.reduce((a, r) => a + Number(r.monto_usd), 0);
+
+      // Tercerizados de TODOS los miembros
+      let tercerizados_items = [];
+      let tercerizados_total_usd = 0;
+      if (memberNumeros.length) {
+        const { data: tercData, error: tercErr } = await supabase
+          .from('partidas_terceros')
+          .select('id, numero_envio, proveedor_nombre, mueble_nombre, monto_usd, baru_completado_at, proyecto_num')
+          .in('proyecto_num', memberNumeros)
+          .eq('archivada', false)
+          .not('monto_usd', 'is', null)
+          .gt('monto_usd', 0);
+        if (tercErr) throw tercErr;
+        tercerizados_items = tercData || [];
+        tercerizados_total_usd = tercerizados_items.reduce((a, r) => a + Number(r.monto_usd), 0);
+      }
+
+      // Totales
+      const mo_total_usd_round = Math.round(mo_total_usd * 100) / 100;
+      const mat_total_usd_round = Math.round(mat_total_usd * 100) / 100;
+      const cd_total_usd_round = Math.round(costos_directos_total_usd * 100) / 100;
+      const terc_total_usd_round = Math.round(tercerizados_total_usd * 100) / 100;
+      const total_proyecto_usd = Math.round((mo_total_usd_round + mat_total_usd_round + cd_total_usd_round + terc_total_usd_round) * 100) / 100;
+      const venta_total_usd = Math.round(members.reduce((a, m) => a + (Number(m.precio_venta_usd) || 0), 0) * 100) / 100;
+      const saldo_total_usd = Math.round(members.reduce((a, m) => a + (Number(m.saldo_cobranza_usd) || 0), 0) * 100) / 100;
+
+      return ok({
+        ok: true,
+        grupo_id,
+        miembros: members.map(m => ({ id: m.id, numero: m.numero, nombre: m.nombre || m.obra })),
+        mano_obra: { por_categoria, total_horas: Math.round(total_horas * 100) / 100, total_usd: mo_total_usd_round },
+        materiales: { items: matItems, total_usd: mat_total_usd_round },
+        costos_directos: { items: costos_directos, total_usd: cd_total_usd_round },
+        tercerizados: { items: tercerizados_items, total_usd: terc_total_usd_round },
+        total_proyecto_usd,
+        venta_total_usd,
+        saldo_total_usd,
+        sin_costear: { registros_sin_categoria, materiales_sin_costo },
+      });
+    }
+
     return err('Acción no reconocida: ' + action);
 
   } catch (e) {
