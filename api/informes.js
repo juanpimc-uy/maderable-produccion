@@ -1365,7 +1365,7 @@ async function accionLeanCargaEtapa(req, res) {
       if (m.horas && typeof m.horas === 'object') {
         horas = Object.values(m.horas).reduce((s, v) => s + (Number(v) || 0), 0);
       }
-      allMuebles.push({ proyecto_id: p.id, mueble_id: m.id, placas, horas });
+      allMuebles.push({ proyecto_id: p.id, mueble_id: m.id, placas, horas, precio: Number(m.precio_venta_usd) || 0 });
     }
   }
 
@@ -1376,13 +1376,14 @@ async function accionLeanCargaEtapa(req, res) {
 
   // 3. Classify each mueble
   const buckets = {};
-  for (const e of ETAPAS_ORDEN) buckets[e] = { muebles: 0, placas: 0, horas: 0 };
+  for (const e of ETAPAS_ORDEN) buckets[e] = { muebles: 0, placas: 0, horas: 0, precio: 0 };
 
   for (const m of allMuebles) {
     const etapa = clasificarMueble(m.proyecto_id, m.mueble_id, projLast, muebleLast, despachadosSet, completadosSet);
     buckets[etapa].muebles++;
     buckets[etapa].placas += m.placas;
     buckets[etapa].horas += m.horas;
+    buckets[etapa].precio += m.precio;
   }
 
   // Find cuello (max PLACAS in planta, excluding 'fuera')
@@ -1398,6 +1399,7 @@ async function accionLeanCargaEtapa(req, res) {
     muebles: buckets[e].muebles,
     placas: buckets[e].placas,
     horas: round1(buckets[e].horas),
+    precio: round2(buckets[e].precio),
     es_cuello: e === cuello,
   }));
 
@@ -2158,6 +2160,124 @@ async function accionCostosFlujo(req, res) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// ENDPOINT — POST importar-precios-muebles (cf_tipo match → precios_muebles)
+// ══════════════════════════════════════════════════════════════════════════
+
+async function accionImportarPreciosMuebles(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const caller = await verificarSesionAdminOficina(req);
+  if (!caller) return err(res, 'Sesión inválida o sin permisos', 401);
+
+  // 1. Proyectos activos en_produccion con muebles
+  const { data: proyectos } = await supabase
+    .from('proyectos_cache').select('id, numero, muebles')
+    .eq('activo', true).eq('estado', 'en_produccion');
+  const proysConMuebles = (proyectos || []).filter(p => Array.isArray(p.muebles) && p.muebles.length);
+
+  // 2. Zoho token
+  let zohoToken;
+  try { zohoToken = await getZohoToken(); } catch (e) {
+    return err(res, 'No se pudo obtener token de Zoho: ' + e.message, 502);
+  }
+  const orgId = process.env.ZOHO_ORG_ID;
+
+  let proysProcesados = 0, mueblesConPrecio = 0, mueblesSinMatch = 0, facturasNoEncontradas = 0;
+  const ahora = new Date().toISOString();
+
+  // 3. Process each project
+  for (const proy of proysConMuebles) {
+    const muebles = proy.muebles;
+
+    // Collect odfIds from muebles (all share the same one typically)
+    const odfIds = [...new Set(muebles.map(m => m.odfId).filter(Boolean))];
+
+    // If no odfId, try searching by project numero
+    let invoices = [];
+    if (odfIds.length) {
+      for (const odfId of odfIds) {
+        try {
+          const detUrl = `https://www.zohoapis.com/books/v3/invoices/${odfId}?organization_id=${orgId}`;
+          const detRes = await fetch(detUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
+          const detData = await detRes.json();
+          if (detData?.invoice) invoices.push(detData.invoice);
+        } catch (_) {}
+      }
+    } else if (proy.numero) {
+      try {
+        const searchUrl = `https://www.zohoapis.com/books/v3/invoices?organization_id=${orgId}&search_text=${encodeURIComponent(proy.numero)}`;
+        const sRes = await fetch(searchUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
+        const sData = await sRes.json();
+        const inv = sData?.invoices?.[0];
+        if (inv?.invoice_id) {
+          const detUrl = `https://www.zohoapis.com/books/v3/invoices/${inv.invoice_id}?organization_id=${orgId}`;
+          const detRes = await fetch(detUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
+          const detData = await detRes.json();
+          if (detData?.invoice) invoices.push(detData.invoice);
+        }
+      } catch (_) {}
+    }
+
+    if (!invoices.length) { facturasNoEncontradas++; continue; }
+    proysProcesados++;
+
+    // Build cf_tipo → { bcy_rate, quantity } map from all invoices' line_items
+    const cfMap = {};
+    for (const invoice of invoices) {
+      for (const li of (invoice.line_items || [])) {
+        const cfs = li.item_custom_fields || [];
+        const cfTipo = cfs.find(f => f.api_name === 'cf_tipo');
+        const val = cfTipo?.value;
+        if (val && (typeof val === 'string' || typeof val === 'number')) {
+          const key = String(val).trim();
+          if (key) {
+            cfMap[key] = {
+              bcy_rate: Number(li.bcy_rate || li.rate || 0),
+              quantity: Number(li.quantity || 1),
+            };
+          }
+        }
+      }
+    }
+
+    // Match each mueble.codigo → cf_tipo
+    for (const m of muebles) {
+      const codigo = (m.codigo || '').trim();
+      if (!codigo) { mueblesSinMatch++; continue; }
+      const match = cfMap[codigo];
+      if (!match) { mueblesSinMatch++; continue; }
+
+      const precio_total_usd = round2(match.bcy_rate * match.quantity);
+
+      const { error: uErr } = await supabase
+        .from('precios_muebles')
+        .upsert({
+          proyecto_id: proy.id,
+          mf_n: m.id,
+          codigo: codigo,
+          precio_unitario_usd: round2(match.bcy_rate),
+          cantidad: match.quantity,
+          precio_total_usd,
+          fuente: 'zoho_cf_tipo',
+          actualizado_en: ahora,
+        }, { onConflict: 'proyecto_id,mf_n' });
+      if (uErr) console.error('[importar-precios-muebles] upsert error:', proy.numero, m.id, uErr.message);
+      else mueblesConPrecio++;
+    }
+
+    // Rate limit
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  return ok(res, {
+    proyectos_procesados: proysProcesados,
+    muebles_con_precio: mueblesConPrecio,
+    muebles_sin_match: mueblesSinMatch,
+    facturas_no_encontradas: facturasNoEncontradas,
+    total_proyectos: proysConMuebles.length,
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // Handler principal
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -2189,6 +2309,7 @@ export default async function handler(req, res) {
     if (action === 'lean-compras-serie')         return await accionLeanComprasSerie(req, res);
     if (action === 'importar-factura-lineas')   return await accionImportarFacturaLineas(req, res);
     if (action === 'reconciliar-facturas')      return await accionReconciliarFacturas(req, res);
+    if (action === 'importar-precios-muebles') return await accionImportarPreciosMuebles(req, res);
     return err(res, 'Acción no reconocida');
   } catch (e) {
     console.error('[informes]', action, e);

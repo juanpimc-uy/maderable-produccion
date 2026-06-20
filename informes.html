@@ -391,6 +391,7 @@ let _leanYm = '';
 let _leanUnidad = 'placas';
 const _lf = n => n != null ? Math.round(n).toLocaleString('es-UY') : '—';
 const _lfD = n => n != null ? n.toLocaleString('es-UY', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—';
+const _fMoney = (v) => { v = Number(v)||0; if (v>=10000) return '$'+Math.round(v/1000)+'k'; if (v>=1000) return '$'+(v/1000).toFixed(1).replace(/\.0$/,'')+'k'; return '$'+Math.round(v); };
 const _leanAuth = () => ({ headers: { Authorization: 'Bearer ' + seccionToken } });
 const _leanPQ = () => _leanPeriodo === 'elegir' ? `periodo=elegir&ym=${_leanYm}` : `periodo=${_leanPeriodo}`;
 const ETAPA_LABEL = { sin_registro_propio:'Sin registro propio', shop_drawing:'Shop Drawing', modelado:'Modelado', cam:'CAM', corte:'Corte', enchapado:'Enchapado', armado:'Armado', colocacion:'Colocación', completado:'Completado', fuera:'Fuera / Despachado' };
@@ -1191,7 +1192,7 @@ async function _cargarS1() {
       const cuelloTag = isCuello ? '<span class="cuellotag">CUELLO</span>' : '';
       const marginTop = isCuello ? 'margin-top:16px;' : '';
       const arrow = showArrow ? '<span class="arr">→</span>' : '';
-      return `<div class="st${isCuello?' cuello':''}" style="cursor:pointer;" onclick="_leanDrillEtapa('${e.etapa}')">${cuelloTag}<div class="cnt" style="${marginTop}${cntStyle}">${val}</div><div class="pl"><b>${e.placas}</b>pl · ${_lfD(e.horas)}h</div><div class="bar${cutClass}" style="${barStyle}"></div><div class="lbl" style="${lblStyle}">${ETAPA_LABEL[e.etapa]}</div>${arrow}</div>`;
+      return `<div class="st${isCuello?' cuello':''}" style="cursor:pointer;" onclick="_leanDrillEtapa('${e.etapa}')">${cuelloTag}<div class="cnt" style="${marginTop}${cntStyle}">${_leanUnidad==='precio' ? _fMoney(val) : val}</div><div class="pl"><b>${e.placas}</b>pl · ${_lfD(e.horas)}h</div><div class="bar${cutClass}" style="${barStyle}"></div><div class="lbl" style="${lblStyle}">${ETAPA_LABEL[e.etapa]}</div>${arrow}</div>`;
     }
 
     const sinRegistro = etapas.find(e => e.etapa === 'sin_registro_propio');
@@ -1210,7 +1211,7 @@ async function _cargarS1() {
       <div class="lean-hdr">
         <div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;background:#FFD600;border-radius:2px;"></div><span class="lean-title">① Carga por etapa</span>
         <span style="font-family:'Space Mono',monospace;font-size:9px;color:#555;margin-left:8px;">${d.total_muebles} muebles en producción</span></div>
-        <div class="lean-toggle">${utb('muebles','Muebles')}${utb('placas','Placas')}${utb('horas','Horas (est.)')}</div>
+        <div class="lean-toggle">${utb('muebles','Muebles')}${utb('placas','Placas')}${utb('horas','Horas (est.)')}${utb('precio','$')}</div>
       </div>
       <div class="lean-body">
         <div style="display:flex;gap:6px;margin-bottom:12px;">
