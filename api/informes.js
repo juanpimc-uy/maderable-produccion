@@ -1013,6 +1013,25 @@ async function accionSincronizarPreciosMuebles(req, res) {
   }
   const orgId = process.env.ZOHO_ORG_ID;
 
+  // Resolver factura por número de proyecto (cuando el mueble no tiene odfId)
+  async function _facturaPorNumero(numero) {
+    if (!numero) return null;
+    try {
+      const lUrl = `https://www.zohoapis.com/books/v3/invoices?organization_id=${orgId}&invoice_number=${encodeURIComponent(numero)}`;
+      const lRes = await fetch(lUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
+      const lData = await lRes.json();
+      const inv = (lData.invoices || []).find(i => i.invoice_number === numero);
+      if (!inv) return null;
+      const dUrl = `https://www.zohoapis.com/books/v3/invoices/${inv.invoice_id}?organization_id=${orgId}`;
+      const dRes = await fetch(dUrl, { headers: { 'Authorization': `Zoho-oauthtoken ${zohoToken}` } });
+      const dData = await dRes.json();
+      return dData?.invoice || null;
+    } catch (e) {
+      console.warn('[sync-precios-muebles] fallback numero error:', numero, e.message);
+      return null;
+    }
+  }
+
   // 4. Collect unique odfIds
   const odfIdSet = new Set();
   for (const p of proysConMuebles) {
@@ -1053,18 +1072,23 @@ async function accionSincronizarPreciosMuebles(req, res) {
     let sumaPreciosMuebles = 0;
     let proyModificado = false;
 
-    for (const m of muebles) {
-      // Skip: no odfId
-      if (!m.odfId) { mueblesSinPrecio++; continue; }
+    // Fallback: si hay muebles sin odfId, resolver la factura por número de proyecto
+    let fallbackInvoice = null;
+    const _haySinOdf = muebles.some(m => !m.odfId && /^mf_(\d+)$/.test(String(m.id)) && Number(String(m.id).match(/^mf_(\d+)$/)[1]) <= 1000);
+    if (_haySinOdf) fallbackInvoice = await _facturaPorNumero(proy.numero);
 
+    for (const m of muebles) {
       // Skip: manual mueble (id = mf_<timestamp largo>)
       const idMatch = String(m.id).match(/^mf_(\d+)$/);
       if (!idMatch) { mueblesSinPrecio++; continue; }
       const idx = Number(idMatch[1]);
       if (idx > 1000) { mueblesSinPrecio++; continue; }
 
-      const invoice = invoiceCache[m.odfId];
+      const usedFallback = !m.odfId && !!fallbackInvoice;
+      const invoice = m.odfId ? invoiceCache[m.odfId] : fallbackInvoice;
       if (!invoice || !Array.isArray(invoice.line_items)) { mueblesSinPrecio++; continue; }
+      // Backfill: si vino por fallback, dejar linkeado el odfId para próximas corridas
+      if (usedFallback && invoice.invoice_id) { m.odfId = invoice.invoice_id; proyModificado = true; }
 
       const linea = invoice.line_items[idx];
       if (!linea) {
