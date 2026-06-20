@@ -235,13 +235,14 @@
   .stages{display:flex;align-items:flex-end;gap:0}
   .grp{display:flex;align-items:flex-end;flex:1}
   .grp.planta{border-left:1px solid #2a2a2a;margin-left:14px;padding-left:14px}
+  .grp.terminado{border-left:1px solid #2a2a2a;margin-left:14px;padding-left:14px;flex:0 0 auto}
   .grp.backlog{flex:0 0 100px;border-right:1px solid #2a2a2a;padding-right:14px;margin-right:14px}
   .st{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;padding:0 6px}
   .st .arr{position:absolute;right:-4px;top:96px;color:#3a3a3a;font-size:11px}
   .st .cnt{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;line-height:1;margin-bottom:6px}
   .st .pl{font-family:'Space Mono',monospace;font-size:9px;color:#7a7a7a;margin-bottom:6px}
   .st .pl b{color:#ededed}
-  .st .bar{width:60%;border-radius:4px 4px 0 0;min-height:8px}
+  .st .bar{width:36px;border-radius:4px 4px 0 0;min-height:8px}
   .st .lbl{font-family:'Space Mono',monospace;font-size:9px;color:#7a7a7a;text-transform:uppercase;margin-top:9px;text-align:center}
   .st.cuello .cnt{color:#ff5a5a}
   .cuellotag{position:absolute;top:-2px;background:#ff5a5a;color:#000;font-family:'Space Mono',monospace;font-size:8px;font-weight:700;padding:2px 7px;border-radius:3px}
@@ -367,6 +368,7 @@ let seccionToken = null;
 let proyectosData = [];
 let totalesData = {};
 let facturacionMap = {}; // proyecto_id → facturado_usd
+let _gruposInf = []; // grupos de proyectos para colapsar
 let estadoActivo = 'all';
 let timeoutHandle = null;
 let countdownHandle = null;
@@ -391,9 +393,9 @@ const _lf = n => n != null ? Math.round(n).toLocaleString('es-UY') : '—';
 const _lfD = n => n != null ? n.toLocaleString('es-UY', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—';
 const _leanAuth = () => ({ headers: { Authorization: 'Bearer ' + seccionToken } });
 const _leanPQ = () => _leanPeriodo === 'elegir' ? `periodo=elegir&ym=${_leanYm}` : `periodo=${_leanPeriodo}`;
-const ETAPA_LABEL = { sin_registro_propio:'Sin registro propio', shop_drawing:'Shop Drawing', modelado:'Modelado', cam:'CAM', corte:'Corte', enchapado:'Enchapado', armado:'Armado', colocacion:'Colocación', fuera:'Fuera / Despachado' };
-const ETAPA_COLOR = { sin_registro_propio:'#565656', shop_drawing:'#4f7fff', modelado:'#4f7fff', cam:'#4f7fff', corte:'#8a8a3a', enchapado:'#8a8a3a', armado:'#8a8a3a', colocacion:'#8a8a3a', fuera:'#2a6e4a' };
-const ETAPA_GRUPO = { sin_registro_propio:'pre', shop_drawing:'oficina', modelado:'oficina', cam:'oficina', corte:'planta', enchapado:'planta', armado:'planta', colocacion:'planta', fuera:'salida' };
+const ETAPA_LABEL = { sin_registro_propio:'Sin registro propio', shop_drawing:'Shop Drawing', modelado:'Modelado', cam:'CAM', corte:'Corte', enchapado:'Enchapado', armado:'Armado', colocacion:'Colocación', completado:'Completado', fuera:'Fuera / Despachado' };
+const ETAPA_COLOR = { sin_registro_propio:'#565656', shop_drawing:'#4f7fff', modelado:'#4f7fff', cam:'#4f7fff', corte:'#8a8a3a', enchapado:'#8a8a3a', armado:'#8a8a3a', colocacion:'#8a8a3a', completado:'#22c55e', fuera:'#2a6e4a' };
+const ETAPA_GRUPO = { sin_registro_propio:'pre', shop_drawing:'oficina', modelado:'oficina', cam:'oficina', corte:'planta', enchapado:'planta', armado:'planta', colocacion:'planta', completado:'terminado', fuera:'salida' };
 
 // ── AUTH CHECK ──────────────────────────────────────────────────────────
 (function() {
@@ -562,6 +564,15 @@ async function cargarInforme() {
         console.warn('[informes] facturacion-resumen no ok:', fData.error || fRes.status);
       }
     } catch(e) { console.warn('[informes] facturacion-resumen error:', e.message); }
+    // Fetch grupos
+    try {
+      const u = window.AUTH.usuarioActual();
+      if (u) {
+        const gRes = await fetch(`${BASE_URL}/api/tiempos?action=listar-grupos&admin_id=${u.id}`);
+        const gData = await gRes.json();
+        _gruposInf = gData.ok ? (gData.grupos || []) : [];
+      }
+    } catch(e) { _gruposInf = []; console.warn('[informes] listar-grupos error:', e.message); }
     filtrarLocal();
   } catch (e) {
     console.error('[informes] cargarInforme', e);
@@ -584,10 +595,45 @@ function _getFilteredData() {
   );
   return list;
 }
+function _colapsarGrupos(list) {
+  if (!_gruposInf.length) return list;
+  const agrupados = new Set();
+  _gruposInf.forEach(g => (g.miembros || []).forEach(m => agrupados.add(m.id)));
+  const noAgrupados = list.filter(p => !agrupados.has(p.id));
+  const filasSinteticas = [];
+  for (const g of _gruposInf) {
+    const miembrosEnLista = list.filter(p => (g.miembros || []).some(m => m.id === p.id));
+    if (!miembrosEnLista.length) continue;
+    const horas_reales_hs = miembrosEnLista.reduce((a, p) => a + (p.horas_reales_hs || 0), 0);
+    const horas_estimadas_hs = miembrosEnLista.reduce((a, p) => a + (p.horas_estimadas_hs || 0), 0);
+    const total_materiales_usd = miembrosEnLista.reduce((a, p) => a + (p.total_materiales_usd || 0), 0);
+    const total_tercerizados_usd = miembrosEnLista.reduce((a, p) => a + (p.total_tercerizados_usd || 0), 0);
+    const total_oc_usd = miembrosEnLista.reduce((a, p) => a + (p.total_oc_usd || 0), 0);
+    const precio_venta_usd = miembrosEnLista.reduce((a, p) => a + (p.precio_venta_usd || 0), 0);
+    const saldo_cobranza_usd = miembrosEnLista.reduce((a, p) => a + (p.saldo_cobranza_usd || 0), 0);
+    const total_invertido_usd = miembrosEnLista.reduce((a, p) => a + (p.total_invertido_usd || 0), 0);
+    const _factGrupo = miembrosEnLista.reduce((a, p) => a + (facturacionMap[p.id] || 0), 0);
+    const margen_pct = precio_venta_usd > 0 ? Math.round((precio_venta_usd - total_invertido_usd) / precio_venta_usd * 1000) / 10 : null;
+    const todosTerminados = miembrosEnLista.every(p => p.estado === 'terminado');
+    filasSinteticas.push({
+      _isGrupo: true, _grupoId: g.id, _miembrosIds: miembrosEnLista.map(p => p.id),
+      id: 'grp-' + g.id, nombre: g.nombre, numero: '⛓ ' + miembrosEnLista.length + ' ODF',
+      cliente_nombre: miembrosEnLista[0].cliente_nombre,
+      horas_reales_hs, horas_estimadas_hs, total_materiales_usd, total_tercerizados_usd,
+      total_oc_usd, precio_venta_usd, saldo_cobranza_usd, total_invertido_usd,
+      margen_pct, _factUsdGrupo: _factGrupo,
+      estado: todosTerminados ? 'terminado' : 'en_curso', activo: true,
+    });
+  }
+  return [...filasSinteticas, ...noAgrupados];
+}
+
 function filtrarLocal() {
   const filtered = _getFilteredData();
-  renderTabla(filtered);
-  renderTotales(filtered);
+  const display = _colapsarGrupos(filtered);
+  _openGrupoId = null;
+  renderTabla(display);
+  renderTotales(display);
 }
 
 // ── RENDER TABLE ────────────────────────────────────────────────────────
@@ -620,17 +666,18 @@ function renderTabla(data) {
       ? `<span class="num num-accent">${fmt(p.precio_venta_usd)}</span>`
       : `<span class="num num-muted">${p.precio_venta_pendiente ? 'Ver detalle' : 'Sin SO'}</span>`;
 
-    const _factUsd = facturacionMap[p.id] || 0;
+    const _factUsd = p._isGrupo ? (p._factUsdGrupo || 0) : (facturacionMap[p.id] || 0);
     const _factPct = p.precio_venta_usd > 0 ? Math.round(_factUsd / p.precio_venta_usd * 100) : null;
     const archivedBadge = p.activo === false ? '<span class="archived-badge">ARCHIVADO</span>' : '';
     const rowOpacity = p.activo === false ? 'opacity:.6;' : '';
+    const grpStyle = p._isGrupo ? 'border-left:3px solid #FFD600;' : '';
 
-    html += `<tr class="${rowClass}" style="${rowOpacity}" onclick="toggleDetail('${p.id}', this)" id="row-${p.id}">
+    html += `<tr class="${rowClass}" style="${rowOpacity}${grpStyle}" onclick="${p._isGrupo ? `toggleGrupoDetail('${p._grupoId}', this)` : `toggleDetail('${p.id}', this)`}" id="row-${p.id}">
       <td>
         <div style="display:flex;align-items:center;">
           <span class="status-dot ${statusDotClass(p)}"></span>
           <div>
-            <div class="proj-name">${p.nombre || p.numero || '-'}${archivedBadge}${zombieHtml}</div>
+            <div class="proj-name">${p._isGrupo ? '⛓ ' : ''}${p.nombre || p.numero || '-'}${archivedBadge}${zombieHtml}</div>
             <div class="proj-sub">${p.numero || ''}${p.cliente_nombre ? ' · ' + p.cliente_nombre : ''}</div>
             ${p.obra && p.obra !== p.nombre ? '<div class="proj-obra">' + p.obra + '</div>' : ''}
           </div>
@@ -733,6 +780,60 @@ async function toggleDetail(id, rowEl) {
     renderDetailContent(id, data);
   } catch (e) {
     console.error('[informes] detail fetch', e);
+  }
+}
+
+let _openGrupoId = null;
+function toggleGrupoDetail(grupoId, rowEl) {
+  const rowId = 'row-grp-' + grupoId;
+  const detId = 'grpdet-' + grupoId;
+  if (_openGrupoId === grupoId) {
+    const dr = document.getElementById(detId);
+    if (dr) dr.remove();
+    _openGrupoId = null;
+    return;
+  }
+  if (_openGrupoId) {
+    const prev = document.getElementById('grpdet-' + _openGrupoId);
+    if (prev) prev.remove();
+  }
+  _openGrupoId = grupoId;
+  const g = _gruposInf.find(x => x.id === grupoId);
+  if (!g) return;
+  const miembroIds = (g.miembros || []).map(m => m.id);
+  const miembros = proyectosData.filter(p => miembroIds.includes(p.id));
+  let subHtml = '';
+  for (const m of miembros) {
+    const _fU = facturacionMap[m.id] || 0;
+    const _fP = m.precio_venta_usd > 0 ? Math.round(_fU / m.precio_venta_usd * 100) : null;
+    subHtml += `<tr style="background:#0d0d0d;font-size:12px;" onclick="toggleDetail('${m.id}', this)" id="row-${m.id}">
+      <td style="padding-left:32px;">
+        <div><div class="proj-name" style="font-size:12px;">${m.nombre || m.numero}</div><div class="proj-sub">${m.numero}${m.cliente_nombre ? ' · ' + m.cliente_nombre : ''}</div></div>
+      </td>
+      <td><span class="num">${m.horas_reales_hs} hs</span></td>
+      <td><span class="num num-muted">${m.horas_estimadas_hs != null ? m.horas_estimadas_hs + ' hs' : '-'}</span></td>
+      <td><span class="num">${fmt(m.total_materiales_usd)}</span></td>
+      <td><span class="num">${fmt(m.total_tercerizados_usd)}</span></td>
+      <td><span class="num">${fmt(m.total_oc_usd)}</span></td>
+      <td><span class="num${m.precio_venta_usd > 0 ? ' num-accent' : ' num-muted'}">${m.precio_venta_usd > 0 ? fmt(m.precio_venta_usd) : '—'}</span></td>
+      <td><span class="num${_fP != null ? '' : ' num-muted'}">${_fP != null ? _fP + '%' : '—'}</span></td>
+      <td><span class="num${m.saldo_cobranza_usd != null ? '' : ' num-muted'}">${m.saldo_cobranza_usd != null ? (m.saldo_cobranza_usd === 0 ? '<span style="color:var(--green);">PAGO</span>' : fmt(m.saldo_cobranza_usd)) : '—'}</span></td>
+      <td>${m.margen_pct != null ? '<span class="num" style="color:' + (m.margen_pct >= 0 ? 'var(--green)' : 'var(--red)') + ';">' + fmtPct(m.margen_pct) + '</span>' : '<span class="num num-muted">—</span>'}</td>
+      <td><span class="mono" style="font-size:9px;color:${m.estado === 'terminado' ? 'var(--blue)' : 'var(--green)'};">${m.estado === 'terminado' ? 'TERMINADO' : 'EN CURSO'}</span></td>
+    </tr>`;
+    if (openDetailId === m.id) {
+      subHtml += `<tr class="detail-row" id="detail-${m.id}"><td colspan="11"><div class="detail-panel" id="detailPanel-${m.id}"><div class="mono" style="font-size:11px;color:var(--muted);">Cargando...</div></div></td></tr>`;
+    }
+  }
+  const row = document.getElementById(rowId) || rowEl;
+  if (!row) return;
+  const tr = document.createElement('tr');
+  tr.id = detId;
+  tr.innerHTML = `<td colspan="11" style="padding:0;"><table style="width:100%;border-collapse:collapse;">${subHtml}</table></td>`;
+  row.after(tr);
+  // Re-render open detail within group
+  if (openDetailId && detailCache[openDetailId]) {
+    renderDetailContent(openDetailId, detailCache[openDetailId]);
   }
 }
 
@@ -1079,8 +1180,8 @@ async function _cargarS1() {
       const h = Math.max(8, Math.round(val / maxVal * maxH));
       const col = ETAPA_COLOR[e.etapa];
       const isCuello = e.es_cuello;
-      const isSinIniciar = e.etapa === 'sin_iniciar';
-      const cutClass = (isSinIniciar && val > 0) ? ' cut' : '';
+      const isSinRegistro = e.etapa === 'sin_registro_propio';
+      const cutClass = (isSinRegistro && val > 0) ? ' cut' : '';
       const barStyle = isCuello ? `height:${h}px;background:#ff5a5a;opacity:.8` : `height:${h}px;background:${col};opacity:.6`;
       const cntStyle = isCuello ? 'color:#ff5a5a' : '';
       const lblStyle = isCuello ? 'color:#ff5a5a' : '';
@@ -1093,11 +1194,13 @@ async function _cargarS1() {
     const sinRegistro = etapas.find(e => e.etapa === 'sin_registro_propio');
     const oficina = etapas.filter(e => ETAPA_GRUPO[e.etapa] === 'oficina');
     const planta = etapas.filter(e => ETAPA_GRUPO[e.etapa] === 'planta');
+    const terminado = etapas.filter(e => ETAPA_GRUPO[e.etapa] === 'terminado');
     const salida = etapas.filter(e => ETAPA_GRUPO[e.etapa] === 'salida');
 
     const backlogHtml = sinRegistro ? stHtml(sinRegistro, true) : '';
     const oficinaHtml = oficina.map((e, i) => stHtml(e, i < oficina.length - 1)).join('');
     const plantaHtml = planta.map((e, i) => stHtml(e, i < planta.length - 1)).join('');
+    const terminadoHtml = terminado.map(e => stHtml(e, false)).join('');
     const salidaHtml = salida.map(e => stHtml(e, false)).join('');
 
     el.innerHTML = `<div class="lean-card">
@@ -1110,12 +1213,14 @@ async function _cargarS1() {
         <div style="display:flex;gap:6px;margin-bottom:12px;">
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:#4f7fff;">■ OFICINA</span>
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:#8a8a3a;">■ PLANTA</span>
+          <span style="font-family:'Space Mono',monospace;font-size:9px;color:#22c55e;">■ COMPLETADO</span>
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:#2a6e4a;">■ FUERA</span>
         </div>
         <div class="stages">
           <div class="grp backlog">${backlogHtml}</div>
           <div class="grp oficina">${oficinaHtml}</div>
           <div class="grp planta">${plantaHtml}</div>
+          ${terminadoHtml ? `<div class="grp terminado">${terminadoHtml}</div>` : ''}
           ${salidaHtml ? `<div class="grp salida">${salidaHtml}</div>` : ''}
         </div>
       </div>
@@ -1332,7 +1437,7 @@ async function _leanDrillEtapa(etapa) {
         <th style="text-align:right;padding:4px 6px;color:#888;font-size:9px;">PLACAS</th>
       </tr></thead>
       <tbody>${d.muebles.map(m => `<tr style="border-bottom:1px solid #1a1a1a;">
-        <td style="padding:4px 6px;color:#aaa;">${m.proyecto||'—'}</td>
+        <td style="padding:4px 6px;color:#aaa;">${m.proyecto||'—'}${m.proyecto_nombre ? ' — '+m.proyecto_nombre : ''}</td>
         <td style="padding:4px 6px;color:#FFD600;">${m.codigo||'—'}</td>
         <td style="padding:4px 6px;color:#ccc;">${m.nombre||'—'}</td>
         <td style="padding:4px 6px;text-align:right;color:${m.placas > 100 ? '#ff5a5a' : '#ccc'};">${m.placas}</td>

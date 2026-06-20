@@ -1266,10 +1266,11 @@ async function accionThroughputMensual(req, res) {
 
 // ══════════════════════════════════════════════════════════════════════════
 // ── Shared: clasificar mueble en etapa ───────────────────────────────────
-const ETAPAS_ORDEN = ['sin_registro_propio','shop_drawing','modelado','cam','corte','enchapado','armado','colocacion','fuera'];
+const ETAPAS_ORDEN = ['sin_registro_propio','shop_drawing','modelado','cam','corte','enchapado','armado','colocacion','completado','fuera'];
 
-function clasificarMueble(proyecto_id, mueble_id, projLast, muebleLast, despachadosSet) {
+function clasificarMueble(proyecto_id, mueble_id, projLast, muebleLast, despachadosSet, completadosSet) {
   if (despachadosSet.has(proyecto_id + '|' + mueble_id)) return 'fuera';
+  if (completadosSet.has(proyecto_id + '|' + mueble_id)) return 'completado';
   const plCentro = projLast[proyecto_id];
   if (plCentro === 'colocacion') return 'colocacion';
   const mlCentro = muebleLast[proyecto_id + '|' + mueble_id];
@@ -1288,7 +1289,7 @@ function _coalesceTs(r) {
 }
 
 async function _fetchLeanContexto(proyIds, muebleIds) {
-  const [projRegsR, mRegsR, despR] = await Promise.all([
+  const [projRegsR, mRegsR, despR, compLogsR] = await Promise.all([
     supabase.from('registros_trabajo')
       .select('proyecto_id, centro, inicio, fin, ultima_actividad')
       .in('proyecto_id', proyIds)
@@ -1304,6 +1305,10 @@ async function _fetchLeanContexto(proyIds, muebleIds) {
     supabase.from('despachos_muebles')
       .select('proyecto_id, mf_n')
       .eq('despachado_full', true),
+    supabase.from('items_completado_log')
+      .select('proyecto_id, item_id, evento, creado_at')
+      .in('proyecto_id', proyIds)
+      .order('creado_at', { ascending: false }),
   ]);
 
   // projLast: último centro por proyecto (por coalesce desc)
@@ -1322,7 +1327,17 @@ async function _fetchLeanContexto(proyIds, muebleIds) {
   // despachadosSet
   const despachadosSet = new Set((despR.data || []).map(d => d.proyecto_id + '|' + d.mf_n));
 
-  return { projLast, muebleLast, despachadosSet };
+  // completadosSet: último evento por (proyecto_id, item_id), solo los que son 'completado'
+  const completadosSet = new Set();
+  const vistoComp = {};
+  for (const l of (compLogsR.data || [])) {
+    const k = l.proyecto_id + '|' + l.item_id;
+    if (vistoComp[k]) continue;
+    vistoComp[k] = true;
+    if (l.evento === 'completado') completadosSet.add(k);
+  }
+
+  return { projLast, muebleLast, despachadosSet, completadosSet };
 }
 
 // ENDPOINT 14 — GET lean-carga-etapa
@@ -1357,14 +1372,14 @@ async function accionLeanCargaEtapa(req, res) {
   // 2. Fetch contexto (último centro proyecto/mueble + despachos)
   const proyIds = (proys || []).map(p => p.id);
   const muebleIds = allMuebles.map(m => m.mueble_id).filter(Boolean);
-  const { projLast, muebleLast, despachadosSet } = await _fetchLeanContexto(proyIds, muebleIds);
+  const { projLast, muebleLast, despachadosSet, completadosSet } = await _fetchLeanContexto(proyIds, muebleIds);
 
   // 3. Classify each mueble
   const buckets = {};
   for (const e of ETAPAS_ORDEN) buckets[e] = { muebles: 0, placas: 0, horas: 0 };
 
   for (const m of allMuebles) {
-    const etapa = clasificarMueble(m.proyecto_id, m.mueble_id, projLast, muebleLast, despachadosSet);
+    const etapa = clasificarMueble(m.proyecto_id, m.mueble_id, projLast, muebleLast, despachadosSet, completadosSet);
     buckets[etapa].muebles++;
     buckets[etapa].placas += m.placas;
     buckets[etapa].horas += m.horas;
@@ -1417,13 +1432,13 @@ async function accionLeanCargaEtapaDetalle(req, res) {
 
   const proyIds = (proys || []).map(p => p.id);
   const muebleIds = allMuebles.map(m => m.mueble_id).filter(Boolean);
-  const { projLast, muebleLast, despachadosSet } = await _fetchLeanContexto(proyIds, muebleIds);
+  const { projLast, muebleLast, despachadosSet, completadosSet } = await _fetchLeanContexto(proyIds, muebleIds);
 
   const resultado = [];
   for (const m of allMuebles) {
-    const etapaCalc = clasificarMueble(m.proyecto_id, m.mueble_id, projLast, muebleLast, despachadosSet);
+    const etapaCalc = clasificarMueble(m.proyecto_id, m.mueble_id, projLast, muebleLast, despachadosSet, completadosSet);
     if (etapaCalc === etapa) {
-      resultado.push({ proyecto: m.proyecto_numero || m.proyecto_nombre, nombre: m.nombre, codigo: m.codigo, placas: m.placas });
+      resultado.push({ proyecto: m.proyecto_numero || m.proyecto_nombre, proyecto_nombre: m.proyecto_nombre, nombre: m.nombre, codigo: m.codigo, placas: m.placas });
     }
   }
 
