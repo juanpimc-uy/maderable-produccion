@@ -1102,11 +1102,15 @@ async function accionSincronizarPreciosMuebles(req, res) {
         continue;
       }
 
-      // Cross-check name
+      // Cross-check: cf_tipo (código exacto) es la prueba más fuerte; si no, nombre/descripción
+      const cfTipoLinea = (linea.item_custom_fields || []).find(f => f.api_name === 'cf_tipo')?.value;
+      const cfTipoNorm = cfTipoLinea != null ? String(cfTipoLinea).trim().toLowerCase() : '';
+      const codigoNorm = (m.codigo || '').trim().toLowerCase();
+      const cfMatch = !!cfTipoNorm && !!codigoNorm && cfTipoNorm === codigoNorm;
       const lineDesc = ((linea.name || '') + ' ' + (linea.description || '')).toLowerCase();
       const mNombre = (m.nombre || '').toLowerCase();
       const mCodigo = (m.codigo || '').toLowerCase();
-      const crossOk = !mNombre || lineDesc.includes(mNombre.split(' ')[0]) || (mCodigo && lineDesc.includes(mCodigo));
+      const crossOk = cfMatch || !mNombre || lineDesc.includes(mNombre.split(' ')[0]) || (mCodigo && lineDesc.includes(mCodigo));
 
       if (!crossOk) {
         m.precio_venta_usd = null;
