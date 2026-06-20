@@ -2382,6 +2382,37 @@ export default async function handler(req) {
       return ok({ ok: true, jornada: data });
     }
 
+    // ── POST resolver-anular (soft-anular jornada, admin) ────────────────
+    if (action === 'resolver-anular' && req.method === 'POST') {
+      const { admin_id, jornada_id, motivo } = body;
+      if (!admin_id || !jornada_id) return err('admin_id y jornada_id requeridos', 400);
+      const { data: caller } = await supabase.from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin') return err('No autorizado', 403);
+      const { data, error } = await supabase.from('jornadas')
+        .update({ anulada: true, anulada_por: admin_id, anulada_en: new Date().toISOString(), motivo_anulacion: motivo || null })
+        .eq('id', jornada_id).select().maybeSingle();
+      if (error) throw error;
+      return ok({ ok: true, jornada: data });
+    }
+
+    // ── POST resolver-salida (cerrar segmento abierto, admin) ────────────
+    if (action === 'resolver-salida' && req.method === 'POST') {
+      const { admin_id, jornada_id, salida } = body; // salida = ISO timestamptz
+      if (!admin_id || !jornada_id || !salida) return err('admin_id, jornada_id y salida requeridos', 400);
+      const { data: caller } = await supabase.from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
+      if (!caller || caller.rol_app !== 'admin') return err('No autorizado', 403);
+      // Validar contra el segmento abierto
+      const { data: seg } = await supabase.from('jornada_segmentos')
+        .select('id, entrada').eq('jornada_id', jornada_id).is('salida', null).maybeSingle();
+      if (!seg) return err('No hay segmento abierto en esta jornada', 400);
+      if (new Date(salida) <= new Date(seg.entrada)) return err('La salida debe ser posterior a la entrada del segmento', 400);
+      // Cerrar segmento + cache de jornada.salida
+      await supabase.from('jornada_segmentos').update({ salida }).eq('id', seg.id);
+      const { data, error } = await supabase.from('jornadas').update({ salida }).eq('id', jornada_id).select().maybeSingle();
+      if (error) throw error;
+      return ok({ ok: true, jornada: data });
+    }
+
     // ── POST iniciar-tarea-v2 ─────────────────────────────────────────────
     if (action === 'iniciar-tarea-v2' && req.method === 'POST') {
       const { empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre, maquina } = body;
