@@ -5,14 +5,7 @@
 // Fase 3: 'fuera' al ERP cuando TODOS los bultos del mueble están escaneados.
 import { createClient } from '@supabase/supabase-js';
 
-const erp = createClient(
-  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || ''
-);
-const cd = createClient(
-  process.env.CTRL_DESPACHOS_URL || '',
-  process.env.CTRL_DESPACHOS_SERVICE_KEY || ''
-);
+let erp, cd; // se inicializan dentro del handler, recién después de validar env vars
 
 function ok(res, data)  { return res.status(200).json({ ok: true, ...data }); }
 function err(res, msg, status = 400) { return res.status(status).json({ ok: false, msg }); }
@@ -31,6 +24,14 @@ export default async function handler(req, res) {
   if (!process.env.CTRL_DESPACHOS_URL || !process.env.CTRL_DESPACHOS_SERVICE_KEY) {
     return err(res, 'Faltan env CTRL_DESPACHOS_URL / CTRL_DESPACHOS_SERVICE_KEY', 500);
   }
+  if (!(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)) {
+    return err(res, 'Falta env SUPABASE_URL del ERP', 500);
+  }
+  erp = createClient(
+    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || ''
+  );
+  cd = createClient(process.env.CTRL_DESPACHOS_URL, process.env.CTRL_DESPACHOS_SERVICE_KEY);
   const out = { seed: 0, completado: 0, fuera: 0, errores: [] };
   try {
     await faseSeed(out);
