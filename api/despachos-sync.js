@@ -32,8 +32,9 @@ export default async function handler(req, res) {
     process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || ''
   );
   cd = createClient(process.env.CTRL_DESPACHOS_URL, process.env.CTRL_DESPACHOS_SERVICE_KEY);
-  const out = { seed: 0, completado: 0, fuera: 0, errores: [] };
+  const out = { catalogo: 0, seed: 0, completado: 0, fuera: 0, errores: [] };
   try {
+    await faseCatalogo(out);
     await faseSeed(out);
     await faseCompletado(out);
     await faseFuera(out);
@@ -53,6 +54,44 @@ async function proyectosVinculados() {
   const map = {};
   for (const p of (data || [])) map[p.id] = p.odf_proyecto_id;
   return map;
+}
+
+// FASE 0 — espeja catálogo de ODF activos del ERP → ctrl-despachos (odf_disponibles)
+async function faseCatalogo(out) {
+  const { data: proys, error } = await erp.from('proyectos_cache')
+    .select('id, numero, activo, cliente, cliente_nombre, muebles')
+    .eq('activo', true);
+  if (error) throw new Error('catalogo/erp: ' + error.message);
+
+  const porNumero = {};
+  for (const p of (proys || [])) {
+    const numero = (p.numero || '').trim();
+    if (!numero) continue;
+    const muebles = (Array.isArray(p.muebles) ? p.muebles : [])
+      .filter(m => (Number(m.placas) || 0) < 999)
+      .map(m => ({
+        id: m.id,
+        codigo: m.codigo || '',
+        nombre: m.nombre || '',
+        cant: (m.cant != null && !isNaN(Number(m.cant))) ? Math.trunc(Number(m.cant)) : null,
+      }));
+    porNumero[numero] = {
+      odf_numero: numero,
+      odf_proyecto_id: p.id,
+      cliente: p.cliente || p.cliente_nombre || '',
+      muebles,
+      activo: true,
+      actualizado_en: nowIso(),
+    };
+  }
+
+  const rows = Object.values(porNumero);
+  if (rows.length) {
+    const { error: e2 } = await cd.from('odf_disponibles')
+      .upsert(rows, { onConflict: 'odf_numero' });
+    if (e2) throw new Error('catalogo/upsert: ' + e2.message);
+  }
+  out.catalogo = rows.length;
 }
 
 // FASE 1 — seed
