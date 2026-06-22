@@ -562,6 +562,15 @@ async function _iniciarTareaImpl(sb, {
     }
   }
 
+  // 5a. Guard: bloquear si el PROYECTO está terminado (antes de cualquier mutación)
+  if (!es_descanso && proyecto_id) {
+    const { data: proyEstadoGuard } = await sb.from('proyectos_cache')
+      .select('estado').eq('id', proyecto_id).maybeSingle();
+    if (proyEstadoGuard && proyEstadoGuard.estado === 'terminado') {
+      throw new ApiError('Proyecto terminado. Reabrir antes de fichar horas.', 400);
+    }
+  }
+
   // 5. Guard: bloquear si el mueble está completado (antes de cualquier mutación)
   if (!es_descanso && item_id && proyecto_id) {
     const { data: ultEvento } = await sb.from('items_completado_log')
