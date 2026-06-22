@@ -111,6 +111,15 @@
   .sq-item.done{background:#4ade80;}
   .items-footer{display:flex;align-items:center;gap:8px;margin-top:2px;}
   .items-label{font-family:'Space Mono',monospace;font-size:9px;color:#555;white-space:nowrap;}
+  /* ── CNC placas cortadas ── */
+  .vdiv{width:1px;height:14px;background:var(--border);display:inline-block;margin:0 4px;vertical-align:middle;}
+  .cnc-cut{display:inline-flex;align-items:baseline;gap:4px;font-family:'Space Mono',monospace;white-space:nowrap;}
+  .cnc-n{font-size:11px;font-weight:700;}
+  .cnc-sl{font-size:10px;color:#5a5a5a;}
+  .cnc-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+  .cnc-avg{font-size:10px;color:var(--muted);} .cnc-avg b{color:var(--text);font-weight:700;}
+  .cnc-salt{font-size:9px;color:var(--orange);background:rgba(245,130,10,.12);padding:1px 5px;border-radius:3px;}
+  .cnc-none{font-size:10px;color:#5a5a5a;font-style:italic;}
   /* ── PIN costos mini-overlay ── */
   .pin-c-dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--border);transition:all .15s;display:inline-block;}
   .pc-key{height:42px;border-radius:8px;border:1px solid var(--border);background:var(--faint);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;cursor:pointer;transition:all .12s;}
@@ -1431,7 +1440,7 @@ const _prSeleccion = new Set();
 
 async function cargarGrupos() {
   const u = window.AUTH.usuarioActual();
-  if (!u || u.rol_app !== 'admin') { GRUPOS = []; return; }
+  if (!u || (u.rol_app !== 'admin' && u.rol_app !== 'oficina')) { GRUPOS = []; return; }
   try {
     const r = await fetch(`/api/tiempos?action=listar-grupos&admin_id=${u.id}`);
     const d = await r.json();
@@ -2697,6 +2706,11 @@ async function renderDetallePr(pr, sub) {
   // ── ÍTEMS ──
   if(sub==='ítems'){
     if(pr.muebles && pr.muebles.length){
+      let CNC_ITEM = {};
+      try {
+        const rc = await fetch(`/api/tiempos?action=placas-cortadas-proyecto&proyecto_id=${encodeURIComponent(pr.id)}`).then(r=>r.json());
+        if (rc && rc.ok) CNC_ITEM = rc.muebles || {};
+      } catch(e) {}
       html+=`<div style="display:flex;flex-direction:column;gap:4px;">`;
       pr.muebles.forEach((m,mIdx)=>{
         const hEst=Object.values(m.horas||{}).reduce((a,v)=>a+Number(v||0),0)*(m.cant||1);
@@ -2717,6 +2731,16 @@ async function renderDetallePr(pr, sub) {
               ${difBtns}
               <input type="number" min="1" max="99" value="${m.placas||4}" onchange="setPlacasInline('${pr.id}','${m.id}',this.value)" style="width:40px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:2px 4px;color:var(--amber);font-family:'Space Mono',monospace;font-size:10px;text-align:center;outline:none;" title="Placas">
               <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">pl</span>
+              ${(() => {
+                const c = CNC_ITEM[m.id];
+                const estTotal = (Number(m.placas)||4) * (m.cant||1);
+                if (!c || c.cortadas === 0) return `<span class="vdiv"></span><span class="cnc-cut cnc-none">✂ sin cortar (0/${estTotal})</span>`;
+                const r = estTotal ? c.cortadas/estTotal : 0;
+                const col = r<=1 ? 'var(--text)' : (r<=1.5 ? 'var(--amber)' : 'var(--red)');
+                const salt = c.saltadas>0 ? `<span class="cnc-salt">+${c.saltadas} salt</span>` : '';
+                const avg = c.prom_min!=null ? `· <b>${c.prom_min}</b> min/pl` : '';
+                return `<span class="vdiv"></span><span class="cnc-cut">✂ <span class="cnc-n" style="color:${col}">${c.cortadas}</span><span class="cnc-sl">/${estTotal}</span> <span class="cnc-lbl">cort</span> <span class="cnc-avg">${avg}</span> ${salt}</span>`;
+              })()}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;white-space:nowrap;">

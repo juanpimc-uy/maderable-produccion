@@ -3603,6 +3603,55 @@ export default async function handler(req) {
       return ok({ ok: true, materiales: results });
     }
 
+    // ── GET placas-cortadas-proyecto (placas CNC reales por mueble) ──────────
+    if (action === 'placas-cortadas-proyecto' && req.method === 'GET') {
+      const proyecto_id = url.searchParams.get('proyecto_id');
+      if (!proyecto_id) return err('proyecto_id requerido', 400);
+
+      const { data: sesiones, error: e1 } = await supabase
+        .from('registros_trabajo')
+        .select('id, item_id')
+        .eq('proyecto_id', proyecto_id)
+        .eq('eliminada', false);
+      if (e1) throw e1;
+
+      const itemPorSesion = {};
+      const ids = [];
+      for (const s of (sesiones || [])) { itemPorSesion[s.id] = s.item_id; ids.push(s.id); }
+
+      const muebles = {};
+      if (ids.length) {
+        const { data: placas, error: e2 } = await supabase
+          .from('registros_cnc')
+          .select('registro_trabajo_id, resultado, inicio, fin')
+          .in('registro_trabajo_id', ids);
+        if (e2) throw e2;
+
+        const acc = {};
+        for (const p of (placas || [])) {
+          const item = itemPorSesion[p.registro_trabajo_id];
+          if (!item) continue;
+          if (!acc[item]) acc[item] = { cortadas:0, ok:0, saltadas:0, sumMin:0, nOk:0 };
+          const a = acc[item];
+          a.cortadas++;
+          if (p.resultado === 'ok') a.ok++;
+          else if (p.resultado === 'saltada') a.saltadas++;
+          if (p.resultado === 'ok' && p.inicio && p.fin) {
+            a.sumMin += (new Date(p.fin) - new Date(p.inicio)) / 60000;
+            a.nOk++;
+          }
+        }
+        for (const [item, a] of Object.entries(acc)) {
+          muebles[item] = {
+            cortadas: a.cortadas, ok: a.ok, saltadas: a.saltadas,
+            prom_min: a.nOk ? Math.round((a.sumMin / a.nOk) * 10) / 10 : null
+          };
+        }
+      }
+
+      return ok({ ok: true, muebles });
+    }
+
     // ── GET buscar-oc-zoho ────────────────────────────────────────────────
     if (action === 'buscar-oc-zoho' && req.method === 'GET') {
       const oc_raw           = url.searchParams.get('oc_numero');
@@ -5028,13 +5077,7 @@ export default async function handler(req) {
 
     // ── GET listar-grupos (admin) ────────────────────────────────────────
     if (action === 'listar-grupos' && req.method === 'GET') {
-      const admin_id = url.searchParams.get('admin_id');
-      if (!admin_id) return err('admin_id requerido', 400);
-      const { data: caller } = await supabase
-        .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
-      if (!caller || caller.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
-          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      // lectura libre: solo estructura de grupos (ids/numeros/nombres), sin datos sensibles ni costos
 
       const { data: grupos } = await supabase
         .from('grupos_proyecto').select('*').order('creado_en', { ascending: false });
@@ -5061,8 +5104,8 @@ export default async function handler(req) {
       if (!admin_id) return err('admin_id requerido', 400);
       const { data: caller } = await supabase
         .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
-      if (!caller || caller.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+      if (!caller || (caller.rol_app !== 'admin' && caller.rol_app !== 'oficina'))
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
       if (!nombre || !nombre.trim()) return err('nombre requerido', 400);
@@ -5094,8 +5137,8 @@ export default async function handler(req) {
       if (!admin_id || !grupo_id || !proyecto_id) return err('admin_id, grupo_id y proyecto_id requeridos', 400);
       const { data: caller } = await supabase
         .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
-      if (!caller || caller.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+      if (!caller || (caller.rol_app !== 'admin' && caller.rol_app !== 'oficina'))
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
       const { data: grupo } = await supabase.from('grupos_proyecto').select('id').eq('id', grupo_id).maybeSingle();
@@ -5115,8 +5158,8 @@ export default async function handler(req) {
       if (!admin_id || !grupo_id || !proyecto_id) return err('admin_id, grupo_id y proyecto_id requeridos', 400);
       const { data: caller } = await supabase
         .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
-      if (!caller || caller.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+      if (!caller || (caller.rol_app !== 'admin' && caller.rol_app !== 'oficina'))
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
       await supabase.from('proyectos_cache')
@@ -5132,8 +5175,8 @@ export default async function handler(req) {
       if (!admin_id || !grupo_id) return err('admin_id y grupo_id requeridos', 400);
       const { data: caller } = await supabase
         .from('empleados').select('rol_app').eq('id', admin_id).maybeSingle();
-      if (!caller || caller.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+      if (!caller || (caller.rol_app !== 'admin' && caller.rol_app !== 'oficina'))
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
       await supabase.from('proyectos_cache').update({ grupo_id: null }).eq('grupo_id', grupo_id);
