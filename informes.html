@@ -194,6 +194,9 @@
   .b-btn:hover{border-color:var(--amber);color:var(--amber);}
   .b-btn.danger{border-color:rgba(240,92,92,.4);color:var(--red);}
   .b-btn.danger:hover{border-color:var(--red);background:rgba(240,92,92,.08);}
+  .b-btn.muted{border-color:#333;color:#666;font-size:9px;padding:4px 9px;}
+  .b-btn.muted:hover{border-color:#555;color:#888;background:rgba(255,255,255,.03);}
+  tr.b-row-excl td{opacity:.45;color:#555 !important;}
   .b-btn.accent{border-color:rgba(255,214,0,.4);color:var(--amber);}
   .b-btn.accent:hover{border-color:var(--amber);background:rgba(255,214,0,.08);}
   .import-banner{padding:12px 16px;border-radius:6px;font-family:'Space Mono',monospace;font-size:11px;margin-bottom:16px;border:1px solid;}
@@ -1573,10 +1576,10 @@ function renderBillerTable() {
       accionBtn = '';
     } else if (asig.length && asig[0].origen === 'auto') {
       estadoBadge = '<span class="b-badge auto">AUTO</span>';
-      accionBtn = `<button class="b-btn danger" onclick="desasociarFactura('${c.id}')">Desasociar</button>`;
+      accionBtn = `<button class="b-btn muted" onclick="desasociarFactura('${c.id}')">Desasociar</button>`;
     } else if (asig.length) {
       estadoBadge = '<span class="b-badge manual">MANUAL</span>';
-      accionBtn = `<button class="b-btn danger" onclick="desasociarFactura('${c.id}')">Desasociar</button>`;
+      accionBtn = `<button class="b-btn muted" onclick="desasociarFactura('${c.id}')">Desasociar</button>`;
     } else {
       estadoBadge = '<span class="b-badge none">SIN ASOCIAR</span>';
       accionBtn = `<button class="b-btn accent" onclick="openAsociarModal('${c.id}')">Asociar</button>`;
@@ -1586,7 +1589,7 @@ function renderBillerTable() {
       accionBtn = `<button class="b-btn accent" onclick="openAsociarModal('${c.id}')">Ver/Editar</button> ${accionBtn}`;
     }
 
-    return `<tr>
+    return `<tr${isExcl ? ' class="b-row-excl"' : ''}>
       <td class="mono" style="font-size:11px;">${c.serie || ''}${c.numero || ''}</td>
       <td style="font-size:11px;">${c.tipo_cfe || ''}</td>
       <td class="mono" style="font-size:11px;">${formatDateDisplay(c.fecha_emision)}</td>
