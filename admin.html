@@ -2122,6 +2122,52 @@ function abrirDetalleGrupo(grupoId) {
 let _grpDetalleId = null, _grpDetalleSub = 'ítems';
 let _pinCostosGrupoId = null;
 
+function muebleRowRico(prId, m, cncMap) {
+        const hEst=Object.values(m.horas||{}).reduce((a,v)=>a+Number(v||0),0)*(m.cant||1);
+        const hA2=hAcumIt(prId,m.id);
+        const FLUJOS_INTERNO=['madera_maciza','herreria','electricidad'];
+        const flujoChips=FLUJOS_ORDER.map(f=>{const fc=FLUJOS_CONF[f];const sel=m.flujos&&m.flujos.includes(f);const btn=`<button onclick="toggleFlujoInline('${prId}','${m.id}','${f}')" style="padding:3px 8px;border:1px solid ${sel?fc.color:'var(--border)'};border-radius:20px;background:${sel?fc.color+'18':'transparent'};color:${sel?fc.color:'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;transition:all .15s;">${fc.label}</button>`;if(sel&&FLUJOS_INTERNO.includes(f)){const hrs=(m.hrsExtra||{})[f]||'';return`<span style="display:inline-flex;align-items:center;gap:3px;">${btn}<input type="number" min="0" step="0.5" value="${hrs}" placeholder="h" onchange="setHrsExtraInline('${prId}','${m.id}','${f}',this.value)" style="width:40px;background:var(--faint);border:1px solid ${fc.color}44;border-radius:4px;padding:2px 4px;color:${fc.color};font-family:'JetBrains Mono',monospace;font-size:9px;text-align:center;outline:none;" title="Horas estimadas ${fc.label}"></span>`;}return btn;}).join('');
+        const DIF_LABEL={1:'F',2:'M',3:'D',4:'UH'};
+        const difBtns=[1,2,3,4].map(d=>{const sel=(m.dif||2)===d;return`<button onclick="setDifInline('${prId}','${m.id}',${d})" style="width:22px;height:20px;border:1px solid ${sel?'var(--amber)':'var(--border)'};border-radius:4px;background:${sel?'rgba(245,166,35,.2)':'transparent'};color:${sel?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;transition:all .15s;">${DIF_LABEL[d]}</button>`;}).join('');
+        return `<div style="background:#1a1a1a;border:1px solid var(--border);border-radius:6px;padding:10px 14px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;opacity:${m.completado?'0.45':'1'};">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+              <span style="font-family:'Space Mono',monospace;font-size:12px;color:var(--amber);white-space:nowrap;">${m.codigo||'—'}</span>
+              <input value="${(m.nombre||'').replace(/"/g,'&quot;')}" onchange="setNombreInline('${prId}','${m.id}',this.value)" style="font-size:12px;font-weight:600;color:var(--text);background:transparent;border:none;border-bottom:1px solid transparent;outline:none;flex:1;font-family:'DM Sans',sans-serif;padding:1px 0;transition:border-color .15s;" onfocus="this.style.borderBottomColor='var(--amber)'" onblur="this.style.borderBottomColor='transparent'">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              ${flujoChips}
+              <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 2px;"></span>
+              ${difBtns}
+              <input type="number" min="1" max="99" value="${m.placas||4}" onchange="setPlacasInline('${prId}','${m.id}',this.value)" style="width:40px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:2px 4px;color:var(--amber);font-family:'Space Mono',monospace;font-size:10px;text-align:center;outline:none;" title="Placas">
+              <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">pl</span>
+              ${(() => {
+                const c = cncMap[m.id];
+                const estTotal = (Number(m.placas)||4) * (m.cant||1);
+                if (!c || c.cortadas === 0) return `<span class="vdiv"></span><span class="cnc-cut cnc-none">✂ sin cortar (0/${estTotal})</span>`;
+                const r = estTotal ? c.cortadas/estTotal : 0;
+                const col = r<=1 ? 'var(--text)' : (r<=1.5 ? 'var(--amber)' : 'var(--red)');
+                const salt = c.saltadas>0 ? `<span class="cnc-salt">+${c.saltadas} salt</span>` : '';
+                const avg = c.prom_min!=null ? `· <b>${c.prom_min}</b> min/pl` : '';
+                return `<span class="vdiv"></span><span class="cnc-cut">✂ <span class="cnc-n" style="color:${col}">${c.cortadas}</span><span class="cnc-sl">/${estTotal}</span> <span class="cnc-lbl">cort</span> <span class="cnc-avg">${avg}</span> ${salt}</span>`;
+              })()}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;white-space:nowrap;">
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
+              <span style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:${excessColor(hA2,hEst)};">${fmtH(hA2)} <span style="color:#555;font-weight:400;">/ ${fmtH(hEst)}</span></span>
+              <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${(m.cant||1)>1?fmtH(hEst/(m.cant||1))+' × '+(m.cant||1)+'u':'est. por unidad'}</span>
+            </div>
+            <div style="width:1px;height:32px;background:var(--border);"></div>
+            <div style="text-align:center;">
+              <input type="number" min="1" value="${m.cant||1}" onchange="setCantInline('${prId}','${m.id}',this.value)" style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--amber);width:40px;text-align:center;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:2px 4px;outline:none;">
+              <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-top:2px;">UNID</div>
+            </div>
+            <button onclick="toggleItemCompletado('${prId}','${m.id}')" style="font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:3px;cursor:pointer;border:1px solid ${m.completado?'var(--green)':'var(--border)'};background:${m.completado?'rgba(74,222,128,0.1)':'transparent'};color:${m.completado?'var(--green)':'var(--muted)'};">${m.completado?'✓ COMPLETADO':'COMPLETAR'}</button>
+          </div>
+        </div>`;
+}
+
 async function renderDetalleGrupo(grupoId, sub) {
   clearTimers();
   const grupo = GRUPOS.find(g => g.id === grupoId);
@@ -2151,6 +2197,8 @@ async function renderDetalleGrupo(grupoId, sub) {
   // ── ÍTEMS ──
   if (sub === 'ítems') {
     html += `<div style="display:flex;flex-direction:column;gap:16px;">`;
+    const cncByMember = {};
+    for (const mm of miembros) { try { const rc = await fetch(`/api/tiempos?action=placas-cortadas-proyecto&proyecto_id=${encodeURIComponent(mm.id)}`).then(r=>r.json()); if (rc && rc.ok) cncByMember[mm.id] = rc.muebles || {}; } catch(e){} }
     for (const m of miembros) {
       const items = m.muebles || m.items || [];
       html += `<div>
@@ -2159,19 +2207,10 @@ async function renderDetalleGrupo(grupoId, sub) {
           <span style="font-size:12px;color:#ccc;">${m.nombre}</span>
           <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-left:auto;">${items.length} ítems</span>
         </div>
-        <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;padding:8px 12px;">`;
+        <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;padding:8px 12px;display:flex;flex-direction:column;gap:4px;">`;
       if (items.length) {
         for (const it of items) {
-          const hA2 = hAcumIt(m.id, it.id);
-          const hEst = it.hEst || Object.values(it.horas || {}).reduce((a, v) => a + Number(v || 0), 0) * (it.cant || 1);
-          const pctIt = hEst > 0 ? Math.min(100, Math.round(hA2 / hEst * 100)) : 0;
-          html += `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--faint);">
-            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--amber);width:50px;">${it.codigo || '—'}</span>
-            <span style="font-size:11px;flex:1;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${it.nombre || '—'}</span>
-            <div style="width:60px;height:4px;background:var(--faint);border-radius:2px;overflow:hidden;"><div style="height:100%;width:${pctIt}%;background:var(--amber);border-radius:2px;"></div></div>
-            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);width:35px;text-align:right;">${pctIt}%</span>
-            <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${it.completado ? 'var(--green)' : 'var(--muted)'};">${it.completado ? '✓' : ''}</span>
-          </div>`;
+          html += muebleRowRico(m.id, it, cncByMember[m.id] || {});
         }
       } else {
         html += `<div style="color:var(--muted);font-size:11px;padding:8px 0;">Sin ítems</div>`;
@@ -2712,51 +2751,7 @@ async function renderDetallePr(pr, sub) {
         if (rc && rc.ok) CNC_ITEM = rc.muebles || {};
       } catch(e) {}
       html+=`<div style="display:flex;flex-direction:column;gap:4px;">`;
-      pr.muebles.forEach((m,mIdx)=>{
-        const hEst=Object.values(m.horas||{}).reduce((a,v)=>a+Number(v||0),0)*(m.cant||1);
-        const hA2=hAcumIt(pr.id,m.id);
-        const FLUJOS_INTERNO=['madera_maciza','herreria','electricidad'];
-        const flujoChips=FLUJOS_ORDER.map(f=>{const fc=FLUJOS_CONF[f];const sel=m.flujos&&m.flujos.includes(f);const btn=`<button onclick="toggleFlujoInline('${pr.id}','${m.id}','${f}')" style="padding:3px 8px;border:1px solid ${sel?fc.color:'var(--border)'};border-radius:20px;background:${sel?fc.color+'18':'transparent'};color:${sel?fc.color:'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;transition:all .15s;">${fc.label}</button>`;if(sel&&FLUJOS_INTERNO.includes(f)){const hrs=(m.hrsExtra||{})[f]||'';return`<span style="display:inline-flex;align-items:center;gap:3px;">${btn}<input type="number" min="0" step="0.5" value="${hrs}" placeholder="h" onchange="setHrsExtraInline('${pr.id}','${m.id}','${f}',this.value)" style="width:40px;background:var(--faint);border:1px solid ${fc.color}44;border-radius:4px;padding:2px 4px;color:${fc.color};font-family:'JetBrains Mono',monospace;font-size:9px;text-align:center;outline:none;" title="Horas estimadas ${fc.label}"></span>`;}return btn;}).join('');
-        const DIF_LABEL={1:'F',2:'M',3:'D',4:'UH'};
-        const difBtns=[1,2,3,4].map(d=>{const sel=(m.dif||2)===d;return`<button onclick="setDifInline('${pr.id}','${m.id}',${d})" style="width:22px;height:20px;border:1px solid ${sel?'var(--amber)':'var(--border)'};border-radius:4px;background:${sel?'rgba(245,166,35,.2)':'transparent'};color:${sel?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;transition:all .15s;">${DIF_LABEL[d]}</button>`;}).join('');
-        html+=`<div style="background:#1a1a1a;border:1px solid var(--border);border-radius:6px;padding:10px 14px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;opacity:${m.completado?'0.45':'1'};">
-          <div>
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-              <span style="font-family:'Space Mono',monospace;font-size:12px;color:var(--amber);white-space:nowrap;">${m.codigo||'—'}</span>
-              <input value="${(m.nombre||'').replace(/"/g,'&quot;')}" onchange="setNombreInline('${pr.id}','${m.id}',this.value)" style="font-size:12px;font-weight:600;color:var(--text);background:transparent;border:none;border-bottom:1px solid transparent;outline:none;flex:1;font-family:'DM Sans',sans-serif;padding:1px 0;transition:border-color .15s;" onfocus="this.style.borderBottomColor='var(--amber)'" onblur="this.style.borderBottomColor='transparent'">
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-              ${flujoChips}
-              <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 2px;"></span>
-              ${difBtns}
-              <input type="number" min="1" max="99" value="${m.placas||4}" onchange="setPlacasInline('${pr.id}','${m.id}',this.value)" style="width:40px;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:2px 4px;color:var(--amber);font-family:'Space Mono',monospace;font-size:10px;text-align:center;outline:none;" title="Placas">
-              <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">pl</span>
-              ${(() => {
-                const c = CNC_ITEM[m.id];
-                const estTotal = (Number(m.placas)||4) * (m.cant||1);
-                if (!c || c.cortadas === 0) return `<span class="vdiv"></span><span class="cnc-cut cnc-none">✂ sin cortar (0/${estTotal})</span>`;
-                const r = estTotal ? c.cortadas/estTotal : 0;
-                const col = r<=1 ? 'var(--text)' : (r<=1.5 ? 'var(--amber)' : 'var(--red)');
-                const salt = c.saltadas>0 ? `<span class="cnc-salt">+${c.saltadas} salt</span>` : '';
-                const avg = c.prom_min!=null ? `· <b>${c.prom_min}</b> min/pl` : '';
-                return `<span class="vdiv"></span><span class="cnc-cut">✂ <span class="cnc-n" style="color:${col}">${c.cortadas}</span><span class="cnc-sl">/${estTotal}</span> <span class="cnc-lbl">cort</span> <span class="cnc-avg">${avg}</span> ${salt}</span>`;
-              })()}
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;white-space:nowrap;">
-            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;">
-              <span style="font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:${excessColor(hA2,hEst)};">${fmtH(hA2)} <span style="color:#555;font-weight:400;">/ ${fmtH(hEst)}</span></span>
-              <span style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${(m.cant||1)>1?fmtH(hEst/(m.cant||1))+' × '+(m.cant||1)+'u':'est. por unidad'}</span>
-            </div>
-            <div style="width:1px;height:32px;background:var(--border);"></div>
-            <div style="text-align:center;">
-              <input type="number" min="1" value="${m.cant||1}" onchange="setCantInline('${pr.id}','${m.id}',this.value)" style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--amber);width:40px;text-align:center;background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:2px 4px;outline:none;">
-              <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);margin-top:2px;">UNID</div>
-            </div>
-            <button onclick="toggleItemCompletado('${pr.id}','${m.id}')" style="font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:3px;cursor:pointer;border:1px solid ${m.completado?'var(--green)':'var(--border)'};background:${m.completado?'rgba(74,222,128,0.1)':'transparent'};color:${m.completado?'var(--green)':'var(--muted)'};">${m.completado?'✓ COMPLETADO':'COMPLETAR'}</button>
-          </div>
-        </div>`;
-      });
+      pr.muebles.forEach((m,mIdx)=>{ html += muebleRowRico(pr.id, m, CNC_ITEM); });
       html+=`</div>`;
     } else {
       html+=`<div style="display:flex;flex-direction:column;gap:12px;">`;
