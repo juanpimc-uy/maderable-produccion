@@ -1434,6 +1434,7 @@ function mapProyectoFromDB(p) {
 
 let PROYECTOS = [];
 let GRUPOS = [];
+let _vistaDetalle = 'pr';
 let _prModoAgrupar = false;
 let _prGrupoNombre = '';
 const _prSeleccion = new Set();
@@ -2173,6 +2174,7 @@ async function renderDetalleGrupo(grupoId, sub) {
   const grupo = GRUPOS.find(g => g.id === grupoId);
   if (!grupo) return;
   _grpDetalleId = grupoId;
+  _vistaDetalle = 'grupo';
   _grpDetalleSub = sub;
   document.getElementById('pr-lista').style.display = 'none';
   const det = document.getElementById('pr-detalle');
@@ -2623,7 +2625,16 @@ function _regsToSesiones(regs) {
   }));
 }
 
+function _reRenderItems(pr) {
+  if (_vistaDetalle === 'grupo' && _grpDetalleId) {
+    renderDetalleGrupo(_grpDetalleId, 'ítems');
+  } else {
+    renderDetallePr(pr, 'ítems');
+  }
+}
+
 async function renderDetallePr(pr, sub) {
+  _vistaDetalle = 'pr';
   await _fetchRegistrosPr(pr.id);
   detallePrId = pr.id; detalleSub = sub;
   clearTimers();
@@ -3552,7 +3563,7 @@ function toggleFlujoInline(prId,mId,flujoId){
   m.flujos.includes(flujoId)?m.flujos=m.flujos.filter(f=>f!==flujoId):m.flujos.push(flujoId);
   guardarMueblesLS(prId,pr);
   syncProyectoSupabase(pr);
-  renderDetallePr(pr,'ítems');
+  _reRenderItems(pr);
 }
 
 function setPlacasInline(prId,mId,val){
@@ -3572,7 +3583,7 @@ function setPlacasInline(prId,mId,val){
   syncProyectoSupabase(pr);
   // update items so hEstPr works correctly
   pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
-  renderDetallePr(pr,'ítems');
+  _reRenderItems(pr);
 }
 
 async function toggleItemCompletado(prId,itemId){
@@ -3583,7 +3594,7 @@ async function toggleItemCompletado(prId,itemId){
   const nuevoEvento = m.completado ? 'reabierto' : 'completado';
   const prev = m.completado;
   m.completado = !prev;
-  renderDetallePr(pr,'\u00edtems');
+  _reRenderItems(pr);
   try {
     const st = window.AUTH.getSessionToken();
     const res = await fetch('/api/tiempos?action=marcar-item&st=' + st, {
@@ -3605,7 +3616,7 @@ async function toggleItemCompletado(prId,itemId){
     }
   } catch(e) {
     m.completado = prev;
-    renderDetallePr(pr,'\u00edtems');
+    _reRenderItems(pr);
     alert('Error al marcar item: ' + e.message);
   }
 }
@@ -3634,7 +3645,7 @@ function setDifInline(prId,mId,dif){
   guardarMueblesLS(prId,pr);
   syncProyectoSupabase(pr);
   pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
-  renderDetallePr(pr,'ítems');
+  _reRenderItems(pr);
 }
 
 function setHrsExtraInline(prId,mId,flujoId,val){
@@ -3663,7 +3674,7 @@ function setCantInline(prId,itemId,val){
   guardarMueblesLS(prId,pr);
   syncProyectoSupabase(pr);
   pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
-  renderDetallePr(pr,'ítems');
+  _reRenderItems(pr);
 }
 
 function agregarMatManual(prId,mId){
