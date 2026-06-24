@@ -1497,8 +1497,8 @@ function renderBillerView() {
   const bv = document.getElementById('facturasView');
   const comps = billerData.comprobantes || [];
   const asociados = comps.filter(c => c.asignaciones.length > 0);
-  const sinAsociar = comps.filter(c => c.asignaciones.length === 0 && c.es_venta);
-  const totalNeto = comps.reduce((a, c) => a + (c.es_venta ? (c.signo || 1) * Math.abs(Number(c.monto_neto_usd) || 0) : 0), 0);
+  const sinAsociar = comps.filter(c => c.asignaciones.length === 0 && c.es_venta && !c.anulada);
+  const totalNeto = comps.reduce((a, c) => a + (c.es_venta && !c.anulada ? (c.signo || 1) * Math.abs(Number(c.monto_neto_usd) || 0) : 0), 0);
 
   bv.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin:20px 0;">
@@ -1506,6 +1506,7 @@ function renderBillerView() {
       <div style="display:flex;gap:8px;">
         <button class="b-btn accent" onclick="document.getElementById('billerFileInput').click()">↑ IMPORTAR XLSX</button>
         <input type="file" id="billerFileInput" accept=".xlsx,.xls" style="display:none;" onchange="billerImportFile(this)">
+        <button class="b-btn muted" onclick="recalcularAnuladas()">Recalcular anuladas</button>
       </div>
     </div>
     <div id="billerBanner"></div>
@@ -1570,8 +1571,13 @@ function renderBillerTable() {
     const montoSign = isNC ? '-' : '';
     const isExcl = !c.es_venta;
 
+    const isAnul = !!c.anulada;
+
     let estadoBadge, accionBtn;
-    if (isExcl) {
+    if (isAnul) {
+      estadoBadge = '<span class="b-badge excl">ANULADA</span>';
+      accionBtn = '';
+    } else if (isExcl) {
       estadoBadge = '<span class="b-badge excl">EXCLUIDO</span>';
       accionBtn = '';
     } else if (asig.length && asig[0].origen === 'auto') {
@@ -1589,7 +1595,7 @@ function renderBillerTable() {
       accionBtn = `<button class="b-btn accent" onclick="openAsociarModal('${c.id}')">Ver/Editar</button> ${accionBtn}`;
     }
 
-    return `<tr${isExcl ? ' class="b-row-excl"' : ''}>
+    return `<tr${(isExcl || isAnul) ? ' class="b-row-excl"' : ''}>
       <td class="mono" style="font-size:11px;">${c.serie || ''}${c.numero || ''}</td>
       <td style="font-size:11px;">${c.tipo_cfe || ''}</td>
       <td class="mono" style="font-size:11px;">${formatDateDisplay(c.fecha_emision)}</td>
@@ -1760,6 +1766,21 @@ async function guardarAsociacion(facturaId) {
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'Error');
     closeBillerModal();
+    await loadBillerData();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function recalcularAnuladas() {
+  try {
+    const res = await fetch(`${BASE_URL}/api/tiempos?action=recalcular-anuladas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ st: _bSt() }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    const banner = document.getElementById('billerBanner');
+    if (banner) banner.innerHTML = `<div class="import-banner" style="border-color:var(--green);background:rgba(74,222,128,.04);color:var(--green);">${data.anuladas} par(es) anulado(s)</div>`;
     await loadBillerData();
   } catch (e) { alert('Error: ' + e.message); }
 }
