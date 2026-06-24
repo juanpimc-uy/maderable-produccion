@@ -1599,13 +1599,70 @@ export default async function handler(req) {
         }
       }
 
+      // ── Modelo B: entrada/salida editan el SEGMENTO; el cache es derivado ──
+      const tocaEntrada = entrada !== undefined && entrada !== null;
+      const tocaSalida  = salida  !== undefined && salida  !== null;
+
+      if (tocaEntrada || tocaSalida) {
+        const { data: segsEdit, error: segErr } = await supabase
+          .from('jornada_segmentos').select('id, entrada, salida').eq('jornada_id', jornada_id);
+        if (segErr) throw segErr;
+        const lista = segsEdit || [];
+
+        if (lista.length === 0) {
+          // Jornada sin segmentos: crear uno solo si quedan AMBOS extremos definidos
+          const eFin = tocaEntrada ? entrada : jornada.entrada;
+          const sFin = tocaSalida  ? salida  : jornada.salida;
+          if (eFin && sFin) {
+            if (new Date(eFin) >= new Date(sFin)) return err('La entrada debe ser anterior a la salida', 400);
+            const { error: insErr } = await supabase
+              .from('jornada_segmentos').insert({ jornada_id, entrada: eFin, salida: sFin });
+            if (insErr) throw insErr;
+          }
+        } else {
+          if (tocaEntrada) {
+            const primero = lista.reduce((a, b) => new Date(a.entrada) <= new Date(b.entrada) ? a : b);
+            if (primero.salida && new Date(entrada) >= new Date(primero.salida))
+              return err('La entrada no puede ser posterior a la salida del primer tramo', 400);
+            const { error: e1 } = await supabase
+              .from('jornada_segmentos').update({ entrada }).eq('id', primero.id);
+            if (e1) throw e1;
+          }
+          if (tocaSalida) {
+            const abierto = lista.find(s => !s.salida);
+            const ultimo  = abierto || lista.reduce((a, b) => new Date(a.salida) >= new Date(b.salida) ? a : b);
+            if (new Date(salida) <= new Date(ultimo.entrada))
+              return err('La salida no puede ser anterior a la entrada del último tramo', 400);
+            const { error: e2 } = await supabase
+              .from('jornada_segmentos').update({ salida }).eq('id', ultimo.id);
+            if (e2) throw e2;
+          }
+        }
+      }
+
+      // Armar cache: descanso/flags siempre; entrada/salida derivadas de segmentos
       const camposJ = {};
-      if (entrada          !== undefined) camposJ.entrada          = entrada;
-      if (salida           !== undefined) camposJ.salida           = salida;
       if (descanso_minutos !== undefined) camposJ.descanso_minutos = descanso_minutos;
       if (tomo_descanso    !== undefined) camposJ.tomo_descanso    = tomo_descanso;
       camposJ.descanso_editado = true;
       camposJ.editado_por      = editor_id;
+
+      if (tocaEntrada || tocaSalida) {
+        const { data: segsFin } = await supabase
+          .from('jornada_segmentos').select('entrada, salida').eq('jornada_id', jornada_id);
+        const lf = segsFin || [];
+        if (lf.length > 0) {
+          const ents = lf.map(s => s.entrada).filter(Boolean).sort((a, b) => new Date(a) - new Date(b));
+          const hayAbierto = lf.some(s => !s.salida);
+          const sals = lf.map(s => s.salida).filter(Boolean).sort((a, b) => new Date(a) - new Date(b));
+          camposJ.entrada = ents.length ? ents[0] : null;
+          camposJ.salida  = hayAbierto ? null : (sals.length ? sals[sals.length - 1] : null);
+        } else {
+          // No se creó segmento (faltaba un extremo): reflejar lo tipeado en el cache
+          if (entrada !== undefined) camposJ.entrada = entrada;
+          if (salida  !== undefined) camposJ.salida  = salida;
+        }
+      }
 
       const { data: jornadaUpd, error: uJErr } = await supabase
         .from('jornadas').update(camposJ).eq('id', jornada_id).select().single();
@@ -4761,6 +4818,74 @@ export default async function handler(req) {
     // FACTURACIÓN BILLER
     // ══════════════════════════════════════════════════════════════════════
 
+    // ── recalcularAnuladasBiller (helper) ──────────────────────────────
+    async function recalcularAnuladasBiller() {
+      // 1) Reset
+      await supabase.from('facturas_biller').update({ anulada: false, anulada_par_id: null }).neq('id', '00000000-0000-0000-0000-000000000000');
+
+      // 2) Cargar NC y facturas de venta
+      const { data: ncs } = await supabase
+        .from('facturas_biller')
+        .select('id, cliente_nombre, monto_neto, fecha_emision, numero')
+        .eq('es_venta', true)
+        .ilike('tipo_cfe', '%Nota de Cr%')
+        .order('fecha_emision', { ascending: true });
+
+      const { data: facs } = await supabase
+        .from('facturas_biller')
+        .select('id, cliente_nombre, monto_neto, fecha_emision, numero')
+        .eq('es_venta', true)
+        .not('tipo_cfe', 'ilike', '%Nota de Cr%')
+        .order('fecha_emision', { ascending: false });
+
+      // 3) Greedy match por cliente+monto, fecha más cercana <= NC
+      const usedFac = new Set();
+      const usedNc = new Set();
+      const pairs = []; // [{nc_id, fac_id}]
+
+      for (const nc of (ncs || [])) {
+        if (usedNc.has(nc.id)) continue;
+        const ncMonto = Math.round(Number(nc.monto_neto) * 100);
+        const ncFecha = nc.fecha_emision || '';
+        let best = null;
+        for (const f of (facs || [])) {
+          if (usedFac.has(f.id)) continue;
+          if ((f.cliente_nombre || '') !== (nc.cliente_nombre || '')) continue;
+          if (Math.round(Number(f.monto_neto) * 100) !== ncMonto) continue;
+          if (!f.fecha_emision || f.fecha_emision > ncFecha) continue;
+          if (!best || f.fecha_emision > best.fecha_emision ||
+              (f.fecha_emision === best.fecha_emision && (f.numero || '') > (best.numero || ''))) {
+            best = f;
+          }
+        }
+        if (best) {
+          usedFac.add(best.id);
+          usedNc.add(nc.id);
+          pairs.push({ nc_id: nc.id, fac_id: best.id });
+        }
+      }
+
+      // 4) Persistir en lote
+      for (const p of pairs) {
+        await supabase.from('facturas_biller').update({ anulada: true, anulada_par_id: p.fac_id }).eq('id', p.nc_id);
+        await supabase.from('facturas_biller').update({ anulada: true, anulada_par_id: p.nc_id }).eq('id', p.fac_id);
+      }
+
+      return pairs.length;
+    }
+
+    // ── POST recalcular-anuladas ──────────────────────────────────────────
+    if (action === 'recalcular-anuladas' && req.method === 'POST') {
+      const _st = body.st || body.session_token || url.searchParams.get('st');
+      const caller = await verificarSesion(_st);
+      if (!caller || caller.rol_app !== 'admin')
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      const anuladas = await recalcularAnuladasBiller();
+      return ok({ ok: true, anuladas });
+    }
+
     // ── POST importar-facturas-biller ────────────────────────────────────
     if (action === 'importar-facturas-biller' && req.method === 'POST') {
       const _st = body.st || body.session_token || url.searchParams.get('st');
@@ -4880,7 +5005,10 @@ export default async function handler(req) {
         }
       }
 
-      return ok({ ok: true, resumen: { importados, duplicados, auto_asociados, multi_odf, sin_adenda, odf_inactiva_o_inexistente, no_venta } });
+      // ── PASO 3: recalcular anuladas por NC ──
+      const anuladas = await recalcularAnuladasBiller();
+
+      return ok({ ok: true, resumen: { importados, duplicados, auto_asociados, multi_odf, sin_adenda, odf_inactiva_o_inexistente, no_venta, anuladas } });
     }
 
     // ── GET facturas-biller ──────────────────────────────────────────────
