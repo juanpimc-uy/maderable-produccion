@@ -360,17 +360,8 @@ function netoJornadaMin(jornada, jsegs) {
   if (jornada.anulada) return { min: 0, pendiente: false, excluida: true };
   let total = 0, pendiente = false;
   for (const s of (jsegs || [])) {
-    let salida = s.salida;
-    if (!salida) {
-      // Blindaje: si la jornada ya está cerrada, un segmento abierto se cierra en jornada.salida.
-      // Solo queda realmente abierto cuando la jornada está en curso (salida null).
-      if (jornada.salida && new Date(jornada.salida) > new Date(s.entrada)) {
-        salida = jornada.salida;
-      } else {
-        pendiente = true; continue;                           // jornada en curso → no cuenta
-      }
-    }
-    const min = Math.round((new Date(salida) - new Date(s.entrada)) / 60000);
+    if (!s.salida) { pendiente = true; continue; }            // abierto → no cuenta
+    const min = Math.round((new Date(s.salida) - new Date(s.entrada)) / 60000);
     if (min > SEG_MAX_MIN) { pendiente = true; continue; }    // implausible → no cuenta
     total += Math.max(0, min);
   }
