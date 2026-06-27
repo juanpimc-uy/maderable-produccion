@@ -360,8 +360,17 @@ function netoJornadaMin(jornada, jsegs) {
   if (jornada.anulada) return { min: 0, pendiente: false, excluida: true };
   let total = 0, pendiente = false;
   for (const s of (jsegs || [])) {
-    if (!s.salida) { pendiente = true; continue; }            // abierto → no cuenta
-    const min = Math.round((new Date(s.salida) - new Date(s.entrada)) / 60000);
+    let salida = s.salida;
+    if (!salida) {
+      // Blindaje: si la jornada ya está cerrada, un segmento abierto se cierra en jornada.salida.
+      // Solo queda realmente abierto cuando la jornada está en curso (salida null).
+      if (jornada.salida && new Date(jornada.salida) > new Date(s.entrada)) {
+        salida = jornada.salida;
+      } else {
+        pendiente = true; continue;                           // jornada en curso → no cuenta
+      }
+    }
+    const min = Math.round((new Date(salida) - new Date(s.entrada)) / 60000);
     if (min > SEG_MAX_MIN) { pendiente = true; continue; }    // implausible → no cuenta
     total += Math.max(0, min);
   }
@@ -3709,6 +3718,28 @@ export default async function handler(req) {
       return ok({ ok: true, muebles });
     }
 
+    // ── GET mct-agregado (lead time / MCT agregado para tablero) ──────────
+    if (action === 'mct-agregado' && req.method === 'GET') {
+      const reDate = /^\d{4}-\d{2}-\d{2}$/;
+      let desde = url.searchParams.get('desde');
+      let hasta = url.searchParams.get('hasta');
+      if (!desde) desde = '2026-05-12';
+      if (!hasta) hasta = new Date().toISOString().slice(0, 10);
+      if (!reDate.test(desde) || !reDate.test(hasta)) return err('desde/hasta deben ser YYYY-MM-DD', 400);
+      const { data, error } = await supabase.rpc('mct_agregado', { p_desde: desde, p_hasta: hasta });
+      if (error) throw error;
+      return ok({ ok: true, ...(data || {}) });
+    }
+
+    // ── GET mct-proyecto (lead time / MCT por mueble de un ODF) ───────────
+    if (action === 'mct-proyecto' && req.method === 'GET') {
+      const proyecto_id = url.searchParams.get('proyecto_id');
+      if (!proyecto_id) return err('proyecto_id requerido', 400);
+      const { data, error } = await supabase.rpc('mct_proyecto', { p_proyecto_id: proyecto_id });
+      if (error) throw error;
+      return ok({ ok: true, ...(data || {}) });
+    }
+
     // ── GET buscar-oc-zoho ────────────────────────────────────────────────
     if (action === 'buscar-oc-zoho' && req.method === 'GET') {
       const oc_raw           = url.searchParams.get('oc_numero');
@@ -4391,10 +4422,37 @@ export default async function handler(req) {
       if (!callerAn || callerAn.rol_app !== 'admin')
         return new Response(JSON.stringify({ ok: false, error: 'Solo admin puede aprobar anomalías' }),
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      // Traer datos del registro para poder cerrar el tramo si se aprueba
+      const { data: regAnom } = await supabase.from('registros_trabajo')
+        .select('jornada_id, inicio, fin').eq('id', sesion_id).maybeSingle();
+      if (!regAnom) return err('Sesión no encontrada', 404);
+
       const { error } = await supabase.from('registros_trabajo')
         .update({ anomalia: true, anomalia_aprobada: !!aprobada })
         .eq('id', sesion_id);
       if (error) throw error;
+
+      // Si se APRUEBA y la sesión tiene fin: cerrar el tramo abierto de la jornada en ese fin,
+      // para que la presencia cuente en HORAS. Hay máximo un tramo abierto por jornada.
+      if (aprobada && regAnom.jornada_id && regAnom.fin) {
+        const { data: segAbierto } = await supabase.from('jornada_segmentos')
+          .select('id, entrada').eq('jornada_id', regAnom.jornada_id).is('salida', null).maybeSingle();
+        if (segAbierto && new Date(regAnom.fin) > new Date(segAbierto.entrada)) {
+          const { error: cerrSegErr } = await supabase.from('jornada_segmentos')
+            .update({ salida: regAnom.fin }).eq('id', segAbierto.id);
+          if (cerrSegErr) throw cerrSegErr;
+          // Recomputar cache salida de la jornada = max salida (null si quedara algún abierto)
+          const { data: segsJ } = await supabase.from('jornada_segmentos')
+            .select('salida').eq('jornada_id', regAnom.jornada_id);
+          const hayAbierto = (segsJ || []).some(s => !s.salida);
+          const sals = (segsJ || []).map(s => s.salida).filter(Boolean).sort((a, b) => new Date(a) - new Date(b));
+          const { error: cacheErr } = await supabase.from('jornadas')
+            .update({ salida: hayAbierto ? null : (sals.length ? sals[sals.length - 1] : null) })
+            .eq('id', regAnom.jornada_id);
+          if (cacheErr) throw cacheErr;
+        }
+      }
+
       return ok({ ok: true });
     }
 
