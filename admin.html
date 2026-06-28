@@ -696,6 +696,7 @@
         <button class="ajuste-tab" data-tab="tarifas" onclick="switchAjusteTab('tarifas')">Tarifas</button>
         <button class="ajuste-tab" data-tab="centros" onclick="switchAjusteTab('centros')">Centros</button>
         <button class="ajuste-tab" data-tab="tc" onclick="switchAjusteTab('tc')">Tipo de cambio</button>
+        <button class="ajuste-tab" data-tab="oe" onclick="switchAjusteTab('oe')">OE</button>
         <button class="ajuste-tab" data-tab="lustre" onclick="switchAjusteTab('lustre')">Lustre</button>
         <button class="ajuste-tab" data-tab="cuenta" onclick="switchAjusteTab('cuenta')">Mi cuenta</button>
         <button class="ajuste-tab" data-tab="backup" onclick="switchAjusteTab('backup')">Backup</button>
@@ -800,6 +801,28 @@
         </div>
       </div>
       </div><!-- /panel tc -->
+
+      <!-- OE mensual (throughput) -->
+      <div data-ajuste-panel="oe" style="display:none;">
+      <div id="ajustes-oe-section">
+        <div class="card">
+          <div class="sec-title" style="margin-bottom:4px;">GASTO OPERATIVO MENSUAL (OE)</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
+            Número único por mes: mano de obra + fijos (alquiler, luz, máquinas). Se usa en el indicador de throughput vs OE.
+          </div>
+          <div id="oe-wrapper">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span style="font-size:13px;color:var(--muted);font-family:'JetBrains Mono',monospace;">USD/mes</span>
+              <input type="number" step="1" min="0" id="oe-input" data-original=""
+                style="width:140px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px;color:var(--text);font-family:inherit;"
+                onblur="oeGuardar(this)" onkeydown="if(event.key==='Enter'){this.blur();}" />
+              <span id="oe-upd" style="font-size:10px;color:var(--muted);margin-left:4px;"></span>
+            </div>
+          </div>
+          <div id="oe-toast" style="font-size:11px;color:var(--green);margin-top:8px;min-height:16px;"></div>
+        </div>
+      </div>
+      </div><!-- /panel oe -->
 
       <!-- Tipos de lustre -->
       <div data-ajuste-panel="lustre" style="display:none;">
@@ -5599,7 +5622,7 @@ let _ajusteTabActual = 'formula';
 function _initAjustes() {
   const u = window.AUTH.usuarioActual();
   if (!u || u.rol_app !== 'admin') { navTo('dashboard'); return; }
-  fInit(); tarifasInit(); tcInit(); centrosAjustesInit(); lustreTiposInit(); renderMiCuenta();
+  fInit(); tarifasInit(); tcInit(); oeInit(); centrosAjustesInit(); lustreTiposInit(); renderMiCuenta();
   switchAjusteTab(_ajusteTabActual);
 }
 
@@ -5808,6 +5831,58 @@ function _relTime(isoStr) {
   if (diff < 3600) return `Actualizado hace ${Math.floor(diff/60)}m`;
   if (diff < 86400) return `Actualizado hace ${Math.floor(diff/3600)}h`;
   return `Actualizado hace ${Math.floor(diff/86400)}d`;
+}
+
+async function oeInit(force = false) {
+  const wrapper = document.getElementById('oe-wrapper');
+  if (!wrapper) return;
+  if (!force && wrapper.dataset.loaded === '1') return;
+  const input = document.getElementById('oe-input');
+  const toast = document.getElementById('oe-toast');
+  if (input) { input.disabled = true; input.placeholder = 'Cargando…'; }
+  if (toast) { toast.textContent = ''; toast.style.color = 'var(--green)'; }
+  try {
+    const r = await fetch('/api/tiempos?action=lean-indicadores');
+    const data = await r.json();
+    if (!data.ok) throw new Error('Error');
+    const oe = (data.throughput && data.throughput.oe_mensual != null) ? data.throughput.oe_mensual : 0;
+    if (input) { input.value = oe; input.dataset.original = oe; input.disabled = false; input.placeholder = ''; }
+    wrapper.dataset.loaded = '1';
+  } catch (e) {
+    if (input) { input.disabled = false; input.placeholder = 'Error'; }
+    if (toast) { toast.style.color = 'var(--red)'; toast.textContent = `Error al cargar: ${e.message}`; }
+  }
+}
+
+async function oeGuardar(input) {
+  const original = parseFloat(input.dataset.original ?? '');
+  const raw = input.value.trim();
+  const valor = parseFloat(raw);
+  const toast = document.getElementById('oe-toast');
+  if (raw === '' || isNaN(valor) || valor < 0) {
+    input.style.borderColor = 'var(--red)';
+    if (toast) { toast.style.color = 'var(--red)'; toast.textContent = 'Ingresá un número ≥ 0'; }
+    return;
+  }
+  if (valor === original) { input.style.borderColor = 'var(--border)'; return; }
+  input.disabled = true;
+  try {
+    const res = await fetch('/api/tiempos?action=set-oe-mensual', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_token: window.AUTH.getSessionToken(), oe_mensual_usd: valor })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || data.msg || 'Error');
+    input.dataset.original = valor;
+    input.style.borderColor = 'var(--green)';
+    if (toast) { toast.style.color = 'var(--green)'; toast.textContent = 'Guardado'; }
+    const updEl = document.getElementById('oe-upd'); if (updEl) updEl.textContent = 'recién';
+  } catch (e) {
+    input.style.borderColor = 'var(--red)';
+    if (toast) { toast.style.color = 'var(--red)'; toast.textContent = `Error: ${e.message}`; }
+  } finally {
+    input.disabled = false;
+  }
 }
 
 async function tcInit(force = false) {
