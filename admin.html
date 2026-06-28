@@ -3297,7 +3297,10 @@ async function _renderDespachosPr(pr, prId) {
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <div style="margin-top:14px;font-size:12px;color:var(--muted);font-family:'Space Mono',monospace;">${nDesp} de ${mueblesFisicos.length} despachados</div>`;
+      <div style="margin-top:14px;display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:12px;color:var(--muted);font-family:'Space Mono',monospace;">${nDesp} de ${mueblesFisicos.length} despachados</span>
+        ${(()=>{ const _r = window.AUTH.usuarioActual()?.rol_app; return _r === 'admin' || _r === 'oficina' ? '<a href="https://juanpimc-uy.github.io/ctrl-despachos/admin.html" target="_blank" rel="noopener" style="font-size:11px;color:var(--amber);font-family:\'Space Mono\',monospace;font-weight:700;text-decoration:none;">Abrir en CTRL Despachos ↗</a>' : ''; })()}
+      </div>`;
   } catch (e) {
     panel.innerHTML = `<div style="color:var(--red);font-size:13px;">Error: ${e.message}</div>`;
   }

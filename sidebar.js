@@ -21,6 +21,7 @@
       { id: 'terc-baru',   icon: '◆', label: 'BARU',    page: 'tercerizados.html?prov=BARU',   section: null, roles: ['admin', 'oficina'] },
       { id: 'terc-rodart', icon: '◇', label: 'RODART',  page: 'tercerizados.html?prov=RODART', section: null, roles: ['admin', 'oficina'] },
     ]},
+    { id: 'ctrl-despachos', icon: '⇥', label: 'CTRL Despachos', href: 'https://juanpimc-uy.github.io/ctrl-despachos/admin.html', external: true, roles: ['admin', 'oficina'] },
     { id: 'stock',        icon: '⬡', label: 'Stock Placas', page: 'stock-placas.html',  section: null,         roles: ['admin', 'oficina'], hidden: true },
     { id: 'despacho',     icon: '⇥', label: 'Despacho',     page: 'despacho.html',      section: null,         roles: ['admin', 'oficina'], hidden: true },
     { id: 'informes-group', icon: '📊', label: 'Informes', group: true, roles: ['admin'], children: [
@@ -64,7 +65,9 @@
       : '<span class="nav-icon">' + item.icon + '</span>';
     const cls = 'nav-item' + (isSub ? ' nav-sub-item' : '') + (isActive ? ' active' : '');
 
-    if (ON_ADMIN && item.section) {
+    if (item.external) {
+      return '<a href="' + item.href + '" target="_blank" rel="noopener" style="text-decoration:none;"><div class="' + cls + '" id="nav-' + item.id + '">' + iconHtml + ' ' + item.label + ' <span style="font-size:9px;opacity:.5;">↗</span></div></a>';
+    } else if (ON_ADMIN && item.section) {
       return '<div class="' + cls + '" id="nav-' + item.id + '" onclick="navTo(\'' + item.section + '\')">' + iconHtml + ' ' + item.label + '</div>';
     } else if (ON_ADMIN && item.page !== 'admin.html') {
       return '<a href="' + item.page + '" style="text-decoration:none;"><div class="' + cls + '" id="nav-' + item.id + '">' + iconHtml + ' ' + item.label + '</div></a>';
