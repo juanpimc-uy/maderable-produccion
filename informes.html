@@ -1236,27 +1236,85 @@ async function _cargarS1() {
 }
 
 // ── ② Lead Time (scaffold) ──────────────────────────────────────────────
-function _renderS2() {
+async function _renderS2() {
   const el = document.getElementById('lean-s2');
   if (!el) return;
-  el.innerHTML = `<div class="lean-card">
-    <div class="lean-hdr">
-      <div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;background:#FFD600;border-radius:2px;"></div><span class="lean-title">② Lead Time</span></div>
-      <span style="font-family:'Space Mono',monospace;font-size:8px;background:rgba(255,214,0,.12);color:#FFD600;padding:2px 8px;border-radius:3px;">PENDIENTE · falta definir cálculo proceso/espera</span>
-    </div>
-    <div class="lean-body">
-      <div class="vs">
-        <div class="vseg pronta" style="flex:0 0 5%"><span class="vl">pronta</span></div>
-        <div class="vseg proc1" style="flex:0 0 12%"><span class="vp">~2d</span><span class="vl">proc</span></div>
-        <div class="vseg wait" style="flex:0 0 26%"><span class="vl">esperando</span></div>
-        <div class="vseg proc2" style="flex:0 0 22%"><span class="vp">~4d</span><span class="vl">proc</span></div>
-        <div class="vseg wait" style="flex:0 0 21%"><span class="vl">esperando</span></div>
-        <div class="vseg proc3" style="flex:0 0 14%"><span class="vp">~2,6d</span><span class="vl">colocación</span></div>
-      </div>
-      <div class="vmarks"><span>pronta (≈0)</span><span>oficina <b>8,7d</b></span><span>planta <b>9,0d</b></span><span>terminado <b>16d</b></span><span>instalado <b>22d</b></span></div>
-      <div class="chips">oficina se abre en: <span class="chip">modelado ~7h</span><span class="chip">cam ~8h</span><span class="chip">shop drawing ~1h</span></div>
-    </div>
-  </div>`;
+  el.innerHTML = '<div class="lean-card"><div class="lean-body"><span style="color:#555;font-family:\'Space Mono\',monospace;font-size:11px;">Cargando indicadores…</span></div></div>';
+  try {
+    const r = await fetch(`${BASE_URL}/api/tiempos?action=lean-indicadores`).then(x => x.json());
+    if (!r || !r.ok) throw new Error((r && r.msg) || 'Error');
+
+    const money = n => '$' + Math.round(n || 0).toLocaleString('es-UY');
+    const d1 = n => (Math.round((n || 0) * 10) / 10).toString().replace('.', ',');
+    const esc = s => String(s == null ? '' : s).replace(/</g, '&lt;');
+    const ageBadge = dias => {
+      if (dias == null) return '';
+      const old = dias > 90;
+      return `<span style="font-family:'Space Mono',monospace;font-size:9px;padding:2px 7px;border-radius:3px;margin-left:8px;border:1px solid ${old ? '#5a2a24' : '#333'};color:${old ? '#e0705f' : '#999'};background:${old ? 'rgba(198,75,58,.1)' : 'transparent'};">${dias}d</span>`;
+    };
+
+    const ec = r.espera_centros || [];
+    const maxMed = Math.max(...ec.map(c => c.med || 0), 0.01);
+    const colorOf = c => c === 'modelado' ? '#5b3fa0' : (c === 'enchapado' ? '#c64b3a' : '#1f4e7a');
+    const labelOf = c => c === 'enchapado' ? 'ench/perf' : c;
+    const filasEsp = ec.map(c => {
+      const w = Math.max(2, (c.med / maxMed) * 100);
+      const wl = Math.min(100, (c.p25 / maxMed) * 100);
+      const ww = Math.max(0, Math.min(100, (c.p75 / maxMed) * 100) - wl);
+      const isMax = c.centro === 'enchapado';
+      return `<div style="display:grid;grid-template-columns:88px 1fr 150px;align-items:center;gap:12px;margin-bottom:11px;">
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:${isMax ? '#e0705f' : '#cfcfcf'};text-transform:uppercase;letter-spacing:.5px;text-align:right;">${labelOf(c.centro)}</div>
+        <div style="position:relative;height:24px;background:#161616;border-radius:5px;overflow:hidden;border:1px solid #242424;">
+          <div style="position:absolute;left:0;top:0;bottom:0;border-radius:5px 0 0 5px;min-width:2px;width:${w}%;background:${colorOf(c.centro)};"></div>
+          <div style="position:absolute;top:50%;height:1px;background:#5a5a5a;transform:translateY(-50%);left:${wl}%;width:${ww}%;"></div>
+        </div>
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:#ededed;white-space:nowrap;text-align:right;"><b style="color:#FFD600;font-size:13px;">${d1(c.med)}d</b> <span style="color:#777;font-size:9px;">· ${d1(c.p25)}–${d1(c.p75)} · n${c.n}</span></div>
+      </div>`;
+    }).join('');
+
+    const cardEspera = `<div class="lean-card">
+      <div class="lean-hdr"><div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;background:#FFD600;border-radius:2px;"></div><span class="lean-title">② Espera previa por centro de trabajo</span></div>
+        <span style="font-family:'Space Mono',monospace;font-size:8px;background:rgba(255,214,0,.12);color:#FFD600;padding:2px 8px;border-radius:3px;">mediana · sin retrabajo · desde ${r.desde}</span></div>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;color:#7a7a7a;margin-bottom:18px;">días en cola antes de que cada centro tome la pieza · barra = mediana · línea fina = p25–p75 · escala compartida</div>
+      ${filasEsp}
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:#888;line-height:1.6;border:1px dashed #333;border-radius:6px;padding:10px 12px;margin-top:6px;">La cola grande está antes de <b style="color:#FFD600;">modelado</b> (desde que se carga el proyecto hasta el primer modelado). En planta cada centro toma la pieza en ~1 día; enchapado/perforado es el más lento.</div>
+    </div>`;
+
+    const bk = r.backlog || { proyectos: [] };
+    const maxBk = Math.max(...(bk.proyectos || []).map(p => p.usd || 0), 1);
+    const filasBk = (bk.proyectos || []).map(p => {
+      const w = Math.max(3, (p.usd / maxBk) * 170);
+      return `<div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid #232323;">
+        <div style="font-family:'Space Mono',monospace;font-size:10px;color:#d6d6d6;text-transform:uppercase;">${esc(p.numero)} ${esc(p.nombre)} <span style="color:#777;">· ${esc(p.cliente)}</span></div>
+        <div style="white-space:nowrap;"><span style="height:16px;background:#1e6b50;border-radius:4px;display:inline-block;vertical-align:middle;margin-right:8px;width:${w}px;"></span><span style="font-family:'Space Mono',monospace;font-size:12px;color:#fff;font-weight:700;">${money(p.usd)}</span>${ageBadge(p.dias)}</div>
+      </div>`;
+    }).join('');
+    const cardBacklog = `<div class="lean-card">
+      <div class="lean-hdr"><div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;background:#FFD600;border-radius:2px;"></div><span class="lean-title">Backlog · $ sin modelar</span></div>
+        <span style="font-family:'Space Mono',monospace;font-size:8px;background:rgba(255,214,0,.12);color:#FFD600;padding:2px 8px;border-radius:3px;">en producción · 0 horas de modelado</span></div>
+      <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:14px;"><span style="font-family:'Space Mono',monospace;font-size:30px;font-weight:700;color:#FFD600;">${money(bk.total_usd)}</span><span style="font-family:'Space Mono',monospace;font-size:10px;color:#9a9a9a;">${bk.con_precio} con precio · +${bk.sin_precio} sin precio (servicio/internos)</span></div>
+      ${filasBk || '<div style="color:#7a7a7a;font-size:11px;font-family:\'Space Mono\',monospace;">Sin proyectos en backlog.</div>'}
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:#888;line-height:1.6;border:1px dashed #333;border-radius:6px;padding:10px 12px;margin-top:14px;">Proyectos en producción que todavía no tuvieron una sola hora de modelado. Antigüedad = días desde que se cargó. En rojo, más de 90 días.</div>
+    </div>`;
+
+    const se = r.sin_entrega || { proyectos: [] };
+    const filasSe = (se.proyectos || []).map(p => `<div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid #232323;">
+        <div style="font-family:'Space Mono',monospace;font-size:10px;color:#d6d6d6;text-transform:uppercase;">${esc(p.numero)} ${esc(p.nombre)} <span style="color:#777;">· ${esc(p.cliente)}</span></div>
+        <div style="white-space:nowrap;"><span style="font-family:'Space Mono',monospace;font-size:12px;color:#fff;font-weight:700;">${money(p.usd)}</span>${ageBadge(p.dias)}</div>
+      </div>`).join('');
+    const cardEntrega = `<div class="lean-card">
+      <div class="lean-hdr"><div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;background:#FFD600;border-radius:2px;"></div><span class="lean-title">Sin fecha de entrega</span></div>
+        <span style="font-family:'Space Mono',monospace;font-size:8px;background:rgba(255,214,0,.12);color:#FFD600;padding:2px 8px;border-radius:3px;">en producción · sin entrega por mueble</span></div>
+      <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:6px;"><span style="font-family:'Space Mono',monospace;font-size:30px;font-weight:700;color:#e0705f;">${money(se.total_usd)}</span><span style="font-family:'Space Mono',monospace;font-size:10px;color:#9a9a9a;">${se.n} proyectos · ${se.con_precio} con precio · ${se.sin_precio} servicio/$0</span></div>
+      <div style="font-family:'Space Mono',monospace;font-size:9px;color:#7a7a7a;margin:8px 0 12px;">ordenado por $ · antigüedad = días desde carga</div>
+      <div style="max-height:340px;overflow-y:auto;padding-right:6px;">${filasSe || '<div style="color:#7a7a7a;font-size:11px;font-family:\'Space Mono\',monospace;">Todos los proyectos tienen entrega cargada.</div>'}</div>
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:#888;line-height:1.6;border:1px dashed #333;border-radius:6px;padding:10px 12px;margin-top:14px;">Proyectos en producción sin ninguna entrega comprometida por mueble. Se achica a medida que cargás la pastilla ENTREGA. Los $0 son servicio/internos.</div>
+    </div>`;
+
+    el.innerHTML = cardEspera + cardBacklog + cardEntrega;
+  } catch (e) {
+    el.innerHTML = `<div class="lean-card"><div class="lean-body" style="color:#ff5a5a;font-family:'Space Mono',monospace;font-size:11px;">Error cargando indicadores: ${e.message}</div></div>`;
+  }
 }
 
 // ── ③ En la cocina (WIP) ────────────────────────────────────────────────
