@@ -3175,6 +3175,18 @@ export default async function handler(req) {
       return ok({ ok: true, partida: data });
     }
 
+    // ── GET despachos por proyecto (tab Despachos en detalle) ───────────
+    if (action === 'despachos-proyecto' && req.method === 'GET') {
+      const proyecto_id = url.searchParams.get('proyecto_id');
+      if (!proyecto_id) return err('proyecto_id requerido', 400);
+      const { data, error } = await supabase
+        .from('despachos_muebles')
+        .select('mf_n, despachado_full, fecha_despacho, unidad')
+        .eq('proyecto_id', proyecto_id);
+      if (error) throw error;
+      return ok({ ok: true, despachos: data || [] });
+    }
+
     // ── GET despachos ─────────────────────────────────────────────────────
     if (action === 'despachos-lista' && req.method === 'GET') {
       const { data, error } = await supabase.from('despachos').select('*').order('creado_at', { ascending: false });

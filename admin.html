@@ -2912,7 +2912,7 @@ async function renderDetallePr(pr, sub) {
   const hA=hAcumPr(pr.id), hE=hEstPr(pr);
   const byCentro=hByCentro(pr.id), byOp=hByOp(pr.id);
   const _u = window.AUTH.usuarioActual();
-  const SUBS=['resumen','ítems','materiales','tiempos',...(_u?.rol_app==='admin'?['costos','facturación']:[])];
+  const SUBS=['resumen','ítems','materiales','tiempos','despachos',...(_u?.rol_app==='admin'?['costos','facturación']:[])];
 
 
   const hdrContent = editMode
@@ -3215,6 +3215,16 @@ async function renderDetallePr(pr, sub) {
     }
   }
 
+  // ── DESPACHOS ──
+  if (sub === 'despachos') {
+    html += `<div class="card" id="despachos-pr-panel" style="position:relative;min-height:200px;">
+      <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:2px;margin-bottom:16px;">CARGANDO DESPACHOS…</div>
+    </div>`;
+    document.getElementById('pr-detalle').innerHTML = html;
+    _renderDespachosPr(pr, pr.id);
+    return;
+  }
+
   // ── FACTURACIÓN (solo admin) ──
   if (sub === 'facturación') {
     html += `<div class="card" id="facturacion-pr-panel" style="position:relative;min-height:200px;">
@@ -3242,6 +3252,55 @@ async function renderDetallePr(pr, sub) {
 
 
   document.getElementById('pr-detalle').innerHTML = html;
+}
+
+async function _renderDespachosPr(pr, prId) {
+  const panel = document.getElementById('despachos-pr-panel');
+  if (!panel) return;
+  try {
+    const res = await fetch(`/api/tiempos?action=despachos-proyecto&proyecto_id=${encodeURIComponent(prId)}`);
+    const data = await res.json();
+    if (!data.ok) { panel.innerHTML = `<div style="color:var(--red);font-size:13px;">${data.error || 'Error al cargar despachos'}</div>`; return; }
+    const despMap = {};
+    for (const d of data.despachos) { despMap[d.mf_n] = d; }
+    const mueblesFisicos = (pr.muebles || []).filter(m => m.precio_fuente !== 'etapa');
+    if (!mueblesFisicos.length) {
+      panel.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:16px 0;">Sin muebles en este proyecto</div>`;
+      return;
+    }
+    const fmtFechaUY = (iso) => {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleDateString('es-UY', { timeZone: 'America/Montevideo', day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+    let nDesp = 0;
+    let rows = '';
+    for (const m of mueblesFisicos) {
+      const d = despMap[m.id];
+      const despachado = d && d.despachado_full;
+      if (despachado) nDesp++;
+      rows += `<tr>
+        <td style="padding:8px 12px;font-family:'Space Mono',monospace;font-size:12px;border-bottom:1px solid var(--border);">${m.codigo || m.id}</td>
+        <td style="padding:8px 12px;font-size:13px;border-bottom:1px solid var(--border);">${m.nombre || '—'}</td>
+        <td style="padding:8px 12px;font-size:12px;border-bottom:1px solid var(--border);">
+          <span style="color:${despachado ? '#4ade80' : 'var(--muted)'};">${despachado ? '● Despachado' : '○ Pendiente'}</span>
+        </td>
+        <td style="padding:8px 12px;font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border);">${despachado ? fmtFechaUY(d.fecha_despacho) : '—'}</td>
+      </tr>`;
+    }
+    panel.innerHTML = `<div class="sec-title" style="margin-bottom:16px;">Despachos</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--border);">Código</th>
+          <th style="text-align:left;padding:6px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--border);">Nombre</th>
+          <th style="text-align:left;padding:6px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--border);">Estado</th>
+          <th style="text-align:left;padding:6px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--border);">Fecha</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="margin-top:14px;font-size:12px;color:var(--muted);font-family:'Space Mono',monospace;">${nDesp} de ${mueblesFisicos.length} despachados</div>`;
+  } catch (e) {
+    panel.innerHTML = `<div style="color:var(--red);font-size:13px;">Error: ${e.message}</div>`;
+  }
 }
 
 async function _renderMaterialesPr(prId) {
