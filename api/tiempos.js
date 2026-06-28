@@ -3551,6 +3551,58 @@ export default async function handler(req) {
       });
     }
 
+    // ── POST partir-tarea (admin/oficina) — crea una etapa como mueble nuevo ──
+    if (action === 'partir-tarea' && req.method === 'POST') {
+      const { actor_id, proyecto_id, item_id, nombre, fecha_entrega } = body;
+      if (!actor_id || !proyecto_id || !item_id) {
+        return err('actor_id, proyecto_id e item_id requeridos', 400);
+      }
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', actor_id).maybeSingle();
+      if (!caller || !['admin', 'oficina'].includes(caller.rol_app)) {
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden partir tareas' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      const { data: pr, error: prErr } = await supabase
+        .from('proyectos_cache').select('muebles').eq('id', proyecto_id).maybeSingle();
+      if (prErr) throw prErr;
+      if (!pr) return err('Proyecto no encontrado', 404);
+      const muebles = Array.isArray(pr.muebles) ? pr.muebles : [];
+      const madre = muebles.find(m => String(m.id) === String(item_id));
+      if (!madre) return err('Mueble madre no encontrado', 404);
+      // Estructura plana: si la madre ya es etapa, colgar de la raíz
+      const raiz = madre.etapa_de || madre.id;
+      const nEtapa = muebles.filter(m => m.etapa_de === raiz).length + 1;
+      const etapa = {
+        id: 'mf_' + Date.now(),
+        etapa_de: raiz,
+        nombre: (nombre && String(nombre).trim()) || `${madre.nombre || 'MUEBLE'} — ETAPA ${nEtapa}`,
+        codigo: madre.codigo || '',
+        cant: 1,
+        dif: (madre.dif != null ? madre.dif : null),
+        centros: [],
+        flujos: [],
+        placas: 0,
+        mats: [],
+        horas: {},
+        hrsExtra: {},
+        hEst: 0,
+        odfId: null,
+        precio_venta_usd: 0,
+        precio_fuente: 'etapa',
+        precio_match: null,
+        precio_tc: null,
+        precio_sync_at: null,
+        fecha_entrega: (fecha_entrega && String(fecha_entrega).trim()) || null,
+        nota: '',
+      };
+      muebles.push(etapa);
+      const { error: uErr } = await supabase
+        .from('proyectos_cache').update({ muebles }).eq('id', proyecto_id);
+      if (uErr) throw uErr;
+      return ok({ ok: true, etapa });
+    }
+
     // ── POST editar-costo-material (solo admin) ───────────────────────────
     if (action === 'editar-costo-material' && req.method === 'POST') {
       const { admin_id, proyecto_id, key, costo_unitario_usd, cantidad } = body;
