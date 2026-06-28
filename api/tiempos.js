@@ -3603,6 +3603,47 @@ export default async function handler(req) {
       return ok({ ok: true, etapa });
     }
 
+    // ── POST eliminar-etapa (admin/oficina) — borra una etapa del array muebles ──
+    if (action === 'eliminar-etapa' && req.method === 'POST') {
+      const { actor_id, proyecto_id, item_id } = body;
+      if (!actor_id || !proyecto_id || !item_id) {
+        return err('actor_id, proyecto_id e item_id requeridos', 400);
+      }
+      const { data: caller } = await supabase
+        .from('empleados').select('rol_app').eq('id', actor_id).maybeSingle();
+      if (!caller || !['admin', 'oficina'].includes(caller.rol_app)) {
+        return new Response(JSON.stringify({ ok: false, error: 'Solo admin u oficina pueden eliminar etapas' }),
+          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      }
+      const { data: pr, error: prErr } = await supabase
+        .from('proyectos_cache').select('muebles').eq('id', proyecto_id).maybeSingle();
+      if (prErr) throw prErr;
+      if (!pr) return err('Proyecto no encontrado', 404);
+      const muebles = Array.isArray(pr.muebles) ? pr.muebles : [];
+      const target = muebles.find(m => String(m.id) === String(item_id));
+      if (!target) return err('Mueble no encontrado', 404);
+      // Guarda 1: solo etapas, nunca un mueble real del proyecto
+      if (target.precio_fuente !== 'etapa' || !target.etapa_de) {
+        return err('Solo se pueden eliminar etapas, no muebles del proyecto', 400);
+      }
+      // Guarda 2: no eliminar si tiene fichajes (evita registros_trabajo huérfanos)
+      const { count, error: cErr } = await supabase
+        .from('registros_trabajo')
+        .select('id', { count: 'exact', head: true })
+        .eq('proyecto_id', proyecto_id)
+        .eq('item_id', item_id)
+        .eq('eliminada', false);
+      if (cErr) throw cErr;
+      if ((count || 0) > 0) {
+        return err('La etapa tiene fichajes registrados; no se puede eliminar', 409);
+      }
+      const nuevos = muebles.filter(m => String(m.id) !== String(item_id));
+      const { error: uErr } = await supabase
+        .from('proyectos_cache').update({ muebles: nuevos }).eq('id', proyecto_id);
+      if (uErr) throw uErr;
+      return ok({ ok: true, eliminado: item_id });
+    }
+
     // ── POST editar-costo-material (solo admin) ───────────────────────────
     if (action === 'editar-costo-material' && req.method === 'POST') {
       const { admin_id, proyecto_id, key, costo_unitario_usd, cantidad } = body;
