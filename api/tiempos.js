@@ -3814,6 +3814,19 @@ export default async function handler(req) {
       return ok({ ok: true, muebles });
     }
 
+    // ── POST set-oe-mensual (admin) — guarda el OE para el throughput ──
+    if (action === 'set-oe-mensual' && req.method === 'POST') {
+      const user = await verificarSesion(body.session_token);
+      if (!user) return err('Sesión inválida o expirada', 401);
+      if (user.rol_app !== 'admin') return err('No autorizado', 403);
+      const oe = Number(body.oe_mensual_usd);
+      if (!isFinite(oe) || oe < 0) return err('oe_mensual_usd debe ser un número >= 0', 400);
+      const { error } = await supabase.from('lean_config')
+        .upsert({ id: 1, oe_mensual_usd: oe, actualizado_por: user.id, actualizado_en: new Date().toISOString() }, { onConflict: 'id' });
+      if (error) throw error;
+      return ok({ ok: true, oe_mensual_usd: oe });
+    }
+
     // ── GET lean-indicadores (espera por centro + backlog + sin entrega) ──
     if (action === 'lean-indicadores' && req.method === 'GET') {
       const reDate = /^\d{4}-\d{2}-\d{2}$/;
