@@ -3731,6 +3731,52 @@ export default async function handler(req) {
       return ok({ ok: true, ...(data || {}) });
     }
 
+    // ── GET entregas-proyecto (fechas comprometidas por mueble) ───────────
+    if (action === 'entregas-proyecto' && req.method === 'GET') {
+      const proyecto_id = url.searchParams.get('proyecto_id');
+      if (!proyecto_id) return err('proyecto_id requerido', 400);
+      const { data, error } = await supabase
+        .from('entregas_comprometidas')
+        .select('item_id, fecha_comprometida')
+        .eq('proyecto_id', proyecto_id);
+      if (error) throw error;
+      const entregas = {};
+      for (const r of (data || [])) entregas[r.item_id] = r.fecha_comprometida;
+      return ok({ ok: true, entregas });
+    }
+
+    // ── POST set-entrega-comprometida (admin/oficina) ─────────────────────
+    if (action === 'set-entrega-comprometida' && req.method === 'POST') {
+      const user = await verificarSesion(body.session_token);
+      if (!user) return err('Sesión inválida o expirada', 401);
+      if (!['admin','oficina'].includes(user.rol_app)) return err('No autorizado', 403);
+      const proyecto_id = body.proyecto_id;
+      const entregas = Array.isArray(body.entregas) ? body.entregas : [];
+      if (!proyecto_id || !entregas.length) return err('proyecto_id y entregas[] requeridos', 400);
+      const reDate = /^\d{4}-\d{2}-\d{2}$/;
+      const upserts = [], deletes = [];
+      for (const e of entregas) {
+        if (!e || !e.item_id) return err('cada entrega requiere item_id', 400);
+        const f = e.fecha_comprometida;
+        if (f === null || f === '' || f === undefined) { deletes.push(e.item_id); }
+        else if (reDate.test(f)) {
+          upserts.push({ proyecto_id, item_id: e.item_id, fecha_comprometida: f,
+                         actualizado_por: user.id, actualizado_en: new Date().toISOString() });
+        } else return err('fecha_comprometida debe ser YYYY-MM-DD o vacía', 400);
+      }
+      if (upserts.length) {
+        const { error } = await supabase.from('entregas_comprometidas')
+          .upsert(upserts, { onConflict: 'proyecto_id,item_id' });
+        if (error) throw error;
+      }
+      if (deletes.length) {
+        const { error } = await supabase.from('entregas_comprometidas')
+          .delete().eq('proyecto_id', proyecto_id).in('item_id', deletes);
+        if (error) throw error;
+      }
+      return ok({ ok: true, guardadas: upserts.length, borradas: deletes.length });
+    }
+
     // ── GET buscar-oc-zoho ────────────────────────────────────────────────
     if (action === 'buscar-oc-zoho' && req.method === 'GET') {
       const oc_raw           = url.searchParams.get('oc_numero');
