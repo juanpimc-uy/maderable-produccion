@@ -3802,6 +3802,19 @@ export default async function handler(req) {
       return ok({ ok: true, muebles });
     }
 
+    // ── GET lean-indicadores (espera por centro + backlog + sin entrega) ──
+    if (action === 'lean-indicadores' && req.method === 'GET') {
+      const reDate = /^\d{4}-\d{2}-\d{2}$/;
+      let desde = url.searchParams.get('desde');
+      let hasta = url.searchParams.get('hasta');
+      if (!desde) desde = '2026-05-12';
+      if (!hasta) hasta = new Date().toISOString().slice(0, 10);
+      if (!reDate.test(desde) || !reDate.test(hasta)) return err('desde/hasta deben ser YYYY-MM-DD', 400);
+      const { data, error } = await supabase.rpc('lean_indicadores', { p_desde: desde, p_hasta: hasta });
+      if (error) throw error;
+      return ok({ ok: true, ...(data || {}) });
+    }
+
     // ── GET mct-agregado (lead time / MCT agregado para tablero) ──────────
     if (action === 'mct-agregado' && req.method === 'GET') {
       const reDate = /^\d{4}-\d{2}-\d{2}$/;
