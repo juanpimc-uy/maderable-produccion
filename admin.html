@@ -2175,6 +2175,105 @@ function muebleRowRico(prId, m, cncMap, entregasMap = {}) {
         </div>`;
 }
 
+// ── Gantt MCT (lead time por mueble) ──
+function mctGanttHTML(mct){
+  const M=(mct.muebles||[]);
+  if(!M.length) return '<div class="mono" style="font-size:11px;color:var(--muted);padding:8px 0;">Sin datos de lead time para este proyecto.</div>';
+  const DAY=86400000;
+  const d=s=>new Date(s+'T00:00:00');
+  const fmt=s=>s?d(s).toLocaleDateString('es-UY',{day:'2-digit',month:'short'}):'';
+  const between=(a,b)=>Math.round((d(b)-d(a))/DAY);
+  const NOW=new Date().toISOString().slice(0,10);
+  const ET={MODELADO:'#3b6ea5',CAM:'#5fa8d3',CORTE:'#e8833a','ENCH/PERF':'#b08d57',ARMADO:'var(--amber)',OTRO:'#6b6b6b'};
+  const TER='#8a5cc0';
+  const sm={}; (mct.strip||[]).forEach(s=>{(sm[s.item_id]=sm[s.item_id]||{})[s.dia]=s.etapa;});
+  M.sort((a,b)=>b.span_dias-a.span_dias);
+  window._MCT_SORTED=M;
+  const minS=M.reduce((a,m)=>d(m.inicio)<d(a)?m.inicio:a,M[0].inicio);
+  const maxE=M.reduce((a,m)=>d(m.fin)>d(a)?m.fin:a,M[0].fin);
+  const total=between(minS,maxE)+1, LW=220, DW=14;
+  const terDay=(m,ds)=>{for(const t of (m.terceros||[])){if(!t.desde)continue;const h=t.hasta||NOW;if(ds>=t.desde&&ds<=h)return t;}return null;};
+  let rows='';
+  M.forEach((m,idx)=>{
+    const off=between(minS,m.inicio); let days=''; let terDias=0;
+    for(let i=0;i<m.span_dias;i++){
+      const ds=new Date(d(m.inicio).getTime()+i*DAY).toISOString().slice(0,10);
+      const et=(sm[m.item_id]||{})[ds]; const ter=terDay(m,ds);
+      if(et){days+=`<div style="width:${DW}px;height:100%;background:${ET[et]||'#6b6b6b'};" title="${fmt(ds)} · ${et}"></div>`;}
+      else if(ter){terDias++;days+=`<div style="width:${DW}px;height:100%;background:${TER};" title="${fmt(ds)} · EN TERCERO · ${ter.prov||'tercero'}"></div>`;}
+      else{days+=`<div style="width:${DW}px;height:100%;background:repeating-linear-gradient(45deg,#171717,#171717 4px,#262626 4px,#262626 8px);" title="${fmt(ds)} · muerto"></div>`;}
+    }
+    m._terDias=terDias; m._esperaReal=Math.max(m.span_dias-m.proceso_dias-terDias,0);
+    let tb='';
+    (m.terceros||[]).forEach(t=>{if(!t.desde)return;const h=t.hasta||NOW;const x=between(minS,t.desde)*DW;const w=(between(t.desde,h)+1)*DW;
+      tb+=`<div style="position:absolute;top:30px;height:6px;left:${x}px;width:${w}px;background:${TER};opacity:.9;border-radius:2px;" title="${t.prov||'tercero'} ${t.tipo||''} ${fmt(t.desde)}→${t.hasta?fmt(t.hasta):'sin retorno'}"></div><div style="position:absolute;top:37px;left:${x+2}px;font-size:8px;color:#c9a4e8;white-space:nowrap;font-family:'Space Mono',monospace;">→ ${t.prov||'tercero'}${t.hasta?'':' ⚠'}</div>`;});
+    let el='',etxt='';
+    if(m.fecha_comprometida){
+      const xf=between(minS,m.fecha_comprometida)*DW;
+      el=`<div style="position:absolute;top:2px;bottom:2px;left:${xf}px;width:2px;background:var(--red);z-index:6;" title="Entrega ${fmt(m.fecha_comprometida)}"></div>`;
+      const dias=between(NOW,m.fecha_comprometida);
+      if(m.fin&&d(m.fin)<d(NOW)) etxt=d(m.fin)>d(m.fecha_comprometida)?'<span style="color:#ff7a6a;">entregó tarde</span>':'<span style="color:var(--green);">a tiempo</span>';
+      else if(dias<0) etxt=`<span style="color:#ff7a6a;">⚠ vencida ${-dias}d</span>`;
+      else if(dias<=7) etxt=`<span style="color:var(--amber);">vence en ${dias}d</span>`;
+      else etxt=`<span style="color:var(--muted);">entrega ${fmt(m.fecha_comprometida)}</span>`;
+    } else etxt='<span style="color:var(--muted);">sin fecha</span>';
+    rows+=`<div onclick="_mctSel(${idx})" style="display:grid;grid-template-columns:${LW}px ${total*DW}px;align-items:center;border-bottom:1px solid #161616;cursor:pointer;">
+      <div style="padding:8px 10px;overflow:hidden;">
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--amber);">${m.item_id}</div>
+        <div style="font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${(m.item_nombre||'').replace(/</g,'&lt;')}</div>
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">lead ${m.span_dias}d · ${etxt}</div>
+      </div>
+      <div style="position:relative;height:52px;">
+        <div style="position:absolute;top:8px;height:22px;left:${off*DW}px;width:${m.span_dias*DW}px;display:flex;overflow:hidden;border:1px solid #000;border-radius:3px;">${days}</div>
+        ${tb}${el}
+      </div></div>`;
+  });
+  let months='',cur=null,cs=0;
+  for(let i=0;i<total;i++){const dt=new Date(d(minS).getTime()+i*DAY);const ml=dt.toLocaleDateString('es-UY',{month:'short'}).replace('.','');if(ml!==cur){if(cur!==null)months+=`<div style="grid-column:${cs+1}/${i+1};font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);border-left:1px solid var(--border);padding-left:4px;">${cur}</div>`;cur=ml;cs=i;}}
+  months+=`<div style="grid-column:${cs+1}/${total+1};font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);border-left:1px solid var(--border);padding-left:4px;">${cur}</div>`;
+  const axis=`<div style="display:grid;grid-template-columns:${LW}px ${total*DW}px;border-bottom:1px solid var(--border);padding-bottom:5px;align-items:end;"><div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);padding:6px 10px;">Mueble (lead ↓)</div><div style="display:grid;grid-template-columns:repeat(${total},${DW}px);">${months}</div></div>`;
+  const leg=(c,t)=>`<span style="display:inline-flex;gap:5px;align-items:center;"><span style="width:11px;height:11px;background:${c};border-radius:2px;"></span>${t}</span>`;
+  const legend=`<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--muted);margin-bottom:10px;align-items:center;">
+    ${leg('#3b6ea5','Model')}${leg('#5fa8d3','CAM')}${leg('#e8833a','Corte')}${leg('#b08d57','Ench/Perf')}${leg('var(--amber)','Armado')}${leg('#8a5cc0','En tercero')}
+    <span style="display:inline-flex;gap:5px;align-items:center;"><span style="width:11px;height:11px;background:repeating-linear-gradient(45deg,#171717,#171717 3px,#2a2a2a 3px,#2a2a2a 6px);"></span>Muerto</span>
+    <span style="display:inline-flex;gap:5px;align-items:center;"><span style="width:2px;height:11px;background:var(--red);"></span>Entrega</span></div>`;
+  const warn=mct.split_confiable===false?`<div style="font-size:10px;color:#e8a23a;margin-bottom:8px;font-family:'Space Mono',monospace;">⚠ Proyecto pre-12/5 · el reparto proceso/espera no es confiable</div>`:'';
+  return `${warn}${legend}<div style="overflow-x:auto;">${axis}${rows}</div><div id="mct-zoom" style="margin-top:12px;"></div>`;
+}
+function _mctSel(idx){
+  const M=window._MCT_SORTED; if(!M||!M[idx])return;
+  const m=M[idx]; const DAY=86400000;
+  const d=s=>new Date(s+'T00:00:00');
+  const fmt=s=>s?d(s).toLocaleDateString('es-UY',{day:'2-digit',month:'short'}):'';
+  const NOW=new Date().toISOString().slice(0,10);
+  const sp=m.span_dias, pr=m.proceso_dias, ter=m._terDias||0, esp=m._esperaReal!=null?m._esperaReal:(sp-pr-ter);
+  const ppP=Math.round(100*pr/sp), ppT=Math.round(100*ter/sp), ppE=Math.round(100*esp/sp);
+  const fe=Math.round(100*pr/sp);
+  const mt=(k,v,sub,col)=>`<div style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:10px 12px;"><div style="font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);">${k}</div><div style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;margin-top:3px;${col?'color:'+col+';':''}">${v}</div><div style="font-size:10px;color:var(--muted);margin-top:2px;">${sub||''}</div></div>`;
+  const z=document.getElementById('mct-zoom'); if(!z)return;
+  z.innerHTML=`<div style="background:#1a1a1a;border:1px solid var(--border);border-radius:6px;padding:14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div><span style="font-family:'Space Mono',monospace;color:var(--amber);font-weight:700;font-size:13px;">${m.item_id}</span> <span style="font-size:13px;">${(m.item_nombre||'').replace(/</g,'&lt;')}</span></div>
+      <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">${fmt(m.inicio)} → ${fmt(m.fin)}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px;">
+      ${mt('Lead',sp+'d')}
+      ${mt('Días c/toque',pr+'d',null)}
+      ${mt('En tercero',ter+'d','proceso externo','#b98ce0')}
+      ${mt('Espera real',esp+'d','muertos')}
+      ${mt('Flow eff',fe+'%',null,'var(--amber)')}
+    </div>
+    <div style="font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px;">Reparto del lead</div>
+    <div style="height:26px;border-radius:4px;overflow:hidden;display:flex;background:#000;">
+      <div style="width:${ppP}%;background:var(--amber);color:#000;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;">${ppP>9?'PROC '+pr+'d':''}</div>
+      <div style="width:${ppT}%;background:#8a5cc0;color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;">${ppT>9?'TERC '+ter+'d':''}</div>
+      <div style="width:${ppE}%;background:repeating-linear-gradient(45deg,#1a1a1a,#1a1a1a 5px,#242424 5px,#242424 10px);color:var(--muted);display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:10px;">${ppE>9?'ESPERA '+esp+'d':''}</div>
+    </div>
+    <div style="margin-top:12px;border-left:3px solid #5a4420;background:#1a150b;padding:9px 12px;font-size:11px;color:#d8b974;border-radius:0 4px 4px 0;">De sus ${sp} días de vida: <b>${pr}d</b> con toque, <b>${ter}d</b> en tercero, <b>${esp}d</b> muertos. Espera inicial: <b>${m.espera_inicial}d</b>.</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:8px;">Horas reales y lead vs hoy (para abiertos) — pendientes del próximo pase del RPC.</div>
+  </div>`;
+}
+
 async function setEntregaInline(prId, itemId, value) {
   try {
     const res = await fetch('/api/tiempos?action=set-entrega-comprometida', {
@@ -2879,6 +2978,15 @@ async function renderDetallePr(pr, sub) {
 
   // ── TIEMPOS ──
   if(sub==='tiempos'){
+    let _MCT=null;
+    try {
+      const _rm = await fetch(`/api/tiempos?action=mct-proyecto&proyecto_id=${encodeURIComponent(pr.id)}`).then(r=>r.json());
+      if (_rm && _rm.ok) _MCT = _rm;
+    } catch(e) {}
+    if (_MCT) {
+      window._MCT = _MCT;
+      html += `<div class="card" style="margin-bottom:16px;"><div class="sec-title" style="margin-bottom:12px;">Lead time / MCT por mueble</div>${mctGanttHTML(_MCT)}</div>`;
+    }
     // tabla compacta por mueble/ítem
     const rows = pr.muebles && pr.muebles.length ? pr.muebles : pr.items;
     const colCount = (pr.muebles&&pr.muebles.length) ? 7 : 6;
