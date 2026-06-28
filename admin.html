@@ -2176,7 +2176,8 @@ function muebleRowRico(prId, m, cncMap, entregasMap = {}) {
 }
 
 // ── Gantt MCT (lead time por mueble) ──
-function mctGanttHTML(mct){
+function mctGanttHTML(mct, key){
+  key = key || "main";
   const M=(mct.muebles||[]);
   if(!M.length) return '<div class="mono" style="font-size:11px;color:var(--muted);padding:8px 0;">Sin datos de lead time para este proyecto.</div>';
   const DAY=86400000;
@@ -2188,7 +2189,7 @@ function mctGanttHTML(mct){
   const TER='#8a5cc0';
   const sm={}; (mct.strip||[]).forEach(s=>{(sm[s.item_id]=sm[s.item_id]||{})[s.dia]=s.etapa;});
   M.sort((a,b)=>b.span_dias-a.span_dias);
-  window._MCT_SORTED=M;
+  window._MCT_S = window._MCT_S || {}; window._MCT_S[key]=M;
   const minS=M.reduce((a,m)=>d(m.inicio)<d(a)?m.inicio:a,M[0].inicio);
   const maxE=M.reduce((a,m)=>d(m.fin)>d(a)?m.fin:a,M[0].fin);
   const total=between(minS,maxE)+1, LW=220, DW=14;
@@ -2217,7 +2218,7 @@ function mctGanttHTML(mct){
       else if(dias<=7) etxt=`<span style="color:var(--amber);">vence en ${dias}d</span>`;
       else etxt=`<span style="color:var(--muted);">entrega ${fmt(m.fecha_comprometida)}</span>`;
     } else etxt='<span style="color:var(--muted);">sin fecha</span>';
-    rows+=`<div onclick="_mctSel(${idx})" style="display:grid;grid-template-columns:${LW}px ${total*DW}px;align-items:center;border-bottom:1px solid #161616;cursor:pointer;">
+    rows+=`<div onclick="_mctSel('${key}',${idx})" style="display:grid;grid-template-columns:${LW}px ${total*DW}px;align-items:center;border-bottom:1px solid #161616;cursor:pointer;">
       <div style="padding:8px 10px;overflow:hidden;">
         <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--amber);">${m.item_id}</div>
         <div style="font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${(m.item_nombre||'').replace(/</g,'&lt;')}</div>
@@ -2238,10 +2239,10 @@ function mctGanttHTML(mct){
     <span style="display:inline-flex;gap:5px;align-items:center;"><span style="width:11px;height:11px;background:repeating-linear-gradient(45deg,#171717,#171717 3px,#2a2a2a 3px,#2a2a2a 6px);"></span>Muerto</span>
     <span style="display:inline-flex;gap:5px;align-items:center;"><span style="width:2px;height:11px;background:var(--red);"></span>Entrega</span></div>`;
   const warn=mct.split_confiable===false?`<div style="font-size:10px;color:#e8a23a;margin-bottom:8px;font-family:'Space Mono',monospace;">⚠ Proyecto pre-12/5 · el reparto proceso/espera no es confiable</div>`:'';
-  return `${warn}${legend}<div style="overflow-x:auto;">${axis}${rows}</div><div id="mct-zoom" style="margin-top:12px;"></div>`;
+  return `${warn}${legend}<div style="overflow-x:auto;">${axis}${rows}</div><div id="mct-zoom-${key}" style="margin-top:12px;"></div>`;
 }
-function _mctSel(idx){
-  const M=window._MCT_SORTED; if(!M||!M[idx])return;
+function _mctSel(key, idx){
+  const M=(window._MCT_S||{})[key]; if(!M||!M[idx])return;
   const m=M[idx]; const DAY=86400000;
   const d=s=>new Date(s+'T00:00:00');
   const fmt=s=>s?d(s).toLocaleDateString('es-UY',{day:'2-digit',month:'short'}):'';
@@ -2250,7 +2251,7 @@ function _mctSel(idx){
   const ppP=Math.round(100*pr/sp), ppT=Math.round(100*ter/sp), ppE=Math.round(100*esp/sp);
   const fe=Math.round(100*pr/sp);
   const mt=(k,v,sub,col)=>`<div style="background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:10px 12px;"><div style="font-family:'Space Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);">${k}</div><div style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;margin-top:3px;${col?'color:'+col+';':''}">${v}</div><div style="font-size:10px;color:var(--muted);margin-top:2px;">${sub||''}</div></div>`;
-  const z=document.getElementById('mct-zoom'); if(!z)return;
+  const z=document.getElementById('mct-zoom-'+key); if(!z)return;
   z.innerHTML=`<div style="background:#1a1a1a;border:1px solid var(--border);border-radius:6px;padding:14px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <div><span style="font-family:'Space Mono',monospace;color:var(--amber);font-weight:700;font-size:13px;">${m.item_id}</span> <span style="font-size:13px;">${(m.item_nombre||'').replace(/</g,'&lt;')}</span></div>
@@ -2317,7 +2318,7 @@ async function renderDetalleGrupo(grupoId, sub) {
 
   const miembros = PROYECTOS.filter(p => (grupo.miembros || []).some(m => m.id === p.id));
   const u = window.AUTH.usuarioActual();
-  const SUBS = ['ítems', 'materiales', 'miembros', ...(u?.rol_app === 'admin' ? ['costos'] : [])];
+  const SUBS = ['ítems', 'materiales', 'tiempos', 'miembros', ...(u?.rol_app === 'admin' ? ['costos'] : [])];
 
   let html = `
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
@@ -2356,6 +2357,31 @@ async function renderDetalleGrupo(grupoId, sub) {
     }
     html += `</div>`;
     det.innerHTML = html;
+    return;
+  }
+
+  // ── TIEMPOS (un Gantt MCT por ODF, desplegados) ──
+  if (sub === 'tiempos') {
+    html += `<div style="display:flex;flex-direction:column;gap:16px;" id="grp-mct-wrap"></div>`;
+    det.innerHTML = html;
+    const wrap = document.getElementById('grp-mct-wrap');
+    for (const mm of miembros) {
+      const sec = document.createElement('div');
+      sec.innerHTML = `<div style="padding:8px 12px;background:var(--panel);border:1px solid var(--border);border-radius:6px 6px 0 0;display:flex;align-items:center;gap:8px;"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--amber);font-weight:700;">${mm.numero}</span><span style="font-size:12px;color:#ccc;">${mm.nombre}</span></div><div style="border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;padding:10px 12px;" id="grp-mct-${mm.id}"><div style="color:var(--muted);font-size:11px;">Cargando…</div></div>`;
+      wrap.appendChild(sec);
+    }
+    for (const mm of miembros) {
+      try {
+        const r = await fetch(`/api/tiempos?action=mct-proyecto&proyecto_id=${encodeURIComponent(mm.id)}`).then(r=>r.json());
+        const el = document.getElementById(`grp-mct-${mm.id}`);
+        if (!el) continue;
+        if (r && r.ok && (r.muebles||[]).length) { el.innerHTML = mctGanttHTML(r, mm.id); }
+        else el.innerHTML = `<div style="color:var(--muted);font-size:11px;padding:6px 0;">Sin datos de lead time.</div>`;
+      } catch(e) {
+        const el = document.getElementById(`grp-mct-${mm.id}`);
+        if (el) el.innerHTML = `<div style="color:var(--red);font-size:11px;">Error</div>`;
+      }
+    }
     return;
   }
 
