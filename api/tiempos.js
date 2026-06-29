@@ -572,14 +572,18 @@ async function _iniciarTareaImpl(sb, {
   }
 
   // 5. Guard: bloquear si el mueble está completado (antes de cualquier mutación)
+  let heredaRetrabajo = false;
   if (!es_descanso && item_id && proyecto_id) {
     const { data: ultEvento } = await sb.from('items_completado_log')
-      .select('evento')
+      .select('evento, es_retrabajo')
       .eq('proyecto_id', proyecto_id).eq('item_id', item_id)
       .order('creado_at', { ascending: false })
       .limit(1).maybeSingle();
     if (ultEvento && ultEvento.evento === 'completado') {
       throw new ApiError('Mueble completado. Reabrir antes de fichar horas.', 400);
+    }
+    if (ultEvento && ultEvento.evento === 'reabierto' && ultEvento.es_retrabajo === true) {
+      heredaRetrabajo = true;
     }
   }
 
@@ -621,7 +625,7 @@ async function _iniciarTareaImpl(sb, {
       ultima_actividad: ahora,
       fin: null,
       estado: 'activo',
-      es_retrabajo: false,
+      es_retrabajo: heredaRetrabajo,
     })
     .select().single();
   if (error) {
@@ -2781,7 +2785,9 @@ export default async function handler(req) {
     if (action === 'marcar-item' && req.method === 'POST') {
       const _st = body.st || body.session_token || url.searchParams.get('st');
       const caller = await verificarSesion(_st);
-      if (!caller || (caller.rol_app !== 'admin' && caller.rol_app !== 'oficina'))
+      if (!caller) return err('Sesión inválida', 401);
+      const esReabrirRetrabajo = (body.evento === 'reabierto' && body.es_retrabajo === true);
+      if (!esReabrirRetrabajo && caller.rol_app !== 'admin' && caller.rol_app !== 'oficina')
         return err('Solo admin u oficina', 403);
 
       const { proyecto_id, item_id, evento } = body;
@@ -2827,11 +2833,13 @@ export default async function handler(req) {
         // Sin registros con fin → completado_en queda null (no medible)
       }
       // evento === 'reabierto' → completado_en queda null
+      if (evento === 'reabierto') es_retrabajo = (body.es_retrabajo === true);
 
       const { data: inserted, error: insErr } = await supabase
         .from('items_completado_log').insert({
           proyecto_id, item_id, evento,
           completado_en, es_retrabajo, placas_snapshot, item_nombre,
+          motivo: (evento === 'reabierto' ? (body.motivo || null) : null),
           creado_por: caller.id,
         }).select().single();
       if (insErr) throw insErr;
