@@ -1323,25 +1323,84 @@ async function _cargarS3() {
   if (!el) return;
   el.innerHTML = '<div class="lean-card"><div class="lean-body"><span style="color:#555;">Cargando...</span></div></div>';
   try {
-    const res = await fetch(`${BASE_URL}/api/informes?action=lean-cocina-wip&${_leanPQ()}`, _leanAuth());
+    const [res, resT] = await Promise.all([
+      fetch(`${BASE_URL}/api/informes?action=lean-cocina-wip&${_leanPQ()}`, _leanAuth()),
+      fetch(`${BASE_URL}/api/tiempos?action=lean-indicadores`)
+    ]);
     const d = await res.json();
     if (!d.ok) throw new Error(d.msg || 'Error');
+    const td = await resT.json();
+    const tp = (td && td.ok && td.throughput) ? td.throughput : null;
+
+    const money = n => '$' + Math.round(n || 0).toLocaleString('es-UY');
+    const esc = s => String(s == null ? '' : s).replace(/</g, '&lt;');
+
+    let izq;
+    if (!tp) {
+      izq = `<div style="background:#111;border:1px dashed #333;border-radius:6px;padding:20px;text-align:center;"><span style="font-family:'Space Mono',monospace;font-size:10px;color:#666;">Throughput no disponible</span></div>`;
+    } else {
+      const m = tp.mensual || {};
+      const oe = tp.oe_mensual || 0;
+      const tmes = m.throughput || 0;
+      const cobMes = Math.round(m.cobertura_pct || 0);
+      const mesLbl = m.mes || '';
+      const fill = oe > 0 ? Math.min(100, Math.round((tmes / oe) * 100)) : 0;
+      const gano = oe > 0 && tmes >= oe;
+      const falta = Math.max(0, oe - tmes);
+
+      let barra, verdict;
+      if (oe <= 0) {
+        barra = '';
+        verdict = `<div style="font-family:'Space Mono',monospace;font-size:10px;color:#c9a14a;border:1px solid #4a3f1f;background:rgba(255,214,0,.06);border-radius:6px;padding:8px 10px;">Cargá el OE mensual en Ajustes para activar el break-even.</div>`;
+      } else {
+        barra = `
+          <div style="position:relative;height:18px;background:#161616;border-radius:5px;overflow:hidden;border:1px solid #242424;margin-bottom:6px;">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:${fill}%;background:${gano ? '#1e6b50' : '#c9a14a'};"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-family:'Space Mono',monospace;font-size:9px;color:#777;margin-bottom:12px;">
+            <span>${fill}% del break-even</span><span>OE ${money(oe)}/mes</span>
+          </div>`;
+        verdict = gano
+          ? `<div style="font-family:'Space Mono',monospace;font-size:10px;color:#5fb87a;border:1px solid #234a30;background:rgba(95,184,122,.06);border-radius:6px;padding:8px 10px;">✓ Cubriste el OE del mes · +${money(tmes - oe)} de throughput sobre el fijo.</div>`
+          : `<div style="font-family:'Space Mono',monospace;font-size:10px;color:#c9a14a;border:1px solid #4a3f1f;background:rgba(255,214,0,.06);border-radius:6px;padding:8px 10px;">Faltan ${money(falta)} de throughput para cubrir el OE del mes.</div>`;
+      }
+
+      const aviso = `<div style="font-family:'Space Mono',monospace;font-size:9px;color:#888;line-height:1.6;margin-top:10px;">⚠ Subestimado: solo el <b style="color:#c9a14a;">${cobMes}%</b> de la venta cerrada de ${mesLbl} está costeada. El ${100 - cobMes}% restante no tiene costo cargado, así que el throughput real es mayor que el mostrado.</div>`;
+
+      izq = `
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Throughput del mes (${mesLbl}) vs OE</div>
+        <div style="font-family:'Space Mono',monospace;font-size:34px;font-weight:700;color:#FFD600;line-height:1;margin-bottom:10px;">${money(tmes)}</div>
+        ${barra}
+        ${verdict}
+        ${aviso}`;
+    }
+
+    let lista = '';
+    if (tp && (tp.proyectos || []).length) {
+      const filas = tp.proyectos.map(p => `<div style="display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:14px;padding:6px 0;border-bottom:1px solid #232323;font-family:'Space Mono',monospace;font-size:10px;">
+        <div style="color:#d6d6d6;text-transform:uppercase;">${esc(p.numero)} ${esc(p.nombre)} <span style="color:#777;">· ${esc(p.cliente)}</span></div>
+        <div style="color:#777;text-align:right;width:90px;">venta ${money(p.venta)}</div>
+        <div style="color:#777;text-align:right;width:70px;">mat ${p.pct}%</div>
+        <div style="color:#5fb87a;font-weight:700;text-align:right;width:90px;">${money(p.throughput)}</div>
+      </div>`).join('');
+      lista = `<div style="margin-top:18px;">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Detalle acumulado por proyecto (bien costeados · ${tp.n_elegibles} proy · ${money(tp.total)})</div>
+        <div style="max-height:240px;overflow-y:auto;padding-right:6px;">${filas}</div>
+      </div>`;
+    }
+
     el.innerHTML = `<div class="lean-card">
       <div class="lean-hdr"><div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;background:#FFD600;border-radius:2px;"></div><span class="lean-title">③ En la cocina</span></div></div>
-      <div class="lean-body" style="display:flex;gap:24px;">
-        <div style="flex:1;">
-          <div style="font-family:'Space Mono',monospace;font-size:9px;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">Throughput vs OE</div>
-          <div style="background:#111;border:1px dashed #333;border-radius:6px;padding:20px;text-align:center;">
-            <span style="font-family:'Space Mono',monospace;font-size:10px;color:#666;">BLOQUEADO · falta precio por mueble</span>
-          </div>
-        </div>
-        <div style="width:220px;flex-shrink:0;">
+      <div class="lean-body" style="display:flex;gap:24px;align-items:flex-start;">
+        <div style="flex:1;">${izq}</div>
+        <div style="width:200px;flex-shrink:0;">
           <div style="font-family:'Space Mono',monospace;font-size:9px;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Horas en la cocina</div>
           <div style="font-family:'Space Mono',monospace;font-size:36px;font-weight:700;color:#FFD600;line-height:1;margin-bottom:8px;">${_lf(d.hs_curso)}<span style="font-size:14px;color:#555;"> hs</span></div>
           <div style="font-family:'Space Mono',monospace;font-size:10px;color:#888;margin-bottom:4px;">${d.proyectos_curso} proyectos en curso</div>
           <div style="font-family:'Space Mono',monospace;font-size:10px;color:#555;">Cerrados en período: ${_lf(d.hs_cerrados)} hs</div>
         </div>
       </div>
+      ${lista}
     </div>`;
   } catch (e) { el.innerHTML = `<div class="lean-card"><div class="lean-body" style="color:#ff5a5a;">Error: ${e.message}</div></div>`; }
 }
