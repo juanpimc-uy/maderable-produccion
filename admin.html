@@ -2208,68 +2208,130 @@ function mctGanttHTML(mct, key){
   if(!M.length) return '<div class="mono" style="font-size:11px;color:var(--muted);padding:8px 0;">Sin datos de lead time para este proyecto.</div>';
   const DAY=86400000;
   const d=s=>new Date(s+'T00:00:00');
-  const fmt=s=>s?d(s).toLocaleDateString('es-UY',{day:'2-digit',month:'short'}):'';
+  const okd=s=>{const x=d(s); return !!s && !isNaN(x);};
+  const fmt=s=>okd(s)?d(s).toLocaleDateString('es-UY',{day:'2-digit',month:'short'}):'';
   const between=(a,b)=>Math.round((d(b)-d(a))/DAY);
   const NOW=new Date().toISOString().slice(0,10);
   const ET={MODELADO:'#3b6ea5',CAM:'#5fa8d3',CORTE:'#e8833a','ENCH/PERF':'#b08d57',ARMADO:'var(--amber)',OTRO:'#6b6b6b'};
   const TER='#8a5cc0';
   const sm={}; (mct.strip||[]).forEach(s=>{(sm[s.item_id]=sm[s.item_id]||{})[s.dia]=s.etapa;});
-  M.sort((a,b)=>b.span_dias-a.span_dias);
+  M.sort((a,b)=>(b.span_dias||0)-(a.span_dias||0));
   window._MCT_S = window._MCT_S || {}; window._MCT_S[key]=M;
-  const minS=M.reduce((a,m)=>d(m.inicio)<d(a)?m.inicio:a,M[0].inicio);
-  const maxE=M.reduce((a,m)=>d(m.fin)>d(a)?m.fin:a,M[0].fin);
-  const total=between(minS,maxE)+1, LW=220, DW=14;
+  const LW=220, DW=14, RW=92;
+  const starts=M.map(m=>m.inicio).filter(okd);
+  const ends=[];
+  M.forEach(m=>{ [m.fin,m.fecha_comprometida,m.completado_en_real].forEach(s=>{ if(okd(s)) ends.push(s); }); });
+  const minS=starts.reduce((a,s)=>d(s)<d(a)?s:a, starts[0]);
+  const maxE=ends.reduce((a,s)=>d(s)>d(a)?s:a, ends[0]||minS);
+  const total=between(minS,maxE)+1;
+  const mx=s=>(between(minS,s)+1)*DW;
+  let bands='<div style="position:absolute;inset:0;z-index:0;">';
+  { let c=d(minS); while(c.getDay()!==1) c=new Date(c.getTime()+DAY); let wi=0;
+    for(let t=c; between(minS,t.toISOString().slice(0,10))<total; t=new Date(t.getTime()+7*DAY)){
+      const off=between(minS,t.toISOString().slice(0,10));
+      const x=Math.max(off,0)*DW, w=Math.min(7,total-off)*DW;
+      bands+=`<div style="position:absolute;top:0;bottom:0;left:${x}px;width:${w}px;background:${wi%2?'rgba(255,255,255,0.06)':'rgba(255,255,255,0.022)'};"></div>`;
+      bands+=`<div style="position:absolute;top:0;bottom:0;left:${x}px;width:1px;background:rgba(255,255,255,0.10);"></div>`;
+      wi++;
+    }
+    if(between(minS,NOW)>=0 && between(minS,NOW)<total) bands+=`<div style="position:absolute;top:0;bottom:0;left:${between(minS,NOW)*DW}px;width:1px;background:#FFD60066;z-index:1;"></div>`;
+  }
+  bands+='</div>';
   const terDay=(m,ds)=>{for(const t of (m.terceros||[])){if(!t.desde)continue;const h=t.hasta||NOW;if(ds>=t.desde&&ds<=h)return t;}return null;};
+  const cdCell=m=>{
+    let big='—',small='sin fecha',col='#4a4a4a';
+    if(m.completado_real){
+      if(okd(m.completado_en_real) && okd(m.fecha_comprometida)){
+        const delta=between(m.completado_en_real,m.fecha_comprometida);
+        if(delta>=0){ big=delta+'d'; small='antes'; col='var(--green)'; }
+        else { big=(-delta)+'d'; small='tarde'; col='var(--red)'; }
+      } else { big='✓'; small='listo'; col='var(--green)'; }
+    } else if(okd(m.fecha_comprometida)){
+      const dias=between(NOW,m.fecha_comprometida);
+      if(dias<0){ big='+'+(-dias)+'d'; small='vencida'; col='var(--red)'; }
+      else if(dias===0){ big='HOY'; small='entrega'; col='var(--amber)'; }
+      else { big=dias+'d'; small='p/ entrega'; col=dias<=7?'var(--amber)':'var(--muted)'; }
+    }
+    return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;${m.sin_actividad?'opacity:.62;':''}">
+      <div style="font-family:'Space Mono',monospace;font-size:17px;font-weight:700;color:${col};line-height:1;">${big}</div>
+      <div style="font-family:'Space Mono',monospace;font-size:8px;color:var(--muted);text-transform:uppercase;margin-top:3px;">${small}</div></div>`;
+  };
   let rows='';
   M.forEach((m,idx)=>{
-    const off=between(minS,m.inicio); let days=''; let terDias=0;
-    for(let i=0;i<m.span_dias;i++){
-      const ds=new Date(d(m.inicio).getTime()+i*DAY).toISOString().slice(0,10);
-      const et=(sm[m.item_id]||{})[ds]; const ter=terDay(m,ds);
-      if(et){days+=`<div style="width:${DW}px;height:100%;background:${ET[et]||'#6b6b6b'};" title="${fmt(ds)} · ${et}"></div>`;}
-      else if(ter){terDias++;days+=`<div style="width:${DW}px;height:100%;background:${TER};" title="${fmt(ds)} · EN TERCERO · ${ter.prov||'tercero'}"></div>`;}
-      else{days+=`<div style="width:${DW}px;height:100%;background:repeating-linear-gradient(45deg,#171717,#171717 4px,#262626 4px,#262626 8px);" title="${fmt(ds)} · muerto"></div>`;}
+    let timeline='';
+    if(m.sin_actividad){
+      timeline=`<div style="position:absolute;top:8px;height:22px;left:0;width:${total*DW}px;border:1px dashed #2a2a2a;border-radius:3px;background:repeating-linear-gradient(45deg,#131313,#131313 4px,#1c1c1c 4px,#1c1c1c 8px);opacity:.5;z-index:2;"></div>`;
+    } else {
+      const off=between(minS,m.inicio); let days=''; let terDias=0;
+      for(let i=0;i<m.span_dias;i++){
+        const ds=new Date(d(m.inicio).getTime()+i*DAY).toISOString().slice(0,10);
+        const et=(sm[m.item_id]||{})[ds]; const ter=terDay(m,ds);
+        if(et){days+=`<div style="width:${DW}px;height:100%;background:${ET[et]||'#6b6b6b'};" title="${fmt(ds)} · ${et}"></div>`;}
+        else if(ter){terDias++;days+=`<div style="width:${DW}px;height:100%;background:${TER};" title="${fmt(ds)} · EN TERCERO · ${ter.prov||'tercero'}"></div>`;}
+        else{days+=`<div style="width:${DW}px;height:100%;background:repeating-linear-gradient(45deg,#171717,#171717 4px,#262626 4px,#262626 8px);" title="${fmt(ds)} · muerto"></div>`;}
+      }
+      m._terDias=terDias; m._esperaReal=Math.max(m.span_dias-m.proceso_dias-terDias,0);
+      let tb='';
+      (m.terceros||[]).forEach(t=>{if(!t.desde)return;const h=t.hasta||NOW;const x=between(minS,t.desde)*DW;const w=(between(t.desde,h)+1)*DW;
+        tb+=`<div style="position:absolute;top:30px;height:6px;left:${x}px;width:${w}px;background:${TER};opacity:.9;border-radius:2px;z-index:3;" title="${t.prov||'tercero'} ${t.tipo||''} ${fmt(t.desde)}→${t.hasta?fmt(t.hasta):'sin retorno'}"></div><div style="position:absolute;top:37px;left:${x+2}px;font-size:8px;color:#c9a4e8;white-space:nowrap;font-family:'Space Mono',monospace;z-index:3;">→ ${t.prov||'tercero'}${t.hasta?'':' ⚠'}</div>`;});
+      timeline=`<div style="position:absolute;top:8px;height:22px;left:${off*DW}px;width:${m.span_dias*DW}px;display:flex;overflow:hidden;border:1px solid #000;border-radius:3px;z-index:2;">${days}</div>${tb}`;
     }
-    m._terDias=terDias; m._esperaReal=Math.max(m.span_dias-m.proceso_dias-terDias,0);
-    let tb='';
-    (m.terceros||[]).forEach(t=>{if(!t.desde)return;const h=t.hasta||NOW;const x=between(minS,t.desde)*DW;const w=(between(t.desde,h)+1)*DW;
-      tb+=`<div style="position:absolute;top:30px;height:6px;left:${x}px;width:${w}px;background:${TER};opacity:.9;border-radius:2px;" title="${t.prov||'tercero'} ${t.tipo||''} ${fmt(t.desde)}→${t.hasta?fmt(t.hasta):'sin retorno'}"></div><div style="position:absolute;top:37px;left:${x+2}px;font-size:8px;color:#c9a4e8;white-space:nowrap;font-family:'Space Mono',monospace;">→ ${t.prov||'tercero'}${t.hasta?'':' ⚠'}</div>`;});
-    let el='',etxt='';
-    if(m.fecha_comprometida){
-      const xf=between(minS,m.fecha_comprometida)*DW;
-      el=`<div style="position:absolute;top:2px;bottom:2px;left:${xf}px;width:2px;background:var(--red);z-index:6;" title="Entrega ${fmt(m.fecha_comprometida)}"></div>`;
+    let mk='';
+    if(okd(m.fecha_comprometida)){
+      mk+=`<div style="position:absolute;top:2px;bottom:2px;left:${mx(m.fecha_comprometida)}px;width:2px;background:var(--red);z-index:6;" title="Entrega ${fmt(m.fecha_comprometida)}"></div>`;
+    }
+    if(okd(m.completado_en_real)){
+      const gx=mx(m.completado_en_real);
+      mk+=`<div style="position:absolute;top:2px;bottom:2px;left:${gx}px;width:2px;background:var(--green);z-index:7;" title="Completado ${fmt(m.completado_en_real)}"></div>`;
+      mk+=`<div style="position:absolute;top:0;left:${gx-3}px;width:8px;height:8px;border-radius:50%;background:var(--green);z-index:7;"></div>`;
+    }
+    let etxt='';
+    if(m.completado_real){
+      if(okd(m.completado_en_real) && okd(m.fecha_comprometida))
+        etxt=d(m.completado_en_real)>d(m.fecha_comprometida)?'<span style="color:#ff7a6a;">completó tarde</span>':'<span style="color:var(--green);">completó a tiempo</span>';
+      else etxt='<span style="color:var(--green);">completado</span>';
+    } else if(m.sin_actividad){
+      etxt='<span style="color:#5a5a5a;">sin actividad</span>';
+    } else if(okd(m.fecha_comprometida)){
       const dias=between(NOW,m.fecha_comprometida);
-      if(m.fin&&d(m.fin)<d(NOW)) etxt=d(m.fin)>d(m.fecha_comprometida)?'<span style="color:#ff7a6a;">entregó tarde</span>':'<span style="color:var(--green);">a tiempo</span>';
-      else if(dias<0) etxt=`<span style="color:#ff7a6a;">⚠ vencida ${-dias}d</span>`;
+      if(dias<0) etxt=`<span style="color:#ff7a6a;">⚠ vencida ${-dias}d</span>`;
       else if(dias<=7) etxt=`<span style="color:var(--amber);">vence en ${dias}d</span>`;
       else etxt=`<span style="color:var(--muted);">entrega ${fmt(m.fecha_comprometida)}</span>`;
     } else etxt='<span style="color:var(--muted);">sin fecha</span>';
-    rows+=`<div onclick="_mctSel('${key}',${idx})" style="display:grid;grid-template-columns:${LW}px ${total*DW}px;align-items:center;border-bottom:1px solid #161616;cursor:pointer;">
+    const chk=m.completado_real?' <span style="color:var(--green);">✓</span>':'';
+    const leadTxt=m.sin_actividad?'lead —':('lead '+m.span_dias+'d');
+    rows+=`<div onclick="_mctSel('${key}',${idx})" style="display:grid;grid-template-columns:${LW}px ${total*DW}px ${RW}px;align-items:center;border-bottom:1px solid #161616;cursor:pointer;${m.sin_actividad?'opacity:.62;':''}">
       <div style="padding:8px 10px;overflow:hidden;">
-        <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--amber);">${m.item_id}</div>
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--amber);">${m.item_id}${chk}</div>
         <div style="font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${(m.item_nombre||'').replace(/</g,'&lt;')}</div>
-        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">lead ${m.span_dias}d · ${etxt}</div>
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">${leadTxt} · ${etxt}</div>
       </div>
-      <div style="position:relative;height:52px;">
-        <div style="position:absolute;top:8px;height:22px;left:${off*DW}px;width:${m.span_dias*DW}px;display:flex;overflow:hidden;border:1px solid #000;border-radius:3px;">${days}</div>
-        ${tb}${el}
-      </div></div>`;
+      <div style="position:relative;height:52px;">${bands}${timeline}${mk}</div>
+      <div style="height:52px;border-left:1px solid var(--border);">${cdCell(m)}</div>
+    </div>`;
   });
   let months='',cur=null,cs=0;
   for(let i=0;i<total;i++){const dt=new Date(d(minS).getTime()+i*DAY);const ml=dt.toLocaleDateString('es-UY',{month:'short'}).replace('.','');if(ml!==cur){if(cur!==null)months+=`<div style="grid-column:${cs+1}/${i+1};font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);border-left:1px solid var(--border);padding-left:4px;">${cur}</div>`;cur=ml;cs=i;}}
   months+=`<div style="grid-column:${cs+1}/${total+1};font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);border-left:1px solid var(--border);padding-left:4px;">${cur}</div>`;
-  const axis=`<div style="display:grid;grid-template-columns:${LW}px ${total*DW}px;border-bottom:1px solid var(--border);padding-bottom:5px;align-items:end;"><div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);padding:6px 10px;">Mueble (lead ↓)</div><div style="display:grid;grid-template-columns:repeat(${total},${DW}px);">${months}</div></div>`;
+  const axis=`<div style="display:grid;grid-template-columns:${LW}px ${total*DW}px ${RW}px;border-bottom:1px solid var(--border);padding-bottom:5px;align-items:end;"><div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);padding:6px 10px;">Mueble (lead ↓)</div><div style="display:grid;grid-template-columns:repeat(${total},${DW}px);">${months}</div><div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);text-align:center;">P/ ENTREGA</div></div>`;
   const leg=(c,t)=>`<span style="display:inline-flex;gap:5px;align-items:center;"><span style="width:11px;height:11px;background:${c};border-radius:2px;"></span>${t}</span>`;
   const legend=`<div style="display:flex;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--muted);margin-bottom:10px;align-items:center;">
     ${leg('#3b6ea5','Model')}${leg('#5fa8d3','CAM')}${leg('#e8833a','Corte')}${leg('#b08d57','Ench/Perf')}${leg('var(--amber)','Armado')}${leg('#8a5cc0','En tercero')}
     <span style="display:inline-flex;gap:5px;align-items:center;"><span style="width:11px;height:11px;background:repeating-linear-gradient(45deg,#171717,#171717 3px,#2a2a2a 3px,#2a2a2a 6px);"></span>Muerto</span>
-    <span style="display:inline-flex;gap:5px;align-items:center;"><span style="width:2px;height:11px;background:var(--red);"></span>Entrega</span></div>`;
+    <span style="display:inline-flex;gap:5px;align-items:center;"><span style="width:2px;height:11px;background:var(--red);"></span>Entrega</span>
+    <span style="display:inline-flex;gap:5px;align-items:center;"><span style="width:2px;height:11px;background:var(--green);"></span>Completado</span>
+    <span style="display:inline-flex;gap:5px;align-items:center;"><span style="width:1px;height:11px;background:#FFD60088;"></span>Hoy</span></div>`;
   const warn=mct.split_confiable===false?`<div style="font-size:10px;color:#e8a23a;margin-bottom:8px;font-family:'Space Mono',monospace;">⚠ Proyecto pre-12/5 · el reparto proceso/espera no es confiable</div>`:'';
   return `${warn}${legend}<div style="overflow-x:auto;">${axis}${rows}</div><div id="mct-zoom-${key}" style="margin-top:12px;"></div>`;
 }
 function _mctSel(key, idx){
   const M=(window._MCT_S||{})[key]; if(!M||!M[idx])return;
   const m=M[idx]; const DAY=86400000;
+  if(m.sin_actividad){
+    const z=document.getElementById('mct-zoom-'+key);
+    if(z) z.innerHTML='<div style="background:#1a1a1a;border:1px solid var(--border);border-radius:6px;padding:14px;font-family:\'Space Mono\',monospace;font-size:11px;color:var(--muted);"><span style="color:var(--amber);font-weight:700;">'+m.item_id+'</span> '+((m.item_nombre||'').replace(/</g,'&lt;'))+' — sin actividad registrada todavía.</div>';
+    return;
+  }
   const d=s=>new Date(s+'T00:00:00');
   const fmt=s=>s?d(s).toLocaleDateString('es-UY',{day:'2-digit',month:'short'}):'';
   const NOW=new Date().toISOString().slice(0,10);
