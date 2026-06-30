@@ -502,6 +502,8 @@ async function _iniciarTareaImpl(sb, {
   _jornada_id = null,   // pasar directamente para wrappers legacy (planta)
   _autoJornada = false, // auto-upsert jornada para wrappers legacy (oficina)
   _inicio = null,       // inicio explícito (opcional, para edición desde tiempos)
+  reabrir_retrabajo = false,  // planta: reabrir mueble completado como retrabajo
+  motivo_reabrir = null,
 }) {
   const hoy  = hoyUY();
   const ahora = _inicio || new Date().toISOString();
@@ -580,7 +582,19 @@ async function _iniciarTareaImpl(sb, {
       .order('creado_at', { ascending: false })
       .limit(1).maybeSingle();
     if (ultEvento && ultEvento.evento === 'completado') {
-      throw new ApiError('Mueble completado. Reabrir antes de fichar horas.', 400);
+      if (reabrir_retrabajo === true) {
+        // Reabrir como retrabajo desde planta: loguear evento reabierto y continuar
+        await sb.from('items_completado_log').insert({
+          proyecto_id, item_id, evento: 'reabierto',
+          es_retrabajo: true,
+          motivo: motivo_reabrir || null,
+          item_nombre: item_nombre || null,
+          creado_por: empleado_id,
+        });
+        heredaRetrabajo = true;
+      } else {
+        throw new ApiError('Mueble completado. Reabrir antes de fichar horas.', 400);
+      }
     }
     if (ultEvento && ultEvento.evento === 'reabierto' && ultEvento.es_retrabajo === true) {
       heredaRetrabajo = true;
@@ -1032,12 +1046,15 @@ export default async function handler(req) {
     // ── POST iniciar tarea (wrapper → _iniciarTareaImpl) ──────────────────
     if (action === 'iniciar-tarea' && req.method === 'POST') {
       const { empleado_id, jornada_id, proyecto_id, proyecto_nombre,
-              item_id, item_nombre, centro, inicio, maquina } = body;
+              item_id, item_nombre, centro, inicio, maquina,
+              reabrir_retrabajo, motivo_reabrir } = body;
       const result = await _iniciarTareaImpl(supabase, {
         empleado_id, proyecto_id, proyecto_nombre, centro, item_id, item_nombre,
         maquina: maquina || null,
         _jornada_id: jornada_id,
         _inicio: inicio || null,
+        reabrir_retrabajo: reabrir_retrabajo === true,
+        motivo_reabrir: motivo_reabrir || null,
       });
       return ok(result);
     }
