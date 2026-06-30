@@ -2192,6 +2192,7 @@ function selODFSoloProyecto(odfId) {
   confirmarTarea();
 }
 
+let _reabrirRetrabajoPend = null;  // motivo (string) si hay reabrir-como-retrabajo pendiente; null = no
 async function confirmarTarea() {
   if (!centroSel) return;
   if (_accionEnCurso) return;           // guard contra doble-tap / reconexión
@@ -2206,7 +2207,7 @@ async function confirmarTarea() {
       centro:      centroSel,
     });
     const chk = await fetch(`/api/tiempos?action=registro-finalizado-existe&${params}`).then(r => r.json());
-    if (chk.existe) {
+    if (_reabrirRetrabajoPend === null && chk.existe) {
       const fechaStr = chk.ultimo?.fin
         ? new Date(chk.ultimo.fin).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' })
         : 'fecha desconocida';
@@ -2220,6 +2221,8 @@ async function confirmarTarea() {
   document.querySelectorAll('#lista-centros-selector .centro-btn').forEach(b => { b.disabled = true; });
 
   try {
+    const _reab = _reabrirRetrabajoPend;
+    _reabrirRetrabajoPend = null;
     const { registro } = await apiPost('iniciar-tarea', {
       empleado_id:     empleadoActual.id,
       jornada_id:      jornada.id,
@@ -2229,6 +2232,8 @@ async function confirmarTarea() {
       item_nombre:     itemSel?.nombre   || null,
       centro:          centroSel,
       maquina:         maquinaSel,
+      reabrir_retrabajo: _reab !== null,
+      motivo_reabrir:    _reab || null,
     });
     registroActivo = registro;
     if (registro) registrosHoy = [...registrosHoy.filter(r => r.id !== registro.id), registro];
@@ -2247,13 +2252,46 @@ async function confirmarTarea() {
       renderMenuTarea(); ir('pantalla-menu');
     }
   } catch (e) {
-    toast('Error: ' + e.message, 'var(--red)');
+    if (e.message && e.message.indexOf('Mueble completado') !== -1) {
+      abrirModalReabrirRetrabajo();
+    } else {
+      toast('Error: ' + e.message, 'var(--red)');
+    }
     if (btn) btn.disabled = false;
     document.querySelectorAll('#lista-centros-selector .centro-btn').forEach(b => { b.disabled = false; });
   } finally {
     if (btn) { btn.textContent = 'CONFIRMAR TAREA'; btn.disabled = false; }
     _accionEnCurso = false;
   }
+}
+
+function abrirModalReabrirRetrabajo() {
+  if (document.getElementById('modal-reabrir-retrabajo')) return;
+  const ov = document.createElement('div');
+  ov.id = 'modal-reabrir-retrabajo';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;';
+  ov.innerHTML = `
+    <div style="width:100%;max-width:340px;background:var(--card);border:1.5px solid var(--accent);border-radius:16px;padding:22px;">
+      <div style="font-family:'Space Mono',monospace;font-size:15px;font-weight:700;color:var(--accent);letter-spacing:1px;margin-bottom:10px;">↻ REABRIR COMO RETRABAJO</div>
+      <div style="font-size:13px;color:var(--text);line-height:1.5;margin-bottom:16px;">Este mueble está <b>TERMINADO</b>. Reabrirlo es un <b>RETRABAJO</b> — no estás continuando la tarea, estás arreglando algo que ya estaba pronto.</div>
+      <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:1px;">MOTIVO (OPCIONAL)</span>
+      <textarea id="reabrir-retrabajo-motivo" placeholder="Si no sabés el motivo, dejalo vacío" style="width:100%;margin-top:6px;margin-bottom:16px;background:var(--bg);border:1px solid #2a2a2a;border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;padding:11px;min-height:64px;resize:none;box-sizing:border-box;"></textarea>
+      <div style="display:flex;flex-direction:column;gap:9px;">
+        <button onclick="confirmarReabrirRetrabajo()" style="width:100%;min-height:54px;background:var(--accent);color:#000;border:none;border-radius:12px;font-family:'Space Mono',monospace;font-size:14px;font-weight:700;cursor:pointer;">↻ REABRIR COMO RETRABAJO</button>
+        <button onclick="cerrarModalReabrirRetrabajo()" style="width:100%;min-height:48px;background:transparent;color:var(--muted);border:1px solid #2a2a2a;border-radius:12px;font-family:'Space Mono',monospace;font-size:13px;cursor:pointer;">CANCELAR</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+}
+function cerrarModalReabrirRetrabajo() {
+  const ov = document.getElementById('modal-reabrir-retrabajo');
+  if (ov) ov.remove();
+}
+function confirmarReabrirRetrabajo() {
+  const ta = document.getElementById('reabrir-retrabajo-motivo');
+  _reabrirRetrabajoPend = ta ? ta.value.trim() : '';
+  cerrarModalReabrirRetrabajo();
+  confirmarTarea();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
