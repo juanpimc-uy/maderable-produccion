@@ -247,8 +247,6 @@
   .st .pl b{color:#ededed}
   .st .bar{width:36px;border-radius:4px 4px 0 0;min-height:8px}
   .st .lbl{font-family:'Space Mono',monospace;font-size:9px;color:#7a7a7a;text-transform:uppercase;margin-top:9px;text-align:center}
-  .st.cuello .cnt{color:#ff5a5a}
-  .cuellotag{position:absolute;top:-2px;background:#ff5a5a;color:#000;font-family:'Space Mono',monospace;font-size:8px;font-weight:700;padding:2px 7px;border-radius:3px}
   .bar.cut{position:relative}
   .bar.cut::after{content:'';position:absolute;left:-4px;right:-4px;top:16px;height:12px;background:#181818;clip-path:polygon(0 50%,8% 0,16% 100%,24% 0,32% 100%,40% 0,48% 100%,56% 0,64% 100%,72% 0,80% 100%,88% 0,96% 100%,100% 50%)}
   /* ── ② Value Stream ── */
@@ -397,9 +395,9 @@ const _lfD = n => n != null ? n.toLocaleString('es-UY', { minimumFractionDigits:
 const _fMoney = (v) => { v = Number(v)||0; if (v>=10000) return '$'+Math.round(v/1000)+'k'; if (v>=1000) return '$'+(v/1000).toFixed(1).replace(/\.0$/,'')+'k'; return '$'+Math.round(v); };
 const _leanAuth = () => ({ headers: { Authorization: 'Bearer ' + seccionToken } });
 const _leanPQ = () => _leanPeriodo === 'elegir' ? `periodo=elegir&ym=${_leanYm}` : `periodo=${_leanPeriodo}`;
-const ETAPA_LABEL = { sin_registro_propio:'Sin registro propio', shop_drawing:'Shop Drawing', modelado:'Modelado', cam:'CAM', corte:'Corte', enchapado:'Enchapado', armado:'Armado', colocacion:'Colocación', completado:'Completado', fuera:'Fuera / Despachado' };
-const ETAPA_COLOR = { sin_registro_propio:'#565656', shop_drawing:'#4f7fff', modelado:'#4f7fff', cam:'#4f7fff', corte:'#8a8a3a', enchapado:'#8a8a3a', armado:'#8a8a3a', colocacion:'#8a8a3a', completado:'#22c55e', fuera:'#2a6e4a' };
-const ETAPA_GRUPO = { sin_registro_propio:'pre', shop_drawing:'oficina', modelado:'oficina', cam:'oficina', corte:'planta', enchapado:'planta', armado:'planta', colocacion:'planta', completado:'terminado', fuera:'salida' };
+const ETAPA_LABEL = { sin_registro_propio:'Sin empezar', shop_drawing:'Shop Drawing', modelado:'Modelado', cam:'CAM', corte:'Corte', enchapado:'Enchapado', armado:'Armado', completado:'Listo p/ entregar', fuera:'Fuera / Despachado' };
+const ETAPA_COLOR = { sin_registro_propio:'#565656', shop_drawing:'#4f7fff', modelado:'#4f7fff', cam:'#4f7fff', corte:'#8a8a3a', enchapado:'#8a8a3a', armado:'#8a8a3a', completado:'#22c55e', fuera:'#2a6e4a' };
+const ETAPA_GRUPO = { sin_registro_propio:'pre', shop_drawing:'oficina', modelado:'oficina', cam:'oficina', corte:'planta', enchapado:'planta', armado:'planta', completado:'terminado', fuera:'salida' };
 
 // ── AUTH CHECK ──────────────────────────────────────────────────────────
 (function() {
@@ -1186,16 +1184,14 @@ async function _cargarS1() {
       const val = e[_leanUnidad] || 0;
       const h = Math.max(8, Math.round(val / maxVal * maxH));
       const col = ETAPA_COLOR[e.etapa];
-      const isCuello = e.es_cuello;
       const isSinRegistro = e.etapa === 'sin_registro_propio';
       const cutClass = (isSinRegistro && val > 0) ? ' cut' : '';
-      const barStyle = isCuello ? `height:${h}px;background:#ff5a5a;opacity:.8` : `height:${h}px;background:${col};opacity:.6`;
-      const cntStyle = isCuello ? 'color:#ff5a5a' : '';
-      const lblStyle = isCuello ? 'color:#ff5a5a' : '';
-      const cuelloTag = isCuello ? '<span class="cuellotag">CUELLO</span>' : '';
-      const marginTop = isCuello ? 'margin-top:16px;' : '';
+      const barStyle = `height:${h}px;background:${col};opacity:.6`;
+      const cntStyle = '';
+      const lblStyle = '';
+      const marginTop = '';
       const arrow = showArrow ? '<span class="arr">→</span>' : '';
-      return `<div class="st${isCuello?' cuello':''}" style="cursor:pointer;" onclick="_leanDrillEtapa('${e.etapa}')">${cuelloTag}<div class="cnt" style="${marginTop}${cntStyle}">${_leanUnidad==='precio' ? _fMoney(val) : val}</div><div class="pl"><b>${e.placas}</b>pl · ${_lfD(e.horas)}h</div><div class="bar${cutClass}" style="${barStyle}"></div><div class="lbl" style="${lblStyle}">${ETAPA_LABEL[e.etapa]}</div>${arrow}</div>`;
+      return `<div class="st" style="cursor:pointer;" onclick="_leanDrillEtapa('${e.etapa}')"><div class="cnt" style="${marginTop}${cntStyle}">${_leanUnidad==='precio' ? _fMoney(val) : val}</div><div class="pl"><b>${e.placas}</b>pl · ${_lfD(e.horas)}h</div><div class="bar${cutClass}" style="${barStyle}"></div><div class="lbl" style="${lblStyle}">${ETAPA_LABEL[e.etapa]}</div>${arrow}</div>`;
     }
 
     const sinRegistro = etapas.find(e => e.etapa === 'sin_registro_propio');
@@ -1220,7 +1216,7 @@ async function _cargarS1() {
         <div style="display:flex;gap:6px;margin-bottom:12px;">
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:#4f7fff;">■ OFICINA</span>
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:#8a8a3a;">■ PLANTA</span>
-          <span style="font-family:'Space Mono',monospace;font-size:9px;color:#22c55e;">■ COMPLETADO</span>
+          <span style="font-family:'Space Mono',monospace;font-size:9px;color:#22c55e;">■ LISTO P/ ENTREGAR</span>
           <span style="font-family:'Space Mono',monospace;font-size:9px;color:#2a6e4a;">■ FUERA</span>
         </div>
         <div class="stages">
