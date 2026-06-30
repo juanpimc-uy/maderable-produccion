@@ -1294,23 +1294,20 @@ async function accionThroughputMensual(req, res) {
 
 // ══════════════════════════════════════════════════════════════════════════
 // ── Shared: clasificar mueble en etapa ───────────────────────────────────
-const ETAPAS_ORDEN = ['sin_registro_propio','shop_drawing','modelado','cam','corte','enchapado','armado','colocacion','completado','fuera'];
+const ETAPAS_ORDEN = ['sin_registro_propio','shop_drawing','modelado','cam','corte','enchapado','armado','completado','fuera'];
 
 function clasificarMueble(proyecto_id, mueble_id, projLast, muebleLast, despachadosSet, completadosSet) {
   if (despachadosSet.has(proyecto_id + '|' + mueble_id)) return 'fuera';
   if (completadosSet.has(proyecto_id + '|' + mueble_id)) return 'completado';
-  const plCentro = projLast[proyecto_id];
-  if (plCentro === 'colocacion') return 'colocacion';
   const mlCentro = muebleLast[proyecto_id + '|' + mueble_id];
-  if (mlCentro && ['shop_drawing', 'obra'].includes(mlCentro)) return 'shop_drawing';
-  if (mlCentro && ['armado', 'macizo', 'electrica', 'herreria'].includes(mlCentro)) return 'armado';
-  if (mlCentro) return ETAPAS_ORDEN.includes(mlCentro) ? mlCentro : 'sin_registro_propio';
+  if (mlCentro && ['armado','macizo','electrica','herreria','colocacion'].includes(mlCentro)) return 'armado';
+  if (mlCentro && ['shop_drawing','modelado','cam','corte','enchapado'].includes(mlCentro)) return mlCentro;
   return 'sin_registro_propio';
 }
 
 // ── Shared: queries de último centro + despachos ─────────────────────────
 const CENTROS_PROYECTO = ['shop_drawing','obra','modelado','cam','corte','enchapado','armado','macizo','electrica','herreria','colocacion'];
-const CENTROS_MUEBLE   = ['shop_drawing','obra','modelado','cam','corte','enchapado','armado','macizo','electrica','herreria'];
+const CENTROS_MUEBLE   = ['shop_drawing','obra','modelado','cam','corte','enchapado','armado','macizo','electrica','herreria','colocacion'];
 
 function _coalesceTs(r) {
   return r.ultima_actividad || r.fin || r.inicio || '';
@@ -1414,24 +1411,16 @@ async function accionLeanCargaEtapa(req, res) {
     buckets[etapa].precio += m.precio;
   }
 
-  // Find cuello (max PLACAS in planta, excluding 'fuera')
-  const plantaEtapas = ['corte','enchapado','armado','colocacion'];
-  let cuello = null, cuelloVal = 0;
-  for (const e of plantaEtapas) {
-    const v = buckets[e].placas || 0;
-    if (v > cuelloVal) { cuelloVal = v; cuello = e; }
-  }
-
   const etapas = ETAPAS_ORDEN.map(e => ({
     etapa: e,
     muebles: buckets[e].muebles,
     placas: buckets[e].placas,
     horas: round1(buckets[e].horas),
     precio: round2(buckets[e].precio),
-    es_cuello: e === cuello,
+    es_cuello: false,
   }));
 
-  return ok(res, { unidad, total_muebles: allMuebles.length, cuello, etapas });
+  return ok(res, { unidad, total_muebles: allMuebles.length, cuello: null, etapas });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
