@@ -2530,8 +2530,11 @@ async function renderDetalleGrupo(grupoId, sub) {
   // ── ÍTEMS ──
   if (sub === 'ítems') {
     html += `<div style="display:flex;flex-direction:column;gap:16px;">`;
-    const cncByMember = {};
-    for (const mm of miembros) { try { const rc = await fetch(`/api/tiempos?action=placas-cortadas-proyecto&proyecto_id=${encodeURIComponent(mm.id)}`).then(r=>r.json()); if (rc && rc.ok) cncByMember[mm.id] = rc.muebles || {}; } catch(e){} }
+    const cncByMember = {}, entregasByMember = {};
+    for (const mm of miembros) {
+      try { const rc = await fetch(`/api/tiempos?action=placas-cortadas-proyecto&proyecto_id=${encodeURIComponent(mm.id)}`).then(r=>r.json()); if (rc && rc.ok) cncByMember[mm.id] = rc.muebles || {}; } catch(e){}
+      try { const re = await fetch(`/api/tiempos?action=entregas-proyecto&proyecto_id=${encodeURIComponent(mm.id)}`).then(r=>r.json()); if (re && re.ok) entregasByMember[mm.id] = re.entregas || {}; } catch(e){}
+    }
     for (const m of miembros) {
       const items = ordenarConEtapas(m.muebles || m.items || []);
       html += `<div>
@@ -2543,7 +2546,7 @@ async function renderDetalleGrupo(grupoId, sub) {
         <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;padding:8px 12px;display:flex;flex-direction:column;gap:4px;">`;
       if (items.length) {
         for (const it of items) {
-          html += muebleRowRico(m.id, it, cncByMember[m.id] || {});
+          html += muebleRowRico(m.id, it, cncByMember[m.id] || {}, entregasByMember[m.id] || {});
         }
       } else {
         html += `<div style="color:var(--muted);font-size:11px;padding:8px 0;">Sin ítems</div>`;
