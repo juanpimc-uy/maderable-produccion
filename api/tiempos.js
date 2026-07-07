@@ -356,7 +356,24 @@ function hoyUY() {
 }
 
 const SEG_MAX_MIN = 15 * 60; // un segmento de más de 15h es implausible
-function netoJornadaMin(jornada, jsegs) {
+
+// Overlap de los tramos con la ventana de almuerzo (12–13 UY = 15–16 UTC), tope 60 min.
+function _overlapAlmuerzoSegMin(jsegs) {
+  let ov = 0;
+  for (const s of (jsegs || [])) {
+    if (!s.salida) continue;
+    const ini = new Date(s.entrada), fin = new Date(s.salida);
+    const diaStr = ini.toISOString().split('T')[0];
+    const dIni = new Date(diaStr + 'T' + String(DESCANSO_INICIO_UTC).padStart(2, '0') + ':00:00Z');
+    const dFin = new Date(diaStr + 'T' + String(DESCANSO_FIN_UTC).padStart(2, '0') + ':00:00Z');
+    const st = Math.max(ini.getTime(), dIni.getTime());
+    const en = Math.min(fin.getTime(), dFin.getTime());
+    ov += Math.max(0, (en - st) / 60000);
+  }
+  return Math.min(60, Math.round(ov));
+}
+
+function netoJornadaMin(jornada, jsegs, modalidad) {
   if (jornada.anulada) return { min: 0, pendiente: false, excluida: true };
   let total = 0, pendiente = false;
   for (const s of (jsegs || [])) {
@@ -365,7 +382,11 @@ function netoJornadaMin(jornada, jsegs) {
     if (min > SEG_MAX_MIN) { pendiente = true; continue; }    // implausible → no cuenta
     total += Math.max(0, min);
   }
-  total = Math.max(0, total - (jornada.descanso_minutos || 0));
+  let deduccion = jornada.descanso_minutos || 0;
+  if (modalidad === 'no_paga_60' && jornada.tomo_descanso !== false) {
+    deduccion = Math.max(deduccion, _overlapAlmuerzoSegMin(jsegs));
+  }
+  total = Math.max(0, total - deduccion);
   return { min: total, pendiente, excluida: false };
 }
 
@@ -4733,7 +4754,7 @@ export default async function handler(req) {
           const tomoDescanso = j.tomo_descanso ?? true;
           const { sesiones, total_minutos } = _procesarSesiones(raw, ahoraSD, emp.descanso_modalidad, tomoDescanso);
           // horas netas desde jornada_segmentos
-          const neto = netoJornadaMin(j, jsegMapSD[j.id]);
+          const neto = netoJornadaMin(j, jsegMapSD[j.id], emp.descanso_modalidad);
           const horas_jornada_min = neto.excluida ? 0 : neto.min;
           return {
             empleado_id:        j.empleado_id,
@@ -4845,7 +4866,7 @@ export default async function handler(req) {
           const { sesiones, total_minutos } = _procesarSesiones(raw, ahoraSE, empDescansoModalidadSE, tomoDescanso);
           const tardanza_min = _tardanzaMin(j.entrada, empHorarioEntradaSE);
           // horas netas desde jornada_segmentos
-          const neto = netoJornadaMin(j, jsegMapSE[j.id]);
+          const neto = netoJornadaMin(j, jsegMapSE[j.id], empDescansoModalidadSE);
           const horas_jornada_min = neto.excluida ? 0 : neto.min;
           return {
             fecha:         j.fecha,
@@ -5020,7 +5041,7 @@ export default async function handler(req) {
               if (j.entrada) { const e = new Date(j.entrada); if (!entradaMin || e < entradaMin) entradaMin = e; }
               if (j.salida)  { const s = new Date(j.salida);  if (!salidaMax  || s > salidaMax)  salidaMax  = s; }
               // Horas netas desde jornada_segmentos
-              const neto = netoJornadaMin(j, jsegMapRH[j.id]);
+              const neto = netoJornadaMin(j, jsegMapRH[j.id], empFull.descanso_modalidad);
               const diaMin = neto.excluida ? 0 : neto.min;
               horasNetasMin += diaMin;
               const extrasDia = esOperario ? Math.max(0, diaMin - 9*60) : 0;
