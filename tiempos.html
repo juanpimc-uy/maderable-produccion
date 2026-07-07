@@ -2117,7 +2117,7 @@ function _tRenderReporte(data, anio, mes) {
     html += `<table class="rep-table" style="font-size:11px;">
 <thead><tr>
   <th style="padding:4px 10px;"></th><th style="padding:4px 10px;">SEMANA</th>
-  <th style="padding:4px 10px;">HORAS NETAS</th><th style="padding:4px 10px;">EXTRAS</th><th style="padding:4px 10px;">TARDE</th><th style="padding:4px 10px;">AUSENCIAS</th>
+  <th style="padding:4px 10px;">HORAS</th><th style="padding:4px 10px;">COMUNES</th><th style="padding:4px 10px;">EXTRAS</th><th style="padding:4px 10px;">TARDE</th><th style="padding:4px 10px;">AUSENCIAS</th>
 </tr></thead><tbody>`;
 
     emp.semanas.forEach((s, si) => {
@@ -2126,12 +2126,13 @@ function _tRenderReporte(data, anio, mes) {
         <td class="mono" style="font-size:9px;color:var(--muted);width:14px;padding:4px 10px;" id="rep-chev-${key}">▾</td>
         <td class="mono" style="font-size:10px;color:var(--muted);padding:4px 10px;">${fmtDate(s.semana_inicio)}–${fmtDate(s.semana_fin)}</td>
         <td class="mono" style="padding:4px 10px;">${fmtHM(s.horas_netas_min)}</td>
+        <td class="mono" style="padding:4px 10px;">${fmtHM(Math.max(0, s.horas_netas_min - (s.extras_minutos || 0)))}</td>
         <td style="padding:4px 10px;">${s.extras_minutos > 0 ? `<span class="extras-pos">${fmtHM(s.extras_minutos)}</span>` : '—'}</td>
         <td class="mono" style="padding:4px 10px;">${s.minutos_tarde_semana > 0 ? s.minutos_tarde_semana + 'm' : '—'}</td>
         <td class="mono" style="padding:4px 10px;">${s.ausencias > 0 ? s.ausencias : '—'}</td>
       </tr>`;
       // Detalle diario (colapsado por defecto)
-      html += `<tr id="rep-det-${key}" style="display:none;"><td colspan="6" style="padding:0;">
+      html += `<tr id="rep-det-${key}" style="display:none;"><td colspan="7" style="padding:0;">
         <table style="width:100%;border-collapse:collapse;background:#161616;font-size:10px;">
           <thead><tr>
             <th style="text-align:left;font-size:8px;color:var(--muted);padding:3px 10px;">FECHA</th>
@@ -2139,7 +2140,7 @@ function _tRenderReporte(data, anio, mes) {
             <th style="text-align:left;font-size:8px;color:var(--muted);padding:3px 6px;">ENTRADA</th>
             <th style="text-align:left;font-size:8px;color:var(--muted);padding:3px 6px;">SALIDA</th>
             <th style="text-align:left;font-size:8px;color:var(--muted);padding:3px 6px;">TARDE</th>
-            <th style="text-align:center;font-size:8px;color:var(--muted);padding:3px 6px;">EXTRAS</th>
+            <th style="text-align:center;font-size:8px;color:var(--muted);padding:3px 6px;">+9H</th>
           </tr></thead><tbody>`;
       (s.dias || []).forEach(d => {
         if (d.ausente) {
@@ -2166,6 +2167,7 @@ function _tRenderReporte(data, anio, mes) {
       <td style="padding:4px 10px;"></td>
       <td class="mono" style="color:var(--muted);padding:4px 10px;">TOTAL</td>
       <td class="mono" style="padding:4px 10px;">${fmtHM(rm.total_horas_min || emp.total_minutos)}</td>
+      <td class="mono" style="padding:4px 10px;">${fmtHM(Math.max(0, (rm.total_horas_min || emp.total_minutos) - (rm.total_extras_min || emp.total_extras_minutos || 0)))}</td>
       <td style="padding:4px 10px;">${(rm.total_extras_min || emp.total_extras_minutos) > 0 ? `<span class="extras-pos">${fmtHM(rm.total_extras_min || emp.total_extras_minutos)}</span>` : '—'}</td>
       <td class="mono" style="padding:4px 10px;">${(rm.total_minutos_tarde || 0) > 0 ? rm.total_minutos_tarde + 'm' : '—'}</td>
       <td class="mono" style="padding:4px 10px;">${(rm.total_ausencias || 0) > 0 ? rm.total_ausencias : '—'}</td>
@@ -2193,13 +2195,14 @@ function _tExportExcel() {
   if (!_tReportData) return;
   const mes  = String(document.getElementById('rep-mes').value).padStart(2,'0');
   const anio = document.getElementById('rep-anio').value;
-  const filas = [['EMPLEADO','SEMANA DESDE','SEMANA HASTA','HORAS NETAS (h)','EXTRAS (h)','TARDE (min)','AUSENCIAS']];
+  const filas = [['EMPLEADO','SEMANA DESDE','SEMANA HASTA','HORAS (h)','COMUNES (h)','EXTRAS (h)','TARDE (min)','AUSENCIAS']];
   const emps = (_tReportData.empleados || []).filter(emp => _tPassFiltro({ rol_app: emp._rol_app || '' }));
   emps.forEach(emp => {
     emp.semanas.forEach(s => {
       filas.push([
         emp.nombre, s.semana_inicio, s.semana_fin,
         +(s.horas_netas_min / 60).toFixed(2),
+        +(Math.max(0, s.horas_netas_min - (s.extras_minutos || 0)) / 60).toFixed(2),
         +(s.extras_minutos / 60).toFixed(2),
         s.minutos_tarde_semana || 0,
         s.ausencias || 0,
@@ -2209,6 +2212,7 @@ function _tExportExcel() {
     filas.push([
       emp.nombre, 'TOTAL', '',
       +((rm.total_horas_min || emp.total_minutos) / 60).toFixed(2),
+      +(Math.max(0, (rm.total_horas_min || emp.total_minutos) - (rm.total_extras_min || emp.total_extras_minutos || 0)) / 60).toFixed(2),
       +((rm.total_extras_min || emp.total_extras_minutos) / 60).toFixed(2),
       rm.total_minutos_tarde || 0,
       rm.total_ausencias || 0,
@@ -2267,7 +2271,7 @@ function _tExportCSVMensual() {
   const mes  = String(document.getElementById('rep-mes').value).padStart(2,'0');
   const anio = document.getElementById('rep-anio').value;
   const sep = ';';
-  const lines = ['EMPLEADO;SEMANA;HORAS NETAS;EXTRAS;TARDE;AUSENCIAS'];
+  const lines = ['EMPLEADO;SEMANA;HORAS;COMUNES;EXTRAS;TARDE;AUSENCIAS'];
   const emps = (_tReportData.empleados || []).filter(emp => _tPassFiltro({ rol_app: emp._rol_app || '' }));
   emps.forEach(emp => {
     emp.semanas.forEach(s => {
@@ -2275,6 +2279,7 @@ function _tExportCSVMensual() {
         emp.nombre,
         fmtDate(s.semana_inicio) + '–' + fmtDate(s.semana_fin),
         fmtHM(s.horas_netas_min),
+        fmtHM(Math.max(0, s.horas_netas_min - (s.extras_minutos || 0))),
         s.extras_minutos > 0 ? fmtHM(s.extras_minutos) : '—',
         s.minutos_tarde_semana > 0 ? s.minutos_tarde_semana + 'm' : '—',
         s.ausencias > 0 ? s.ausencias : '—',
@@ -2284,6 +2289,7 @@ function _tExportCSVMensual() {
     lines.push([
       emp.nombre, 'TOTAL',
       fmtHM(rm.total_horas_min || emp.total_minutos),
+      fmtHM(Math.max(0, (rm.total_horas_min || emp.total_minutos) - (rm.total_extras_min || emp.total_extras_minutos || 0))),
       (rm.total_extras_min || 0) > 0 ? fmtHM(rm.total_extras_min) : '—',
       (rm.total_minutos_tarde || 0) > 0 ? rm.total_minutos_tarde + 'm' : '—',
       (rm.total_ausencias || 0) > 0 ? rm.total_ausencias : '—',
