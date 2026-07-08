@@ -152,13 +152,19 @@ export default async function handler(req) {
 
     // ── POST marcar-cortada (planta, empleado_id) ─────────────────────────
     if (action === 'marcar-cortada' && req.method === 'POST') {
-      if (!body.pieza_id || !body.empleado_id) return err('pieza_id y empleado_id requeridos', 400);
+      if (!body.pieza_id) return err('pieza_id requerido', 400);
+      let actorId = body.empleado_id || null;
+      if (!actorId) {
+        const caller = await verificarSesion(body.st || body.session_token);
+        if (!caller) return err('empleado_id o sesión requeridos', 401);
+        actorId = caller.id;
+      }
       const { data: prev } = await supabase
         .from('piezas_retrabajo').select('corte_por').eq('id', body.pieza_id).maybeSingle();
       const { data: pieza, error: eUpd } = await supabase
         .from('piezas_retrabajo')
         .update({ estado: 'cortada', cortada_en: new Date().toISOString(),
-                  corte_por: (prev && prev.corte_por) ? prev.corte_por : body.empleado_id })
+                  corte_por: (prev && prev.corte_por) ? prev.corte_por : actorId })
         .eq('id', body.pieza_id).eq('estado', 'pronta')
         .select().maybeSingle();
       if (eUpd) return err(eUpd.message, 500);

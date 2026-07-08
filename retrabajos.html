@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es-UY">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retrabajos · MBLE</title>
+<script src="/js/supabase-config.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#0f0f0f;--panel:#1e1e1e;--card:#252525;--card2:#1a1a1a;--border:#2a2a2a;
+         --text:#e8e8e8;--muted:#888;--amber:#FFD600;--green:#3DD68C;--red:#F05C5C; }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;height:100vh;overflow:hidden;display:flex;}
+  #main{flex:1;display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+  .topbar{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  .topbar h1{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;letter-spacing:1px;text-transform:uppercase;}
+  .topbar h1 b{color:var(--amber);}
+  .topbar .sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;margin-top:2px;}
+  .refresh{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;cursor:pointer;border:1px solid var(--border);border-radius:6px;padding:7px 12px;background:var(--card2);}
+  .board{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:20px 24px;overflow-y:auto;align-items:start;}
+  .col{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:12px;}
+  .col-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:0 2px;}
+  .col-title{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;display:flex;align-items:center;gap:8px;}
+  .dot{width:8px;height:8px;border-radius:50%;}
+  .count{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);background:#000;border:1px solid var(--border);border-radius:20px;padding:2px 9px;}
+  .mgroup{background:var(--card);border:1px solid var(--border);border-radius:11px;margin-bottom:10px;overflow:hidden;}
+  .mhead{padding:11px 12px;border-left:3px solid var(--amber);}
+  .modf{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:1.5px;color:var(--muted);margin-bottom:3px;}
+  .mname{font-size:14px;font-weight:700;line-height:1.15;}
+  .plist{border-top:1px solid var(--border);}
+  .prow{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:1px solid #202020;}
+  .prow:last-child{border-bottom:none;}
+  .pchip{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;background:#000;border:1px solid var(--border);border-radius:6px;padding:5px 8px;min-width:40px;text-align:center;flex-shrink:0;}
+  .pchip.done{color:var(--green);border-color:#1f3a26;}
+  .pmeta{flex:1;min-width:0;font-size:10px;color:var(--muted);line-height:1.45;}
+  .pmeta b{color:var(--text);font-weight:500;}
+  .live{display:inline-flex;align-items:center;gap:5px;font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--amber);}
+  .pulse{width:5px;height:5px;border-radius:50%;background:var(--amber);animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.2;}}
+  .pbtn{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.5px;text-transform:uppercase;border-radius:6px;padding:7px 9px;cursor:pointer;flex-shrink:0;border:1px solid var(--border);}
+  .pbtn-cam{background:#000;color:var(--text);}
+  .pbtn-y{background:var(--amber);color:#000;border:none;font-weight:700;}
+  .empty{color:var(--muted);font-size:11px;text-align:center;padding:20px 0;font-family:'JetBrains Mono',monospace;}
+</style>
+</head>
+<body>
+<script src="sidebar.js"></script>
+<div id="sidebar-root"></div>
+<div id="main">
+  <div class="topbar">
+    <div><h1>Piezas de <b>retrabajo</b></h1><div class="sub" id="sub">cargando…</div></div>
+    <div class="refresh" onclick="cargar()">↻ Actualizar</div>
+  </div>
+  <div class="board" id="board"></div>
+</div>
+<script>
+const SESS = (() => { try { return JSON.parse(localStorage.getItem('mble_session')||sessionStorage.getItem('mble_session')||'{}'); } catch(e){ return {}; } })();
+const ST = SESS.session_token || '';
+let EMP = {};
+function nombre(id){ return id ? (EMP[id] || '—') : '—'; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function dur(a,b){ if(!a||!b) return '—'; const m=Math.round((new Date(b)-new Date(a))/60000); const h=Math.floor(m/60),mm=m%60; return h? h+'h '+mm+'m' : mm+'m'; }
+function hace(t){ if(!t) return ''; const m=Math.round((Date.now()-new Date(t))/60000); if(m<60) return 'hace '+m+' min'; const h=Math.floor(m/60); if(h<24) return 'hace '+h+' h'; return 'hace '+Math.floor(h/24)+' d'; }
+function elapsed(t){ if(!t) return ''; const m=Math.round((Date.now()-new Date(t))/60000); const h=Math.floor(m/60),mm=m%60; return (h?h+':':'')+String(mm).padStart(h?2:1,'0'); }
+async function cargar(){
+  try{
+    const [rE,rP] = await Promise.all([
+      fetch('/api/tiempos?action=empleados').then(r=>r.json()),
+      fetch('/api/retrabajo?action=listar-piezas-retrabajo').then(r=>r.json()),
+    ]);
+    EMP={}; (rE.empleados||[]).forEach(e=>{ EMP[e.id]=e.nombre; });
+    if(!rP.ok) throw new Error(rP.error||'error listar');
+    render(rP.piezas||[]);
+  }catch(e){ document.getElementById('sub').textContent='error: '+e.message; }
+}
+function grupos(piezas){
+  const g={};
+  piezas.forEach(p=>{ const k=p.proyecto_id+'|'+p.item_id; (g[k]=g[k]||{odf:p.proyecto_nombre,item:p.item_nombre,piezas:[]}).piezas.push(p); });
+  return Object.values(g);
+}
+function render(piezas){
+  const cols={solicitada:[],pronta:[],cortada:[]};
+  piezas.forEach(p=>{ (cols[p.estado]||[]).push(p); });
+  document.getElementById('sub').textContent = cols.solicitada.length+' solicitadas · '+cols.pronta.length+' prontas · '+cols.cortada.length+' cortadas';
+  const colDef=[
+    {k:'solicitada',t:'Solicitadas',c:'var(--red)'},
+    {k:'pronta',t:'Prontas · a cortar',c:'var(--amber)'},
+    {k:'cortada',t:'Cortadas',c:'var(--green)'},
+  ];
+  document.getElementById('board').innerHTML = colDef.map(cd=>{
+    const gs=grupos(cols[cd.k]);
+    const body = gs.length ? gs.map(g=>mgroup(g,cd.k)).join('') : '<div class="empty">— vacío —</div>';
+    return '<div class="col"><div class="col-head"><div class="col-title"><span class="dot" style="background:'+cd.c+'"></span>'+cd.t+'</div><div class="count">'+gs.length+' mueble'+(gs.length===1?'':'s')+'</div></div>'+body+'</div>';
+  }).join('');
+}
+function mgroup(g,estado){
+  const rows=g.piezas.map(p=>prow(p,estado)).join('');
+  return '<div class="mgroup"><div class="mhead"><div class="modf">'+esc(g.odf||'—')+'</div><div class="mname">'+esc(g.item||'Mueble')+'</div></div><div class="plist">'+rows+'</div></div>';
+}
+function prow(p,estado){
+  const cod='<div class="pchip'+(estado==='cortada'?' done':'')+'">'+esc(p.codigo_pieza)+'</div>';
+  if(estado==='solicitada'){
+    const enCam=p.cam_inicio && !p.pronta_en;
+    const meta=enCam ? '<span class="live"><span class="pulse"></span>En CAM · '+esc(nombre(p.cam_por))+' · '+elapsed(p.cam_inicio)+'</span>' : 'Pidió <b>'+esc(nombre(p.solicitado_por))+'</b> · '+hace(p.solicitado_en)+(p.motivo?'<br>'+esc(p.motivo):'');
+    const btns=enCam ? '<button class="pbtn pbtn-y" onclick="accion(\'marcar-pronta\',\''+p.id+'\')">✓ Pronta</button>' : '<button class="pbtn pbtn-cam" onclick="accion(\'arrancar-cam\',\''+p.id+'\')">▶ CAM</button><button class="pbtn pbtn-y" onclick="accion(\'marcar-pronta\',\''+p.id+'\')">✓ Pronta</button>';
+    return '<div class="prow">'+cod+'<div class="pmeta">'+meta+'</div>'+btns+'</div>';
+  }
+  if(estado==='pronta'){
+    const enCnc=p.corte_inicio && !p.cortada_en;
+    const meta=enCnc ? '<span class="live"><span class="pulse"></span>En CNC · '+esc(nombre(p.corte_por))+' · '+elapsed(p.corte_inicio)+'</span>' : 'CAM: <b>'+esc(nombre(p.cam_por))+'</b> · esperando CNC';
+    return '<div class="prow">'+cod+'<div class="pmeta">'+meta+'</div><button class="pbtn pbtn-y" onclick="accion(\'marcar-cortada\',\''+p.id+'\')">✓ Cortada</button></div>';
+  }
+  return '<div class="prow">'+cod+'<div class="pmeta">CAM <b>'+dur(p.cam_inicio,p.pronta_en)+'</b> · Corte <b>'+dur(p.corte_inicio,p.cortada_en)+'</b><br>✓ Cortó '+esc(nombre(p.corte_por))+'</div></div>';
+}
+async function accion(action,pieza_id){
+  try{
+    const r=await fetch('/api/retrabajo?action='+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pieza_id,session_token:ST})}).then(r=>r.json());
+    if(!r.ok) throw new Error(r.error||'error');
+    cargar();
+  }catch(e){ alert('Error: '+e.message); }
+}
+cargar();
+setInterval(cargar,20000);
+</script>
+</body>
+</html>

@@ -13,6 +13,7 @@
     { id: 'proyectos',    icon: '▦', label: 'Proyectos',    page: 'admin.html',         section: 'proyectos',  roles: ['admin', 'oficina'] },
     { id: 'operarios',    icon: '◎', label: 'Operarios',    page: 'admin.html',         section: 'operarios',  roles: ['admin'] },
     { id: 'tiempos',      icon: '⏱', label: 'Tiempos',      page: 'tiempos.html',       section: null,         roles: ['admin', 'oficina'] },
+    { id: 'retrabajos',   icon: '↻', label: 'Retrabajos',   page: 'retrabajos.html',    section: null,         roles: ['admin', 'oficina'] },
     { id: 'materiales-group', icon: '▣', label: 'Materiales', group: true, roles: ['admin', 'oficina'], children: [
       { id: 'armado-so',   icon: '⬗', label: 'Kitting SO',  page: 'armado-so.html',      section: null, roles: ['admin', 'oficina'] },
       { id: 'recepciones', icon: '◫', label: 'Recepción',   page: 'recepciones-oc.html', section: null, roles: ['admin', 'oficina'] },
@@ -21,6 +22,7 @@
       { id: 'terc-baru',   icon: '◆', label: 'BARU',    page: 'tercerizados.html?prov=BARU',   section: null, roles: ['admin', 'oficina'] },
       { id: 'terc-rodart', icon: '◇', label: 'RODART',  page: 'tercerizados.html?prov=RODART', section: null, roles: ['admin', 'oficina'] },
     ]},
+    { id: 'madera',         icon: '🪵', label: 'Madera',         page: 'madera.html',            section: null,         roles: ['admin', 'oficina'] },
     { id: 'ctrl-despachos', icon: '⇥', label: 'CTRL Despachos', href: 'https://juanpimc-uy.github.io/ctrl-despachos/admin.html', external: true, roles: ['admin', 'oficina'] },
     { id: 'stock',        icon: '⬡', label: 'Stock Placas', page: 'stock-placas.html',  section: null,         roles: ['admin', 'oficina'], hidden: true },
     { id: 'despacho',     icon: '⇥', label: 'Despacho',     page: 'despacho.html',      section: null,         roles: ['admin', 'oficina'], hidden: true },
@@ -44,12 +46,14 @@
     if (ON_ADMIN) return null; // admin.html lo gestiona via navTo
     const map = {
       'tiempos.html':        'tiempos',
+      'retrabajos.html':     'retrabajos',
       'materiales.html':     'materiales',
       'tercerizados.html':   (() => { const sp = new URLSearchParams(location.search); const prov = sp.get('prov'); return prov === 'RODART' ? 'terc-rodart' : 'terc-baru'; })(),
       'stock-placas.html':   'stock',
       'armado-so.html':      'armado-so',
       'armado-so-planta.html':'armado-so',
       'recepciones-oc.html': 'recepciones',
+      'madera.html':         'madera',
       'despacho.html':       'despacho',
       'informes.html':       (() => { const v = new URLSearchParams(location.search).get('vista'); return v === 'facturas' ? 'inf-facturas' : v === 'lean' ? 'inf-lean' : 'inf-costos'; })(),
       'config-formula.html': 'materiales',
