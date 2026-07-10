@@ -878,20 +878,8 @@ textarea.campo {
       <button class="btn btn-success" id="btn-finalizar-ok" onclick="finalizarOk()" disabled>
         ✓&nbsp; FINALIZADO — TODO OK
       </button>
-      <button class="btn btn-warn" onclick="toggleRetrabajo()">
-        ⚠&nbsp; MARCAR RETRABAJO
-      </button>
     </div>
 
-    <!-- Retrabajo form -->
-    <div id="retrabajo-form" style="display:none;flex-direction:column;gap:10px;">
-      <span class="lbl">MOTIVO DEL RETRABAJO (OPCIONAL)</span>
-      <textarea class="campo" id="retrabajo-motivo"
-        placeholder="Si no sabés el motivo, dejalo vacío"></textarea>
-      <button class="btn btn-warn btn-sm" onclick="confirmarRetrabajo()">
-        ⚠&nbsp; Confirmar retrabajo
-      </button>
-    </div>
 
     <div style="height:20px;"></div>
   </div>
@@ -2612,8 +2600,6 @@ function finalizarCNC() {
 function initFinalizar() {
   if (!registroActivo) { ir('pantalla-menu'); return; }
   document.getElementById('finalizar-subtitulo').textContent = registroActivo.item_nombre || '';
-  document.getElementById('retrabajo-form').style.display = 'none';
-  document.getElementById('retrabajo-motivo').value = '';
   document.getElementById('checklist-lista').style.display = 'none';
   document.getElementById('check-counter').style.display = 'none';
   document.getElementById('btn-finalizar-ok').disabled = false;
@@ -2637,10 +2623,6 @@ function toggleCheck(i) {
   renderChecklist();
 }
 
-function toggleRetrabajo() {
-  const f = document.getElementById('retrabajo-form');
-  f.style.display = f.style.display === 'none' ? 'flex' : 'none';
-}
 
 async function finalizarOk() {
   const btn = document.getElementById('btn-finalizar-ok');
@@ -2670,27 +2652,6 @@ async function finalizarOk() {
   }
 }
 
-async function confirmarRetrabajo() {
-  _accionEnCurso = true;
-  const motivo = document.getElementById('retrabajo-motivo').value.trim();
-  try {
-    await apiPost('finalizar-tarea', {
-      registro_id: registroActivo.id,
-      empleado_id: empleadoActual.id,
-      respuestas_checklist: {},
-      es_retrabajo: true,
-      motivo_retrabajo: motivo || null,
-    });
-    _detenerHeartbeat();
-    registroActivo = null;
-    _accionEnCurso = false;
-    toast('Retrabajo registrado', 'var(--yellow)');
-    renderMenuTarea(); ir('pantalla-menu');
-  } catch (e) {
-    _accionEnCurso = false;
-    toast('Error: ' + e.message, 'var(--red)');
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PANTALLA SALIDA

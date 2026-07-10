@@ -49,7 +49,10 @@
 <div id="main">
   <div class="topbar">
     <div><h1>Piezas de <b>retrabajo</b></h1><div class="sub" id="sub">cargando…</div></div>
-    <div class="refresh" onclick="cargar()">↻ Actualizar</div>
+    <div style="display:flex;gap:10px;">
+      <div class="refresh" onclick="abrirSolicitar()" style="border-color:var(--amber);color:var(--amber);">+ Solicitar</div>
+      <div class="refresh" onclick="cargar()">↻ Actualizar</div>
+    </div>
   </div>
   <div class="board" id="board"></div>
 </div>
@@ -119,7 +122,46 @@ async function accion(action,pieza_id){
     cargar();
   }catch(e){ alert('Error: '+e.message); }
 }
+let PROY=[];
+async function cargarProyectos(){ try{ const r=await fetch('/api/tiempos?action=proyectos-activos').then(r=>r.json()); PROY=r.proyectos||[]; }catch(e){} }
+function abrirSolicitar(){
+  if(document.getElementById('modal-solicitar')) return;
+  if(!PROY.length){ alert('Proyectos cargando, probá de nuevo en un segundo'); cargarProyectos(); return; }
+  const ov=document.createElement('div');
+  ov.id='modal-solicitar';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:400;display:flex;align-items:flex-start;justify-content:center;padding:40px 18px;overflow-y:auto;';
+  const opts=PROY.map((p,i)=>'<option value="'+i+'">'+esc(p.nombre||p.id)+'</option>').join('');
+  const fld='width:100%;margin:6px 0 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:Sora,sans-serif;font-size:14px;padding:10px;box-sizing:border-box;';
+  const lbl='font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;';
+  ov.innerHTML='<div style="width:100%;max-width:380px;background:var(--card);border:1px solid var(--amber);border-radius:14px;padding:22px;">'+
+    '<div style="font-family:\'JetBrains Mono\',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:1px;text-transform:uppercase;margin-bottom:16px;">+ Solicitar pieza</div>'+
+    '<span style="'+lbl+'">Proyecto</span><select id="sol-proyecto" onchange="_solMuebles()" style="'+fld+'">'+opts+'</select>'+
+    '<span style="'+lbl+'">Mueble</span><select id="sol-mueble" style="'+fld+'"></select>'+
+    '<span style="'+lbl+'">Código de pieza</span><input id="sol-codigo" placeholder="ej A3" style="'+fld+'text-transform:uppercase;">'+
+    '<span style="'+lbl+'">Motivo (opcional)</span><textarea id="sol-motivo" style="'+fld+'min-height:56px;resize:none;"></textarea>'+
+    '<div style="display:flex;gap:9px;margin-top:6px;">'+
+      '<button onclick="cerrarSolicitar()" style="flex:1;padding:12px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:8px;font-family:\'JetBrains Mono\',monospace;font-size:12px;cursor:pointer;">Cancelar</button>'+
+      '<button onclick="solicitar()" style="flex:2;padding:12px;background:var(--amber);color:#000;border:none;border-radius:8px;font-family:\'JetBrains Mono\',monospace;font-size:12px;font-weight:700;cursor:pointer;">Solicitar</button>'+
+    '</div></div>';
+  document.body.appendChild(ov); _solMuebles();
+}
+function _solMuebles(){ const s=document.getElementById('sol-proyecto'); if(!s) return; const p=PROY[+s.value]; const items=(p&&p.items)||[]; document.getElementById('sol-mueble').innerHTML=items.length?items.map((it,j)=>'<option value="'+j+'">'+esc((it.codigo?it.codigo+' · ':'')+(it.nombre||''))+'</option>').join(''):'<option value="">— sin muebles —</option>'; }
+function cerrarSolicitar(){ const o=document.getElementById('modal-solicitar'); if(o) o.remove(); }
+async function solicitar(){
+  const p=PROY[+document.getElementById('sol-proyecto').value];
+  const it=p&&p.items?p.items[+document.getElementById('sol-mueble').value]:null;
+  const cod=(document.getElementById('sol-codigo').value||'').trim();
+  const mot=(document.getElementById('sol-motivo').value||'').trim();
+  if(!p||!it){ alert('Elegí proyecto y mueble'); return; }
+  if(!cod){ alert('Falta el código de pieza'); return; }
+  try{
+    const r=await fetch('/api/retrabajo?action=solicitar-pieza',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({proyecto_id:p.id,proyecto_nombre:p.nombre||null,item_id:it.id,item_nombre:it.nombre||null,codigo_pieza:cod,motivo:mot||null,session_token:ST})}).then(r=>r.json());
+    if(!r.ok) throw new Error(r.error||'error');
+    cerrarSolicitar(); cargar();
+  }catch(e){ alert('Error: '+e.message); }
+}
 cargar();
+cargarProyectos();
 setInterval(cargar,20000);
 </script>
 </body>

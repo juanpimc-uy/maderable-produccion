@@ -58,9 +58,15 @@ export default async function handler(req) {
     // ── POST solicitar-pieza (planta/oficina, por empleado_id) ────────────
     if (action === 'solicitar-pieza' && req.method === 'POST') {
       const { proyecto_id, proyecto_nombre, item_id, item_nombre,
-              codigo_pieza, motivo, empleado_id } = body;
-      if (!proyecto_id || !item_id || !codigo_pieza || !empleado_id)
-        return err('proyecto_id, item_id, codigo_pieza y empleado_id son requeridos', 400);
+              codigo_pieza, motivo } = body;
+      let solicitanteId = body.empleado_id || null;
+      if (!solicitanteId) {
+        const caller = await verificarSesion(body.st || body.session_token);
+        if (!caller) return err('empleado_id o sesión requeridos', 401);
+        solicitanteId = caller.id;
+      }
+      if (!proyecto_id || !item_id || !codigo_pieza)
+        return err('proyecto_id, item_id y codigo_pieza son requeridos', 400);
 
       const { data: pieza, error: eIns } = await supabase
         .from('piezas_retrabajo')
@@ -69,7 +75,7 @@ export default async function handler(req) {
           item_id, item_nombre: item_nombre || null,
           codigo_pieza: String(codigo_pieza).trim().toUpperCase(),
           motivo: motivo || null,
-          solicitado_por: empleado_id,
+          solicitado_por: solicitanteId,
         })
         .select().single();
       if (eIns) return err(eIns.message, 500);
@@ -86,7 +92,7 @@ export default async function handler(req) {
           es_retrabajo: true,
           motivo: motivo || 'Pieza solicitada para re-corte',
           item_nombre: item_nombre || null,
-          creado_por: empleado_id,
+          creado_por: solicitanteId,
         });
       }
 
