@@ -59,7 +59,7 @@ async function proyectosVinculados() {
 // FASE 0 — espeja catálogo de ODF activos del ERP → ctrl-despachos (odf_disponibles)
 async function faseCatalogo(out) {
   const { data: proys, error } = await erp.from('proyectos_cache')
-    .select('id, numero, activo, cliente, cliente_nombre, muebles')
+    .select('id, numero, activo, cliente, cliente_nombre, muebles, nombre')
     .eq('activo', true);
   if (error) throw new Error('catalogo/erp: ' + error.message);
 
@@ -78,6 +78,7 @@ async function faseCatalogo(out) {
     porNumero[numero] = {
       odf_numero: numero,
       odf_proyecto_id: p.id,
+      nombre: p.nombre || '',
       cliente: p.cliente || p.cliente_nombre || '',
       muebles,
       activo: true,
