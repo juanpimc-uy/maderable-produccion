@@ -49,10 +49,7 @@
 <div id="main">
   <div class="topbar">
     <div><h1>Piezas de <b>retrabajo</b></h1><div class="sub" id="sub">cargando…</div></div>
-    <div style="display:flex;gap:10px;">
-      <div class="refresh" onclick="abrirSolicitar()" style="border-color:var(--amber);color:var(--amber);">+ Solicitar</div>
-      <div class="refresh" onclick="cargar()">↻ Actualizar</div>
-    </div>
+    <div class="refresh" onclick="cargar()">↻ Actualizar</div>
   </div>
   <div class="board" id="board"></div>
 </div>
@@ -93,7 +90,8 @@ function render(piezas){
   document.getElementById('board').innerHTML = colDef.map(cd=>{
     const gs=grupos(cols[cd.k]);
     const body = gs.length ? gs.map(g=>mgroup(g,cd.k)).join('') : '<div class="empty">— vacío —</div>';
-    return '<div class="col"><div class="col-head"><div class="col-title"><span class="dot" style="background:'+cd.c+'"></span>'+cd.t+'</div><div class="count">'+gs.length+' mueble'+(gs.length===1?'':'s')+'</div></div>'+body+'</div>';
+    const addBtn = cd.k==='solicitada' ? '<div class="refresh" onclick="abrirSolicitar()" style="border-color:var(--amber);color:var(--amber);padding:4px 10px;font-size:9px;margin-left:8px;">+ Solicitar</div>' : '';
+    return '<div class="col"><div class="col-head"><div class="col-title"><span class="dot" style="background:'+cd.c+'"></span>'+cd.t+'</div><div style="display:flex;align-items:center;gap:8px;"><div class="count">'+gs.length+' mueble'+(gs.length===1?'':'s')+'</div>'+addBtn+'</div></div>'+body+'</div>';
   }).join('');
 }
 function mgroup(g,estado){
