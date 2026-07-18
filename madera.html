@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:,">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maderable · Madera</title>
+<script src="/js/auth.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap');
+:root{
+  --bg:#0e0e0e;--panel:#141414;--card:#1a1a1a;--border:#222;
+  --text:#e8e8e8;--muted:#6b6b6b;--faint:#1a1a1a;
+  --amber:#f5a623;--green:#4ade80;--red:#ef4444;--blue:#5B8DEF;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;height:100vh;display:flex;overflow:hidden;}
+.mono{font-family:'Space Mono',monospace;}
+
+/* Sidebar (injected by sidebar.js) */
+.sidebar{width:200px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
+.sidebar-logo{padding:18px 16px;border-bottom:1px solid var(--border);font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;}
+
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.content{flex:1;overflow-y:auto;padding:24px 28px 80px;}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
+
+/* Buttons */
+.btn{padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;transition:opacity .15s;white-space:nowrap;}
+.btn:hover{opacity:.82;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn-primary{background:var(--amber);color:#0e0e0e;}
+.btn-ghost{background:var(--faint);color:var(--muted);border:1px solid var(--border);}
+.btn-success{background:var(--green);color:#0e0e0e;}
+.btn-danger{background:var(--red);color:#fff;}
+.btn-sm{padding:4px 10px;font-size:9px;}
+
+/* Tab toggle */
+.tab-bar{display:flex;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:3px;margin-bottom:20px;flex-wrap:wrap;}
+.tab-btn{flex:0 0 auto;padding:7px 14px;border:none;border-radius:5px;cursor:pointer;font-family:'Space Mono',monospace;font-size:10px;font-weight:700;background:transparent;color:var(--muted);transition:all .2s;letter-spacing:.5px;}
+.tab-btn.active{background:var(--amber);color:#0e0e0e;}
+.tab-btn:hover:not(.active){color:var(--text);}
+
+/* Fields */
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
+.field label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;}
+.field input,.field select,.field textarea{background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 11px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;width:100%;transition:border-color .2s;}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--amber);}
+.field textarea{resize:vertical;min-height:60px;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+
+/* Section label */
+.sec{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:14px;}
+
+/* Tables */
+.tbl{width:100%;border-collapse:collapse;}
+.tbl th{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;padding:6px 10px;text-align:left;border-bottom:1px solid var(--border);}
+.tbl td{padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.04);font-size:13px;vertical-align:middle;}
+.tbl tr:hover td{background:rgba(255,255,255,.02);}
+.tbl tr.clickable{cursor:pointer;}
+
+/* Pills */
+.pill{display:inline-block;padding:2px 8px;border-radius:4px;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;}
+.pill-blue{background:rgba(91,141,239,.15);color:var(--blue);}
+.pill-amber{background:rgba(245,166,35,.15);color:var(--amber);}
+.pill-green{background:rgba(74,222,128,.15);color:var(--green);}
+.pill-gray{background:rgba(107,107,107,.15);color:var(--muted);}
+.pill-red{background:rgba(239,68,68,.15);color:var(--red);}
+
+/* Info boxes */
+.info-box{background:rgba(91,141,239,.06);border:1px solid rgba(91,141,239,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--blue);margin-bottom:14px;line-height:1.5;}
+.warn-box{background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--amber);margin-bottom:10px;}
+
+/* Overlay/Modal */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:100;align-items:center;justify-content:center;}
+.overlay.open{display:flex;}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:26px;width:640px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+.modal-title{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:18px;}
+
+/* Spinner */
+@keyframes spin{to{transform:rotate(360deg);}}
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(245,166,35,.3);border-top-color:var(--amber);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
+
+/* Empty state */
+.empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;}
+
+/* Tab pane visibility */
+.tab-pane{display:none;}
+.tab-pane.active{display:block;}
+
+/* Badge for etiqueta */
+.badge-etiq{display:inline-block;padding:1px 6px;border-radius:3px;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;}
+
+/* Pending section */
+.pending-section{margin-bottom:28px;}
+.pending-section-title{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--amber);text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+
+@media(max-width:700px){.sidebar{display:none;}}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div id="sidebar-root"></div>
+<script src="sidebar.js"></script>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;">MADERA — INVENTARIO</span>
+    </div>
+    <span id="topbar-status" class="mono" style="font-size:10px;color:var(--muted);"></span>
+  </div>
+
+  <div class="content">
+    <!-- Tab bar -->
+    <div class="tab-bar" id="tab-bar">
+      <button class="tab-btn active" data-tab="stock">Stock</button>
+      <button class="tab-btn" data-tab="partidas">Partidas</button>
+      <button class="tab-btn" data-tab="pendientes">Pendientes</button>
+      <button class="tab-btn" data-tab="crear-recepcion">Crear recepcion</button>
+      <button class="tab-btn" data-tab="cargar-stock" id="tab-btn-cargar-stock" style="display:none;">Cargar stock</button>
+    </div>
+
+    <!-- TAB: Stock -->
+    <div class="tab-pane active" id="pane-stock">
+      <div class="sec">Stock agregado por especie + espesor</div>
+      <div id="stock-table-wrap"><div class="empty"><span class="spinner"></span> Cargando stock...</div></div>
+    </div>
+
+    <!-- TAB: Partidas -->
+    <div class="tab-pane" id="pane-partidas">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+        <button class="btn btn-sm btn-ghost partida-filter active" data-estado="">Todas</button>
+        <button class="btn btn-sm btn-ghost partida-filter" data-estado="esperada">Esperadas</button>
+        <button class="btn btn-sm btn-ghost partida-filter" data-estado="pendiente_factura">Pend. factura</button>
+        <button class="btn btn-sm btn-ghost partida-filter" data-estado="activa">Activas</button>
+        <button class="btn btn-sm btn-ghost partida-filter" data-estado="archivada">Archivadas</button>
+      </div>
+      <div id="partidas-table-wrap"><div class="empty"><span class="spinner"></span> Cargando partidas...</div></div>
+    </div>
+
+    <!-- TAB: Pendientes -->
+    <div class="tab-pane" id="pane-pendientes">
+      <div class="pending-section">
+        <div class="pending-section-title">Recepciones esperadas</div>
+        <div id="pend-esperadas"><div class="empty"><span class="spinner"></span> Cargando...</div></div>
+      </div>
+      <div class="pending-section">
+        <div class="pending-section-title">Pendientes de factura</div>
+        <div id="pend-factura"><div class="empty"><span class="spinner"></span> Cargando...</div></div>
+      </div>
+      <div class="pending-section">
+        <div class="pending-section-title">Pendientes de impresion de etiquetas</div>
+        <div id="pend-impresion"><div class="empty"><span class="spinner"></span> Cargando...</div></div>
+      </div>
+    </div>
+
+    <!-- TAB: Crear recepcion -->
+    <div class="tab-pane" id="pane-crear-recepcion">
+      <div class="card" style="max-width:560px;">
+        <div class="sec">Nueva recepcion esperada</div>
+        <div class="g2">
+          <div class="field">
+            <label>Especie</label>
+            <div style="display:flex;gap:6px;">
+              <select id="rec-especie" style="flex:1;"></select>
+              <button class="btn btn-sm btn-ghost" onclick="modalNuevaEspecie()" title="Nueva especie">+</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>Espesor</label>
+            <div style="display:flex;gap:6px;">
+              <select id="rec-espesor" style="flex:1;"></select>
+              <button class="btn btn-sm btn-ghost" onclick="modalNuevoEspesor()" title="Nuevo espesor">+</button>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Proveedor</label>
+          <input id="rec-proveedor" placeholder="Nombre del proveedor">
+        </div>
+        <div class="g2">
+          <div class="field">
+            <label>Cantidad aprox. (pies)</label>
+            <input id="rec-cantidad" type="number" step="0.01" min="0" placeholder="0">
+          </div>
+          <div class="field">
+            <label>Fecha esperada</label>
+            <input id="rec-fecha" type="date">
+          </div>
+        </div>
+        <div class="field">
+          <label>Notas</label>
+          <textarea id="rec-notas" placeholder="Notas opcionales..."></textarea>
+        </div>
+        <div style="margin-top:16px;">
+          <button class="btn btn-primary" id="btn-crear-recepcion" onclick="crearRecepcion()">Crear recepcion</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: Cargar stock -->
+    <div class="tab-pane" id="pane-cargar-stock">
+      <div class="card" style="max-width:700px;">
+        <div class="sec">Carga inicial de stock (partida sin recepcion)</div>
+        <div class="g2">
+          <div class="field">
+            <label>Motivo</label>
+            <select id="cs-motivo">
+              <option value="">-- Seleccionar --</option>
+              <option value="recorte">Recorte</option>
+              <option value="migracion">Migracion (datos previos)</option>
+              <option value="sin_factura">Sin factura</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Especie</label>
+            <div style="display:flex;gap:6px;">
+              <select id="cs-especie" style="flex:1;"></select>
+              <button class="btn btn-sm btn-ghost" onclick="modalNuevaEspecie()" title="Nueva especie">+</button>
+            </div>
+          </div>
+        </div>
+        <div class="g2">
+          <div class="field">
+            <label>Espesor</label>
+            <div style="display:flex;gap:6px;">
+              <select id="cs-espesor" style="flex:1;"></select>
+              <button class="btn btn-sm btn-ghost" onclick="modalNuevoEspesor()" title="Nuevo espesor">+</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>Proveedor</label>
+            <input id="cs-proveedor" placeholder="Nombre del proveedor">
+          </div>
+        </div>
+        <div class="g2">
+          <div class="field">
+            <label>Costo / pie (USD)</label>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input id="cs-costo-pie" type="number" step="0.01" min="0" placeholder="0.00" style="flex:1;">
+              <button class="btn btn-sm btn-ghost" onclick="sugerirCosto()" title="Ultimo costo">?</button>
+            </div>
+            <span id="cs-costo-ref" class="mono" style="font-size:10px;color:var(--muted);"></span>
+          </div>
+          <div class="field">
+            <label>Ubicacion (opcional)</label>
+            <input id="cs-ubicacion" placeholder="Ej: Estanteria A">
+          </div>
+        </div>
+
+        <div style="margin-top:20px;">
+          <div class="sec">Romaneo</div>
+          <table class="tbl" id="romaneo-table">
+            <thead>
+              <tr>
+                <th>Ancho (cm)</th>
+                <th>Largo (cm)</th>
+                <th>Cantidad</th>
+                <th>Pies</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="romaneo-body"></tbody>
+          </table>
+          <div style="display:flex;align-items:center;gap:16px;margin-top:10px;">
+            <button class="btn btn-sm btn-ghost" onclick="agregarFilaRomaneo()">+ Agregar fila</button>
+            <span class="mono" style="font-size:11px;color:var(--muted);">Total: <strong id="romaneo-total" style="color:var(--text);">0.00</strong> pies</span>
+          </div>
+        </div>
+
+        <div style="margin-top:20px;">
+          <button class="btn btn-primary" id="btn-cargar-stock" onclick="cargarStock()">Cargar partida</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- MODAL: Detalle partida -->
+<div class="overlay" id="partida-overlay" onclick="if(event.target===this)cerrarDetallePartida()">
+  <div class="modal" style="width:760px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="modal-title" id="partida-modal-title">Detalle partida</div>
+      <button onclick="cerrarDetallePartida()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">&times;</button>
+    </div>
+    <div id="partida-modal-content"></div>
+  </div>
+</div>
+
+<!-- MODAL: Cargar factura -->
+<div class="overlay" id="factura-overlay" onclick="if(event.target===this)cerrarFactura()">
+  <div class="modal" style="width:480px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="modal-title">Cargar factura</div>
+      <button onclick="cerrarFactura()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">&times;</button>
+    </div>
+    <div id="factura-modal-content"></div>
+  </div>
+</div>
+
+<!-- MODAL: Nueva especie -->
+<div class="overlay" id="especie-overlay" onclick="if(event.target===this)cerrarEspecie()">
+  <div class="modal" style="width:400px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="modal-title">Nueva especie</div>
+      <button onclick="cerrarEspecie()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">&times;</button>
+    </div>
+    <div class="field">
+      <label>Nombre</label>
+      <input id="nueva-especie-nombre" placeholder="Ej: Guayubira">
+    </div>
+    <div class="field">
+      <label>Nombre corto</label>
+      <input id="nueva-especie-corto" placeholder="Ej: GYB">
+    </div>
+    <div style="margin-top:14px;text-align:right;">
+      <button class="btn btn-ghost" onclick="cerrarEspecie()" style="margin-right:8px;">Cancelar</button>
+      <button class="btn btn-primary" onclick="crearEspecie()">Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Nuevo espesor -->
+<div class="overlay" id="espesor-overlay" onclick="if(event.target===this)cerrarEspesor()">
+  <div class="modal" style="width:400px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="modal-title">Nuevo espesor</div>
+      <button onclick="cerrarEspesor()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">&times;</button>
+    </div>
+    <div class="g2">
+      <div class="field">
+        <label>Valor</label>
+        <input id="nuevo-espesor-valor" type="number" step="0.1" min="0" placeholder="Ej: 1">
+      </div>
+      <div class="field">
+        <label>Unidad</label>
+        <select id="nuevo-espesor-unidad">
+          <option value="pulgadas">Pulgadas</option>
+          <option value="cm">cm</option>
+          <option value="mm">mm</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Descripcion (opcional)</label>
+      <input id="nuevo-espesor-desc" placeholder="Ej: 1 pulgada cepillada">
+    </div>
+    <div style="margin-top:14px;text-align:right;">
+      <button class="btn btn-ghost" onclick="cerrarEspesor()" style="margin-right:8px;">Cancelar</button>
+      <button class="btn btn-primary" onclick="crearEspesor()">Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Editar recepcion esperada -->
+<div class="overlay" id="edit-recepcion-overlay" onclick="if(event.target===this)cerrarEditRecepcion()">
+  <div class="modal" style="width:520px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="modal-title">Editar recepcion esperada</div>
+      <button onclick="cerrarEditRecepcion()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">&times;</button>
+    </div>
+    <div id="edit-recepcion-content"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// MADERA — Inventario de madera
+// ═══════════════════════════════════════════════════════════
+
+const API = '/api/madera';
+let usuario = null;
+let especiesCache = [];
+let espesoresCache = [];
+
+// ── Init ────────────────────────────────────────────────────
+(async function init() {
+  usuario = AUTH.usuarioActual();
+  if (!usuario || !AUTH.puedeEntrarAAdmin()) {
+    window.location.href = '/admin.html';
+    return;
+  }
+
+  // Show cargar-stock tab only for admin
+  if (usuario.rol_app === 'admin') {
+    document.getElementById('tab-btn-cargar-stock').style.display = '';
+  }
+
+  // Wrap fetch for session expiry
+  window.fetch = AUTH.wrapFetch(window.fetch.bind(window));
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // Partida filter buttons
+  document.querySelectorAll('.partida-filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.partida-filter').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      cargarPartidas(btn.dataset.estado);
+    });
+  });
+
+  // Load catalogs + default tab
+  await Promise.all([cargarEspecies(), cargarEspesores()]);
+  cargarStock_tab();
+
+  // Add initial romaneo row
+  agregarFilaRomaneo();
+})();
+
+// ── Tab switching ───────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + tab));
+
+  if (tab === 'stock') cargarStock_tab();
+  if (tab === 'partidas') cargarPartidas('');
+  if (tab === 'pendientes') cargarPendientes();
+  if (tab === 'crear-recepcion') poblarSelectsRecepcion();
+  if (tab === 'cargar-stock') poblarSelectsCargaStock();
+}
+
+// ── API helpers ─────────────────────────────────────────────
+async function api(action, params) {
+  const qs = new URLSearchParams({ action, ...params });
+  const res = await fetch(API + '?' + qs);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Error desconocido');
+  return data;
+}
+
+async function apiPost(action, body) {
+  const res = await fetch(API + '?action=' + encodeURIComponent(action), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Error desconocido');
+  return data;
+}
+
+// ── Catalog loaders ─────────────────────────────────────────
+async function cargarEspecies() {
+  try {
+    const data = await api('especies');
+    especiesCache = data.especies || [];
+  } catch (e) { console.error('Error cargando especies:', e); }
+}
+
+async function cargarEspesores() {
+  try {
+    const data = await api('espesores');
+    espesoresCache = data.espesores || [];
+  } catch (e) { console.error('Error cargando espesores:', e); }
+}
+
+function poblarSelectEspecie(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- Especie --</option>' +
+    especiesCache.map(e => '<option value="' + e.id + '">' + esc(e.nombre) + (e.nombre_corto ? ' (' + esc(e.nombre_corto) + ')' : '') + '</option>').join('');
+}
+
+function poblarSelectEspesor(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- Espesor --</option>' +
+    espesoresCache.map(e => '<option value="' + e.id + '">' + esc(e.valor + ' ' + e.unidad) + (e.descripcion ? ' — ' + esc(e.descripcion) : '') + '</option>').join('');
+}
+
+function poblarSelectsRecepcion() {
+  poblarSelectEspecie('rec-especie');
+  poblarSelectEspesor('rec-espesor');
+}
+
+function poblarSelectsCargaStock() {
+  poblarSelectEspecie('cs-especie');
+  poblarSelectEspesor('cs-espesor');
+}
+
+// ── Formatters ──────────────────────────────────────────────
+function fmtPies(n) { return n != null ? Number(n).toFixed(2) : '—'; }
+function fmtUSD(n) { return n != null ? '$' + Number(n).toFixed(2) : '—'; }
+function fmtFecha(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', year: '2-digit' }); }
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function pillEstado(estado) {
+  const map = {
+    esperada: 'pill-blue',
+    pendiente_factura: 'pill-amber',
+    activa: 'pill-green',
+    archivada: 'pill-gray',
+  };
+  const label = (estado || '').replace(/_/g, ' ');
+  return '<span class="pill ' + (map[estado] || 'pill-gray') + '">' + esc(label) + '</span>';
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB: Stock
+// ═══════════════════════════════════════════════════════════
+async function cargarStock_tab() {
+  const wrap = document.getElementById('stock-table-wrap');
+  wrap.innerHTML = '<div class="empty"><span class="spinner"></span> Cargando stock...</div>';
+  try {
+    const data = await api('stock-agregado');
+    const rows = data.stock || [];
+    if (!rows.length) {
+      wrap.innerHTML = '<div class="empty">No hay stock registrado</div>';
+      return;
+    }
+    let html = '<table class="tbl"><thead><tr>' +
+      '<th>Especie</th><th>Espesor</th><th style="text-align:right;">Piezas</th>' +
+      '<th style="text-align:right;">Pies</th><th style="text-align:right;">Costo USD</th><th style="text-align:right;">Partidas</th>' +
+      '</tr></thead><tbody>';
+    for (const r of rows) {
+      html += '<tr>' +
+        '<td>' + esc(r.especie) + (r.especie_corto ? ' <span style="color:var(--muted);font-size:11px;">(' + esc(r.especie_corto) + ')</span>' : '') + '</td>' +
+        '<td class="mono" style="font-size:12px;">' + esc(r.espesor_valor + ' ' + r.espesor_unidad) + '</td>' +
+        '<td style="text-align:right;" class="mono">' + (r.cant_piezas ?? '—') + '</td>' +
+        '<td style="text-align:right;" class="mono">' + fmtPies(r.pies_total) + '</td>' +
+        '<td style="text-align:right;" class="mono">' + fmtUSD(r.costo_total_usd) + '</td>' +
+        '<td style="text-align:right;" class="mono">' + (r.partidas ?? '—') + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  } catch (e) {
+    wrap.innerHTML = '<div class="empty" style="color:var(--red);">Error: ' + esc(e.message) + '</div>';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB: Partidas
+// ═══════════════════════════════════════════════════════════
+async function cargarPartidas(estado) {
+  const wrap = document.getElementById('partidas-table-wrap');
+  wrap.innerHTML = '<div class="empty"><span class="spinner"></span> Cargando partidas...</div>';
+  try {
+    const params = {};
+    if (estado) params.estado = estado;
+    const data = await api('partidas-listado', params);
+    const rows = data.partidas || [];
+    if (!rows.length) {
+      wrap.innerHTML = '<div class="empty">No hay partidas' + (estado ? ' con estado "' + esc(estado.replace(/_/g, ' ')) + '"' : '') + '</div>';
+      return;
+    }
+    let html = '<table class="tbl"><thead><tr>' +
+      '<th>#</th><th>Especie</th><th>Espesor</th><th>Proveedor</th>' +
+      '<th>Estado</th><th style="text-align:right;">Pies</th><th style="text-align:right;">Costo</th><th>Acciones</th>' +
+      '</tr></thead><tbody>';
+    for (const p of rows) {
+      html += '<tr class="clickable" onclick="abrirDetallePartida(\'' + p.id + '\')">' +
+        '<td class="mono" style="font-size:11px;color:var(--muted);">' + (p.numero || p.id?.slice(0, 6) || '—') + '</td>' +
+        '<td>' + esc(p.especie_nombre || p.especie || '') + '</td>' +
+        '<td class="mono" style="font-size:12px;">' + esc((p.espesor_valor || '') + ' ' + (p.espesor_unidad || '')) + '</td>' +
+        '<td>' + esc(p.proveedor_nombre || p.proveedor || '') + '</td>' +
+        '<td>' + pillEstado(p.estado) + '</td>' +
+        '<td style="text-align:right;" class="mono">' + fmtPies(p.pies_total || p.pies_romaneados) + '</td>' +
+        '<td style="text-align:right;" class="mono">' + fmtUSD(p.costo_total_usd || p.monto_usd) + '</td>' +
+        '<td><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();abrirDetallePartida(\'' + p.id + '\')">Ver</button></td>' +
+        '</tr>';
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  } catch (e) {
+    wrap.innerHTML = '<div class="empty" style="color:var(--red);">Error: ' + esc(e.message) + '</div>';
+  }
+}
+
+// ── Detalle partida modal ───────────────────────────────────
+async function abrirDetallePartida(partidaId) {
+  const overlay = document.getElementById('partida-overlay');
+  const content = document.getElementById('partida-modal-content');
+  const title = document.getElementById('partida-modal-title');
+  content.innerHTML = '<div class="empty"><span class="spinner"></span> Cargando...</div>';
+  overlay.classList.add('open');
+
+  try {
+    const data = await api('partida', { partida_id: partidaId });
+    const p = data.partida;
+    const piezas = data.piezas || [];
+
+    title.textContent = 'Partida ' + (p.numero || partidaId.slice(0, 8));
+
+    let html = '<div class="g2" style="margin-bottom:16px;">' +
+      '<div><span class="mono" style="font-size:10px;color:var(--muted);">ESPECIE</span><br>' + esc(p.especie_nombre || p.especie || '') + '</div>' +
+      '<div><span class="mono" style="font-size:10px;color:var(--muted);">ESPESOR</span><br>' + esc((p.espesor_valor || '') + ' ' + (p.espesor_unidad || '')) + '</div>' +
+      '</div>';
+    html += '<div class="g3" style="margin-bottom:16px;">' +
+      '<div><span class="mono" style="font-size:10px;color:var(--muted);">PROVEEDOR</span><br>' + esc(p.proveedor_nombre || p.proveedor || '') + '</div>' +
+      '<div><span class="mono" style="font-size:10px;color:var(--muted);">ESTADO</span><br>' + pillEstado(p.estado) + '</div>' +
+      '<div><span class="mono" style="font-size:10px;color:var(--muted);">PIES</span><br><span class="mono">' + fmtPies(p.pies_total || p.pies_romaneados) + '</span></div>' +
+      '</div>';
+
+    if (p.factura_numero) {
+      html += '<div class="g2" style="margin-bottom:16px;">' +
+        '<div><span class="mono" style="font-size:10px;color:var(--muted);">FACTURA</span><br>' + esc(p.factura_numero) + '</div>' +
+        '<div><span class="mono" style="font-size:10px;color:var(--muted);">MONTO</span><br><span class="mono">' + fmtUSD(p.monto_usd) + '</span></div>' +
+        '</div>';
+    }
+
+    // Action buttons
+    html += '<div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">';
+    if (p.estado === 'pendiente_factura') {
+      html += '<button class="btn btn-sm btn-primary" onclick="abrirCargarFactura(\'' + p.id + '\',' + (p.pies_romaneados || 0) + ')">Cargar factura</button>';
+    }
+    if (p.estado !== 'archivada') {
+      html += '<button class="btn btn-sm btn-danger" onclick="archivarPartida(\'' + p.id + '\')">Archivar</button>';
+    }
+    if (piezas.length > 0) {
+      const tieneNoImpresas = piezas.some(z => !z.etiqueta_impresa);
+      if (tieneNoImpresas) {
+        html += '<button class="btn btn-sm btn-success" onclick="marcarEtiquetasImpresas(\'' + p.id + '\')">Marcar etiquetas impresas</button>';
+      }
+    }
+    html += '</div>';
+
+    // Piezas table
+    if (piezas.length) {
+      html += '<div class="sec">Piezas (' + piezas.length + ')</div>';
+      html += '<table class="tbl"><thead><tr>' +
+        '<th>#</th><th>Ancho</th><th>Largo</th><th>Espesor</th>' +
+        '<th style="text-align:right;">Pies</th><th style="text-align:right;">Costo</th><th>Ubic.</th><th>Etiq.</th><th></th>' +
+        '</tr></thead><tbody>';
+      for (const z of piezas) {
+        const etiqHtml = z.etiqueta_impresa
+          ? '<span class="badge-etiq" style="background:rgba(74,222,128,.15);color:var(--green);">OK</span>'
+          : '<span class="badge-etiq" style="background:rgba(245,166,35,.15);color:var(--amber);">Sin</span>';
+        html += '<tr>' +
+          '<td class="mono" style="font-size:11px;color:var(--muted);">' + (z.numero || z.id?.slice(0, 6) || '—') + '</td>' +
+          '<td class="mono" style="font-size:12px;">' + (z.ancho_cm != null ? z.ancho_cm + ' cm' : '—') + '</td>' +
+          '<td class="mono" style="font-size:12px;">' + (z.largo_cm != null ? z.largo_cm + ' cm' : '—') + '</td>' +
+          '<td class="mono" style="font-size:12px;">' + esc((z.espesor_valor || '') + ' ' + (z.espesor_unidad || '')) + '</td>' +
+          '<td style="text-align:right;" class="mono">' + fmtPies(z.pies) + '</td>' +
+          '<td style="text-align:right;" class="mono">' + fmtUSD(z.costo_usd) + '</td>' +
+          '<td>' + esc(z.ubicacion || '') + '</td>' +
+          '<td>' + etiqHtml + '</td>' +
+          '<td>' + (!z.etiqueta_impresa ? '' : '<button class="btn btn-sm btn-ghost" onclick="marcarReimpresion(\'' + z.id + '\')">Reimp.</button>') + '</td>' +
+          '</tr>';
+      }
+      html += '</tbody></table>';
+    } else {
+      html += '<div class="empty">Sin piezas registradas</div>';
+    }
+
+    content.innerHTML = html;
+  } catch (e) {
+    content.innerHTML = '<div class="empty" style="color:var(--red);">Error: ' + esc(e.message) + '</div>';
+  }
+}
+
+function cerrarDetallePartida() {
+  document.getElementById('partida-overlay').classList.remove('open');
+}
+
+// ── Cargar factura modal ────────────────────────────────────
+function abrirCargarFactura(partidaId, piesRomaneados) {
+  cerrarDetallePartida();
+  const overlay = document.getElementById('factura-overlay');
+  const content = document.getElementById('factura-modal-content');
+
+  content.innerHTML =
+    '<div class="info-box">Pies romaneados de esta partida: <strong>' + fmtPies(piesRomaneados) + '</strong></div>' +
+    '<div class="field"><label>Factura #</label><input id="fac-numero" placeholder="Ej: F-001"></div>' +
+    '<div class="g2">' +
+      '<div class="field"><label>Fecha factura</label><input id="fac-fecha" type="date"></div>' +
+      '<div class="field"><label>Monto USD</label><input id="fac-monto" type="number" step="0.01" min="0" placeholder="0.00"></div>' +
+    '</div>' +
+    '<div class="field"><label>Pies facturados</label><input id="fac-pies" type="number" step="0.01" min="0" placeholder="' + fmtPies(piesRomaneados) + '" value="' + (piesRomaneados || '') + '"></div>' +
+    '<div id="fac-discrepancia" style="margin-top:8px;"></div>' +
+    '<div style="margin-top:16px;text-align:right;">' +
+      '<button class="btn btn-ghost" onclick="cerrarFactura()" style="margin-right:8px;">Cancelar</button>' +
+      '<button class="btn btn-primary" onclick="enviarFactura(\'' + partidaId + '\',' + piesRomaneados + ')">Guardar factura</button>' +
+    '</div>';
+
+  // Discrepancia listener
+  const piesInput = document.getElementById('fac-pies');
+  piesInput.addEventListener('input', () => {
+    const diff = Math.abs(parseFloat(piesInput.value || 0) - piesRomaneados);
+    const disc = document.getElementById('fac-discrepancia');
+    if (diff > 0.01) {
+      disc.innerHTML = '<div class="warn-box">Discrepancia: ' + fmtPies(diff) + ' pies entre romaneo y factura</div>';
+    } else {
+      disc.innerHTML = '';
+    }
+  });
+
+  overlay.classList.add('open');
+}
+
+function cerrarFactura() {
+  document.getElementById('factura-overlay').classList.remove('open');
+}
+
+async function enviarFactura(partidaId, piesRomaneados) {
+  const numero = document.getElementById('fac-numero').value.trim();
+  const fecha = document.getElementById('fac-fecha').value;
+  const monto = parseFloat(document.getElementById('fac-monto').value);
+  const pies = parseFloat(document.getElementById('fac-pies').value);
+
+  if (!numero) return alert('Ingresa el numero de factura');
+  if (!fecha) return alert('Ingresa la fecha de factura');
+  if (!monto || monto <= 0) return alert('Ingresa el monto');
+  if (!pies || pies <= 0) return alert('Ingresa los pies facturados');
+
+  try {
+    await apiPost('cargar-factura-partida', {
+      admin_id: usuario.id,
+      partida_id: partidaId,
+      factura_numero: numero,
+      factura_fecha: fecha,
+      monto_usd: monto,
+      pies_facturados: pies,
+    });
+    cerrarFactura();
+    alert('Factura cargada correctamente');
+    cargarPartidas(document.querySelector('.partida-filter.active')?.dataset.estado || '');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+// ── Archivar partida ────────────────────────────────────────
+async function archivarPartida(partidaId) {
+  const motivo = prompt('Motivo de archivo:');
+  if (motivo === null) return;
+  if (!motivo.trim()) return alert('El motivo es obligatorio');
+
+  try {
+    await apiPost('archivar-partida', {
+      admin_id: usuario.id,
+      partida_id: partidaId,
+      motivo_archivo: motivo.trim(),
+    });
+    cerrarDetallePartida();
+    alert('Partida archivada');
+    cargarPartidas(document.querySelector('.partida-filter.active')?.dataset.estado || '');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+// ── Etiquetas ───────────────────────────────────────────────
+async function marcarEtiquetasImpresas(partidaId) {
+  if (!confirm('Marcar todas las etiquetas de esta partida como impresas?')) return;
+  try {
+    await apiPost('marcar-etiquetas-impresas', {
+      user_id: usuario.id,
+      partida_id: partidaId,
+    });
+    alert('Etiquetas marcadas como impresas');
+    abrirDetallePartida(partidaId);
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function marcarReimpresion(piezaId) {
+  if (!confirm('Marcar esta pieza para reimpresion de etiqueta?')) return;
+  try {
+    await apiPost('marcar-pieza-para-reimpresion', {
+      admin_id: usuario.id,
+      pieza_id: piezaId,
+    });
+    alert('Pieza marcada para reimpresion');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB: Pendientes
+// ═══════════════════════════════════════════════════════════
+async function cargarPendientes() {
+  // 1. Recepciones esperadas
+  const wrapEsp = document.getElementById('pend-esperadas');
+  wrapEsp.innerHTML = '<div class="empty"><span class="spinner"></span> Cargando...</div>';
+
+  // 2. Pendientes de factura
+  const wrapFac = document.getElementById('pend-factura');
+  wrapFac.innerHTML = '<div class="empty"><span class="spinner"></span> Cargando...</div>';
+
+  // 3. Pendientes de impresion
+  const wrapImp = document.getElementById('pend-impresion');
+  wrapImp.innerHTML = '<div class="empty"><span class="spinner"></span> Cargando...</div>';
+
+  try {
+    const [espData, facData, impData] = await Promise.all([
+      api('recepciones-esperadas'),
+      api('partidas-listado', { estado: 'pendiente_factura' }),
+      api('piezas-pendientes-impresion'),
+    ]);
+
+    // Esperadas
+    const esperadas = espData.partidas || [];
+    if (!esperadas.length) {
+      wrapEsp.innerHTML = '<div class="empty">Sin recepciones esperadas</div>';
+    } else {
+      let html = '<table class="tbl"><thead><tr>' +
+        '<th>Especie</th><th>Espesor</th><th>Proveedor</th><th>Pies aprox.</th><th>Fecha</th><th>Notas</th><th>Acciones</th>' +
+        '</tr></thead><tbody>';
+      for (const p of esperadas) {
+        html += '<tr>' +
+          '<td>' + esc(p.especie_nombre || p.especie || '') + '</td>' +
+          '<td class="mono" style="font-size:12px;">' + esc((p.espesor_valor || '') + ' ' + (p.espesor_unidad || '')) + '</td>' +
+          '<td>' + esc(p.proveedor_nombre || p.proveedor || '') + '</td>' +
+          '<td class="mono">' + fmtPies(p.cantidad_aproximada_pies) + '</td>' +
+          '<td class="mono" style="font-size:12px;">' + fmtFecha(p.fecha_esperada) + '</td>' +
+          '<td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(p.notas_recepcion || p.notas || '') + '</td>' +
+          '<td style="white-space:nowrap;">' +
+            '<button class="btn btn-sm btn-ghost" style="margin-right:4px;" onclick="abrirEditRecepcion(\'' + p.id + '\')">Editar</button>' +
+            '<button class="btn btn-sm btn-danger" onclick="eliminarRecepcion(\'' + p.id + '\')">Eliminar</button>' +
+          '</td>' +
+          '</tr>';
+      }
+      html += '</tbody></table>';
+      wrapEsp.innerHTML = html;
+    }
+
+    // Pendientes factura
+    const factura = facData.partidas || [];
+    if (!factura.length) {
+      wrapFac.innerHTML = '<div class="empty">Sin partidas pendientes de factura</div>';
+    } else {
+      let html = '<table class="tbl"><thead><tr>' +
+        '<th>#</th><th>Especie</th><th>Espesor</th><th>Proveedor</th><th style="text-align:right;">Pies</th><th>Acciones</th>' +
+        '</tr></thead><tbody>';
+      for (const p of factura) {
+        html += '<tr>' +
+          '<td class="mono" style="font-size:11px;color:var(--muted);">' + (p.numero || p.id?.slice(0, 6) || '—') + '</td>' +
+          '<td>' + esc(p.especie_nombre || p.especie || '') + '</td>' +
+          '<td class="mono" style="font-size:12px;">' + esc((p.espesor_valor || '') + ' ' + (p.espesor_unidad || '')) + '</td>' +
+          '<td>' + esc(p.proveedor_nombre || p.proveedor || '') + '</td>' +
+          '<td style="text-align:right;" class="mono">' + fmtPies(p.pies_total || p.pies_romaneados) + '</td>' +
+          '<td><button class="btn btn-sm btn-primary" onclick="abrirCargarFactura(\'' + p.id + '\',' + (p.pies_romaneados || 0) + ')">Cargar factura</button></td>' +
+          '</tr>';
+      }
+      html += '</tbody></table>';
+      wrapFac.innerHTML = html;
+    }
+
+    // Pendientes impresion
+    const impresion = impData.partidas || [];
+    if (!impresion.length) {
+      wrapImp.innerHTML = '<div class="empty">Sin piezas pendientes de impresion</div>';
+    } else {
+      let html = '<table class="tbl"><thead><tr>' +
+        '<th>Partida</th><th>Especie</th><th>Espesor</th><th style="text-align:right;">Piezas pend.</th><th>Acciones</th>' +
+        '</tr></thead><tbody>';
+      for (const p of impresion) {
+        html += '<tr>' +
+          '<td class="mono" style="font-size:11px;color:var(--muted);">' + (p.numero || p.partida_id?.slice(0, 6) || '—') + '</td>' +
+          '<td>' + esc(p.especie_nombre || p.especie || '') + '</td>' +
+          '<td class="mono" style="font-size:12px;">' + esc((p.espesor_valor || '') + ' ' + (p.espesor_unidad || '')) + '</td>' +
+          '<td style="text-align:right;" class="mono">' + (p.piezas_pendientes ?? p.cantidad ?? '—') + '</td>' +
+          '<td><button class="btn btn-sm btn-ghost" onclick="abrirDetallePartida(\'' + (p.partida_id || p.id) + '\')">Ver partida</button></td>' +
+          '</tr>';
+      }
+      html += '</tbody></table>';
+      wrapImp.innerHTML = html;
+    }
+  } catch (e) {
+    wrapEsp.innerHTML = '<div class="empty" style="color:var(--red);">Error: ' + esc(e.message) + '</div>';
+  }
+}
+
+// ── Editar recepcion esperada ───────────────────────────────
+async function abrirEditRecepcion(partidaId) {
+  const overlay = document.getElementById('edit-recepcion-overlay');
+  const content = document.getElementById('edit-recepcion-content');
+  content.innerHTML = '<div class="empty"><span class="spinner"></span> Cargando...</div>';
+  overlay.classList.add('open');
+
+  try {
+    const data = await api('partida', { partida_id: partidaId });
+    const p = data.partida;
+
+    let optEspecie = '<option value="">-- Especie --</option>' +
+      especiesCache.map(e => '<option value="' + e.id + '"' + (e.id === p.especie_id ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('');
+    let optEspesor = '<option value="">-- Espesor --</option>' +
+      espesoresCache.map(e => '<option value="' + e.id + '"' + (e.id === p.espesor_id ? ' selected' : '') + '>' + esc(e.valor + ' ' + e.unidad) + '</option>').join('');
+
+    content.innerHTML =
+      '<div class="g2">' +
+        '<div class="field"><label>Especie</label><select id="edit-rec-especie">' + optEspecie + '</select></div>' +
+        '<div class="field"><label>Espesor</label><select id="edit-rec-espesor">' + optEspesor + '</select></div>' +
+      '</div>' +
+      '<div class="field"><label>Proveedor</label><input id="edit-rec-proveedor" value="' + esc(p.proveedor_nombre || p.proveedor || '') + '"></div>' +
+      '<div class="g2">' +
+        '<div class="field"><label>Cantidad aprox. (pies)</label><input id="edit-rec-cantidad" type="number" step="0.01" value="' + (p.cantidad_aproximada_pies || '') + '"></div>' +
+        '<div class="field"><label>Fecha esperada</label><input id="edit-rec-fecha" type="date" value="' + (p.fecha_esperada || '') + '"></div>' +
+      '</div>' +
+      '<div class="field"><label>Notas</label><textarea id="edit-rec-notas">' + esc(p.notas_recepcion || p.notas || '') + '</textarea></div>' +
+      '<div style="margin-top:14px;text-align:right;">' +
+        '<button class="btn btn-ghost" onclick="cerrarEditRecepcion()" style="margin-right:8px;">Cancelar</button>' +
+        '<button class="btn btn-primary" onclick="guardarEditRecepcion(\'' + partidaId + '\')">Guardar</button>' +
+      '</div>';
+  } catch (e) {
+    content.innerHTML = '<div class="empty" style="color:var(--red);">Error: ' + esc(e.message) + '</div>';
+  }
+}
+
+function cerrarEditRecepcion() {
+  document.getElementById('edit-recepcion-overlay').classList.remove('open');
+}
+
+async function guardarEditRecepcion(partidaId) {
+  try {
+    await apiPost('editar-recepcion-esperada', {
+      admin_id: usuario.id,
+      partida_id: partidaId,
+      especie_id: document.getElementById('edit-rec-especie').value || undefined,
+      espesor_id: document.getElementById('edit-rec-espesor').value || undefined,
+      proveedor_nombre: document.getElementById('edit-rec-proveedor').value.trim() || undefined,
+      cantidad_aproximada_pies: parseFloat(document.getElementById('edit-rec-cantidad').value) || undefined,
+      fecha_esperada: document.getElementById('edit-rec-fecha').value || undefined,
+      notas_recepcion: document.getElementById('edit-rec-notas').value.trim(),
+    });
+    cerrarEditRecepcion();
+    alert('Recepcion actualizada');
+    cargarPendientes();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function eliminarRecepcion(partidaId) {
+  if (!confirm('Eliminar esta recepcion esperada?')) return;
+  try {
+    await apiPost('eliminar-recepcion-esperada', {
+      admin_id: usuario.id,
+      partida_id: partidaId,
+    });
+    alert('Recepcion eliminada');
+    cargarPendientes();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB: Crear recepcion
+// ═══════════════════════════════════════════════════════════
+async function crearRecepcion() {
+  const especieId = document.getElementById('rec-especie').value;
+  const espesorId = document.getElementById('rec-espesor').value;
+  const proveedor = document.getElementById('rec-proveedor').value.trim();
+  const cantidad = parseFloat(document.getElementById('rec-cantidad').value);
+  const fecha = document.getElementById('rec-fecha').value;
+  const notas = document.getElementById('rec-notas').value.trim();
+
+  if (!especieId) return alert('Selecciona una especie');
+  if (!espesorId) return alert('Selecciona un espesor');
+  if (!proveedor) return alert('Ingresa el proveedor');
+
+  const btn = document.getElementById('btn-crear-recepcion');
+  btn.disabled = true;
+  try {
+    await apiPost('crear-recepcion-esperada', {
+      admin_id: usuario.id,
+      especie_id: especieId,
+      espesor_id: espesorId,
+      proveedor_nombre: proveedor,
+      cantidad_aproximada_pies: cantidad || null,
+      fecha_esperada: fecha || null,
+      notas_recepcion: notas || null,
+    });
+    alert('Recepcion esperada creada');
+    // Clear form
+    document.getElementById('rec-proveedor').value = '';
+    document.getElementById('rec-cantidad').value = '';
+    document.getElementById('rec-fecha').value = '';
+    document.getElementById('rec-notas').value = '';
+  } catch (e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TAB: Cargar stock
+// ═══════════════════════════════════════════════════════════
+function agregarFilaRomaneo() {
+  const tbody = document.getElementById('romaneo-body');
+  const idx = tbody.children.length;
+  const tr = document.createElement('tr');
+  tr.innerHTML =
+    '<td><input type="number" step="0.1" min="0" class="rom-ancho" placeholder="0" style="width:80px;" oninput="calcularTotalRomaneo()"></td>' +
+    '<td><input type="number" step="0.1" min="0" class="rom-largo" placeholder="0" style="width:80px;" oninput="calcularTotalRomaneo()"></td>' +
+    '<td><input type="number" step="1" min="1" value="1" class="rom-cant" style="width:60px;" oninput="calcularTotalRomaneo()"></td>' +
+    '<td class="mono rom-pies" style="font-size:12px;color:var(--muted);">0.00</td>' +
+    '<td><button class="btn btn-sm btn-ghost" onclick="this.closest(\'tr\').remove();calcularTotalRomaneo()" style="color:var(--red);">x</button></td>';
+  tbody.appendChild(tr);
+}
+
+function calcularTotalRomaneo() {
+  let total = 0;
+  const rows = document.querySelectorAll('#romaneo-body tr');
+  for (const row of rows) {
+    const ancho = parseFloat(row.querySelector('.rom-ancho')?.value) || 0;
+    const largo = parseFloat(row.querySelector('.rom-largo')?.value) || 0;
+    const cant = parseInt(row.querySelector('.rom-cant')?.value) || 0;
+    // pies tablares: (ancho_cm * largo_cm * espesor) / factor
+    // Simplified: board feet = (width_cm * length_cm) / 929.0304 per piece (for 1" thick)
+    // We just show cm^2 converted to pies: (ancho * largo) / 929.0304
+    const pies = (ancho * largo) / 929.0304;
+    const piesFila = pies * cant;
+    const cell = row.querySelector('.rom-pies');
+    if (cell) cell.textContent = piesFila.toFixed(2);
+    total += piesFila;
+  }
+  document.getElementById('romaneo-total').textContent = total.toFixed(2);
+}
+
+async function sugerirCosto() {
+  const especieId = document.getElementById('cs-especie').value;
+  const espesorId = document.getElementById('cs-espesor').value;
+  if (!especieId || !espesorId) return alert('Selecciona especie y espesor para buscar ultimo costo');
+
+  try {
+    const data = await api('ultimo-costo-por-producto', { especie_id: especieId, espesor_id: espesorId });
+    if (data.costo_por_pie_usd != null) {
+      document.getElementById('cs-costo-pie').value = data.costo_por_pie_usd;
+      document.getElementById('cs-costo-ref').textContent = 'Ref: ' + fmtUSD(data.costo_por_pie_usd) + '/pie (partida ' + (data.partida_referencia || '?') + ')';
+    } else {
+      document.getElementById('cs-costo-ref').textContent = 'Sin referencia de costo anterior';
+    }
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function cargarStock() {
+  const motivo = document.getElementById('cs-motivo').value;
+  const especieId = document.getElementById('cs-especie').value;
+  const espesorId = document.getElementById('cs-espesor').value;
+  const proveedor = document.getElementById('cs-proveedor').value.trim();
+  const costoPie = parseFloat(document.getElementById('cs-costo-pie').value);
+  const ubicacion = document.getElementById('cs-ubicacion').value.trim();
+
+  if (!motivo) return alert('Selecciona un motivo');
+  if (!especieId) return alert('Selecciona una especie');
+  if (!espesorId) return alert('Selecciona un espesor');
+
+  // Collect romaneo
+  const romaneo = [];
+  const rows = document.querySelectorAll('#romaneo-body tr');
+  for (const row of rows) {
+    const ancho = parseFloat(row.querySelector('.rom-ancho')?.value);
+    const largo = parseFloat(row.querySelector('.rom-largo')?.value);
+    const cant = parseInt(row.querySelector('.rom-cant')?.value) || 1;
+    if (ancho > 0 && largo > 0) {
+      romaneo.push({ ancho_cm: ancho, largo_cm: largo, cantidad: cant });
+    }
+  }
+  if (!romaneo.length) return alert('Agrega al menos una fila de romaneo');
+
+  const btn = document.getElementById('btn-cargar-stock');
+  btn.disabled = true;
+  try {
+    await apiPost('crear-partida-inicial', {
+      admin_id: usuario.id,
+      especie_id: especieId,
+      espesor_id: espesorId,
+      proveedor_nombre: proveedor || null,
+      motivo: motivo,
+      costo_por_pie_usd: costoPie || null,
+      ubicacion: ubicacion || null,
+      romaneo: romaneo,
+    });
+    alert('Partida creada con ' + romaneo.length + ' filas de romaneo');
+    // Clear form
+    document.getElementById('cs-motivo').value = '';
+    document.getElementById('cs-proveedor').value = '';
+    document.getElementById('cs-costo-pie').value = '';
+    document.getElementById('cs-costo-ref').textContent = '';
+    document.getElementById('cs-ubicacion').value = '';
+    document.getElementById('romaneo-body').innerHTML = '';
+    agregarFilaRomaneo();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Crear especie / espesor modals
+// ═══════════════════════════════════════════════════════════
+function modalNuevaEspecie() {
+  document.getElementById('nueva-especie-nombre').value = '';
+  document.getElementById('nueva-especie-corto').value = '';
+  document.getElementById('especie-overlay').classList.add('open');
+}
+function cerrarEspecie() {
+  document.getElementById('especie-overlay').classList.remove('open');
+}
+async function crearEspecie() {
+  const nombre = document.getElementById('nueva-especie-nombre').value.trim();
+  const corto = document.getElementById('nueva-especie-corto').value.trim();
+  if (!nombre) return alert('Ingresa el nombre de la especie');
+  try {
+    await apiPost('crear-especie', { admin_id: usuario.id, nombre, nombre_corto: corto || null });
+    cerrarEspecie();
+    alert('Especie creada');
+    await cargarEspecies();
+    poblarSelectEspecie('rec-especie');
+    poblarSelectEspecie('cs-especie');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+function modalNuevoEspesor() {
+  document.getElementById('nuevo-espesor-valor').value = '';
+  document.getElementById('nuevo-espesor-desc').value = '';
+  document.getElementById('espesor-overlay').classList.add('open');
+}
+function cerrarEspesor() {
+  document.getElementById('espesor-overlay').classList.remove('open');
+}
+async function crearEspesor() {
+  const valor = parseFloat(document.getElementById('nuevo-espesor-valor').value);
+  const unidad = document.getElementById('nuevo-espesor-unidad').value;
+  const desc = document.getElementById('nuevo-espesor-desc').value.trim();
+  if (!valor || valor <= 0) return alert('Ingresa un valor valido');
+  try {
+    await apiPost('crear-espesor', { admin_id: usuario.id, valor, unidad, descripcion: desc || null });
+    cerrarEspesor();
+    alert('Espesor creado');
+    await cargarEspesores();
+    poblarSelectEspesor('rec-espesor');
+    poblarSelectEspesor('cs-espesor');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+</script>
+</body>
+</html>

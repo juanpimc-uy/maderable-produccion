@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:,">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0e0e0e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Madera MBLE">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<script src="/js/supabase-config.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Maderable - Madera</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #0e0e0e;
+  --panel:   #141414;
+  --card:    #1a1a1a;
+  --card2:   #222;
+  --border:  #222;
+  --text:    #e8e8e8;
+  --muted:   #6b6b6b;
+  --amber:   #f5a623;
+  --green:   #4ade80;
+  --red:     #ef4444;
+  --amber-dim: rgba(245,166,35,0.1);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif;
+  min-height: 100vh; overflow-x: hidden; }
+.mono { font-family: 'Space Mono', monospace; }
+
+/* Screens */
+.pantalla { display: none; flex-direction: column; min-height: 100vh; }
+.pantalla.activa { display: flex; }
+
+/* Header */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; height: 56px; flex-shrink: 0;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 20;
+}
+.header-logo { font-family: 'Space Mono', monospace; font-size: 14px; font-weight: 700;
+  color: var(--amber); letter-spacing: 2px; text-transform: uppercase; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.header-user { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted);
+  letter-spacing: 0.5px; }
+.header-logout { background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--muted); font-family: 'Space Mono', monospace; font-size: 10px;
+  padding: 6px 12px; cursor: pointer; letter-spacing: 1px; text-transform: uppercase; }
+.header-logout:active { background: var(--card2); }
+
+/* Content */
+.contenido { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 16px;
+  max-width: 600px; margin: 0 auto; width: 100%; }
+.centrado { flex: 1; padding: 20px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px; }
+
+/* PIN */
+.pin-title { font-family: 'Space Mono', monospace; font-size: 28px; font-weight: 700;
+  color: var(--amber); letter-spacing: 4px; text-transform: uppercase; text-align: center; }
+.pin-subtitle { font-size: 13px; color: var(--muted); text-align: center; }
+.pin-input { width: 100%; max-width: 300px; background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px; color: var(--text); font-family: 'Space Mono', monospace;
+  font-size: 20px; text-align: center; outline: none; letter-spacing: 2px; }
+.pin-input:focus { border-color: var(--amber); }
+.pin-dots { display: flex; gap: 14px; justify-content: center; margin: 4px 0 16px; }
+.pin-dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border);
+  background: transparent; transition: all 0.15s; }
+.pin-dot.lleno { background: var(--amber); border-color: var(--amber); }
+.pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  width: 100%; max-width: 300px; }
+.pin-key { height: 72px; min-width: 72px; background: var(--card); border: 1.5px solid var(--border);
+  border-radius: 10px; font-family: 'Space Mono', monospace; font-size: 24px; font-weight: 700;
+  color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  user-select: none; transition: background 0.1s, transform 0.08s, border-color 0.1s; }
+.pin-key:active { background: var(--amber-dim); border-color: var(--amber); transform: scale(0.94); }
+.pin-key.del { font-size: 18px; color: var(--muted); }
+.pin-key.enter { font-size: 14px; color: var(--amber); font-weight: 700; letter-spacing: 1px; }
+.pin-error { color: var(--red); font-size: 13px; text-align: center; min-height: 20px; }
+
+/* Home grid */
+.home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.home-btn {
+  min-height: 140px; min-width: 140px; background: var(--card); border: 2px solid var(--border);
+  border-radius: 14px; padding: 20px; cursor: pointer; user-select: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  transition: border-color 0.15s, transform 0.1s; position: relative;
+}
+.home-btn:active { transform: scale(0.97); border-color: var(--amber); }
+.home-btn-icon { font-size: 36px; }
+.home-btn-label { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700;
+  color: var(--text); letter-spacing: 0.5px; text-align: center; text-transform: uppercase; }
+.home-btn .badge {
+  position: absolute; top: 10px; right: 10px; background: var(--amber);
+  color: #0e0e0e; font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700;
+  min-width: 24px; height: 24px; border-radius: 12px; display: flex;
+  align-items: center; justify-content: center; padding: 0 6px;
+}
+.home-btn .badge:empty { display: none; }
+
+/* Back link */
+.back-link { background: none; border: none; color: var(--muted); cursor: pointer;
+  font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700;
+  padding: 0; letter-spacing: 0.5px; }
+.back-link:active { color: var(--text); }
+
+/* Section title */
+.sec-title { font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700;
+  color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
+
+/* Cards */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 18px; cursor: pointer; transition: border-color 0.15s; }
+.card:active { border-color: var(--amber); }
+.card-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.card-sub { font-size: 13px; color: var(--muted); }
+.card-mono { font-family: 'Space Mono', monospace; font-size: 12px; color: var(--amber); margin-top: 6px; }
+
+/* Form elements */
+.form-label { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted);
+  letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 6px; display: block; }
+.form-input {
+  width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 16px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 16px;
+  outline: none; }
+.form-input:focus { border-color: var(--amber); }
+.form-select {
+  width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 16px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 16px;
+  outline: none; appearance: none; -webkit-appearance: none; cursor: pointer; }
+.form-select:focus { border-color: var(--amber); }
+.select-wrap { position: relative; }
+.select-wrap::after { content: '\25BE'; position: absolute; right: 14px; top: 50%;
+  transform: translateY(-50%); color: var(--muted); pointer-events: none; font-size: 14px; }
+
+/* Romaneo rows */
+.romaneo-row {
+  display: grid; grid-template-columns: 1fr 1fr 80px 40px; gap: 8px; align-items: center;
+}
+.romaneo-row input {
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 10px; color: var(--text); font-family: 'Space Mono', monospace; font-size: 16px;
+  outline: none; width: 100%; text-align: center;
+}
+.romaneo-row input:focus { border-color: var(--amber); }
+.romaneo-del { background: none; border: none; color: var(--red); font-size: 20px;
+  cursor: pointer; padding: 8px; }
+.romaneo-header {
+  display: grid; grid-template-columns: 1fr 1fr 80px 40px; gap: 8px;
+  font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted);
+  letter-spacing: 1px; text-transform: uppercase; padding: 0 4px;
+}
+
+/* Buttons */
+.btn {
+  width: 100%; min-height: 52px; border: none; border-radius: 10px; cursor: pointer;
+  font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase; user-select: none;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: transform 0.1s, opacity 0.15s;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.3; pointer-events: none; }
+.btn-primary { background: var(--amber); color: #0e0e0e; }
+.btn-outline { background: transparent; border: 1.5px solid var(--amber); color: var(--amber); }
+.btn-ghost { background: var(--card); border: 1px solid var(--border); color: var(--muted); }
+.btn-success { background: var(--green); color: #0e0e0e; }
+.btn-danger { background: var(--red); color: #fff; }
+
+/* Running total */
+.total-bar {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 18px; display: flex; justify-content: space-between; align-items: center;
+  position: sticky; bottom: 10px;
+}
+.total-label { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted);
+  letter-spacing: 1px; text-transform: uppercase; }
+.total-value { font-family: 'Space Mono', monospace; font-size: 20px; font-weight: 700;
+  color: var(--amber); }
+
+/* Empty state */
+.empty { text-align: center; color: var(--muted); font-size: 14px; padding: 40px 20px; }
+
+/* Print card */
+.print-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 18px; }
+.print-card-header { display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 12px; }
+.print-btn {
+  background: var(--amber); color: #0e0e0e; border: none; border-radius: 8px;
+  font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700;
+  padding: 10px 16px; cursor: pointer; letter-spacing: 0.5px; text-transform: uppercase;
+  white-space: nowrap;
+}
+.print-btn:active { transform: scale(0.97); }
+
+/* Form group */
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- PANTALLA: PIN LOGIN                                                    -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div id="pLogin" class="pantalla activa">
+  <div class="centrado">
+    <div class="pin-title">MADERA</div>
+    <div class="pin-subtitle">Ingresa tu cedula y PIN</div>
+    <input type="text" id="loginCedula" class="pin-input" placeholder="Cedula" inputmode="numeric" autocomplete="off">
+    <div class="pin-dots">
+      <div class="pin-dot" id="pd0"></div>
+      <div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div>
+      <div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-grid">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key del" onclick="pinDel()">&#9003;</button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key enter" onclick="pinEnter()">OK</button>
+    </div>
+    <div class="pin-error" id="pinError"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- PANTALLA: HOME                                                         -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div id="pHome" class="pantalla">
+  <div class="header">
+    <div class="header-logo">MADERA</div>
+    <div class="header-right">
+      <span class="header-user" id="headerUser"></span>
+      <button class="header-logout" onclick="logout()">Salir</button>
+    </div>
+  </div>
+  <div class="contenido" style="justify-content:center;">
+    <div class="home-grid" id="homeGrid">
+      <button class="home-btn" onclick="irRomaneo()">
+        <span class="home-btn-icon">📋</span>
+        <span class="home-btn-label">Cargar romaneo</span>
+        <span class="badge" id="badgeRomaneo"></span>
+      </button>
+      <button class="home-btn" id="btnStock" onclick="irStock()" style="display:none;">
+        <span class="home-btn-icon">➕</span>
+        <span class="home-btn-label">Cargar stock</span>
+      </button>
+      <button class="home-btn" onclick="alert('Disponible en MAD-2')">
+        <span class="home-btn-icon">🛒</span>
+        <span class="home-btn-label">Consumir madera</span>
+      </button>
+      <button class="home-btn" onclick="irEtiquetas()">
+        <span class="home-btn-icon">⎙</span>
+        <span class="home-btn-label">Imprimir etiquetas</span>
+        <span class="badge" id="badgeEtiquetas"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- PANTALLA: ROMANEO                                                      -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div id="pRomaneo" class="pantalla">
+  <div class="header">
+    <button class="back-link" onclick="irHome()">&larr; HOME</button>
+    <div class="header-logo">ROMANEO</div>
+    <div style="width:60px;"></div>
+  </div>
+  <div class="contenido" id="romaneoLista">
+    <div class="sec-title">Recepciones esperadas</div>
+    <!-- filled by JS -->
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- PANTALLA: ROMANEO FORM                                                 -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div id="pRomaneoForm" class="pantalla">
+  <div class="header">
+    <button class="back-link" onclick="irRomaneo()">&larr; LISTA</button>
+    <div class="header-logo">ROMANEO</div>
+    <div style="width:60px;"></div>
+  </div>
+  <div class="contenido">
+    <div class="card" style="cursor:default;">
+      <div class="card-title" id="rfTitulo"></div>
+      <div class="card-sub" id="rfSub"></div>
+      <div class="card-mono" id="rfMono"></div>
+    </div>
+    <div class="sec-title" style="margin-top:8px;">Piezas</div>
+    <div class="romaneo-header">
+      <span>Ancho cm</span><span>Largo cm</span><span>Cant.</span><span></span>
+    </div>
+    <div id="rfRows"></div>
+    <button class="btn btn-outline" onclick="agregarFilaRomaneo()" style="min-height:44px; font-size:12px;">+ Agregar fila</button>
+    <div class="total-bar">
+      <span class="total-label">Total pies</span>
+      <span class="total-value" id="rfTotal">0.00</span>
+    </div>
+    <button class="btn btn-success" onclick="confirmarRomaneo()">Confirmar romaneo</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- PANTALLA: CARGAR STOCK                                                 -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div id="pStock" class="pantalla">
+  <div class="header">
+    <button class="back-link" onclick="irHome()">&larr; HOME</button>
+    <div class="header-logo">CARGAR STOCK</div>
+    <div style="width:60px;"></div>
+  </div>
+  <div class="contenido">
+    <div class="form-group">
+      <label class="form-label">Especie</label>
+      <div class="select-wrap">
+        <select class="form-select" id="stockEspecie" onchange="sugerirCosto()"><option value="">Cargando...</option></select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Espesor</label>
+      <div class="select-wrap">
+        <select class="form-select" id="stockEspesor" onchange="sugerirCosto()"><option value="">Cargando...</option></select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Proveedor</label>
+      <input type="text" class="form-input" id="stockProveedor" placeholder="Nombre del proveedor">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Motivo</label>
+      <div class="select-wrap">
+        <select class="form-select" id="stockMotivo">
+          <option value="recorte_util">Recorte util</option>
+          <option value="migracion">Migracion</option>
+          <option value="sin_factura">Sin factura</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Costo / pie USD</label>
+      <input type="number" class="form-input" id="stockCosto" placeholder="0.00" step="0.01" inputmode="decimal">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Ubicacion (opcional)</label>
+      <input type="text" class="form-input" id="stockUbicacion" placeholder="Ej: Rack A3">
+    </div>
+    <div class="sec-title" style="margin-top:8px;">Piezas</div>
+    <div class="romaneo-header">
+      <span>Ancho cm</span><span>Largo cm</span><span>Cant.</span><span></span>
+    </div>
+    <div id="stockRows"></div>
+    <button class="btn btn-outline" onclick="agregarFilaStock()" style="min-height:44px; font-size:12px;">+ Agregar fila</button>
+    <div class="total-bar">
+      <span class="total-label">Total pies</span>
+      <span class="total-value" id="stockTotal">0.00</span>
+    </div>
+    <button class="btn btn-primary" onclick="crearPartida()">Crear partida</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- PANTALLA: ETIQUETAS                                                    -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div id="pEtiquetas" class="pantalla">
+  <div class="header">
+    <button class="back-link" onclick="irHome()">&larr; HOME</button>
+    <div class="header-logo">ETIQUETAS</div>
+    <div style="width:60px;"></div>
+  </div>
+  <div class="contenido" id="etiquetasLista">
+    <div class="sec-title">Partidas pendientes de impresion</div>
+    <!-- filled by JS -->
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- JS                                                                     -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<script>
+/* ── State ───────────────────────────────────────────────────────────────── */
+var usuario = null;      // {id, nombre, rol_app}
+var pinBuf = '';
+var partidaActual = null; // for romaneo form
+var recepcionesData = [];
+
+/* ── PIN ─────────────────────────────────────────────────────────────────── */
+function pinKey(d) {
+  if (pinBuf.length >= 4) return;
+  pinBuf += d;
+  actualizarDots();
+}
+function pinDel() {
+  pinBuf = pinBuf.slice(0, -1);
+  actualizarDots();
+}
+function actualizarDots() {
+  for (var i = 0; i < 4; i++) {
+    document.getElementById('pd' + i).classList.toggle('lleno', i < pinBuf.length);
+  }
+}
+async function pinEnter() {
+  var cedula = document.getElementById('loginCedula').value.trim();
+  if (!cedula) { mostrarPinError('Ingresa tu cedula'); return; }
+  if (pinBuf.length !== 4) { mostrarPinError('PIN de 4 digitos'); return; }
+  mostrarPinError('');
+  try {
+    var res = await fetch('/api/tiempos?action=verificar-pin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cedula: cedula, pin: pinBuf })
+    });
+    var data = await res.json();
+    if (!data.ok) { mostrarPinError(data.error || 'PIN incorrecto'); pinBuf = ''; actualizarDots(); return; }
+    usuario = { id: data.empleado.id, nombre: data.empleado.nombre, rol_app: data.empleado.rol_app || '' };
+    pinBuf = '';
+    actualizarDots();
+    irHome();
+  } catch (e) {
+    mostrarPinError('Error de conexion');
+    pinBuf = '';
+    actualizarDots();
+  }
+}
+function mostrarPinError(msg) { document.getElementById('pinError').textContent = msg; }
+
+/* ── Navigation ──────────────────────────────────────────────────────────── */
+function mostrar(id) {
+  document.querySelectorAll('.pantalla').forEach(function(p) { p.classList.remove('activa'); });
+  document.getElementById(id).classList.add('activa');
+}
+
+function irHome() {
+  if (!usuario) { mostrar('pLogin'); return; }
+  document.getElementById('headerUser').textContent = usuario.nombre;
+  // Show stock button only for admin
+  document.getElementById('btnStock').style.display = (usuario.rol_app === 'admin') ? '' : 'none';
+  mostrar('pHome');
+  cargarBadges();
+}
+
+function logout() {
+  usuario = null;
+  document.getElementById('loginCedula').value = '';
+  pinBuf = '';
+  actualizarDots();
+  mostrar('pLogin');
+}
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+async function cargarBadges() {
+  try {
+    var res = await fetch('/api/madera?action=recepciones-esperadas');
+    var data = await res.json();
+    recepcionesData = data.recepciones || [];
+    document.getElementById('badgeRomaneo').textContent = recepcionesData.length || '';
+  } catch (e) { document.getElementById('badgeRomaneo').textContent = ''; }
+  try {
+    var res2 = await fetch('/api/madera?action=piezas-pendientes-impresion');
+    var data2 = await res2.json();
+    var pendientes = data2.partidas || [];
+    var total = pendientes.reduce(function(s, p) { return s + (p.pendientes || 0); }, 0);
+    document.getElementById('badgeEtiquetas').textContent = total || '';
+  } catch (e) { document.getElementById('badgeEtiquetas').textContent = ''; }
+}
+
+/* ── Romaneo lista ───────────────────────────────────────────────────────── */
+async function irRomaneo() {
+  mostrar('pRomaneo');
+  var cont = document.getElementById('romaneoLista');
+  cont.innerHTML = '<div class="sec-title">Recepciones esperadas</div><div class="empty">Cargando...</div>';
+  try {
+    var res = await fetch('/api/madera?action=recepciones-esperadas');
+    var data = await res.json();
+    recepcionesData = data.recepciones || [];
+    if (!recepcionesData.length) {
+      cont.innerHTML = '<div class="sec-title">Recepciones esperadas</div><div class="empty">No hay recepciones pendientes</div>';
+      return;
+    }
+    var html = '<div class="sec-title">Recepciones esperadas</div>';
+    recepcionesData.forEach(function(r, i) {
+      html += '<div class="card" onclick="abrirRomaneoForm(' + i + ')">'
+        + '<div class="card-title">' + esc(r.especie || '') + ' - ' + esc(r.espesor || '') + '</div>'
+        + '<div class="card-sub">' + esc(r.proveedor || 'Sin proveedor') + '</div>'
+        + '<div class="card-mono">' + (r.pies_aprox ? r.pies_aprox.toFixed(1) + ' pies aprox' : '') + '</div>'
+        + '</div>';
+    });
+    cont.innerHTML = html;
+  } catch (e) {
+    cont.innerHTML = '<div class="sec-title">Recepciones esperadas</div><div class="empty">Error al cargar</div>';
+  }
+}
+
+/* ── Romaneo form ────────────────────────────────────────────────────────── */
+function abrirRomaneoForm(idx) {
+  partidaActual = recepcionesData[idx];
+  document.getElementById('rfTitulo').textContent = (partidaActual.especie || '') + ' - ' + (partidaActual.espesor || '');
+  document.getElementById('rfSub').textContent = partidaActual.proveedor || 'Sin proveedor';
+  document.getElementById('rfMono').textContent = partidaActual.pies_aprox ? 'Esperado: ' + partidaActual.pies_aprox.toFixed(1) + ' pies' : '';
+  document.getElementById('rfRows').innerHTML = '';
+  agregarFilaRomaneo();
+  calcularTotalRomaneo();
+  mostrar('pRomaneoForm');
+}
+
+function agregarFilaRomaneo() {
+  var cont = document.getElementById('rfRows');
+  var div = document.createElement('div');
+  div.className = 'romaneo-row';
+  div.style.marginBottom = '8px';
+  div.innerHTML = '<input type="number" placeholder="Ancho" inputmode="decimal" step="0.1" oninput="calcularTotalRomaneo()">'
+    + '<input type="number" placeholder="Largo" inputmode="decimal" step="0.1" oninput="calcularTotalRomaneo()">'
+    + '<input type="number" placeholder="1" value="1" inputmode="numeric" min="1" oninput="calcularTotalRomaneo()">'
+    + '<button class="romaneo-del" onclick="this.parentElement.remove();calcularTotalRomaneo();">&times;</button>';
+  cont.appendChild(div);
+}
+
+function leerFilas(containerId) {
+  var rows = document.getElementById(containerId).querySelectorAll('.romaneo-row');
+  var result = [];
+  rows.forEach(function(r) {
+    var inputs = r.querySelectorAll('input');
+    var ancho = parseFloat(inputs[0].value) || 0;
+    var largo = parseFloat(inputs[1].value) || 0;
+    var cant = parseInt(inputs[2].value) || 1;
+    if (ancho > 0 && largo > 0) {
+      result.push({ ancho_cm: ancho, largo_cm: largo, cantidad: cant });
+    }
+  });
+  return result;
+}
+
+function calcularPies(filas, espesor_valor) {
+  var esp = espesor_valor || (partidaActual && partidaActual.espesor_valor) || 1;
+  var denominador = 2359.74; // cm
+  var total = 0;
+  filas.forEach(function(f) {
+    total += (esp * f.ancho_cm * f.largo_cm * f.cantidad) / denominador;
+  });
+  return total;
+}
+
+function calcularTotalRomaneo() {
+  var filas = leerFilas('rfRows');
+  var total = calcularPies(filas, null);
+  document.getElementById('rfTotal').textContent = total.toFixed(2);
+}
+
+async function confirmarRomaneo() {
+  if (!partidaActual) return;
+  var filas = leerFilas('rfRows');
+  if (!filas.length) { alert('Agrega al menos una pieza'); return; }
+  var totalPiezas = filas.reduce(function(s, f) { return s + f.cantidad; }, 0);
+  var totalPies = calcularPies(filas, null);
+  try {
+    var res = await fetch('/api/madera?action=completar-romaneo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operario_id: usuario.id, partida_id: partidaActual.id, romaneo: filas })
+    });
+    var data = await res.json();
+    if (!data.ok) { alert(data.error || 'Error al guardar'); return; }
+    alert('Romaneo guardado: ' + totalPiezas + ' piezas, ' + totalPies.toFixed(2) + ' pies');
+    irHome();
+  } catch (e) {
+    alert('Error de conexion');
+  }
+}
+
+/* ── Cargar stock ────────────────────────────────────────────────────────── */
+var especiesData = [];
+var espesoresData = [];
+
+async function irStock() {
+  if (!usuario || usuario.rol_app !== 'admin') { alert('Solo administradores'); return; }
+  mostrar('pStock');
+  document.getElementById('stockRows').innerHTML = '';
+  agregarFilaStock();
+  calcularTotalStock();
+  document.getElementById('stockProveedor').value = '';
+  document.getElementById('stockCosto').value = '';
+  document.getElementById('stockUbicacion').value = '';
+  // Load especies and espesores
+  try {
+    var [resE, resS] = await Promise.all([
+      fetch('/api/madera?action=especies'),
+      fetch('/api/madera?action=espesores')
+    ]);
+    var dataE = await resE.json();
+    var dataS = await resS.json();
+    especiesData = dataE.especies || [];
+    espesoresData = dataS.espesores || [];
+    var selE = document.getElementById('stockEspecie');
+    selE.innerHTML = '<option value="">Seleccionar...</option>';
+    especiesData.forEach(function(e) {
+      selE.innerHTML += '<option value="' + e.id + '">' + esc(e.nombre) + '</option>';
+    });
+    var selS = document.getElementById('stockEspesor');
+    selS.innerHTML = '<option value="">Seleccionar...</option>';
+    espesoresData.forEach(function(e) {
+      selS.innerHTML += '<option value="' + e.id + '" data-valor="' + (e.valor || '') + '">' + esc(e.nombre) + '</option>';
+    });
+  } catch (e) { alert('Error cargando catalogos'); }
+}
+
+async function sugerirCosto() {
+  var especie_id = document.getElementById('stockEspecie').value;
+  var espesor_id = document.getElementById('stockEspesor').value;
+  if (!especie_id || !espesor_id) return;
+  try {
+    var res = await fetch('/api/madera?action=ultimo-costo-por-producto&especie_id=' + especie_id + '&espesor_id=' + espesor_id);
+    var data = await res.json();
+    if (data.costo) document.getElementById('stockCosto').value = data.costo;
+  } catch (e) { /* silent */ }
+  calcularTotalStock();
+}
+
+function agregarFilaStock() {
+  var cont = document.getElementById('stockRows');
+  var div = document.createElement('div');
+  div.className = 'romaneo-row';
+  div.style.marginBottom = '8px';
+  div.innerHTML = '<input type="number" placeholder="Ancho" inputmode="decimal" step="0.1" oninput="calcularTotalStock()">'
+    + '<input type="number" placeholder="Largo" inputmode="decimal" step="0.1" oninput="calcularTotalStock()">'
+    + '<input type="number" placeholder="1" value="1" inputmode="numeric" min="1" oninput="calcularTotalStock()">'
+    + '<button class="romaneo-del" onclick="this.parentElement.remove();calcularTotalStock();">&times;</button>';
+  cont.appendChild(div);
+}
+
+function getEspesorValorStock() {
+  var sel = document.getElementById('stockEspesor');
+  var opt = sel.options[sel.selectedIndex];
+  if (opt && opt.dataset.valor) return parseFloat(opt.dataset.valor) || 1;
+  return 1;
+}
+
+function calcularTotalStock() {
+  var filas = leerFilas('stockRows');
+  var total = calcularPies(filas, getEspesorValorStock());
+  document.getElementById('stockTotal').textContent = total.toFixed(2);
+}
+
+async function crearPartida() {
+  var especie_id = document.getElementById('stockEspecie').value;
+  var espesor_id = document.getElementById('stockEspesor').value;
+  var proveedor = document.getElementById('stockProveedor').value.trim();
+  var motivo = document.getElementById('stockMotivo').value;
+  var costo = parseFloat(document.getElementById('stockCosto').value) || 0;
+  var ubicacion = document.getElementById('stockUbicacion').value.trim();
+  if (!especie_id || !espesor_id) { alert('Selecciona especie y espesor'); return; }
+  var filas = leerFilas('stockRows');
+  if (!filas.length) { alert('Agrega al menos una pieza'); return; }
+  try {
+    var res = await fetch('/api/madera?action=crear-partida-inicial', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        admin_id: usuario.id,
+        especie_id: especie_id,
+        espesor_id: espesor_id,
+        proveedor_nombre: proveedor,
+        motivo: motivo,
+        costo_por_pie_usd: costo,
+        ubicacion: ubicacion,
+        romaneo: filas
+      })
+    });
+    var data = await res.json();
+    if (!data.ok) { alert(data.error || 'Error al crear partida'); return; }
+    var totalPiezas = filas.reduce(function(s, f) { return s + f.cantidad; }, 0);
+    alert('Partida creada: ' + totalPiezas + ' piezas');
+    irHome();
+  } catch (e) {
+    alert('Error de conexion');
+  }
+}
+
+/* ── Etiquetas ───────────────────────────────────────────────────────────── */
+async function irEtiquetas() {
+  mostrar('pEtiquetas');
+  var cont = document.getElementById('etiquetasLista');
+  cont.innerHTML = '<div class="sec-title">Partidas pendientes de impresion</div><div class="empty">Cargando...</div>';
+  try {
+    var res = await fetch('/api/madera?action=piezas-pendientes-impresion');
+    var data = await res.json();
+    var partidas = data.partidas || [];
+    if (!partidas.length) {
+      cont.innerHTML = '<div class="sec-title">Partidas pendientes de impresion</div><div class="empty">No hay etiquetas pendientes</div>';
+      return;
+    }
+    var html = '<div class="sec-title">Partidas pendientes de impresion</div>';
+    partidas.forEach(function(p) {
+      html += '<div class="print-card" style="margin-bottom:12px;">'
+        + '<div class="print-card-header">'
+        + '<div><div class="card-title">Partida #' + (p.id || '') + '</div>'
+        + '<div class="card-sub">' + esc(p.especie || '') + ' - ' + esc(p.espesor || '') + '</div>'
+        + '<div class="card-mono">' + (p.pendientes || 0) + ' pendientes / ' + (p.totales || 0) + ' totales</div></div>'
+        + '<button class="print-btn" onclick="imprimirEtiquetas(' + p.id + ', ' + (p.pendientes || 0) + ')">&#9113; Imprimir las ' + (p.pendientes || 0) + '</button>'
+        + '</div></div>';
+    });
+    cont.innerHTML = html;
+  } catch (e) {
+    cont.innerHTML = '<div class="sec-title">Partidas pendientes de impresion</div><div class="empty">Error al cargar</div>';
+  }
+}
+
+async function imprimirEtiquetas(partida_id, n) {
+  try {
+    var res = await fetch('/api/madera?action=marcar-etiquetas-impresas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: usuario.id, partida_id: partida_id })
+    });
+    var data = await res.json();
+    if (!data.ok) { alert(data.error || 'Error'); return; }
+    alert('Impresion Datamax MAD-3. Marcadas como impresas para testing.');
+    irEtiquetas(); // refresh
+  } catch (e) {
+    alert('Error de conexion');
+  }
+}
+
+/* ── Util ────────────────────────────────────────────────────────────────── */
+function esc(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
+</body>
+</html>
