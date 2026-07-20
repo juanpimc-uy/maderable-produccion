@@ -401,11 +401,11 @@ const ETAPA_GRUPO = { sin_registro_propio:'pre', shop_drawing:'oficina', modelad
 
 // ── AUTH CHECK ──────────────────────────────────────────────────────────
 (function() {
-  if (!window.AUTH || !window.AUTH.esAdmin()) {
-    window.location.href = '/admin.html';
-    return;
-  }
+  if (!window.AUTH || !window.AUTH.esAdmin()) { window.location.href = '/admin.html'; return; }
   document.getElementById('cutoffDate').value = new Date().toISOString().split('T')[0];
+  // Validación server-side del token (la columna session_token es única por empleado;
+  // un login en otro dispositivo pisa este token). Si murió, mostramos el banner.
+  window.AUTH.checkSession().then(ok => { if (!ok) window.AUTH.showSessionExpired(); });
 })();
 
 // ── Restore session from sessionStorage ─────────────────────────────────

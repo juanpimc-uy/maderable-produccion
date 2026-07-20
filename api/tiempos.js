@@ -5150,9 +5150,8 @@ export default async function handler(req) {
     if (action === 'recalcular-anuladas' && req.method === 'POST') {
       const _st = body.st || body.session_token || url.searchParams.get('st');
       const caller = await verificarSesion(_st);
-      if (!caller || caller.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
-          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (!caller) return err('Sesión expirada', 401);
+      if (caller.rol_app !== 'admin') return err('Solo admin', 403);
 
       const anuladas = await recalcularAnuladasBiller();
       return ok({ ok: true, anuladas });
@@ -5162,9 +5161,8 @@ export default async function handler(req) {
     if (action === 'importar-facturas-biller' && req.method === 'POST') {
       const _st = body.st || body.session_token || url.searchParams.get('st');
       const caller = await verificarSesion(_st);
-      if (!caller || caller.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
-          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (!caller) return err('Sesión expirada', 401);
+      if (caller.rol_app !== 'admin') return err('Solo admin', 403);
 
       const { rows } = body;
       if (!Array.isArray(rows) || !rows.length) return err('rows requerido (array no vacío)', 400);
@@ -5287,9 +5285,8 @@ export default async function handler(req) {
     if (action === 'facturas-biller' && req.method === 'GET') {
       const _st = url.searchParams.get('st');
       const caller = await verificarSesion(_st);
-      if (!caller || caller.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
-          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (!caller) return err('Sesión expirada', 401);
+      if (caller.rol_app !== 'admin') return err('Solo admin', 403);
 
       const { data: facturas, error: fErr } = await supabase
         .from('facturas_biller').select('*').order('fecha_emision', { ascending: false });
@@ -5330,9 +5327,8 @@ export default async function handler(req) {
     if (action === 'asociar-factura-biller' && req.method === 'POST') {
       const _st = body.st || body.session_token || url.searchParams.get('st');
       const caller = await verificarSesion(_st);
-      if (!caller || caller.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
-          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (!caller) return err('Sesión expirada', 401);
+      if (caller.rol_app !== 'admin') return err('Solo admin', 403);
 
       const { factura_id, asignaciones: asigs } = body;
       if (!factura_id) return err('factura_id requerido', 400);
@@ -5377,9 +5373,8 @@ export default async function handler(req) {
     if (action === 'desasociar-factura-biller' && req.method === 'POST') {
       const _st = body.st || body.session_token || url.searchParams.get('st');
       const caller = await verificarSesion(_st);
-      if (!caller || caller.rol_app !== 'admin')
-        return new Response(JSON.stringify({ ok: false, error: 'Solo admin' }),
-          { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
+      if (!caller) return err('Sesión expirada', 401);
+      if (caller.rol_app !== 'admin') return err('Solo admin', 403);
 
       const { factura_id } = body;
       if (!factura_id) return err('factura_id requerido', 400);
