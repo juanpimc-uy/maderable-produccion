@@ -3397,6 +3397,26 @@ export default async function handler(req) {
         tiempo_pago_minutos = tiempo_clasificado_minutos;
       }
 
+      // tiempo_presencia_pago: MISMA cuenta que la planilla (netoJornadaMin) pero en vivo —
+      // tramos de jornada_segmentos (el abierto cuenta hasta ahora/salida) menos almuerzo según modalidad
+      const { data: jsegsMD } = await supabase
+        .from('jornada_segmentos').select('entrada, salida').eq('jornada_id', jornada.id);
+      const finRefISO = fin_ref.toISOString();
+      const segsNormMD = (jsegsMD || [])
+        .map(s => ({ entrada: s.entrada, salida: s.salida || finRefISO }))
+        .filter(s => new Date(s.salida) > new Date(s.entrada));
+      let presenciaBrutaMin = 0;
+      for (const s of segsNormMD) {
+        const m = Math.round((new Date(s.salida) - new Date(s.entrada)) / 60000);
+        if (m > SEG_MAX_MIN) continue; // implausible → no cuenta (igual que planilla)
+        presenciaBrutaMin += Math.max(0, m);
+      }
+      let deduccionMD = jornada.descanso_minutos || 0;
+      if (descanso_modalidad === 'no_paga_60' && tomo_descanso !== false) {
+        deduccionMD = Math.max(deduccionMD, _overlapAlmuerzoSegMin(segsNormMD));
+      }
+      const tiempo_presencia_pago_minutos = Math.max(0, presenciaBrutaMin - deduccionMD);
+
       return ok({ ok: true, jornada, tarea_activa, registros_dia: regs, totales: {
         duracion_jornada_minutos,
         descanso_acumulado_minutos,
@@ -3406,6 +3426,7 @@ export default async function handler(req) {
         descanso_exceso_minutos,
         tiempo_clasificado_minutos,
         tiempo_pago_minutos,
+        tiempo_presencia_pago_minutos,
         tiempo_no_clasificado_minutos,
         hueco_actual_minutos,
         descanso_modalidad,
