@@ -4980,6 +4980,11 @@ export default async function handler(req) {
         });
       }
 
+      // Feriados del período: sin jornada no cuentan como ausencia; con jornada, día normal
+      const { data: feriadosRH } = await supabase.from('feriados')
+        .select('fecha').gte('fecha', desde).lte('fecha', hasta);
+      const feriadosSetRH = new Set((feriadosRH || []).map(f => f.fecha));
+
       function _rhIsoMonday(dateStr) {
         const d = new Date(dateStr + 'T12:00:00Z');
         const day = d.getUTCDay();
@@ -5053,7 +5058,10 @@ export default async function handler(req) {
 
             const dias = fechasHabiles.map(fecha => {
               const j = jorByFecha[fecha];
-              if (!j) { ausencias++; return { fecha, ausente: true, entrada: null, salida: null, tarde_min: 0, horas_min: 0 }; }
+              if (!j) {
+                if (feriadosSetRH.has(fecha)) return { fecha, feriado: true, ausente: false, entrada: null, salida: null, tarde_min: 0, horas_min: 0 };
+                ausencias++; return { fecha, ausente: true, entrada: null, salida: null, tarde_min: 0, horas_min: 0 };
+              }
               const entradaHM = _fmtHMuy(j.entrada);
               const salidaHM  = _fmtHMuy(j.salida);
               const tardeMin  = _tardanzaMin(j.entrada, horarioEntrada);
