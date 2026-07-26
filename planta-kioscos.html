@@ -793,7 +793,7 @@
         <div class="card-icon">${flujo.icono}</div>
         <div class="card-title">${flujo.nombre}</div>
         <div class="card-desc">${flujo.descripcion}</div>
-        <button class="btn-abrir" onclick="event.stopPropagation()">Abrir →</button>
+        <button class="btn-abrir" onclick="event.stopPropagation(); abrirFlujo('${flujo.id}');">Abrir →</button>
       `;
 
       container.appendChild(card);
