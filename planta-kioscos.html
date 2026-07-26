@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maderable Kiosco — Planta</title>
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --panel: #1e1e1e;
+      --card: #252525;
+      --border: #2a2a2a;
+      --text: #e8e8e8;
+      --muted: #888;
+      --accent: #FFD600;
+      --green: #3DD68C;
+      --red: #F05C5C;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ═══ SCREEN COMMON ═══ */
+    .screen {
+      display: none;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .screen.active {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ═══ LOGIN SCREEN ═══ */
+    .login-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px 40px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 3px;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-align: center;
+      margin-bottom: 40px;
+      text-transform: uppercase;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .form-input {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      color: var(--text);
+      font-size: 15px;
+      font-family: 'Space Mono', monospace;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-input:focus {
+      border-color: var(--accent);
+    }
+
+    .form-input::placeholder {
+      color: var(--muted);
+    }
+
+    .btn-login {
+      width: 100%;
+      background: var(--accent);
+      color: #0f0f0f;
+      border: none;
+      border-radius: 8px;
+      padding: 14px;
+      font-family: 'Space Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: opacity 0.2s;
+      margin-top: 24px;
+    }
+
+    .btn-login:hover {
+      opacity: 0.9;
+    }
+
+    /* ═══ MENU SCREEN ═══ */
+    .menu-container {
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    .menu-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 40px;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+    }
+
+    .menu-logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 2px;
+    }
+
+    .menu-user {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .user-name {
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .btn-logout {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-logout:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      padding: 0 20px;
+    }
+
+    .card-flujo {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px 24px;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 16px;
+      min-height: 300px;
+      justify-content: space-between;
+    }
+
+    .card-flujo:hover {
+      background: var(--card);
+      border-color: var(--accent);
+      transform: translateY(-4px);
+    }
+
+    .card-icon {
+      font-size: 48px;
+      line-height: 1;
+    }
+
+    .card-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .card-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .btn-abrir {
+      background: var(--accent);
+      color: #0f0f0f;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 6px;
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: opacity 0.2s;
+      align-self: stretch;
+    }
+
+    .btn-abrir:hover {
+      opacity: 0.9;
+    }
+
+    /* ═══ SUBMENU SCREEN ═══ */
+    .submenu-screen {
+      display: none;
+      min-height: 100vh;
+      padding: 40px 20px;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .submenu-screen.active {
+      display: flex;
+    }
+
+    .submenu-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px 40px;
+      width: 100%;
+      max-width: 500px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .submenu-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 1px;
+      text-align: center;
+      margin-bottom: 40px;
+      text-transform: uppercase;
+    }
+
+    .submenu-buttons {
+      display: flex;
+      gap: 16px;
+      flex-direction: column;
+    }
+
+    .btn-submenu {
+      background: var(--accent);
+      color: #0f0f0f;
+      border: none;
+      padding: 16px 24px;
+      border-radius: 8px;
+      font-family: 'Space Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: opacity 0.2s;
+    }
+
+    .btn-submenu:hover {
+      opacity: 0.9;
+    }
+
+    .btn-submenu-volver {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 12px 20px;
+      border-radius: 6px;
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: all 0.2s;
+      margin-top: 16px;
+    }
+
+    .btn-submenu-volver:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ═══ FLUJO MODAL ═══ */
+    .flujo-modal {
+      display: none;
+      flex-direction: column;
+      min-height: 100vh;
+      background: var(--bg);
+      padding: 20px;
+    }
+
+    .flujo-modal.active {
+      display: flex;
+    }
+
+    .flujo-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+    }
+
+    .flujo-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .btn-volver {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: all 0.2s;
+    }
+
+    .btn-volver:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .flujo-content {
+      flex: 1;
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+    }
+
+    .placeholder-text {
+      font-size: 16px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    /* ═══ RESPONSIVE ═══ */
+    @media (max-width: 768px) {
+      .cards-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .login-card,
+      .submenu-card {
+        padding: 32px 24px;
+      }
+
+      .flujo-content {
+        padding: 20px;
+      }
+
+      .menu-header {
+        flex-direction: column;
+        gap: 16px;
+        align-items: flex-start;
+      }
+
+      .menu-user {
+        width: 100%;
+        justify-content: space-between;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════ SCREEN: LOGIN ════ -->
+<div id="screen-login" class="screen active">
+  <div class="login-card">
+    <div class="logo">⬡ MADERABLE</div>
+    <div class="subtitle">Kiosco de Planta</div>
+
+    <div class="form-group">
+      <label class="form-label">Operario</label>
+      <select class="form-input" id="sel-operario">
+        <option value="">Seleccionar operario...</option>
+        <option value="1">Juan García</option>
+        <option value="2">María López</option>
+        <option value="3">Andrés Rodríguez</option>
+        <option value="4">Carlos Fernández</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">PIN</label>
+      <input type="password" class="form-input" id="inp-pin" placeholder="••••" maxlength="4">
+    </div>
+
+    <button class="btn-login" onclick="irAlMenu()">Ingresar →</button>
+  </div>
+</div>
+
+<!-- ════ SCREEN: MENÚ PRINCIPAL ════ -->
+<div id="screen-menu" class="screen">
+  <div class="menu-container">
+    <div class="menu-header">
+      <div class="menu-logo">⬡ MADERABLE KIOSCO</div>
+      <div class="menu-user">
+        <span class="user-name" id="nombre-operario">Juan García</span>
+        <button class="btn-logout" onclick="salir()">Salir</button>
+      </div>
+    </div>
+
+    <div class="cards-grid" id="menu-cards-container">
+      <!-- Cards generadas dinámicamente -->
+    </div>
+  </div>
+</div>
+
+<!-- ════ SCREEN: SUBMENU ════ -->
+<div id="screen-submenu" class="submenu-screen">
+  <div class="submenu-card">
+    <div class="submenu-title" id="submenu-title">Seleccionar opción</div>
+    <div class="submenu-buttons" id="submenu-buttons-container">
+      <!-- Botones generados dinámicamente -->
+    </div>
+    <button class="btn-submenu-volver" onclick="volverAlMenu()">← Volver</button>
+  </div>
+</div>
+
+<!-- ════ FLUJO: DESPACHOS ════ -->
+<div id="screen-despachos" class="flujo-modal">
+  <div class="flujo-header">
+    <div class="flujo-title">Despachos</div>
+    <button class="btn-volver" onclick="volverAlMenu('despachos')">← Volver</button>
+  </div>
+  <div class="flujo-content" id="despachos-content">
+    <div class="placeholder-text">Flujo de Despachos (Fase 2)</div>
+  </div>
+</div>
+
+<!-- ════ FLUJO: TERCERIZADOS ════ -->
+<div id="screen-tercerizados" class="flujo-modal">
+  <div class="flujo-header">
+    <div class="flujo-title">Tercerizados</div>
+    <button class="btn-volver" onclick="volverAlMenu('tercerizados')">← Volver</button>
+  </div>
+  <div class="flujo-content" id="tercerizados-content">
+    <div class="placeholder-text">Flujo de Tercerizados (Fase 3)</div>
+  </div>
+</div>
+
+<!-- ════ FLUJO: RECEPCIONES OC ════ -->
+<div id="screen-oc" class="flujo-modal">
+  <div class="flujo-header">
+    <div class="flujo-title">Recepciones OC</div>
+    <button class="btn-volver" onclick="volverAlMenu('oc')">← Volver</button>
+  </div>
+  <div class="flujo-content" id="oc-content">
+    <div class="placeholder-text">Flujo de Recepciones OC (Fase 3)</div>
+  </div>
+</div>
+
+<!-- ════ FLUJO: KITTING ════ -->
+<div id="screen-kitting" class="flujo-modal">
+  <div class="flujo-header">
+    <div class="flujo-title">Kitting</div>
+    <button class="btn-volver" onclick="volverAlMenu('kitting')">← Volver</button>
+  </div>
+  <div class="flujo-content" id="kitting-content">
+    <div class="placeholder-text">Flujo de Kitting (Fase 2)</div>
+  </div>
+</div>
+
+<script>
+  // ═══ CONFIGURACIÓN DE FLUJOS ═══
+  const FLUJOS_CONFIG = [
+    {
+      id: 'despachos',
+      nombre: 'Despachos',
+      icono: '🚚',
+      descripcion: 'Gestionar bultos, envíos y imprimir etiquetas 60×30mm',
+      activo: true,
+      submenu: null
+    },
+    {
+      id: 'tercerizados',
+      nombre: 'Tercerizados',
+      icono: '📦',
+      descripcion: 'Despachar, recibir y retornar piezas de Baru / Rodart',
+      activo: true,
+      submenu: [
+        { id: 'baru', nombre: 'Baru' },
+        { id: 'rodart', nombre: 'Rodart' }
+      ]
+    },
+    {
+      id: 'oc',
+      nombre: 'Recepciones OC',
+      icono: '📥',
+      descripcion: 'Escanear y confirmar llegada de órdenes de compra',
+      activo: true,
+      submenu: null
+    },
+    {
+      id: 'kitting',
+      nombre: 'Kitting',
+      icono: '🔩',
+      descripcion: 'Armar órdenes de servicio y marcar líneas completas',
+      activo: true,
+      submenu: null
+    },
+    {
+      id: 'madera',
+      nombre: 'Madera Maciza',
+      icono: '🪵',
+      descripcion: 'Gestión de madera maciza',
+      activo: false,
+      submenu: null
+    },
+    {
+      id: 'placas',
+      nombre: 'Gestión Placas',
+      icono: '📋',
+      descripcion: 'Control de placas de cajas',
+      activo: false,
+      submenu: null
+    }
+  ];
+
+  // ═══ ESTADO GLOBAL ═══
+  let _sesion = null;
+  let _flujoActual = null;
+  let _subopcionActual = null;
+  let _timeoutHandle = null;
+
+  // ═══ NOMBRES DE OPERARIOS ═══
+  const _operarios = {
+    '1': 'Juan García',
+    '2': 'María López',
+    '3': 'Andrés Rodríguez',
+    '4': 'Carlos Fernández'
+  };
+
+  // ═══ LOGIN ═══
+  function irAlMenu() {
+    const operario = document.getElementById('sel-operario').value;
+    const pin = document.getElementById('inp-pin').value;
+
+    if (!operario || !pin) {
+      alert('Completá operario y PIN');
+      return;
+    }
+
+    const nombre = _operarios[operario];
+
+    // Simular verificación en backend (POST /api/tiempos?action=verificar-operario)
+    console.log('[Kiosco] Verificando operario:', operario, 'PIN:', pin);
+
+    // Guardar sesión en sessionStorage
+    _sesion = {
+      empleado_id: operario,
+      nombre: nombre,
+      loguedoEn: new Date().toISOString()
+    };
+    sessionStorage.setItem('kiosco_sesion', JSON.stringify(_sesion));
+
+    // Actualizar UI
+    document.getElementById('nombre-operario').textContent = nombre;
+
+    // Grabar log
+    _grabarLog('login', { empleado_id: operario });
+
+    // Generar menú
+    generarMenu();
+
+    // Iniciar timeout
+    _resetTimeout();
+
+    // Mostrar menú
+    ocultarTodos();
+    document.getElementById('screen-menu').classList.add('active');
+  }
+
+  // ═══ GENERACIÓN DE MENÚ ═══
+  function generarMenu() {
+    const container = document.getElementById('menu-cards-container');
+    container.innerHTML = '';
+
+    const flujosFiltrados = FLUJOS_CONFIG.filter(f => f.activo);
+
+    flujosFiltrados.forEach(flujo => {
+      const card = document.createElement('div');
+      card.className = 'card-flujo';
+      card.onclick = () => {
+        _flujoActual = flujo.id;
+        if (flujo.submenu) {
+          mostrarSubmenu(flujo);
+        } else {
+          abrirFlujo(flujo.id);
+        }
+      };
+
+      card.innerHTML = `
+        <div class="card-icon">${flujo.icono}</div>
+        <div class="card-title">${flujo.nombre}</div>
+        <div class="card-desc">${flujo.descripcion}</div>
+        <button class="btn-abrir" onclick="event.stopPropagation()">Abrir →</button>
+      `;
+
+      container.appendChild(card);
+    });
+  }
+
+  // ═══ SUBMENU ═══
+  function mostrarSubmenu(flujo) {
+    const titleEl = document.getElementById('submenu-title');
+    const buttonsEl = document.getElementById('submenu-buttons-container');
+
+    titleEl.textContent = `${flujo.nombre} — Seleccionar proveedor`;
+    buttonsEl.innerHTML = '';
+
+    flujo.submenu.forEach(opcion => {
+      const btn = document.createElement('button');
+      btn.className = 'btn-submenu';
+      btn.textContent = opcion.nombre;
+      btn.onclick = () => {
+        _subopcionActual = opcion.id;
+        abrirFlujo(flujo.id, opcion.id);
+      };
+      buttonsEl.appendChild(btn);
+    });
+
+    ocultarTodos();
+    document.getElementById('screen-submenu').classList.add('active');
+  }
+
+  // ═══ ABRIR FLUJO ═══
+  function abrirFlujo(flujoId, subopcion = null) {
+    _flujoActual = flujoId;
+    _subopcionActual = subopcion;
+
+    // Grabar log
+    _grabarLog('abrir_flujo', { flujo_id: flujoId, subopcion: subopcion });
+
+    // Llamar al IIFE del flujo si existe
+    if (window[`flujo_${flujoId}`]) {
+      window[`flujo_${flujoId}`].cargar(subopcion);
+    }
+
+    ocultarTodos();
+    document.getElementById(`screen-${flujoId}`).classList.add('active');
+  }
+
+  // ═══ VOLVER AL MENÚ ═══
+  function volverAlMenu(flujoId = null) {
+    if (flujoId) {
+      _grabarLog('cerrar_flujo', { flujo_id: flujoId });
+    }
+
+    _flujoActual = null;
+    _subopcionActual = null;
+
+    ocultarTodos();
+    document.getElementById('screen-menu').classList.add('active');
+  }
+
+  // ═══ LOGOUT ═══
+  function salir() {
+    _grabarLog('logout', {});
+
+    sessionStorage.removeItem('kiosco_sesion');
+    _sesion = null;
+    _flujoActual = null;
+    _subopcionActual = null;
+
+    clearTimeout(_timeoutHandle);
+
+    document.getElementById('sel-operario').value = '';
+    document.getElementById('inp-pin').value = '';
+
+    ocultarTodos();
+    document.getElementById('screen-login').classList.add('active');
+  }
+
+  // ═══ TIMEOUT (3 MIN) ═══
+  function _resetTimeout() {
+    clearTimeout(_timeoutHandle);
+
+    _timeoutHandle = setTimeout(() => {
+      console.log('[Kiosco] Timeout de 3 minutos — desconectando');
+      _grabarLog('timeout', {});
+      salir();
+    }, 180000); // 3 minutos = 180000ms
+  }
+
+  // ═══ LISTENERS PARA RESET DE TIMEOUT ═══
+  document.addEventListener('click', _resetTimeout);
+  document.addEventListener('keydown', _resetTimeout);
+
+  // ═══ AUDITORÍA ═══
+  function _grabarLog(accion, detalles) {
+    if (!_sesion) return;
+
+    const payload = {
+      empleado_id: _sesion.empleado_id,
+      accion: accion,
+      detalles: detalles || {},
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('[Auditoría]', payload);
+
+    // POST /api/tiempos?action=grabar-log-kiosco
+    fetch('/api/tiempos?action=grabar-log-kiosco', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(err => console.error('[Auditoría Error]', err));
+  }
+
+  // ═══ UTILIDADES ═══
+  function ocultarTodos() {
+    document.querySelectorAll('.screen, .submenu-screen, .flujo-modal').forEach(el => {
+      el.classList.remove('active');
+    });
+  }
+
+  // ═══ RESTAURAR SESIÓN AL RECARGAR ═══
+  window.addEventListener('DOMContentLoaded', () => {
+    const sesionGuardada = sessionStorage.getItem('kiosco_sesion');
+    if (sesionGuardada) {
+      try {
+        _sesion = JSON.parse(sesionGuardada);
+        document.getElementById('nombre-operario').textContent = _sesion.nombre;
+        generarMenu();
+        _resetTimeout();
+        ocultarTodos();
+        document.getElementById('screen-menu').classList.add('active');
+      } catch (e) {
+        console.error('Error restaurando sesión:', e);
+      }
+    }
+  });
+</script>
+
+<!-- Importar flujos -->
+<script src="/js/kiosco-flujos.js"></script>
+
+</body>
+</html>
