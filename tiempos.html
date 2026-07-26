@@ -376,6 +376,7 @@ table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
     <button class="tab-btn" onclick="_tTab('operario')">POR OPERARIO</button>
     <button class="tab-btn" onclick="_tTab('semana')">SEMANA</button>
     <button class="tab-btn" onclick="_tTab('reporte')">MENSUAL</button>
+    <button class="tab-btn" id="tab-btn-pendientes" onclick="_tTab('pendientes')" style="display:none;">PENDIENTES <span id="pend-count-badge" style="display:none;background:var(--yellow);color:#000;font-weight:700;border-radius:10px;padding:0 7px;font-size:10px;margin-left:4px;"></span></button>
   </div>
 
   <!-- ── FILTER CHIPS ── -->
@@ -466,6 +467,22 @@ table.ses-table tbody tr.add-row-tr:hover{background:rgba(255,214,0,.04);}
     </div>
     <div id="semana-result"></div>
     <div id="semana-detalle" style="display:none;"></div>
+  </div>
+
+  <!-- ═══ TAB: PENDIENTES ══════════════════════════════════════════════ -->
+  <div id="panel-pendientes" class="tab-panel">
+    <div style="background:var(--panel,#1e1e1e);border:1px solid #2a2a2a;border-radius:10px;overflow:hidden;">
+      <div style="padding:18px 22px;border-bottom:1px solid #2a2a2a;">
+        <div class="mono" style="font-size:15px;font-weight:700;letter-spacing:1px;">PENDIENTES DE RESOLUCIÓN</div>
+        <div style="color:#8a8a8a;font-size:13px;margin-top:6px;">No suman en los totales hasta resolverse. Cada uno necesita una decisión activa — el sistema no cierra solo.</div>
+      </div>
+      <div style="display:flex;gap:6px;padding:12px 22px 0;border-bottom:1px solid #2a2a2a;">
+        <button class="mono pend-tab active" data-pt="sin_cerrar" onclick="_tPendTab('sin_cerrar')" style="font-size:11px;letter-spacing:1px;padding:8px 14px;background:none;border:none;border-bottom:2px solid var(--yellow);color:var(--yellow);cursor:pointer;">SIN CERRAR <span id="pt-n-sin_cerrar"></span></button>
+        <button class="mono pend-tab" data-pt="inconsistentes" onclick="_tPendTab('inconsistentes')" style="font-size:11px;letter-spacing:1px;padding:8px 14px;background:none;border:none;border-bottom:2px solid transparent;color:#6a6a6a;cursor:pointer;">INCONSISTENTES <span id="pt-n-inconsistentes"></span></button>
+        <button class="mono pend-tab" data-pt="implausibles" onclick="_tPendTab('implausibles')" style="font-size:11px;letter-spacing:1px;padding:8px 14px;background:none;border:none;border-bottom:2px solid transparent;color:#6a6a6a;cursor:pointer;">IMPLAUSIBLES <span id="pt-n-implausibles"></span></button>
+      </div>
+      <div id="pend-body" style="min-height:120px;"></div>
+    </div>
   </div>
 
 </div><!-- /content -->
@@ -586,6 +603,7 @@ function _tFilterOpSelect() {
   if (u.rol_app !== 'admin' && u.rol_app !== 'oficina') { window.location.href = '/index.html'; return; }
   _tUser    = u;
   _tIsAdmin = u.rol_app === 'admin' || !!(u.acceso_tiempos);
+  if (u.rol_app === 'admin') document.getElementById('tab-btn-pendientes').style.display = '';
   CALLER_ID = u.id;
   // Verify session is still valid
   if (window.AUTH) {
@@ -727,7 +745,7 @@ async function _tInit() {
 // ── Tab routing ───────────────────────────────────────────────────────────
 function _tTab(name) {
   document.querySelectorAll('.tab-btn').forEach((b,i) => {
-    b.classList.toggle('active', ['dia','operario','semana','reporte'][i] === name);
+    b.classList.toggle('active', ['dia','operario','semana','reporte','pendientes'][i] === name);
   });
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-' + name).classList.add('active');
@@ -736,6 +754,7 @@ function _tTab(name) {
     document.getElementById('semana-result').style.display = '';
     document.getElementById('semana-detalle').style.display = 'none';
   }
+  if (name === 'pendientes') _tPendCargar();
 }
 
 // ── Change tracking ───────────────────────────────────────────────────────
@@ -2324,6 +2343,118 @@ function _tExportCSVMensual() {
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = `mensual-${anio}-${mes}.csv`; a.click();
+}
+
+// ═══ TAB PENDIENTES ═══════════════════════════════════════════════════════
+let _pendData = null;
+let _pendTab  = 'sin_cerrar';
+
+async function _tPendCargar() {
+  const body = document.getElementById('pend-body');
+  body.innerHTML = '<div class="mono" style="padding:24px;color:#6a6a6a;font-size:11px;">CARGANDO…</div>';
+  try {
+    const res  = await _tFetch(`/api/tiempos?action=pendientes&admin_id=${encodeURIComponent(_tUser.id)}`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'error');
+    _pendData = data;
+    const total = (data.sin_cerrar||[]).length + (data.inconsistentes||[]).length + (data.implausibles||[]).length;
+    const badge = document.getElementById('pend-count-badge');
+    badge.textContent = total; badge.style.display = total > 0 ? '' : 'none';
+    for (const k of ['sin_cerrar','inconsistentes','implausibles'])
+      document.getElementById('pt-n-' + k).textContent = (data[k]||[]).length || '·';
+    _tPendRender();
+  } catch (e) {
+    body.innerHTML = `<div class="mono" style="padding:24px;color:#ff5a5a;font-size:11px;">ERROR: ${e.message}</div>`;
+  }
+}
+
+function _tPendTab(t) {
+  _pendTab = t;
+  document.querySelectorAll('.pend-tab').forEach(b => {
+    const on = b.dataset.pt === t;
+    b.style.borderBottomColor = on ? 'var(--yellow)' : 'transparent';
+    b.style.color = on ? 'var(--yellow)' : '#6a6a6a';
+  });
+  _tPendRender();
+}
+
+function _pHM(iso)  { return iso ? _isoToHM(iso) : '—'; }
+function _pEmp(x)   { return `<div style="font-weight:700;font-size:13px;">${x.empleado}</div><div class="mono" style="font-size:10px;color:#8a8a8a;margin-top:2px;">CI ${x.cedula} · ${x.rol}</div>`; }
+const _pBtn  = "font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.8px;padding:7px 11px;border-radius:6px;border:1px solid #333;background:transparent;color:#8a8a8a;cursor:pointer;white-space:nowrap;";
+const _pBtnP = _pBtn + "background:var(--yellow);color:#000;border-color:var(--yellow);font-weight:700;";
+const _pBtnD = _pBtn + "border-color:#5a2a2a;color:#ff5a5a;";
+const _pTh   = "font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.2px;color:#6a6a6a;text-align:left;padding:12px 16px;border-bottom:1px solid #2a2a2a;font-weight:400;text-transform:uppercase;";
+const _pTd   = "padding:14px 16px;border-bottom:1px solid #262626;vertical-align:middle;font-size:12px;";
+
+function _tPendRender() {
+  const body = document.getElementById('pend-body');
+  const rows = (_pendData && _pendData[_pendTab]) || [];
+  if (!rows.length) { body.innerHTML = '<div class="mono" style="padding:28px;color:#5fd07a;font-size:11px;">✓ NADA PENDIENTE EN ESTA CATEGORÍA</div>'; return; }
+  let html = '<table style="width:100%;border-collapse:collapse;">';
+
+  if (_pendTab === 'sin_cerrar') {
+    html += `<thead><tr><th style="${_pTh}">Empleado</th><th style="${_pTh}">Fecha</th><th style="${_pTh}">Entrada</th><th style="${_pTh}">Abierta</th><th style="${_pTh}">Salida sugerida</th><th style="${_pTh};text-align:right;">Acciones</th></tr></thead><tbody>`;
+    rows.forEach(x => {
+      const sug = x.salida_sugerida
+        ? `<span class="mono" style="color:#5fd07a;font-size:12px;">${_pHM(x.salida_sugerida)}</span><div class="mono" style="font-size:9px;color:#5fd07a;margin-top:2px;">ÚLTIMA ACTIVIDAD DEL DÍA</div>`
+        : `<span class="mono" style="color:#6a6a6a;">—</span><div class="mono" style="font-size:9px;color:#6a6a6a;margin-top:2px;">SIN DATO</div>`;
+      const acc = [
+        x.salida_sugerida ? `<button style="${_pBtnP}" onclick="_tPendSalida('${x.jornada_id}','${x.salida_sugerida}')">CONFIRMAR ${_pHM(x.salida_sugerida)}</button>` : '',
+        `<button style="${_pBtn}" onclick="_tPendSalidaManual('${x.jornada_id}','${x.fecha}')">EDITAR SALIDA</button>`,
+        `<button style="${_pBtnD}" onclick="_tPendAnular('${x.jornada_id}','${x.empleado}')">ANULAR</button>`,
+      ].join(' ');
+      html += `<tr><td style="${_pTd}">${_pEmp(x)}</td><td style="${_pTd}" class="mono">${fmtDate(x.fecha)}</td><td style="${_pTd}" class="mono">${_pHM(x.entrada)}</td><td style="${_pTd}"><span class="mono" style="color:#ff5a5a;font-weight:700;">${Math.round(x.horas_abierto)}h</span></td><td style="${_pTd}">${sug}</td><td style="${_pTd};text-align:right;white-space:nowrap;">${acc}</td></tr>`;
+    });
+  } else if (_pendTab === 'implausibles') {
+    html += `<thead><tr><th style="${_pTh}">Empleado</th><th style="${_pTh}">Fecha</th><th style="${_pTh}">Tipo</th><th style="${_pTh}">Desde</th><th style="${_pTh}">Hasta</th><th style="${_pTh}">Duración</th><th style="${_pTh};text-align:right;">Acciones</th></tr></thead><tbody>`;
+    rows.forEach(x => {
+      html += `<tr><td style="${_pTd}">${_pEmp(x)}</td><td style="${_pTd}" class="mono">${fmtDate(x.fecha)}</td><td style="${_pTd}"><span class="mono" style="font-size:9px;letter-spacing:1px;border:1px solid #333;border-radius:4px;padding:2px 7px;color:#8a8a8a;text-transform:uppercase;">${x.tipo}</span></td><td style="${_pTd}" class="mono">${_pHM(x.desde)}</td><td style="${_pTd}" class="mono">${_pHM(x.hasta)}</td><td style="${_pTd}"><span class="mono" style="color:#ff5a5a;font-weight:700;">${x.horas}h</span></td><td style="${_pTd};text-align:right;white-space:nowrap;"><button style="${_pBtn}" onclick="_tPendImplCorregir('${x.tipo}','${x.ref_id}','${x.fecha}')">CORREGIR FIN</button> <button style="${_pBtnD}" onclick="_tPendImplEliminar('${x.tipo}','${x.ref_id}','${x.empleado}')">ELIMINAR</button></td></tr>`;
+    });
+  } else {
+    html += `<thead><tr><th style="${_pTh}">Empleado</th><th style="${_pTh}">Fecha</th><th style="${_pTh}">Patrón</th><th style="${_pTh}">Tramo fichado</th><th style="${_pTh}">Tarea real</th><th style="${_pTh}">Faltante</th><th style="${_pTh};text-align:right;">Acciones</th></tr></thead><tbody>`;
+    rows.forEach(x => {
+      const falta = (x.falta_antes_min ? `${x.falta_antes_min}m antes` : '') + (x.falta_antes_min && x.falta_despues_min ? ' · ' : '') + (x.falta_despues_min ? `${x.falta_despues_min}m después` : '');
+      html += `<tr><td style="${_pTd}">${_pEmp(x)}</td><td style="${_pTd}" class="mono">${fmtDate(x.fecha)}</td><td style="${_pTd}"><span class="mono" style="font-size:9px;letter-spacing:1px;border:1px solid #333;border-radius:4px;padding:2px 7px;color:#ffae00;text-transform:uppercase;">${x.patron}</span></td><td style="${_pTd}" class="mono">${_pHM(x.seg_desde)} → ${_pHM(x.seg_hasta)}</td><td style="${_pTd}" class="mono">${_pHM(x.tarea_desde)} → ${_pHM(x.tarea_hasta)}</td><td style="${_pTd}" class="mono">${falta || '—'}</td><td style="${_pTd};text-align:right;white-space:nowrap;"><button style="${_pBtn};opacity:.35;cursor:not-allowed;border-style:dashed;" title="Próximamente" disabled>RECONSTRUIR</button> <button style="${_pBtnD}" onclick="_tPendAnular('${x.jornada_id}','${x.empleado}')">ANULAR</button></td></tr>`;
+    });
+  }
+  html += '</tbody></table>';
+  body.innerHTML = html;
+}
+
+async function _tPendPost(action, payload) {
+  try {
+    const res  = await _tFetch(`/api/tiempos?action=${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ admin_id: _tUser.id, ...payload }) });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'error');
+    _tPendCargar();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+function _tPendSalida(jid, salidaISO) {
+  if (!confirm(`¿Confirmar salida ${_pHM(salidaISO)} para esta jornada?`)) return;
+  _tPendPost('resolver-salida', { jornada_id: jid, salida: salidaISO });
+}
+function _tPendSalidaManual(jid, fecha) {
+  const hm = prompt(`Salida real del ${fecha} (HH:MM, hora Uruguay):`);
+  if (!hm || !/^\d{1,2}:\d{2}$/.test(hm)) return;
+  const iso = new Date(`${fecha}T${hm.padStart(5,'0')}:00-03:00`).toISOString();
+  _tPendPost('resolver-salida', { jornada_id: jid, salida: iso });
+}
+function _tPendAnular(jid, nombre) {
+  const motivo = prompt(`Anular jornada de ${nombre}. Motivo:`);
+  if (motivo === null) return;
+  _tPendPost('resolver-anular', { jornada_id: jid, motivo });
+}
+function _tPendImplCorregir(tipo, refId, fecha) {
+  const val = prompt(`Fin real (YYYY-MM-DD HH:MM, hora Uruguay):`, `${fecha} `);
+  if (!val || !/^\d{4}-\d{2}-\d{2} \d{1,2}:\d{2}$/.test(val.trim())) return;
+  const [d, hm] = val.trim().split(' ');
+  const iso = new Date(`${d}T${hm.padStart(5,'0')}:00-03:00`).toISOString();
+  _tPendPost('resolver-implausible', { tipo, ref_id: refId, accion: 'corregir', nuevo_fin: iso });
+}
+function _tPendImplEliminar(tipo, refId, nombre) {
+  if (!confirm(`ELIMINAR este ${tipo} de ${nombre}. No suma nunca. ¿Seguro?`)) return;
+  _tPendPost('resolver-implausible', { tipo, ref_id: refId, accion: 'eliminar' });
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
