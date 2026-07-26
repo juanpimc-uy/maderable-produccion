@@ -39,6 +39,7 @@ import * as factura from '../lib/madera/factura.js';
 import * as inicial from '../lib/madera/inicial.js';
 import * as piezas from '../lib/madera/piezas.js';
 import * as etiquetas from '../lib/madera/etiquetas.js';
+import * as proveedoresZoho from '../lib/madera/proveedores-zoho.js';
 
 // ── Handler ──
 export default async function handler(req, res) {
@@ -70,6 +71,37 @@ export default async function handler(req, res) {
     if (action === 'crear-espesor' && req.method === 'POST') {
       if (!await requireAdminOficina(res, body.admin_id)) return;
       return ok(res, await espesores.crear(supabase, body));
+    }
+
+    // ── Especies edición ──
+    if (action === 'editar-especie' && req.method === 'POST') {
+      if (!await requireAdminOficina(res, body.admin_id)) return;
+      return ok(res, await especies.editar(supabase, body));
+    }
+    if (action === 'archivar-especie' && req.method === 'POST') {
+      if (!await requireAdminOficina(res, body.admin_id)) return;
+      return ok(res, await especies.archivar(supabase, body));
+    }
+    if (action === 'desarchivar-especie' && req.method === 'POST') {
+      if (!await requireAdminOficina(res, body.admin_id)) return;
+      return ok(res, await especies.desarchivar(supabase, body));
+    }
+    // ── Espesores edición ──
+    if (action === 'editar-espesor' && req.method === 'POST') {
+      if (!await requireAdminOficina(res, body.admin_id)) return;
+      return ok(res, await espesores.editar(supabase, body));
+    }
+    if (action === 'archivar-espesor' && req.method === 'POST') {
+      if (!await requireAdminOficina(res, body.admin_id)) return;
+      return ok(res, await espesores.archivar(supabase, body));
+    }
+    if (action === 'desarchivar-espesor' && req.method === 'POST') {
+      if (!await requireAdminOficina(res, body.admin_id)) return;
+      return ok(res, await espesores.desarchivar(supabase, body));
+    }
+    // ── Proveedores Zoho ──
+    if (action === 'buscar-proveedor-zoho' && req.method === 'GET') {
+      return ok(res, await proveedoresZoho.buscar(query));
     }
 
     // ── Fase 0: recepciones esperadas ──

@@ -341,7 +341,14 @@ html, body { background: var(--bg); color: var(--text); font-family: 'DM Sans', 
     </div>
     <div class="form-group">
       <label class="form-label">Proveedor</label>
-      <input type="text" class="form-input" id="stockProveedor" placeholder="Nombre del proveedor">
+      <div id="stockProveedorWrap" style="position:relative;">
+        <input type="text" class="form-input" id="stockProveedorInput" placeholder="Buscar proveedor en Zoho..." autocomplete="off" oninput="buscarProveedorZoho(this.value)">
+        <div id="stockProveedorDropdown" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:999;max-height:220px;overflow-y:auto;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;margin-top:2px;"></div>
+      </div>
+      <div id="stockProveedorSelected" style="display:none;margin-top:6px;font-size:14px;color:#cfcfcf;">
+        <span id="stockProveedorNombre"></span>
+        <a href="#" id="stockProveedorCambiar" onclick="resetProveedorZoho();return false;" style="color:#FFD600;margin-left:8px;font-size:13px;">cambiar</a>
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Motivo</label>
@@ -587,6 +594,50 @@ async function confirmarRomaneo() {
 /* ── Cargar stock ────────────────────────────────────────────────────────── */
 var especiesData = [];
 var espesoresData = [];
+var _proveedorZohoId = null;
+var _proveedorZohoNombre = '';
+var _proveedorTimer = null;
+
+function buscarProveedorZoho(q) {
+  clearTimeout(_proveedorTimer);
+  var dd = document.getElementById('stockProveedorDropdown');
+  if (!q || q.length < 2) { dd.style.display = 'none'; return; }
+  _proveedorTimer = setTimeout(async function() {
+    try {
+      var res = await fetch('/api/madera?action=buscar-proveedor-zoho&q=' + encodeURIComponent(q));
+      var data = await res.json();
+      if (!data.ok) { dd.innerHTML = '<div style="padding:12px;color:#ff6b6b;font-size:14px;">No se pudo cargar Zoho. Reintentá en unos segundos.</div>'; dd.style.display = 'block'; return; }
+      var items = data.proveedores || [];
+      if (!items.length) { dd.innerHTML = '<div style="padding:12px;color:#888;font-size:14px;">Sin resultados</div>'; dd.style.display = 'block'; return; }
+      dd.innerHTML = items.map(function(p) {
+        return '<div onclick="seleccionarProveedorZoho(\'' + (p.contact_id || p.id || '').replace(/'/g, "\\'") + '\',\'' + esc(p.contact_name || p.nombre || '').replace(/'/g, "\\'") + '\')" style="padding:10px 12px;min-height:44px;display:flex;align-items:center;font-size:14px;color:#cfcfcf;cursor:pointer;border-bottom:1px solid #2a2a2a;" onmousedown="event.preventDefault()" ontouchstart="this.style.background=\'#252525\'" ontouchend="this.style.background=\'transparent\'" onmouseover="this.style.background=\'#252525\'" onmouseout="this.style.background=\'transparent\'">' + esc(p.contact_name || p.nombre || '') + '</div>';
+      }).join('');
+      dd.style.display = 'block';
+    } catch (e) {
+      dd.innerHTML = '<div style="padding:12px;color:#ff6b6b;font-size:14px;">No se pudo cargar Zoho. Reintentá en unos segundos.</div>';
+      dd.style.display = 'block';
+    }
+  }, 300);
+}
+
+function seleccionarProveedorZoho(id, nombre) {
+  _proveedorZohoId = id;
+  _proveedorZohoNombre = nombre;
+  document.getElementById('stockProveedorDropdown').style.display = 'none';
+  document.getElementById('stockProveedorInput').style.display = 'none';
+  document.getElementById('stockProveedorNombre').textContent = nombre;
+  document.getElementById('stockProveedorSelected').style.display = 'block';
+}
+
+function resetProveedorZoho() {
+  _proveedorZohoId = null;
+  _proveedorZohoNombre = '';
+  document.getElementById('stockProveedorInput').value = '';
+  document.getElementById('stockProveedorInput').style.display = '';
+  document.getElementById('stockProveedorDropdown').style.display = 'none';
+  document.getElementById('stockProveedorSelected').style.display = 'none';
+  document.getElementById('stockProveedorInput').focus();
+}
 
 async function irStock() {
   if (!usuario || usuario.rol_app !== 'admin') { alert('Solo administradores'); return; }
@@ -594,7 +645,7 @@ async function irStock() {
   document.getElementById('stockRows').innerHTML = '';
   agregarFilaStock();
   calcularTotalStock();
-  document.getElementById('stockProveedor').value = '';
+  resetProveedorZoho();
   document.getElementById('stockCosto').value = '';
   document.getElementById('stockUbicacion').value = '';
   // Load especies and espesores
@@ -614,8 +665,9 @@ async function irStock() {
     });
     var selS = document.getElementById('stockEspesor');
     selS.innerHTML = '<option value="">Seleccionar...</option>';
-    espesoresData.forEach(function(e) {
-      selS.innerHTML += '<option value="' + e.id + '" data-valor="' + (e.valor || '') + '">' + esc(e.nombre) + '</option>';
+    espesoresData.filter(function(e) { return !e.archivado; }).forEach(function(e) {
+      var label = e.descripcion || (e.valor + ' ' + (e.unidad === 'pulgadas' && e.valor == 1 ? 'pulgada' : e.unidad));
+      selS.innerHTML += '<option value="' + e.id + '" data-valor="' + (e.valor || '') + '">' + esc(label) + '</option>';
     });
   } catch (e) { alert('Error cargando catalogos'); }
 }
@@ -660,7 +712,6 @@ function calcularTotalStock() {
 async function crearPartida() {
   var especie_id = document.getElementById('stockEspecie').value;
   var espesor_id = document.getElementById('stockEspesor').value;
-  var proveedor = document.getElementById('stockProveedor').value.trim();
   var motivo = document.getElementById('stockMotivo').value;
   var costo = parseFloat(document.getElementById('stockCosto').value) || 0;
   var ubicacion = document.getElementById('stockUbicacion').value.trim();
@@ -675,7 +726,8 @@ async function crearPartida() {
         admin_id: usuario.id,
         especie_id: especie_id,
         espesor_id: espesor_id,
-        proveedor_nombre: proveedor,
+        proveedor_zoho_id: _proveedorZohoId || null,
+        proveedor_nombre: _proveedorZohoNombre || '',
         motivo: motivo,
         costo_por_pie_usd: costo,
         ubicacion: ubicacion,

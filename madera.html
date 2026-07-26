@@ -126,6 +126,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
       <button class="tab-btn" data-tab="pendientes">Pendientes</button>
       <button class="tab-btn" data-tab="crear-recepcion">Crear recepcion</button>
       <button class="tab-btn" data-tab="cargar-stock" id="tab-btn-cargar-stock" style="display:none;">Cargar stock</button>
+      <button class="tab-btn" data-tab="catalogos" id="tab-btn-catalogos" style="display:none;">Catalogos</button>
     </div>
 
     <!-- TAB: Stock -->
@@ -184,7 +185,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
         </div>
         <div class="field">
           <label>Proveedor</label>
-          <input id="rec-proveedor" placeholder="Nombre del proveedor">
+          <div id="rec-proveedor-wrap"></div>
         </div>
         <div class="g2">
           <div class="field">
@@ -239,7 +240,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
           </div>
           <div class="field">
             <label>Proveedor</label>
-            <input id="cs-proveedor" placeholder="Nombre del proveedor">
+            <div id="cs-proveedor-wrap"></div>
           </div>
         </div>
         <div class="g2">
@@ -280,6 +281,36 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
         <div style="margin-top:20px;">
           <button class="btn btn-primary" id="btn-cargar-stock" onclick="cargarStock()">Cargar partida</button>
         </div>
+      </div>
+    </div>
+
+    <!-- TAB: Catalogos (admin) -->
+    <div class="tab-pane" id="pane-catalogos">
+      <!-- Especies -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <div class="sec" style="margin-bottom:0;">ESPECIES</div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <label style="font-size:11px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:4px;">
+              <input type="checkbox" id="cat-esp-archivadas" onchange="renderCatEspecies()"> Mostrar archivadas
+            </label>
+            <button class="btn btn-sm btn-primary" onclick="modalCatNuevaEspecie()">+ Nueva especie</button>
+          </div>
+        </div>
+        <div id="cat-especies-wrap"></div>
+      </div>
+      <!-- Espesores -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+          <div class="sec" style="margin-bottom:0;">ESPESORES</div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <label style="font-size:11px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:4px;">
+              <input type="checkbox" id="cat-espe-archivadas" onchange="renderCatEspesores()"> Mostrar archivadas
+            </label>
+            <button class="btn btn-sm btn-primary" onclick="modalCatNuevoEspesor()">+ Nuevo espesor</button>
+          </div>
+        </div>
+        <div id="cat-espesores-wrap"></div>
       </div>
     </div>
 
@@ -373,6 +404,78 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
   </div>
 </div>
 
+<!-- MODAL: Editar especie (catalogo) -->
+<div class="overlay" id="cat-especie-overlay" onclick="if(event.target===this)cerrarCatEspecie()">
+  <div class="modal" style="width:440px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="modal-title" id="cat-especie-modal-title">Editar especie</div>
+      <button onclick="cerrarCatEspecie()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">&times;</button>
+    </div>
+    <div class="field">
+      <label>Nombre</label>
+      <input id="cat-esp-nombre">
+    </div>
+    <div class="field">
+      <label>Nombre corto</label>
+      <input id="cat-esp-corto">
+    </div>
+    <div class="field">
+      <label>Observaciones</label>
+      <textarea id="cat-esp-obs"></textarea>
+    </div>
+    <input type="hidden" id="cat-esp-id">
+    <div style="margin-top:14px;text-align:right;">
+      <button class="btn btn-ghost" onclick="cerrarCatEspecie()" style="margin-right:8px;">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCatEspecie()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Editar espesor (catalogo) -->
+<div class="overlay" id="cat-espesor-overlay" onclick="if(event.target===this)cerrarCatEspesor()">
+  <div class="modal" style="width:440px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="modal-title" id="cat-espesor-modal-title">Editar espesor</div>
+      <button onclick="cerrarCatEspesor()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">&times;</button>
+    </div>
+    <div class="g2">
+      <div class="field">
+        <label>Valor</label>
+        <input id="cat-espe-valor" type="number" step="0.1" min="0">
+      </div>
+      <div class="field">
+        <label>Unidad</label>
+        <select id="cat-espe-unidad">
+          <option value="pulgadas">Pulgadas</option>
+          <option value="cm">cm</option>
+          <option value="mm">mm</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Descripcion (opcional)</label>
+      <input id="cat-espe-desc" placeholder="Auto: valor + unidad">
+    </div>
+    <input type="hidden" id="cat-espe-id">
+    <div style="margin-top:14px;text-align:right;">
+      <button class="btn btn-ghost" onclick="cerrarCatEspesor()" style="margin-right:8px;">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCatEspesor()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Confirmar archivo -->
+<div class="overlay" id="cat-confirm-overlay" onclick="if(event.target===this)cerrarCatConfirm()">
+  <div class="modal" style="width:400px;">
+    <div class="modal-title">Confirmar</div>
+    <p id="cat-confirm-msg" style="margin-bottom:16px;font-size:14px;"></p>
+    <div style="text-align:right;">
+      <button class="btn btn-ghost" onclick="cerrarCatConfirm()" style="margin-right:8px;">Cancelar</button>
+      <button class="btn btn-danger" id="cat-confirm-btn" onclick="">Archivar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════════════
 // MADERA — Inventario de madera
@@ -391,9 +494,10 @@ let espesoresCache = [];
     return;
   }
 
-  // Show cargar-stock tab only for admin
+  // Show cargar-stock and catalogos tabs only for admin
   if (usuario.rol_app === 'admin') {
     document.getElementById('tab-btn-cargar-stock').style.display = '';
+    document.getElementById('tab-btn-catalogos').style.display = '';
   }
 
   // Wrap fetch for session expiry
@@ -431,6 +535,7 @@ function switchTab(tab) {
   if (tab === 'pendientes') cargarPendientes();
   if (tab === 'crear-recepcion') poblarSelectsRecepcion();
   if (tab === 'cargar-stock') poblarSelectsCargaStock();
+  if (tab === 'catalogos') { renderCatEspecies(); renderCatEspesores(); }
 }
 
 // ── API helpers ─────────────────────────────────────────────
@@ -472,24 +577,26 @@ function poblarSelectEspecie(selectId) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
   sel.innerHTML = '<option value="">-- Especie --</option>' +
-    especiesCache.map(e => '<option value="' + e.id + '">' + esc(e.nombre) + (e.nombre_corto ? ' (' + esc(e.nombre_corto) + ')' : '') + '</option>').join('');
+    especiesCache.filter(e => !e.archivado).map(e => '<option value="' + e.id + '">' + esc(e.nombre) + (e.nombre_corto ? ' (' + esc(e.nombre_corto) + ')' : '') + '</option>').join('');
 }
 
 function poblarSelectEspesor(selectId) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
   sel.innerHTML = '<option value="">-- Espesor --</option>' +
-    espesoresCache.map(e => '<option value="' + e.id + '">' + esc(e.valor + ' ' + e.unidad) + (e.descripcion ? ' — ' + esc(e.descripcion) : '') + '</option>').join('');
+    espesoresCache.filter(e => !e.archivado).map(e => '<option value="' + e.id + '">' + esc(e.descripcion || (e.valor + ' ' + (e.unidad === 'pulgadas' && e.valor == 1 ? 'pulgada' : e.unidad))) + '</option>').join('');
 }
 
 function poblarSelectsRecepcion() {
   poblarSelectEspecie('rec-especie');
   poblarSelectEspesor('rec-espesor');
+  if (!proveedorRecState) proveedorRecState = initProveedorAutocomplete('rec');
 }
 
 function poblarSelectsCargaStock() {
   poblarSelectEspecie('cs-especie');
   poblarSelectEspesor('cs-espesor');
+  if (!proveedorCsState) proveedorCsState = initProveedorAutocomplete('cs');
 }
 
 // ── Formatters ──────────────────────────────────────────────
@@ -890,9 +997,9 @@ async function abrirEditRecepcion(partidaId) {
     const p = data.partida;
 
     let optEspecie = '<option value="">-- Especie --</option>' +
-      especiesCache.map(e => '<option value="' + e.id + '"' + (e.id === p.especie_id ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('');
+      especiesCache.filter(e => !e.archivado || e.id === p.especie_id).map(e => '<option value="' + e.id + '"' + (e.id === p.especie_id ? ' selected' : '') + '>' + esc(e.nombre) + '</option>').join('');
     let optEspesor = '<option value="">-- Espesor --</option>' +
-      espesoresCache.map(e => '<option value="' + e.id + '"' + (e.id === p.espesor_id ? ' selected' : '') + '>' + esc(e.valor + ' ' + e.unidad) + '</option>').join('');
+      espesoresCache.filter(e => !e.archivado || e.id === p.espesor_id).map(e => '<option value="' + e.id + '"' + (e.id === p.espesor_id ? ' selected' : '') + '>' + esc(e.descripcion || (e.valor + ' ' + (e.unidad === 'pulgadas' && e.valor == 1 ? 'pulgada' : e.unidad))) + '</option>').join('');
 
     content.innerHTML =
       '<div class="g2">' +
@@ -958,14 +1065,13 @@ async function eliminarRecepcion(partidaId) {
 async function crearRecepcion() {
   const especieId = document.getElementById('rec-especie').value;
   const espesorId = document.getElementById('rec-espesor').value;
-  const proveedor = document.getElementById('rec-proveedor').value.trim();
   const cantidad = parseFloat(document.getElementById('rec-cantidad').value);
   const fecha = document.getElementById('rec-fecha').value;
   const notas = document.getElementById('rec-notas').value.trim();
 
   if (!especieId) return alert('Selecciona una especie');
   if (!espesorId) return alert('Selecciona un espesor');
-  if (!proveedor) return alert('Ingresa el proveedor');
+  if (!proveedorRecState || !proveedorRecState.nombre) return alert('Selecciona un proveedor de Zoho');
 
   const btn = document.getElementById('btn-crear-recepcion');
   btn.disabled = true;
@@ -974,14 +1080,17 @@ async function crearRecepcion() {
       admin_id: usuario.id,
       especie_id: especieId,
       espesor_id: espesorId,
-      proveedor_nombre: proveedor,
+      proveedor_nombre: proveedorRecState.nombre,
+      proveedor_zoho_id: proveedorRecState.zoho_id || null,
       cantidad_aproximada_pies: cantidad || null,
       fecha_esperada: fecha || null,
       notas_recepcion: notas || null,
     });
     alert('Recepcion esperada creada');
     // Clear form
-    document.getElementById('rec-proveedor').value = '';
+    if (proveedorRecState) { proveedorRecState.zoho_id = null; proveedorRecState.nombre = null; }
+    proveedorRecState = null;
+    poblarSelectsRecepcion();
     document.getElementById('rec-cantidad').value = '';
     document.getElementById('rec-fecha').value = '';
     document.getElementById('rec-notas').value = '';
@@ -1049,7 +1158,6 @@ async function cargarStock() {
   const motivo = document.getElementById('cs-motivo').value;
   const especieId = document.getElementById('cs-especie').value;
   const espesorId = document.getElementById('cs-espesor').value;
-  const proveedor = document.getElementById('cs-proveedor').value.trim();
   const costoPie = parseFloat(document.getElementById('cs-costo-pie').value);
   const ubicacion = document.getElementById('cs-ubicacion').value.trim();
 
@@ -1077,7 +1185,8 @@ async function cargarStock() {
       admin_id: usuario.id,
       especie_id: especieId,
       espesor_id: espesorId,
-      proveedor_nombre: proveedor || null,
+      proveedor_nombre: (proveedorCsState && proveedorCsState.nombre) || null,
+      proveedor_zoho_id: (proveedorCsState && proveedorCsState.zoho_id) || null,
       motivo: motivo,
       costo_por_pie_usd: costoPie || null,
       ubicacion: ubicacion || null,
@@ -1086,7 +1195,9 @@ async function cargarStock() {
     alert('Partida creada con ' + romaneo.length + ' filas de romaneo');
     // Clear form
     document.getElementById('cs-motivo').value = '';
-    document.getElementById('cs-proveedor').value = '';
+    if (proveedorCsState) { proveedorCsState.zoho_id = null; proveedorCsState.nombre = null; }
+    proveedorCsState = null;
+    poblarSelectsCargaStock();
     document.getElementById('cs-costo-pie').value = '';
     document.getElementById('cs-costo-ref').textContent = '';
     document.getElementById('cs-ubicacion').value = '';
@@ -1150,6 +1261,337 @@ async function crearEspesor() {
     alert('Error: ' + e.message);
   }
 }
+
+// ═══════════════════════════════════════════════════════════
+// TAB: Catalogos (admin)
+// ═══════════════════════════════════════════════════════════
+
+// ── Especies catalog ────────────────────────────────────────
+function renderCatEspecies() {
+  const wrap = document.getElementById('cat-especies-wrap');
+  if (!wrap) return;
+  const mostrarArch = document.getElementById('cat-esp-archivadas')?.checked;
+  const lista = mostrarArch ? especiesCache : especiesCache.filter(e => !e.archivado);
+  if (!lista.length) {
+    wrap.innerHTML = '<div class="empty">No hay especies' + (mostrarArch ? '' : ' activas') + '</div>';
+    return;
+  }
+  let html = '<table class="tbl"><thead><tr><th>Nombre</th><th>Corto</th><th>Observaciones</th><th>Acciones</th></tr></thead><tbody>';
+  for (const e of lista) {
+    const badge = e.archivado ? ' <span class="pill pill-gray" style="font-size:8px;">archivada</span>' : '';
+    html += '<tr>' +
+      '<td>' + esc(e.nombre) + badge + '</td>' +
+      '<td class="mono" style="font-size:12px;">' + esc(e.nombre_corto || '') + '</td>' +
+      '<td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(e.observaciones || '') + '</td>' +
+      '<td style="white-space:nowrap;">' +
+        '<button class="btn btn-sm btn-ghost" style="margin-right:4px;" onclick="abrirEditCatEspecie(\'' + e.id + '\')">&#9998;</button>' +
+        (e.archivado
+          ? '<button class="btn btn-sm btn-ghost" onclick="desarchivarEspecieCat(\'' + e.id + '\')">&#8635;</button>'
+          : '<button class="btn btn-sm btn-ghost" onclick="confirmarArchivarEspecie(\'' + e.id + '\',\'' + esc(e.nombre).replace(/'/g, "\\'") + '\')">&#128230;</button>') +
+      '</td></tr>';
+  }
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function modalCatNuevaEspecie() {
+  document.getElementById('cat-esp-id').value = '';
+  document.getElementById('cat-esp-nombre').value = '';
+  document.getElementById('cat-esp-corto').value = '';
+  document.getElementById('cat-esp-obs').value = '';
+  document.getElementById('cat-especie-modal-title').textContent = 'Nueva especie';
+  document.getElementById('cat-especie-overlay').classList.add('open');
+}
+
+function abrirEditCatEspecie(id) {
+  const e = especiesCache.find(x => x.id === id);
+  if (!e) return;
+  document.getElementById('cat-esp-id').value = e.id;
+  document.getElementById('cat-esp-nombre').value = e.nombre || '';
+  document.getElementById('cat-esp-corto').value = e.nombre_corto || '';
+  document.getElementById('cat-esp-obs').value = e.observaciones || '';
+  document.getElementById('cat-especie-modal-title').textContent = 'Editar especie';
+  document.getElementById('cat-especie-overlay').classList.add('open');
+}
+
+function cerrarCatEspecie() {
+  document.getElementById('cat-especie-overlay').classList.remove('open');
+}
+
+async function guardarCatEspecie() {
+  const id = document.getElementById('cat-esp-id').value;
+  const nombre = document.getElementById('cat-esp-nombre').value.trim();
+  const corto = document.getElementById('cat-esp-corto').value.trim();
+  const obs = document.getElementById('cat-esp-obs').value.trim();
+  if (!nombre) return alert('Ingresa el nombre');
+  try {
+    if (id) {
+      await apiPost('editar-especie', { admin_id: usuario.id, especie_id: id, nombre, nombre_corto: corto || null, observaciones: obs || null });
+    } else {
+      await apiPost('crear-especie', { admin_id: usuario.id, nombre, nombre_corto: corto || null, observaciones: obs || null });
+    }
+    cerrarCatEspecie();
+    await cargarEspecies();
+    renderCatEspecies();
+    poblarSelectEspecie('rec-especie');
+    poblarSelectEspecie('cs-especie');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+function confirmarArchivarEspecie(id, nombre) {
+  document.getElementById('cat-confirm-msg').textContent = 'Archivar la especie "' + nombre + '"?';
+  const btn = document.getElementById('cat-confirm-btn');
+  btn.textContent = 'Archivar';
+  btn.onclick = async function() {
+    try {
+      const data = await apiPost('archivar-especie', { admin_id: usuario.id, especie_id: id });
+      cerrarCatConfirm();
+      const n = data.partidas_activas_asociadas || 0;
+      showToast('Especie archivada' + (n > 0 ? '. Partidas activas asociadas: ' + n : ''));
+      await cargarEspecies();
+      renderCatEspecies();
+      poblarSelectEspecie('rec-especie');
+      poblarSelectEspecie('cs-especie');
+    } catch (e) {
+      alert('Error: ' + e.message);
+    }
+  };
+  document.getElementById('cat-confirm-overlay').classList.add('open');
+}
+
+async function desarchivarEspecieCat(id) {
+  try {
+    await apiPost('desarchivar-especie', { admin_id: usuario.id, especie_id: id });
+    showToast('Especie desarchivada');
+    await cargarEspecies();
+    renderCatEspecies();
+    poblarSelectEspecie('rec-especie');
+    poblarSelectEspecie('cs-especie');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+// ── Espesores catalog ───────────────────────────────────────
+function renderCatEspesores() {
+  const wrap = document.getElementById('cat-espesores-wrap');
+  if (!wrap) return;
+  const mostrarArch = document.getElementById('cat-espe-archivadas')?.checked;
+  const lista = mostrarArch ? espesoresCache : espesoresCache.filter(e => !e.archivado);
+  if (!lista.length) {
+    wrap.innerHTML = '<div class="empty">No hay espesores' + (mostrarArch ? '' : ' activos') + '</div>';
+    return;
+  }
+  let html = '<table class="tbl"><thead><tr><th>Valor</th><th>Unidad</th><th>Descripcion</th><th>Acciones</th></tr></thead><tbody>';
+  for (const e of lista) {
+    const badge = e.archivado ? ' <span class="pill pill-gray" style="font-size:8px;">archivada</span>' : '';
+    html += '<tr>' +
+      '<td class="mono">' + e.valor + badge + '</td>' +
+      '<td>' + esc(e.unidad) + '</td>' +
+      '<td style="font-size:12px;">' + esc(e.descripcion || '') + '</td>' +
+      '<td style="white-space:nowrap;">' +
+        '<button class="btn btn-sm btn-ghost" style="margin-right:4px;" onclick="abrirEditCatEspesor(\'' + e.id + '\')">&#9998;</button>' +
+        (e.archivado
+          ? '<button class="btn btn-sm btn-ghost" onclick="desarchivarEspesorCat(\'' + e.id + '\')">&#8635;</button>'
+          : '<button class="btn btn-sm btn-ghost" onclick="confirmarArchivarEspesor(\'' + e.id + '\',\'' + esc(String(e.valor) + ' ' + (e.unidad || '')).replace(/'/g, "\\'") + '\')">&#128230;</button>') +
+      '</td></tr>';
+  }
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function modalCatNuevoEspesor() {
+  document.getElementById('cat-espe-id').value = '';
+  document.getElementById('cat-espe-valor').value = '';
+  document.getElementById('cat-espe-unidad').value = 'pulgadas';
+  document.getElementById('cat-espe-desc').value = '';
+  document.getElementById('cat-espesor-modal-title').textContent = 'Nuevo espesor';
+  document.getElementById('cat-espesor-overlay').classList.add('open');
+}
+
+function abrirEditCatEspesor(id) {
+  const e = espesoresCache.find(x => x.id === id);
+  if (!e) return;
+  document.getElementById('cat-espe-id').value = e.id;
+  document.getElementById('cat-espe-valor').value = e.valor;
+  document.getElementById('cat-espe-unidad').value = e.unidad || 'pulgadas';
+  document.getElementById('cat-espe-desc').value = e.descripcion || '';
+  document.getElementById('cat-espesor-modal-title').textContent = 'Editar espesor';
+  document.getElementById('cat-espesor-overlay').classList.add('open');
+}
+
+function cerrarCatEspesor() {
+  document.getElementById('cat-espesor-overlay').classList.remove('open');
+}
+
+async function guardarCatEspesor() {
+  const id = document.getElementById('cat-espe-id').value;
+  const valor = parseFloat(document.getElementById('cat-espe-valor').value);
+  const unidad = document.getElementById('cat-espe-unidad').value;
+  let desc = document.getElementById('cat-espe-desc').value.trim();
+  if (!valor || valor <= 0) return alert('Ingresa un valor valido');
+  if (!desc) desc = valor + ' ' + unidad;
+  try {
+    if (id) {
+      await apiPost('editar-espesor', { admin_id: usuario.id, espesor_id: id, valor, unidad, descripcion: desc });
+    } else {
+      await apiPost('crear-espesor', { admin_id: usuario.id, valor, unidad, descripcion: desc });
+    }
+    cerrarCatEspesor();
+    await cargarEspesores();
+    renderCatEspesores();
+    poblarSelectEspesor('rec-espesor');
+    poblarSelectEspesor('cs-espesor');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+function confirmarArchivarEspesor(id, label) {
+  document.getElementById('cat-confirm-msg').textContent = 'Archivar el espesor "' + label + '"?';
+  const btn = document.getElementById('cat-confirm-btn');
+  btn.textContent = 'Archivar';
+  btn.onclick = async function() {
+    try {
+      const data = await apiPost('archivar-espesor', { admin_id: usuario.id, espesor_id: id });
+      cerrarCatConfirm();
+      const n = data.partidas_activas_asociadas || 0;
+      showToast('Espesor archivado' + (n > 0 ? '. Partidas activas asociadas: ' + n : ''));
+      await cargarEspesores();
+      renderCatEspesores();
+      poblarSelectEspesor('rec-espesor');
+      poblarSelectEspesor('cs-espesor');
+    } catch (e) {
+      alert('Error: ' + e.message);
+    }
+  };
+  document.getElementById('cat-confirm-overlay').classList.add('open');
+}
+
+async function desarchivarEspesorCat(id) {
+  try {
+    await apiPost('desarchivar-espesor', { admin_id: usuario.id, espesor_id: id });
+    showToast('Espesor desarchivado');
+    await cargarEspesores();
+    renderCatEspesores();
+    poblarSelectEspesor('rec-espesor');
+    poblarSelectEspesor('cs-espesor');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+function cerrarCatConfirm() {
+  document.getElementById('cat-confirm-overlay').classList.remove('open');
+}
+
+// ── Toast ───────────────────────────────────────────────────
+function showToast(msg) {
+  let t = document.getElementById('toast-mdr');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast-mdr';
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--amber);color:var(--text);padding:10px 22px;border-radius:8px;font-size:13px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════════
+// Proveedor Zoho autocomplete
+// ═══════════════════════════════════════════════════════════
+function initProveedorAutocomplete(prefix) {
+  // prefix = 'rec' or 'cs'
+  const state = { zoho_id: null, nombre: null, timer: null };
+  const container = document.getElementById(prefix + '-proveedor-wrap');
+  if (!container) return state;
+
+  container.innerHTML =
+    '<div id="' + prefix + '-prov-search" style="position:relative;">' +
+      '<input id="' + prefix + '-prov-input" autocomplete="off" placeholder="Buscar proveedor en Zoho..." ' +
+        'style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:9px 11px;color:var(--text);font-family:\'DM Sans\',sans-serif;font-size:14px;outline:none;width:100%;transition:border-color .2s;">' +
+      '<div id="' + prefix + '-prov-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:0 0 6px 6px;max-height:200px;overflow-y:auto;z-index:50;"></div>' +
+      '<div id="' + prefix + '-prov-warn" style="display:none;font-size:11px;color:var(--amber);margin-top:4px;"></div>' +
+    '</div>' +
+    '<div id="' + prefix + '-prov-selected" style="display:none;font-size:14px;">' +
+      '<span id="' + prefix + '-prov-nombre-display"></span> ' +
+      '<a href="#" id="' + prefix + '-prov-cambiar" style="color:var(--amber);font-size:12px;margin-left:8px;">cambiar</a>' +
+    '</div>';
+
+  const input = document.getElementById(prefix + '-prov-input');
+  const dropdown = document.getElementById(prefix + '-prov-dropdown');
+  const warn = document.getElementById(prefix + '-prov-warn');
+  const searchWrap = document.getElementById(prefix + '-prov-search');
+  const selectedWrap = document.getElementById(prefix + '-prov-selected');
+  const nombreDisplay = document.getElementById(prefix + '-prov-nombre-display');
+  const cambiarLink = document.getElementById(prefix + '-prov-cambiar');
+
+  input.addEventListener('input', function() {
+    clearTimeout(state.timer);
+    const q = input.value.trim();
+    if (q.length < 2) { dropdown.style.display = 'none'; return; }
+    state.timer = setTimeout(async () => {
+      try {
+        warn.style.display = 'none';
+        const data = await api('buscar-proveedor-zoho', { q });
+        const provs = data.proveedores || [];
+        if (!provs.length) {
+          dropdown.innerHTML = '<div style="padding:8px 12px;color:var(--muted);font-size:12px;">Sin resultados</div>';
+        } else {
+          dropdown.innerHTML = provs.map(p =>
+            '<div class="prov-option" data-id="' + esc(p.contact_id || p.id || '') + '" data-name="' + esc(p.contact_name || p.nombre || '') + '" ' +
+              'style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);transition:background .15s;" ' +
+              'onmouseover="this.style.background=\'rgba(255,255,255,.04)\'" onmouseout="this.style.background=\'transparent\'">' +
+              esc(p.contact_name || p.nombre || '') +
+            '</div>'
+          ).join('');
+          dropdown.querySelectorAll('.prov-option').forEach(opt => {
+            opt.addEventListener('click', function() {
+              state.zoho_id = this.dataset.id;
+              state.nombre = this.dataset.name;
+              nombreDisplay.textContent = state.nombre;
+              dropdown.style.display = 'none';
+              searchWrap.style.display = 'none';
+              selectedWrap.style.display = 'block';
+            });
+          });
+        }
+        dropdown.style.display = 'block';
+      } catch (e) {
+        dropdown.style.display = 'none';
+        warn.textContent = 'No se pudo cargar Zoho. Reintenta en unos segundos.';
+        warn.style.display = 'block';
+      }
+    }, 300);
+  });
+
+  input.addEventListener('focus', function() {
+    if (dropdown.innerHTML && input.value.trim().length >= 2) dropdown.style.display = 'block';
+  });
+
+  document.addEventListener('click', function(ev) {
+    if (!searchWrap.contains(ev.target)) dropdown.style.display = 'none';
+  });
+
+  cambiarLink.addEventListener('click', function(ev) {
+    ev.preventDefault();
+    state.zoho_id = null;
+    state.nombre = null;
+    input.value = '';
+    selectedWrap.style.display = 'none';
+    searchWrap.style.display = 'block';
+    input.focus();
+  });
+
+  return state;
+}
+
+let proveedorRecState = null;
+let proveedorCsState = null;
 
 </script>
 </body>
