@@ -6,15 +6,19 @@
   <title>Maderable Kiosco — Planta</title>
   <style>
     :root {
-      --bg: #0f0f0f;
+      --bg:      #0f0f0f;
+      --card:    #1e1e1e;
+      --card2:   #252525;
+      --border:  #333;
+      --accent:  #FFD600;
+      --text:    #f0f0f0;
+      --muted:   #888;
+      --green:   #22c55e;
+      --yellow:  #eab308;
+      --red:     #ef4444;
+      --blue:    #3b82f6;
+      --accent-dim: rgba(255,214,0,0.1);
       --panel: #1e1e1e;
-      --card: #252525;
-      --border: #2a2a2a;
-      --text: #e8e8e8;
-      --muted: #888;
-      --accent: #FFD600;
-      --green: #3DD68C;
-      --red: #F05C5C;
     }
 
     * {
@@ -44,92 +48,91 @@
       justify-content: center;
     }
 
-    /* ═══ LOGIN SCREEN ═══ */
-    .login-card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 48px 40px;
-      width: 100%;
-      max-width: 420px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    /* ═══ PANTALLA (planta2 style) ═══ */
+    .pantalla { display: none; flex-direction: column; min-height: 100vh; }
+    .pantalla.activa { display: flex; }
+
+    /* ═══ LOGIN HEADER ═══ */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px; height: 52px; flex-shrink: 0;
+      background: var(--card); border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 20;
+    }
+    .header-logo { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700;
+      color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
+
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+      display: inline-block; animation: pulso 2s infinite; }
+    @keyframes pulso { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+    /* ═══ CENTRADO ═══ */
+    .centrado { flex: 1; padding: 20px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px; }
+
+    /* ═══ LABEL ═══ */
+    .lbl {
+      font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 1.5px;
+      color: var(--muted); text-transform: uppercase; display: block; margin-bottom: 10px;
     }
 
-    .logo {
-      font-family: 'Space Mono', monospace;
-      font-size: 24px;
-      font-weight: 700;
-      color: var(--accent);
-      letter-spacing: 3px;
-      text-align: center;
-      margin-bottom: 8px;
+    /* ═══ BOTONES (táctiles) ═══ */
+    .btn {
+      width: 100%; min-height: 68px; border: none; border-radius: 10px; cursor: pointer;
+      font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700;
+      letter-spacing: 1px; text-transform: uppercase; user-select: none;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      transition: transform 0.1s, opacity 0.15s;
     }
+    .btn:active  { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.3; pointer-events: none; }
+    .btn-primary { background: var(--accent); color: #0f0f0f; }
 
-    .subtitle {
-      font-family: 'Space Mono', monospace;
-      font-size: 11px;
-      color: var(--muted);
-      letter-spacing: 2px;
-      text-align: center;
-      margin-bottom: 40px;
-      text-transform: uppercase;
+    /* ═══ SELECT ═══ */
+    .select-wrap { position: relative; width: 100%; }
+    .select-wrap::after { content: '▾'; position: absolute; right: 14px; top: 50%;
+      transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+    select.select-big {
+      width: 100%; background: var(--card2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 40px 14px 16px; color: var(--text);
+      font-family: 'DM Sans', sans-serif; font-size: 16px; outline: none;
+      appearance: none; -webkit-appearance: none; cursor: pointer;
     }
+    select.select-big option { background: var(--card); }
 
-    .form-group {
-      margin-bottom: 20px;
-    }
+    /* ═══ PIN ═══ */
+    .pin-dots { display: flex; gap: 14px; justify-content: center; margin: 4px 0 16px; }
+    .pin-dot  { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border);
+      background: transparent; transition: all 0.15s; }
+    .pin-dot.lleno { background: var(--accent); border-color: var(--accent); }
 
-    .form-label {
-      font-family: 'Space Mono', monospace;
-      font-size: 9px;
-      color: var(--muted);
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      display: block;
-      margin-bottom: 8px;
+    .pin-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+      width: 100%; max-width: 300px;
     }
+    .pin-key {
+      height: 70px; min-width: 70px; background: var(--card2); border: 1.5px solid var(--border);
+      border-radius: 10px; font-family: 'Space Mono', monospace; font-size: 22px; font-weight: 700;
+      color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center;
+      user-select: none; transition: background 0.1s, transform 0.08s, border-color 0.1s;
+    }
+    .pin-key:active { background: var(--accent-dim); border-color: var(--accent); transform: scale(0.94); }
+    .pin-key.del   { font-size: 18px; color: var(--muted); }
+    .pin-key.clear { font-size: 18px; color: #ef4444; }
 
-    .form-input {
-      width: 100%;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 14px 16px;
-      color: var(--text);
-      font-size: 15px;
-      font-family: 'Space Mono', monospace;
-      outline: none;
-      transition: border-color 0.2s;
+    /* ═══ SHAKE ═══ */
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%     { transform: translateX(-10px); }
+      40%     { transform: translateX(10px); }
+      60%     { transform: translateX(-7px); }
+      80%     { transform: translateX(7px); }
     }
+    .shake { animation: shake 0.35s ease; }
 
-    .form-input:focus {
-      border-color: var(--accent);
-    }
-
-    .form-input::placeholder {
-      color: var(--muted);
-    }
-
-    .btn-login {
-      width: 100%;
-      background: var(--accent);
-      color: #0f0f0f;
-      border: none;
-      border-radius: 8px;
-      padding: 14px;
-      font-family: 'Space Mono', monospace;
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 1px;
-      cursor: pointer;
-      text-transform: uppercase;
-      transition: opacity 0.2s;
-      margin-top: 24px;
-    }
-
-    .btn-login:hover {
-      opacity: 0.9;
-    }
+    /* ═══ TOAST ═══ */
+    .toast-container { position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+      z-index: 999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
 
     /* ═══ MENU SCREEN ═══ */
     .menu-container {
@@ -439,34 +442,60 @@
 </head>
 <body>
 
-<!-- ════ SCREEN: LOGIN ════ -->
-<div id="screen-login" class="screen active">
-  <div class="login-card">
-    <div class="logo">⬡ MADERABLE</div>
-    <div class="subtitle">Kiosco de Planta</div>
+<!-- ══════════════════════════════════════════════════════════════════════
+  PANTALLA 1 — LOGIN OPERARIO
+══════════════════════════════════════════════════════════════════════ -->
+<div id="pantalla-login" class="pantalla activa">
+  <div class="header">
+    <span class="header-logo">○ Maderable · Planta</span>
+    <span class="live-dot"></span>
+  </div>
+  <div class="centrado" style="max-width:340px;margin:0 auto;width:100%;">
 
-    <div class="form-group">
-      <label class="form-label">Operario</label>
-      <select class="form-input" id="sel-operario">
-        <option value="">Seleccionar operario...</option>
-        <option value="1">Juan García</option>
-        <option value="2">María López</option>
-        <option value="3">Andrés Rodríguez</option>
-        <option value="4">Carlos Fernández</option>
-      </select>
+    <div style="width:100%;">
+      <span class="lbl">Operario</span>
+      <div class="select-wrap">
+        <select id="sel-empleado" class="select-big">
+          <option value="">— Seleccioná tu nombre —</option>
+        </select>
+      </div>
     </div>
 
-    <div class="form-group">
-      <label class="form-label">PIN</label>
-      <input type="password" class="form-input" id="inp-pin" placeholder="••••" maxlength="4">
+    <div style="width:100%;text-align:center;">
+      <span class="lbl" style="text-align:center;">PIN</span>
+      <div class="pin-dots" id="pin-dots">
+        <div class="pin-dot" id="pd0"></div>
+        <div class="pin-dot" id="pd1"></div>
+        <div class="pin-dot" id="pd2"></div>
+        <div class="pin-dot" id="pd3"></div>
+      </div>
+      <div class="pin-grid" id="pin-grid">
+        <button class="pin-key" onclick="pinTap('1')">1</button>
+        <button class="pin-key" onclick="pinTap('2')">2</button>
+        <button class="pin-key" onclick="pinTap('3')">3</button>
+        <button class="pin-key" onclick="pinTap('4')">4</button>
+        <button class="pin-key" onclick="pinTap('5')">5</button>
+        <button class="pin-key" onclick="pinTap('6')">6</button>
+        <button class="pin-key" onclick="pinTap('7')">7</button>
+        <button class="pin-key" onclick="pinTap('8')">8</button>
+        <button class="pin-key" onclick="pinTap('9')">9</button>
+        <button class="pin-key clear" onclick="pinClear()">✕</button>
+        <button class="pin-key" onclick="pinTap('0')">0</button>
+        <button class="pin-key del"   onclick="pinBorrar()">⌫</button>
+      </div>
     </div>
 
-    <button class="btn-login" onclick="irAlMenu()">Ingresar →</button>
+    <div style="width:100%;">
+      <button class="btn btn-primary" id="btn-entrar" onclick="autenticar()">ENTRAR</button>
+    </div>
+    <div id="login-error" style="font-family:'Space Mono',monospace;font-size:12px;
+      color:var(--red);text-align:center;min-height:18px;"></div>
+
   </div>
 </div>
 
 <!-- ════ SCREEN: MENÚ PRINCIPAL ════ -->
-<div id="screen-menu" class="screen">
+<div id="pantalla-menu" class="screen">
   <div class="menu-container">
     <div class="menu-header">
       <div class="menu-logo">⬡ MADERABLE KIOSCO</div>
@@ -598,53 +627,147 @@
   let _flujoActual = null;
   let _subopcionActual = null;
   let _timeoutHandle = null;
+  let _pin = '';
+  let empleadoActual = null;
 
-  // ═══ NOMBRES DE OPERARIOS ═══
-  const _operarios = {
-    '1': 'Juan García',
-    '2': 'María López',
-    '3': 'Andrés Rodríguez',
-    '4': 'Carlos Fernández'
-  };
+  // ═══ API HELPERS ═══
+  async function apiGet(action, qs = '') {
+    const r = await fetch(`/api/tiempos?action=${action}${qs ? '&' + qs : ''}`);
+    if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || r.statusText); }
+    return r.json();
+  }
 
-  // ═══ LOGIN ═══
-  function irAlMenu() {
-    const operario = document.getElementById('sel-operario').value;
-    const pin = document.getElementById('inp-pin').value;
+  function toast(msg, color = '') {
+    let c = document.getElementById('toast-container');
+    if (!c) { c = document.createElement('div'); c.id = 'toast-container'; c.className = 'toast-container'; document.body.appendChild(c); }
+    const t = document.createElement('div');
+    t.style.cssText = 'background:' + (color || 'var(--card)') + ';color:var(--text);padding:12px 20px;border-radius:8px;font-family:"Space Mono",monospace;font-size:12px;pointer-events:auto;opacity:0;transition:opacity 0.3s;';
+    t.textContent = msg;
+    c.appendChild(t);
+    requestAnimationFrame(() => t.style.opacity = '1');
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000);
+  }
 
-    if (!operario || !pin) {
-      alert('Completá operario y PIN');
+  // ═══ CARGAR EMPLEADOS ═══
+  async function cargarEmpleados() {
+    try {
+      const { empleados } = await apiGet('empleados');
+      const sel = document.getElementById('sel-empleado');
+      (empleados || []).forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = e.id;
+        opt.dataset.cedula = e.cedula;
+        opt.dataset.nombre = e.nombre;
+        opt.dataset.entrada = e.horario_entrada || '08:00';
+        opt.textContent = e.nombre;
+        sel.appendChild(opt);
+      });
+    } catch (e) {
+      toast('Sin conexión al servidor', 'var(--red)');
+    }
+  }
+
+  // ═══ PIN ENTRADA ═══
+  function pinTap(d) {
+    if (_pin.length >= 4) return;
+    _pin += d;
+    renderPin();
+    if (_pin.length === 4) setTimeout(autenticar, 150);
+  }
+
+  function pinBorrar() {
+    _pin = _pin.slice(0, -1);
+    renderPin();
+  }
+
+  function pinClear() {
+    _pin = '';
+    renderPin();
+  }
+
+  function renderPin() {
+    for (let i = 0; i < 4; i++)
+      document.getElementById('pd' + i).classList.toggle('lleno', i < _pin.length);
+  }
+
+  // ═══ AUTENTICACIÓN ═══
+  async function autenticar() {
+    const sel = document.getElementById('sel-empleado');
+    const opt = sel.options[sel.selectedIndex];
+
+    if (!sel.value) { setLoginError('Seleccioná tu nombre'); return; }
+    if (_pin.length < 4) { setLoginError('Ingresá los 4 dígitos del PIN'); return; }
+
+    const cedulaIngresada = opt.dataset.cedula;
+    if (!cedulaIngresada) { setLoginError('Operario sin cédula registrada'); return; }
+
+    setLoginError('');
+    document.getElementById('btn-entrar').textContent = 'Ingresando…';
+    document.getElementById('btn-entrar').disabled = true;
+
+    let verificado;
+    try {
+      const resp = await fetch('/api/tiempos?action=verificar-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cedula: cedulaIngresada, pin: _pin }),
+      });
+      const json = await resp.json();
+      if (!resp.ok || !json.ok || !json.empleado) {
+        const grid = document.getElementById('pin-grid');
+        grid.classList.remove('shake');
+        void grid.offsetWidth;
+        grid.classList.add('shake');
+        pinClear();
+        setLoginError(json.error || 'Cédula o PIN incorrectos');
+        document.getElementById('btn-entrar').textContent = 'ENTRAR';
+        document.getElementById('btn-entrar').disabled = false;
+        return;
+      }
+      verificado = json.empleado;
+    } catch (e) {
+      console.error('Error de red en login:', e);
+      setLoginError('Error de conexión. Verificá el internet.');
+      document.getElementById('btn-entrar').textContent = 'ENTRAR';
+      document.getElementById('btn-entrar').disabled = false;
       return;
     }
 
-    const nombre = _operarios[operario];
+    // Login exitoso: guardar sesión y mostrar menú
+    try {
+      empleadoActual = {
+        id: verificado.id,
+        nombre: verificado.nombre,
+      };
+      _sesion = empleadoActual;
+      sessionStorage.setItem('kiosco_sesion', JSON.stringify(empleadoActual));
 
-    // Simular verificación en backend (POST /api/tiempos?action=verificar-operario)
-    console.log('[Kiosco] Verificando operario:', operario, 'PIN:', pin);
+      // Mostrar nombre en header
+      document.getElementById('nombre-operario').textContent = verificado.nombre;
 
-    // Guardar sesión en sessionStorage
-    _sesion = {
-      empleado_id: operario,
-      nombre: nombre,
-      loguedoEn: new Date().toISOString()
-    };
-    sessionStorage.setItem('kiosco_sesion', JSON.stringify(_sesion));
+      // Grabar log
+      _grabarLog('login', { empleado_id: verificado.id });
 
-    // Actualizar UI
-    document.getElementById('nombre-operario').textContent = nombre;
+      // Generar menú
+      generarMenu();
 
-    // Grabar log
-    _grabarLog('login', { empleado_id: operario });
+      // Iniciar timeout
+      _resetTimeout();
 
-    // Generar menú
-    generarMenu();
+      // Mostrar menú
+      ocultarTodos();
+      document.getElementById('pantalla-menu').classList.add('active');
 
-    // Iniciar timeout
-    _resetTimeout();
+    } catch (e) {
+      setLoginError('Error: ' + e.message);
+    } finally {
+      document.getElementById('btn-entrar').textContent = 'ENTRAR';
+      document.getElementById('btn-entrar').disabled = false;
+    }
+  }
 
-    // Mostrar menú
-    ocultarTodos();
-    document.getElementById('screen-menu').classList.add('active');
+  function setLoginError(msg) {
+    document.getElementById('login-error').textContent = msg;
   }
 
   // ═══ GENERACIÓN DE MENÚ ═══
@@ -727,7 +850,7 @@
     _subopcionActual = null;
 
     ocultarTodos();
-    document.getElementById('screen-menu').classList.add('active');
+    document.getElementById('pantalla-menu').classList.add('active');
   }
 
   // ═══ LOGOUT ═══
@@ -736,16 +859,17 @@
 
     sessionStorage.removeItem('kiosco_sesion');
     _sesion = null;
+    empleadoActual = null;
     _flujoActual = null;
     _subopcionActual = null;
 
     clearTimeout(_timeoutHandle);
 
-    document.getElementById('sel-operario').value = '';
-    document.getElementById('inp-pin').value = '';
+    document.getElementById('sel-empleado').value = '';
+    pinClear();
 
     ocultarTodos();
-    document.getElementById('screen-login').classList.add('active');
+    document.getElementById('pantalla-login').classList.add('activa');
   }
 
   // ═══ TIMEOUT (3 MIN) ═══
@@ -789,19 +913,23 @@
     document.querySelectorAll('.screen, .submenu-screen, .flujo-modal').forEach(el => {
       el.classList.remove('active');
     });
+    document.querySelectorAll('.pantalla').forEach(p => p.classList.remove('activa'));
   }
 
-  // ═══ RESTAURAR SESIÓN AL RECARGAR ═══
+  // ═══ INICIALIZACIÓN ═══
   window.addEventListener('DOMContentLoaded', () => {
+    cargarEmpleados();
+
     const sesionGuardada = sessionStorage.getItem('kiosco_sesion');
     if (sesionGuardada) {
       try {
         _sesion = JSON.parse(sesionGuardada);
+        empleadoActual = _sesion;
         document.getElementById('nombre-operario').textContent = _sesion.nombre;
         generarMenu();
         _resetTimeout();
         ocultarTodos();
-        document.getElementById('screen-menu').classList.add('active');
+        document.getElementById('pantalla-menu').classList.add('active');
       } catch (e) {
         console.error('Error restaurando sesión:', e);
       }
