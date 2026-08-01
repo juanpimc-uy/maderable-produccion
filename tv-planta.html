@@ -112,6 +112,8 @@
       <div class="st"><div class="st-n" style="color:var(--arm)" id="cnt-tarea">0</div><div class="st-l">En Tarea</div></div>
       <div class="st"><div class="st-n" style="color:var(--tx3)" id="cnt-sin">0</div><div class="st-l">Sin Tarea</div></div>
       <div class="st"><div class="st-n" style="color:var(--red)" id="cnt-ot">0</div><div class="st-l">+9H turno</div></div>
+      <div class="st"><div class="st-n" style="color:#FFD600" id="cnt-rt-sol">0</div><div class="st-l">Solicitadas</div></div>
+      <div class="st"><div class="st-n" style="color:#FFD600" id="cnt-rt-pro">0</div><div class="st-l">A cortar</div></div>
     </div>
     <div><div class="clock" id="tv-clock">--:--:--</div><div class="date" id="tv-date">—</div></div>
   </header>
@@ -173,6 +175,8 @@ function mostrarDash() {
   document.getElementById('screen-dash').style.display = 'flex';
   cargarSnapshot();
   setInterval(cargarSnapshot, 60000);
+  cargarRetrabajosTV();
+  setInterval(cargarRetrabajosTV, 60000);
   mantenerPantallaActiva();
 }
 
@@ -186,6 +190,19 @@ async function mantenerPantallaActiva() {
         }
       });
     }
+  } catch(e) {}
+}
+
+async function cargarRetrabajosTV() {
+  try {
+    const r = await fetch('/api/retrabajo?action=listar-piezas-retrabajo').then(res => res.json());
+    const ps = r.piezas || [];
+    const sol = ps.filter(p => p.estado === 'solicitada').length;
+    const pro = ps.filter(p => p.estado === 'pronta').length;
+    const elS = document.getElementById('cnt-rt-sol');
+    const elP = document.getElementById('cnt-rt-pro');
+    if (elS) { elS.textContent = sol; elS.style.color = sol ? '#FFD600' : 'var(--tx3)'; }
+    if (elP) { elP.textContent = pro; elP.style.color = pro ? '#FFD600' : 'var(--tx3)'; }
   } catch(e) {}
 }
 

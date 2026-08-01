@@ -171,10 +171,32 @@
     if (rl) rl.textContent = u.rol_app || '';
   };
 
+  // ── Badge de retrabajos solicitados ────────────────────────────────
+  function pintarBadgeRetrabajos() {
+    var el = document.getElementById('nav-retrabajos');
+    if (!el) return;
+    fetch('/api/retrabajo?action=listar-piezas-retrabajo')
+      .then(function(r){ return r.json(); })
+      .then(function(r){
+        var n = (r.piezas || []).filter(function(p){ return p.estado === 'solicitada'; }).length;
+        var old = el.querySelector('.rt-badge');
+        if (old) old.remove();
+        if (!n) return;
+        var b = document.createElement('span');
+        b.className = 'rt-badge';
+        b.textContent = n;
+        b.style.cssText = 'margin-left:auto;background:#FFD600;color:#000;font-family:monospace;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px;';
+        el.appendChild(b);
+      })
+      .catch(function(){});
+  }
+  window.pintarBadgeRetrabajos = pintarBadgeRetrabajos;
+
   // ── 8. Iniciar ─────────────────────────────────────────────────────
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', inject);
+    document.addEventListener('DOMContentLoaded', function(){ inject(); pintarBadgeRetrabajos(); });
   } else {
-    inject();
+    inject(); pintarBadgeRetrabajos();
   }
+  setInterval(function(){ pintarBadgeRetrabajos(); }, 60000);
 })();
