@@ -2764,6 +2764,19 @@ export default async function handler(req) {
       return ok({ ok: true, empleado: data });
     }
 
+    // ── POST grabar-log-kiosco (auditoría kiosco planta, sin token) ──────
+    if (action === 'grabar-log-kiosco' && req.method === 'POST') {
+      const { empleado_id, accion, detalles } = body;
+      if (!empleado_id || !accion) return err('empleado_id y accion requeridos', 400);
+      const { error } = await supabase.from('kiosco_log').insert({
+        empleado_id: String(empleado_id),
+        accion: String(accion),
+        detalles: detalles || {},
+      });
+      if (error) throw error;
+      return ok({ ok: true });
+    }
+
     // ── POST resetear PIN ajeno (admin/oficina con jerarquía) ────────────
     if (action === 'resetear-pin' && req.method === 'POST') {
       const { admin_id, empleado_id } = body;

@@ -780,21 +780,21 @@
     flujosFiltrados.forEach(flujo => {
       const card = document.createElement('div');
       card.className = 'card-flujo';
-      card.onclick = () => {
+
+      const abrir = () => {
         _flujoActual = flujo.id;
-        if (flujo.submenu) {
-          mostrarSubmenu(flujo);
-        } else {
-          abrirFlujo(flujo.id);
-        }
+        if (flujo.submenu) mostrarSubmenu(flujo);
+        else abrirFlujo(flujo.id);
       };
+      card.onclick = abrir;
 
       card.innerHTML = `
         <div class="card-icon">${flujo.icono}</div>
         <div class="card-title">${flujo.nombre}</div>
         <div class="card-desc">${flujo.descripcion}</div>
-        <button class="btn-abrir" onclick="event.stopPropagation(); abrirFlujo('${flujo.id}');">Abrir →</button>
+        <button class="btn-abrir">Abrir →</button>
       `;
+      card.querySelector('.btn-abrir').onclick = (e) => { e.stopPropagation(); abrir(); };
 
       container.appendChild(card);
     });
@@ -831,13 +831,23 @@
     // Grabar log
     _grabarLog('abrir_flujo', { flujo_id: flujoId, subopcion: subopcion });
 
-    // Llamar al IIFE del flujo si existe
-    if (window[`flujo_${flujoId}`]) {
-      window[`flujo_${flujoId}`].cargar(subopcion);
-    }
+    const screen = document.getElementById(`screen-${flujoId}`);
+    if (!screen) { toast('Flujo no disponible', 'var(--red)'); return; }
 
+    // Mostrar el screen primero: un error en cargar() no debe impedir abrirlo
     ocultarTodos();
-    document.getElementById(`screen-${flujoId}`).classList.add('active');
+    screen.classList.add('active');
+
+    // Cargar contenido del flujo (si existe), aislando errores
+    const mod = window[`flujo_${flujoId}`];
+    if (mod && typeof mod.cargar === 'function') {
+      Promise.resolve()
+        .then(() => mod.cargar(subopcion))
+        .catch(e => {
+          console.error(`[Flujo ${flujoId}] Error al cargar:`, e);
+          toast('Error al cargar el flujo', 'var(--red)');
+        });
+    }
   }
 
   // ═══ VOLVER AL MENÚ ═══
