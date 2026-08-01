@@ -1223,6 +1223,57 @@ async function pedirPieza() {
   } catch(e) { toast('Error: ' + e.message, 'var(--red)'); }
 }
 
+async function avisarRetrabajosPendientes(continuar) {
+  let prontas = [];
+  try {
+    const r = await fetch('/api/retrabajo?action=listar-piezas-retrabajo').then(r=>r.json());
+    prontas = (r.piezas || []).filter(p => p.estado === 'pronta');
+  } catch(e) { }
+  if (!prontas.length) { continuar(); return; }
+  window._rtContinuar = continuar;
+  const strip = s => String(s==null?'':s).replace(/[<>&"]/g,'');
+  const ov = document.createElement('div');
+  ov.id = 'modal-rt-pendientes';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:400;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:24px 18px;overflow-y:auto;';
+  ov.innerHTML =
+    '<div style="width:100%;max-width:380px;background:var(--card);border:2px solid var(--accent);border-radius:16px;padding:20px;margin-top:20px;">'+
+      '<div style="font-family:\'Space Mono\',monospace;font-size:15px;font-weight:700;color:var(--accent);letter-spacing:1px;margin-bottom:6px;">⚠ PIEZAS PARA CORTAR</div>'+
+      '<div style="font-size:13px;color:var(--text);margin-bottom:16px;line-height:1.4;">Hay <b>'+prontas.length+'</b> pieza'+(prontas.length===1?'':'s')+' de retrabajo esperando corte. Son urgentes.</div>'+
+      '<div id="rt-pend-lista" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">'+
+        prontas.map(p =>
+          '<div id="rt-item-'+p.id+'" style="display:flex;align-items:center;gap:10px;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:10px;padding:10px;">'+
+            '<div style="font-family:\'Space Mono\',monospace;font-weight:700;font-size:18px;color:var(--accent);min-width:44px;text-align:center;">'+strip(p.codigo_pieza)+'</div>'+
+            '<div style="flex:1;min-width:0;font-size:11px;color:var(--muted);line-height:1.3;">'+strip((p.proyecto_nombre||'')+' · '+(p.item_nombre||''))+'</div>'+
+            '<button onclick="terminarPiezaAviso(\''+p.id+'\')" style="background:var(--accent);color:#000;border:none;border-radius:8px;font-family:\'Space Mono\',monospace;font-size:10px;font-weight:700;padding:9px 10px;cursor:pointer;-webkit-tap-highlight-color:transparent;">✓ TERMINADA</button>'+
+          '</div>'
+        ).join('')+
+      '</div>'+
+      '<button onclick="cerrarAvisoRetrabajos()" style="width:100%;min-height:52px;background:transparent;color:var(--accent);border:1.5px solid var(--accent);border-radius:12px;font-family:\'Space Mono\',monospace;font-size:13px;font-weight:700;cursor:pointer;">SEGUIR CON MI TAREA →</button>'+
+    '</div>';
+  document.body.appendChild(ov);
+}
+function cerrarAvisoRetrabajos() {
+  const ov = document.getElementById('modal-rt-pendientes');
+  if (ov) ov.remove();
+  const cb = window._rtContinuar; window._rtContinuar = null;
+  if (cb) cb();
+}
+async function terminarPiezaAviso(id) {
+  if (!empleadoActual) { toast('Se cerró la sesión — volvé a entrar', 'var(--red)'); return; }
+  try {
+    const r = await fetch('/api/retrabajo?action=marcar-cortada', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ pieza_id: id, empleado_id: empleadoActual.id }),
+    }).then(r=>r.json());
+    if (!r.ok) throw new Error(r.error || 'error');
+    const row = document.getElementById('rt-item-'+id);
+    if (row) row.remove();
+    toast('Pieza terminada ✓', 'var(--green)');
+    const lista = document.getElementById('rt-pend-lista');
+    if (lista && !lista.children.length) cerrarAvisoRetrabajos();
+  } catch(e) { toast('Error: ' + e.message, 'var(--red)'); }
+}
+
 async function cargarRetrabajosCNC() {
   const box = document.getElementById('cnc-retrabajos');
   const lista = document.getElementById('cnc-retrabajos-lista');
@@ -2226,6 +2277,7 @@ function _mostrarModalMaquina(id, nombre) {
 function _selMaquina(tipo, id, nombre) {
   maquinaSel = tipo;
   document.getElementById('modal-maquina-overlay').style.display = 'none';
+  if (tipo === 'cnc') { avisarRetrabajosPendientes(() => _continuarCentro(id, nombre)); return; }
   _continuarCentro(id, nombre);
 }
 
