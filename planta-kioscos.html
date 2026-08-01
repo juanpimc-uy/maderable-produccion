@@ -575,7 +575,7 @@
       icono: '🚚',
       descripcion: 'Gestionar bultos, envíos y imprimir etiquetas 60×30mm',
       activo: true,
-      submenu: null
+      destino: { tipo: 'externo', url: 'https://juanpimc-uy.github.io/ctrl-despachos/admin.html' }
     },
     {
       id: 'tercerizados',
@@ -583,10 +583,7 @@
       icono: '📦',
       descripcion: 'Despachar, recibir y retornar piezas de Baru / Rodart',
       activo: true,
-      submenu: [
-        { id: 'baru', nombre: 'Baru' },
-        { id: 'rodart', nombre: 'Rodart' }
-      ]
+      destino: { tipo: 'bridge', url: '/tercerizados.html' }
     },
     {
       id: 'oc',
@@ -594,7 +591,7 @@
       icono: '📥',
       descripcion: 'Escanear y confirmar llegada de órdenes de compra',
       activo: true,
-      submenu: null
+      destino: { tipo: 'bridge', url: '/recepciones-oc.html' }
     },
     {
       id: 'kitting',
@@ -602,7 +599,7 @@
       icono: '🔩',
       descripcion: 'Armar órdenes de servicio y marcar líneas completas',
       activo: true,
-      submenu: null
+      destino: { tipo: 'directo', url: '/armado-so-planta.html' }
     },
     {
       id: 'madera',
@@ -610,7 +607,7 @@
       icono: '🪵',
       descripcion: 'Gestión de madera maciza',
       activo: false,
-      submenu: null
+      destino: null
     },
     {
       id: 'placas',
@@ -618,7 +615,7 @@
       icono: '📋',
       descripcion: 'Control de placas de cajas',
       activo: false,
-      submenu: null
+      destino: null
     }
   ];
 
@@ -710,7 +707,7 @@
       const resp = await fetch('/api/tiempos?action=verificar-pin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cedula: cedulaIngresada, pin: _pin }),
+        body: JSON.stringify({ cedula: cedulaIngresada, pin: _pin, kiosco: true }),
       });
       const json = await resp.json();
       if (!resp.ok || !json.ok || !json.empleado) {
@@ -725,6 +722,7 @@
         return;
       }
       verificado = json.empleado;
+      verificado.session_token = json.session_token || null;
     } catch (e) {
       console.error('Error de red en login:', e);
       setLoginError('Error de conexión. Verificá el internet.');
@@ -738,6 +736,7 @@
       empleadoActual = {
         empleado_id: verificado.id,
         nombre: verificado.nombre,
+        session_token: verificado.session_token,
       };
       _sesion = empleadoActual;
       sessionStorage.setItem('kiosco_sesion', JSON.stringify(empleadoActual));
@@ -824,29 +823,32 @@
   }
 
   // ═══ ABRIR FLUJO ═══
-  function abrirFlujo(flujoId, subopcion = null) {
+  function abrirFlujo(flujoId) {
+    const flujo = FLUJOS_CONFIG.find(f => f.id === flujoId);
+    if (!flujo || !flujo.destino) { toast('Flujo no disponible', 'var(--red)'); return; }
     _flujoActual = flujoId;
-    _subopcionActual = subopcion;
 
-    // Grabar log
-    _grabarLog('abrir_flujo', { flujo_id: flujoId, subopcion: subopcion });
+    const d = flujo.destino;
+    _grabarLog('abrir_flujo', { flujo_id: flujoId, destino: d.tipo });
 
-    const screen = document.getElementById(`screen-${flujoId}`);
-    if (!screen) { toast('Flujo no disponible', 'var(--red)'); return; }
-
-    // Mostrar el screen primero: un error en cargar() no debe impedir abrirlo
-    ocultarTodos();
-    screen.classList.add('active');
-
-    // Cargar contenido del flujo (si existe), aislando errores
-    const mod = window[`flujo_${flujoId}`];
-    if (mod && typeof mod.cargar === 'function') {
-      Promise.resolve()
-        .then(() => mod.cargar(subopcion))
-        .catch(e => {
-          console.error(`[Flujo ${flujoId}] Error al cargar:`, e);
-          toast('Error al cargar el flujo', 'var(--red)');
-        });
+    if (d.tipo === 'bridge') {
+      // Elevar a sesión de oficina en sessionStorage (se limpia al cerrar la tablet)
+      if (!_sesion || !_sesion.session_token) { toast('Sesión sin permisos — reingresá', 'var(--red)'); return; }
+      const sesionOficina = {
+        id: _sesion.empleado_id,
+        nombre: _sesion.nombre,
+        rol_app: 'oficina',
+        session_token: _sesion.session_token,
+      };
+      localStorage.removeItem('mble_session');
+      sessionStorage.setItem('mble_session', JSON.stringify(sesionOficina));
+      sessionStorage.setItem('kiosco_origen', '1');
+      window.location.href = d.url;
+    } else if (d.tipo === 'directo') {
+      sessionStorage.setItem('kiosco_origen', '1');
+      window.location.href = d.url;
+    } else if (d.tipo === 'externo') {
+      window.location.href = d.url;
     }
   }
 
@@ -867,7 +869,19 @@
   function salir() {
     _grabarLog('logout', {});
 
+    // Vencer el token de oficina server-side (si se emitió)
+    if (_sesion && _sesion.session_token) {
+      fetch('/api/tiempos?action=cerrar-sesion-kiosco', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ empleado_id: _sesion.empleado_id })
+      }).catch(() => {});
+    }
+
     sessionStorage.removeItem('kiosco_sesion');
+    sessionStorage.removeItem('mble_session');
+    sessionStorage.removeItem('kiosco_origen');
+    localStorage.removeItem('mble_session');
     _sesion = null;
     empleadoActual = null;
     _flujoActual = null;
@@ -910,7 +924,12 @@
 
     console.log('[Auditoría]', payload);
 
-    // POST /api/tiempos?action=grabar-log-kiosco
+    // sendBeacon sobrevive a la navegación (abrir_flujo navega hacia afuera);
+    // fallback a fetch si no está disponible.
+    try {
+      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+      if (navigator.sendBeacon && navigator.sendBeacon('/api/tiempos?action=grabar-log-kiosco', blob)) return;
+    } catch (e) {}
     fetch('/api/tiempos?action=grabar-log-kiosco', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
