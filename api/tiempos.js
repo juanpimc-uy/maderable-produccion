@@ -2761,6 +2761,19 @@ export default async function handler(req) {
         });
       }
       clearRateLimit(rateKeyPin);
+
+      // Kiosco planta: emitir sesión de oficina corta (10 min) para que el
+      // operario abra ventanas de oficina desde el piso. SOLO si viene
+      // kiosco:true — la llamada de planta2 (sin flag) queda byte-idéntica.
+      if (body.kiosco === true) {
+        const sessionToken = crypto.randomUUID();
+        const sessionExpiry = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+        await supabase.from('empleados')
+          .update({ session_token: sessionToken, session_expires_at: sessionExpiry })
+          .eq('id', data.id);
+        return ok({ ok: true, empleado: data, session_token: sessionToken });
+      }
+
       return ok({ ok: true, empleado: data });
     }
 
@@ -2773,6 +2786,17 @@ export default async function handler(req) {
         accion: String(accion),
         detalles: detalles || {},
       });
+      if (error) throw error;
+      return ok({ ok: true });
+    }
+
+    // ── POST cerrar-sesion-kiosco (vence el token de oficina del kiosco) ──
+    if (action === 'cerrar-sesion-kiosco' && req.method === 'POST') {
+      const { empleado_id } = body;
+      if (!empleado_id) return err('empleado_id requerido', 400);
+      const { error } = await supabase.from('empleados')
+        .update({ session_token: null, session_expires_at: null })
+        .eq('id', String(empleado_id));
       if (error) throw error;
       return ok({ ok: true });
     }
