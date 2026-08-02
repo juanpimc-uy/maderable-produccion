@@ -315,6 +315,7 @@
 </div>
 
 <script src="/js/sidebar.js"></script>
+<script src="/js/etiquetas.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════
 // INVENTARIO — JS INLINE
@@ -713,7 +714,7 @@ function _selectUbi(id) {
     + '<div class="big-name">' + (u.nombre || '') + '</div>'
     + '<div class="big-path">' + path + '</div>'
     + '<div style="margin-top:24px;">'
-    + '<button class="btn" disabled title="Disponible con el sistema de etiquetas (lote E)" onclick="/* TODO INV-1b2: Etiquetas.imprimir(\'inv-bin\', items) */">⎙ Imprimir etiqueta</button>'
+    + '<button class="btn" onclick="_imprimirEtiquetaUbi(\'' + u.id + '\')">⎙ Imprimir etiqueta</button>'
     + '</div>'
     + '</div>';
 }
@@ -776,6 +777,15 @@ async function _saveUbiEdit() {
   if (!r.ok) { errEl.textContent = r.msg || 'Error'; return; }
   _closeModal('modal-ubi-edit');
   await _cargarUbicaciones();
+}
+
+// ── Imprimir etiqueta de ubicación ──
+function _imprimirEtiquetaUbi(ubiId) {
+  if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
+  const u = _ubiData.find(x => x.id === ubiId);
+  if (!u) return;
+  const p = u.parent_id ? _ubiData.find(x => x.id === u.parent_id) : null;
+  Etiquetas.imprimir('inv-bin', [{ codigo: u.codigo, nombre: u.nombre || '', padre: p ? (p.nombre || p.codigo) : '', _qr: u.codigo }]);
 }
 
 // ── Init ──

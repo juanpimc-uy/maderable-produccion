@@ -79,6 +79,20 @@
         '100x50': [{ id: 'mueble', pos: 'XL' }, { id: 'cliente', pos: 'L' }, { id: 'obra', pos: 'M' }, { id: 'so', pos: 'P' }, { id: 'fecha', pos: 'P' }],
       }
     },
+    'inv-bin': {
+      tituloDefault: 'UBICACIÓN',
+      qr: true, chipEnvio: false,
+      qrEj: 'GAL1-R03-E2',
+      campos: [
+        { id: 'codigo',  label: 'Código',    ej: 'GAL1-R03-E2',       fijo: true },
+        { id: 'nombre',  label: 'Nombre',    ej: 'RACK 3 · ESTANTE 2', fijo: false },
+        { id: 'padre',   label: 'Sector',    ej: 'GALPÓN 1',          fijo: false },
+      ],
+      defaults: {
+        '60x30':  [{ id: 'codigo', pos: 'XL' }, { id: 'nombre', pos: 'M' }, { id: 'padre', pos: 'S' }],
+        '100x50': [{ id: 'codigo', pos: 'XL' }, { id: 'nombre', pos: 'L' }, { id: 'padre', pos: 'M' }],
+      }
+    },
     'madera-pieza': {
       tituloDefault: 'MADERA',
       qr: true, chipEnvio: false,
