@@ -207,12 +207,18 @@ async function accionSyncItemsZoho(req, res) {
       if (codigosUsados.has(codigo)) {
         colisiones.push({ codigo, zoho_item_id: zohoItemId });
       } else {
+        const esVentaPura = zi.item_type === 'sales' || zi.can_be_purchased === false;
+        const cta = (zi.purchase_account_name || '').toUpperCase();
+        let familia = 'otro';
+        if (cta.includes('HERRAJE')) familia = 'herraje';
+        else if (cta.includes('MADERA Y PLACA')) familia = 'placa';
+        else if (cta.includes('INDIRECTO')) familia = 'consumible';
         paraInsertar.push({
           codigo,
           descripcion,
-          familia: 'otro',
+          familia,
           zoho_item_id: zohoItemId,
-          inventariable: true,
+          inventariable: !esVentaPura,
           activo,
         });
         codigosUsados.add(codigo); // evitar colisiones entre items del mismo batch
