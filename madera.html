@@ -1326,7 +1326,7 @@ async function guardarCatEspecie() {
   if (!nombre) return alert('Ingresa el nombre');
   try {
     if (id) {
-      await apiPost('editar-especie', { admin_id: usuario.id, especie_id: id, nombre, nombre_corto: corto || null, observaciones: obs || null });
+      await apiPost('editar-especie', { admin_id: usuario.id, id, nombre, nombre_corto: corto || null, observaciones: obs || null });
     } else {
       await apiPost('crear-especie', { admin_id: usuario.id, nombre, nombre_corto: corto || null, observaciones: obs || null });
     }
@@ -1346,7 +1346,7 @@ function confirmarArchivarEspecie(id, nombre) {
   btn.textContent = 'Archivar';
   btn.onclick = async function() {
     try {
-      const data = await apiPost('archivar-especie', { admin_id: usuario.id, especie_id: id });
+      const data = await apiPost('archivar-especie', { admin_id: usuario.id, id });
       cerrarCatConfirm();
       const n = data.partidas_activas_asociadas || 0;
       showToast('Especie archivada' + (n > 0 ? '. Partidas activas asociadas: ' + n : ''));
@@ -1363,7 +1363,7 @@ function confirmarArchivarEspecie(id, nombre) {
 
 async function desarchivarEspecieCat(id) {
   try {
-    await apiPost('desarchivar-especie', { admin_id: usuario.id, especie_id: id });
+    await apiPost('desarchivar-especie', { admin_id: usuario.id, id });
     showToast('Especie desarchivada');
     await cargarEspecies();
     renderCatEspecies();
@@ -1435,7 +1435,7 @@ async function guardarCatEspesor() {
   if (!desc) desc = valor + ' ' + unidad;
   try {
     if (id) {
-      await apiPost('editar-espesor', { admin_id: usuario.id, espesor_id: id, valor, unidad, descripcion: desc });
+      await apiPost('editar-espesor', { admin_id: usuario.id, id, valor, unidad, descripcion: desc });
     } else {
       await apiPost('crear-espesor', { admin_id: usuario.id, valor, unidad, descripcion: desc });
     }
@@ -1455,7 +1455,7 @@ function confirmarArchivarEspesor(id, label) {
   btn.textContent = 'Archivar';
   btn.onclick = async function() {
     try {
-      const data = await apiPost('archivar-espesor', { admin_id: usuario.id, espesor_id: id });
+      const data = await apiPost('archivar-espesor', { admin_id: usuario.id, id });
       cerrarCatConfirm();
       const n = data.partidas_activas_asociadas || 0;
       showToast('Espesor archivado' + (n > 0 ? '. Partidas activas asociadas: ' + n : ''));
@@ -1472,7 +1472,7 @@ function confirmarArchivarEspesor(id, label) {
 
 async function desarchivarEspesorCat(id) {
   try {
-    await apiPost('desarchivar-espesor', { admin_id: usuario.id, espesor_id: id });
+    await apiPost('desarchivar-espesor', { admin_id: usuario.id, id });
     showToast('Espesor desarchivado');
     await cargarEspesores();
     renderCatEspesores();
