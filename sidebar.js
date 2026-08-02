@@ -17,6 +17,7 @@
     { id: 'materiales-group', icon: '▣', label: 'Materiales', group: true, roles: ['admin', 'oficina'], children: [
       { id: 'armado-so',   icon: '⬗', label: 'Kitting SO',  page: 'armado-so.html',      section: null, roles: ['admin', 'oficina'] },
       { id: 'recepciones', icon: '◫', label: 'Recepción',   page: 'recepciones-oc.html', section: null, roles: ['admin', 'oficina'] },
+      { id: 'inventario', icon: '▤', label: 'Inventario', page: 'inventario.html', section: null, roles: ['admin', 'oficina'] },
     ]},
     { id: 'tercerizados-group', icon: '🧵', label: 'Tercerizados', group: true, roles: ['admin', 'oficina'], children: [
       { id: 'terc-baru',   icon: '◆', label: 'BARU',    page: 'tercerizados.html?prov=BARU',   section: null, roles: ['admin', 'oficina'] },
@@ -54,6 +55,7 @@
       'armado-so.html':      'armado-so',
       'armado-so-planta.html':'armado-so',
       'recepciones-oc.html': 'recepciones',
+      'inventario.html':     'inventario',
       'madera.html':         'madera',
       'despacho.html':       'despacho',
       'informes.html':       (() => { const v = new URLSearchParams(location.search).get('vista'); return v === 'facturas' ? 'inf-facturas' : v === 'lean' ? 'inf-lean' : 'inf-costos'; })(),

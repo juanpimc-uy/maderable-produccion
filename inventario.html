@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="es-UY">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventario · MBLE</title>
+<script src="/js/supabase-config.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#0f0f0f;--panel:#1e1e1e;--card:#252525;--card2:#1a1a1a;--border:#2a2a2a;
+         --text:#e8e8e8;--muted:#888;--amber:#FFD600;--green:#3DD68C;--red:#F05C5C;--faint:rgba(255,255,255,.03); }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;height:100vh;overflow:hidden;display:flex;}
+  .mono{font-family:'Space Mono',monospace;}
+  #main{flex:1;display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+
+  /* ── Topbar ── */
+  .topbar{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  .topbar h1{font-family:'Space Mono',monospace;font-size:15px;font-weight:700;letter-spacing:1px;text-transform:uppercase;}
+  .topbar h1 b{color:var(--amber);}
+
+  /* ── Tabs ── */
+  .tabs{display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 24px;flex-shrink:0;}
+  .tab{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:12px 20px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .15s;}
+  .tab:hover{color:var(--text);}
+  .tab.active{color:var(--amber);border-bottom-color:var(--amber);font-weight:700;}
+
+  /* ── Content ── */
+  .tab-content{display:none;flex:1;overflow-y:auto;padding:20px 24px;}
+  .tab-content.active{display:flex;flex-direction:column;}
+
+  /* ── Header row ── */
+  .hdr-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+  .hdr-title{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--amber);}
+  .spacer{flex:1;}
+  .btn{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:1px solid var(--border);border-radius:6px;padding:8px 14px;cursor:pointer;background:var(--card);color:var(--text);transition:all .15s;}
+  .btn:hover{border-color:var(--amber);color:var(--amber);}
+  .btn-accent{background:var(--amber);color:#000;border-color:var(--amber);}
+  .btn-accent:hover{opacity:.85;color:#000;}
+  .btn-sm{padding:5px 10px;font-size:9px;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+
+  /* ── Stats row ── */
+  .stats-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  .stat-chip{font-family:'Space Mono',monospace;font-size:10px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--card2);color:var(--muted);transition:all .15s;white-space:nowrap;}
+  .stat-chip:hover{border-color:var(--amber);color:var(--text);}
+  .stat-chip.active{background:rgba(255,214,0,.1);border-color:var(--amber);color:var(--amber);font-weight:700;}
+  .stat-chip.warn{color:var(--red);border-color:#5a2020;}
+  .stat-chip.warn.active{background:rgba(240,92,92,.1);border-color:var(--red);color:var(--red);}
+
+  /* ── Filters row ── */
+  .filters{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
+  .inp{font-family:'Space Mono',monospace;font-size:11px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);outline:none;transition:border-color .15s;}
+  .inp:focus{border-color:var(--amber);}
+  .inp::placeholder{color:#555;}
+  select.inp{cursor:pointer;}
+  label.chk{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);display:flex;align-items:center;gap:5px;cursor:pointer;}
+
+  /* ── Table ── */
+  .tbl{width:100%;border-collapse:collapse;font-size:12px;}
+  .tbl th{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:1;}
+  .tbl td{padding:9px 10px;border-bottom:1px solid #1a1a1a;vertical-align:middle;}
+  .tbl tr:hover td{background:var(--faint);}
+  .tbl tr.selected td{background:rgba(255,214,0,.05);}
+  .tbl .cod{font-family:'Space Mono',monospace;font-weight:700;color:var(--amber);font-size:11px;white-space:nowrap;}
+  .badge{font-family:'Space Mono',monospace;font-size:9px;padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;}
+  .badge-herraje{background:#1a2a1a;color:#6ddf6d;border:1px solid #2a3a2a;}
+  .badge-placa{background:#1a1a2a;color:#6d9ddf;border:1px solid #2a2a3a;}
+  .badge-madera{background:#2a1f0a;color:#dfa86d;border:1px solid #3a2a0a;}
+  .badge-consumible{background:#2a2a1a;color:#dfdf6d;border:1px solid #3a3a2a;}
+  .badge-otro{background:#2a1a1a;color:#df6d6d;border:1px solid #3a2020;}
+  .badge-huerfano{background:#3a1a1a;color:var(--red);border:1px solid #5a2020;font-weight:700;}
+  .zoho-ok{color:var(--green);}
+  .inv-no{color:var(--muted);text-decoration:line-through;font-size:10px;}
+
+  /* ── Bulk bar ── */
+  .bulk-bar{display:none;position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--border);padding:10px 16px;gap:8px;align-items:center;flex-wrap:wrap;z-index:2;}
+  .bulk-bar.visible{display:flex;}
+  .bulk-count{font-family:'Space Mono',monospace;font-size:11px;color:var(--amber);font-weight:700;margin-right:8px;}
+
+  /* ── Pagination ── */
+  .pag{display:flex;gap:8px;align-items:center;justify-content:center;padding:12px 0;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);}
+  .pag button{font-family:'Space Mono',monospace;font-size:10px;background:var(--card);border:1px solid var(--border);border-radius:4px;padding:4px 10px;color:var(--text);cursor:pointer;}
+  .pag button:disabled{opacity:.3;cursor:not-allowed;}
+
+  /* ── Modal ── */
+  .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center;}
+  .modal-bg.open{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:28px 24px;width:100%;max-width:500px;max-height:85vh;overflow-y:auto;position:relative;}
+  .modal-title{font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--amber);letter-spacing:1px;text-transform:uppercase;margin-bottom:20px;}
+  .modal-x{position:absolute;top:12px;right:16px;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;}
+  .modal-x:hover{color:var(--text);}
+  .field{margin-bottom:14px;}
+  .field label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:5px;}
+  .field input,.field select,.field textarea{width:100%;font-family:'Space Mono',monospace;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);outline:none;}
+  .field input:focus,.field select:focus{border-color:var(--amber);}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+  .err-msg{color:var(--red);font-family:'Space Mono',monospace;font-size:11px;margin-top:8px;}
+
+  /* ── Ubicaciones ── */
+  .ubi-layout{display:grid;grid-template-columns:1fr 1fr;gap:20px;flex:1;}
+  .ubi-tree{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:16px;overflow-y:auto;}
+  .ubi-panel{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:16px;}
+  .tree-node{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer;transition:background .15s;font-size:12px;}
+  .tree-node:hover{background:var(--faint);}
+  .tree-node.selected{background:rgba(255,214,0,.08);border:1px solid rgba(255,214,0,.2);}
+  .tree-node .tn-code{font-family:'Space Mono',monospace;font-weight:700;color:var(--amber);font-size:11px;}
+  .tree-node .tn-name{color:var(--text);}
+  .tree-node .tn-edit{opacity:0;color:var(--muted);cursor:pointer;margin-left:auto;font-size:12px;transition:opacity .15s;}
+  .tree-node:hover .tn-edit{opacity:1;}
+  .tree-node .tn-edit:hover{color:var(--amber);}
+  .tree-lvl1{padding-left:24px;}
+  .tree-lvl2{padding-left:48px;}
+  .ubi-preview{text-align:center;padding:32px 16px;}
+  .ubi-preview .big-code{font-family:'Space Mono',monospace;font-size:28px;font-weight:700;color:var(--amber);letter-spacing:2px;}
+  .ubi-preview .big-name{font-size:14px;color:var(--text);margin-top:8px;}
+  .ubi-preview .big-path{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:4px;}
+
+  /* ── Placeholder ── */
+  .placeholder{flex:1;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:13px;color:var(--muted);text-align:center;line-height:1.8;}
+
+  /* ── Spinner ── */
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--amber);border-radius:50%;animation:spin .6s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ── Responsive ── */
+  @media(max-width:768px){
+    .ubi-layout{grid-template-columns:1fr;}
+    .stats-row{gap:4px;}
+  }
+</style>
+</head>
+<body>
+<div id="sidebar-root"></div>
+<div id="main">
+
+  <div class="topbar">
+    <h1><b>▤</b> Inventario</h1>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="items" onclick="_switchTab('items')">Ítems</div>
+    <div class="tab" data-tab="ubicaciones" onclick="_switchTab('ubicaciones')">Ubicaciones</div>
+    <div class="tab" data-tab="reposicion" onclick="_switchTab('reposicion')">Reposición</div>
+  </div>
+
+  <!-- ═══════ TAB: ÍTEMS ═══════ -->
+  <div id="tab-items" class="tab-content active">
+    <div class="hdr-row">
+      <span class="hdr-title">Catálogo de ítems</span>
+      <span class="spacer"></span>
+      <button class="btn" onclick="_syncZoho()" id="btn-sync">⟳ Sync Zoho</button>
+      <button class="btn btn-accent" onclick="_openCrearItem()">+ Ítem</button>
+    </div>
+
+    <div class="stats-row" id="stats-row"></div>
+
+    <div class="filters">
+      <input class="inp" type="text" id="f-buscar" placeholder="Buscar código o descripción..." style="width:260px;" oninput="_filtrar()">
+      <select class="inp" id="f-familia" onchange="_filtrar()">
+        <option value="">Todas las familias</option>
+        <option value="herraje">Herraje</option>
+        <option value="placa">Placa</option>
+        <option value="madera">Madera</option>
+        <option value="consumible">Consumible</option>
+        <option value="otro">Otro</option>
+      </select>
+      <select class="inp" id="f-inv" onchange="_filtrar()">
+        <option value="si">Inventariables</option>
+        <option value="no">No inventariables</option>
+        <option value="todos">Todos</option>
+      </select>
+      <label class="chk"><input type="checkbox" id="f-inactivos" onchange="_cargarItems()"> Incluir inactivos</label>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;" id="tbl-wrap">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th style="width:30px;"><input type="checkbox" id="chk-all" onchange="_toggleAll(this.checked)"></th>
+            <th>Código</th>
+            <th>Descripción</th>
+            <th>Familia</th>
+            <th>Zoho</th>
+            <th>Inv.</th>
+            <th>Stock</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-body"></tbody>
+      </table>
+    </div>
+
+    <div class="pag" id="pag-items"></div>
+
+    <div class="bulk-bar" id="bulk-bar">
+      <span class="bulk-count" id="bulk-count">0 seleccionados</span>
+      <button class="btn btn-sm" onclick="_bulkFamilia('herraje')">Herraje</button>
+      <button class="btn btn-sm" onclick="_bulkFamilia('placa')">Placa</button>
+      <button class="btn btn-sm" onclick="_bulkFamilia('madera')">Madera</button>
+      <button class="btn btn-sm" onclick="_bulkFamilia('consumible')">Consum.</button>
+      <button class="btn btn-sm" onclick="_bulkFamilia('otro')">Otro</button>
+      <span style="width:1px;height:20px;background:var(--border);"></span>
+      <button class="btn btn-sm" onclick="_bulkInv(false)">No inventariable</button>
+      <button class="btn btn-sm" onclick="_bulkInv(true)">Inventariable</button>
+    </div>
+  </div>
+
+  <!-- ═══════ TAB: UBICACIONES ═══════ -->
+  <div id="tab-ubicaciones" class="tab-content">
+    <div class="hdr-row">
+      <span class="hdr-title">Ubicaciones</span>
+      <span class="spacer"></span>
+      <button class="btn btn-accent" onclick="_openCrearUbi()">+ Ubicación</button>
+    </div>
+    <div class="ubi-layout">
+      <div class="ubi-tree" id="ubi-tree"></div>
+      <div class="ubi-panel" id="ubi-panel">
+        <div class="placeholder">Seleccioná una ubicación del árbol</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ TAB: REPOSICIÓN ═══════ -->
+  <div id="tab-reposicion" class="tab-content">
+    <div class="placeholder">
+      <div>
+        <div style="font-size:28px;margin-bottom:16px;">📦</div>
+        <div style="font-size:14px;font-weight:700;color:var(--amber);margin-bottom:8px;">REPOSICIÓN</div>
+        <div>Disponible en INV-6 — ítems bajo mínimo agrupados por proveedor</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Crear/Editar Ítem ═══ -->
+<div class="modal-bg" id="modal-item">
+  <div class="modal">
+    <button class="modal-x" onclick="_closeModal('modal-item')">✕</button>
+    <div class="modal-title" id="modal-item-title">Crear ítem</div>
+    <input type="hidden" id="mi-id">
+    <div class="field"><label>Código</label><input class="inp" id="mi-codigo" placeholder="HERR-001" style="text-transform:uppercase;"></div>
+    <div class="field"><label>Descripción</label><input class="inp" id="mi-desc"></div>
+    <div class="field"><label>Familia</label>
+      <select class="inp" id="mi-familia">
+        <option value="">Seleccionar...</option>
+        <option value="herraje">Herraje</option>
+        <option value="placa">Placa</option>
+        <option value="madera">Madera</option>
+        <option value="consumible">Consumible</option>
+        <option value="otro">Otro</option>
+      </select>
+    </div>
+    <div class="field"><label>Unidad</label><input class="inp" id="mi-unidad" placeholder="un / m / m2 / kg"></div>
+    <div class="field" style="display:flex;gap:12px;">
+      <div style="flex:1;"><label>Stock mín</label><input class="inp" id="mi-min" type="number"></div>
+      <div style="flex:1;"><label>Stock máx</label><input class="inp" id="mi-max" type="number"></div>
+    </div>
+    <div class="field"><label>Ubicación picking</label>
+      <select class="inp" id="mi-ubi-picking"><option value="">Sin asignar</option></select>
+    </div>
+    <div class="field"><label class="chk" style="font-size:12px;"><input type="checkbox" id="mi-inventariable" checked> Inventariable</label></div>
+    <div id="mi-error" class="err-msg"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="_closeModal('modal-item')">Cancelar</button>
+      <button class="btn btn-accent" id="mi-save" onclick="_saveItem()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Sync Zoho resultado ═══ -->
+<div class="modal-bg" id="modal-sync">
+  <div class="modal">
+    <button class="modal-x" onclick="_closeModal('modal-sync')">✕</button>
+    <div class="modal-title">Resultado Sync Zoho</div>
+    <div id="sync-result"></div>
+    <div class="modal-actions"><button class="btn" onclick="_closeModal('modal-sync')">Cerrar</button></div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Crear ubicación ═══ -->
+<div class="modal-bg" id="modal-ubi">
+  <div class="modal">
+    <button class="modal-x" onclick="_closeModal('modal-ubi')">✕</button>
+    <div class="modal-title" id="modal-ubi-title">Crear ubicación</div>
+    <input type="hidden" id="mu-id">
+    <div class="field"><label>Código</label><input class="inp" id="mu-codigo" placeholder="GAL1-R03-E2" style="text-transform:uppercase;"></div>
+    <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--red);margin:-8px 0 14px 0;letter-spacing:.5px;">El código se imprime en la etiqueta física — no se puede cambiar después</div>
+    <div class="field"><label>Nombre</label><input class="inp" id="mu-nombre" placeholder="Galería 1, Rack 3, Estante 2"></div>
+    <div class="field"><label>Padre</label>
+      <select class="inp" id="mu-parent"><option value="">— Raíz —</option></select>
+    </div>
+    <div id="mu-error" class="err-msg"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="_closeModal('modal-ubi')">Cancelar</button>
+      <button class="btn btn-accent" onclick="_saveUbi()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Editar ubicación ═══ -->
+<div class="modal-bg" id="modal-ubi-edit">
+  <div class="modal">
+    <button class="modal-x" onclick="_closeModal('modal-ubi-edit')">✕</button>
+    <div class="modal-title">Editar ubicación</div>
+    <input type="hidden" id="mue-id">
+    <div class="field"><label>Código (no editable)</label><input class="inp" id="mue-codigo" disabled style="opacity:.5;"></div>
+    <div class="field"><label>Nombre</label><input class="inp" id="mue-nombre"></div>
+    <div class="field"><label class="chk" style="font-size:12px;"><input type="checkbox" id="mue-activo" checked> Activa</label></div>
+    <div id="mue-error" class="err-msg"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="_closeModal('modal-ubi-edit')">Cancelar</button>
+      <button class="btn btn-accent" onclick="_saveUbiEdit()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/sidebar.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// INVENTARIO — JS INLINE
+// ═══════════════════════════════════════════════════════════════════
+
+const API = '/api/inventario';
+let _token = '';
+try { const s = JSON.parse(localStorage.getItem('mble_session') || sessionStorage.getItem('mble_session') || '{}'); _token = s.session_token || ''; } catch(e) {}
+
+function _headers() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _token }; }
+
+async function _get(action, params) {
+  const qs = new URLSearchParams(params || {});
+  const r = await fetch(API + '?action=' + action + '&' + qs.toString(), { headers: _headers() });
+  return r.json();
+}
+
+async function _post(action, body) {
+  const r = await fetch(API + '?action=' + action, { method: 'POST', headers: _headers(), body: JSON.stringify(body || {}) });
+  return r.json();
+}
+
+// ── Tabs ──
+function _switchTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + id));
+  if (id === 'ubicaciones' && !_ubisLoaded) _cargarUbicaciones();
+}
+
+// ── Modals ──
+function _openModal(id) { document.getElementById(id).classList.add('open'); }
+function _closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ═══════════════════════════════════════════════════════════════════
+// TAB ÍTEMS
+// ═══════════════════════════════════════════════════════════════════
+let _allItems = [];
+let _filteredItems = [];
+let _selectedIds = new Set();
+let _page = 0;
+const PER_PAGE = 50;
+let _statFilter = null; // null = total, 'herraje', 'placa', ... 'otro', 'sin_zoho'
+let _ubicaciones = []; // for picking select
+let _ubisLoaded = false;
+
+async function _cargarItems() {
+  const activo = document.getElementById('f-inactivos').checked ? 'false' : 'true';
+  const r = await _get('listar-items', { activo });
+  if (!r.ok) return;
+  _allItems = r.items || [];
+  _selectedIds.clear();
+  _statFilter = null;
+  _filtrar();
+  _renderStats();
+}
+
+function _renderStats() {
+  const items = _allItems;
+  const total = items.length;
+  const familias = { herraje: 0, placa: 0, madera: 0, consumible: 0, otro: 0 };
+  let huerfanos = 0;
+  for (const it of items) {
+    if (familias[it.familia] !== undefined) familias[it.familia]++;
+    if (!it.zoho_item_id) huerfanos++;
+  }
+  const chips = [
+    { key: null, label: 'Total', count: total },
+    { key: 'herraje', label: 'Herraje', count: familias.herraje },
+    { key: 'placa', label: 'Placa', count: familias.placa },
+    { key: 'madera', label: 'Madera', count: familias.madera },
+    { key: 'consumible', label: 'Consumible', count: familias.consumible },
+    { key: 'otro', label: 'Sin clasificar', count: familias.otro, warn: true },
+    { key: 'sin_zoho', label: 'Huérfanos', count: huerfanos },
+  ];
+  document.getElementById('stats-row').innerHTML = chips.map(c => {
+    const cls = 'stat-chip' + (_statFilter === c.key ? ' active' : '') + (c.warn ? ' warn' : '');
+    return '<div class="' + cls + '" onclick="_clickStat(' + JSON.stringify(c.key) + ')">' + c.label + ' <b>' + c.count + '</b></div>';
+  }).join('');
+}
+
+function _clickStat(key) {
+  _statFilter = _statFilter === key ? null : key;
+  _page = 0;
+  _filtrar();
+  _renderStats();
+}
+
+function _filtrar() {
+  const q = (document.getElementById('f-buscar').value || '').toLowerCase().trim();
+  const fam = document.getElementById('f-familia').value;
+  const inv = document.getElementById('f-inv').value;
+
+  let items = _allItems;
+
+  // stat filter
+  if (_statFilter === 'sin_zoho') items = items.filter(i => !i.zoho_item_id);
+  else if (_statFilter) items = items.filter(i => i.familia === _statFilter);
+
+  // familia dropdown
+  if (fam) items = items.filter(i => i.familia === fam);
+
+  // inventariable
+  if (inv === 'si') items = items.filter(i => i.inventariable !== false);
+  else if (inv === 'no') items = items.filter(i => i.inventariable === false);
+
+  // search
+  if (q) items = items.filter(i => (i.codigo || '').toLowerCase().includes(q) || (i.descripcion || '').toLowerCase().includes(q));
+
+  _filteredItems = items;
+  _page = 0;
+  _renderTable();
+  _updateBulk();
+}
+
+function _renderTable() {
+  const start = _page * PER_PAGE;
+  const slice = _filteredItems.slice(start, start + PER_PAGE);
+  const esc = s => (s == null ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'));
+
+  document.getElementById('tbl-body').innerHTML = slice.map(it => {
+    const sel = _selectedIds.has(it.id) ? ' selected' : '';
+    const chk = _selectedIds.has(it.id) ? ' checked' : '';
+    const famBadge = '<span class="badge badge-' + (it.familia || 'otro') + '">' + (it.familia || 'otro') + '</span>';
+    const zoho = it.zoho_item_id ? '<span class="zoho-ok">✓</span>' : '<span class="badge badge-huerfano">HUÉRFANO</span>';
+    const inv = it.inventariable !== false ? '✓' : '<span class="inv-no">NO</span>';
+    return '<tr class="' + sel + '" data-id="' + it.id + '">'
+      + '<td><input type="checkbox"' + chk + ' onchange="_toggleSel(\'' + it.id + '\', this.checked)" onclick="event.stopPropagation()"></td>'
+      + '<td class="cod">' + esc(it.codigo) + '</td>'
+      + '<td>' + esc(it.descripcion) + '</td>'
+      + '<td>' + famBadge + '</td>'
+      + '<td>' + zoho + '</td>'
+      + '<td>' + inv + '</td>'
+      + '<td style="color:var(--muted);">—</td>'
+      + '</tr>';
+  }).join('');
+
+  // click on row (not checkbox) opens edit
+  document.querySelectorAll('#tbl-body tr').forEach(tr => {
+    tr.addEventListener('click', function(e) {
+      if (e.target.tagName === 'INPUT') return;
+      const id = this.dataset.id;
+      _openEditItem(id);
+    });
+  });
+
+  // pagination
+  const totalPages = Math.ceil(_filteredItems.length / PER_PAGE);
+  const pagEl = document.getElementById('pag-items');
+  if (totalPages <= 1) { pagEl.innerHTML = ''; return; }
+  pagEl.innerHTML = '<button ' + (_page <= 0 ? 'disabled' : '') + ' onclick="_page--;_renderTable();">← Ant</button>'
+    + ' <span>' + (_page + 1) + ' / ' + totalPages + ' (' + _filteredItems.length + ' ítems)</span> '
+    + '<button ' + (_page >= totalPages - 1 ? 'disabled' : '') + ' onclick="_page++;_renderTable();">Sig →</button>';
+}
+
+function _toggleAll(checked) {
+  const start = _page * PER_PAGE;
+  const slice = _filteredItems.slice(start, start + PER_PAGE);
+  slice.forEach(it => { if (checked) _selectedIds.add(it.id); else _selectedIds.delete(it.id); });
+  _renderTable();
+  _updateBulk();
+}
+
+function _toggleSel(id, checked) {
+  if (checked) _selectedIds.add(id); else _selectedIds.delete(id);
+  _renderTable();
+  _updateBulk();
+}
+
+function _updateBulk() {
+  const bar = document.getElementById('bulk-bar');
+  const n = _selectedIds.size;
+  if (n > 0) {
+    bar.classList.add('visible');
+    document.getElementById('bulk-count').textContent = n + ' seleccionados';
+  } else {
+    bar.classList.remove('visible');
+  }
+}
+
+async function _bulkFamilia(fam) {
+  const ids = [..._selectedIds];
+  if (!ids.length) return;
+  if (!confirm('Cambiar ' + ids.length + ' ítems a familia "' + fam + '"?')) return;
+  for (let i = 0; i < ids.length; i++) {
+    document.getElementById('bulk-count').textContent = (i + 1) + '/' + ids.length + '...';
+    await _post('editar-item', { id: ids[i], familia: fam });
+  }
+  await _cargarItems();
+}
+
+async function _bulkInv(val) {
+  const ids = [..._selectedIds];
+  if (!ids.length) return;
+  if (!confirm('Marcar ' + ids.length + ' ítems como ' + (val ? 'inventariables' : 'NO inventariables') + '?')) return;
+  for (let i = 0; i < ids.length; i++) {
+    document.getElementById('bulk-count').textContent = (i + 1) + '/' + ids.length + '...';
+    await _post('editar-item', { id: ids[i], inventariable: val });
+  }
+  await _cargarItems();
+}
+
+// ── Crear ítem ──
+function _openCrearItem() {
+  document.getElementById('modal-item-title').textContent = 'Crear ítem';
+  document.getElementById('mi-id').value = '';
+  document.getElementById('mi-codigo').value = '';
+  document.getElementById('mi-codigo').disabled = false;
+  document.getElementById('mi-desc').value = '';
+  document.getElementById('mi-familia').value = '';
+  document.getElementById('mi-unidad').value = '';
+  document.getElementById('mi-min').value = '';
+  document.getElementById('mi-max').value = '';
+  document.getElementById('mi-inventariable').checked = true;
+  document.getElementById('mi-ubi-picking').value = '';
+  document.getElementById('mi-error').textContent = '';
+  _loadUbiPicking();
+  _openModal('modal-item');
+}
+
+function _openEditItem(id) {
+  const it = _allItems.find(i => i.id === id);
+  if (!it) return;
+  document.getElementById('modal-item-title').textContent = 'Editar ítem';
+  document.getElementById('mi-id').value = it.id;
+  document.getElementById('mi-codigo').value = it.codigo || '';
+  document.getElementById('mi-codigo').disabled = !!it.zoho_item_id;
+  document.getElementById('mi-desc').value = it.descripcion || '';
+  document.getElementById('mi-familia').value = it.familia || '';
+  document.getElementById('mi-unidad').value = it.unidad || '';
+  document.getElementById('mi-min').value = it.stock_min != null ? it.stock_min : '';
+  document.getElementById('mi-max').value = it.stock_max != null ? it.stock_max : '';
+  document.getElementById('mi-inventariable').checked = it.inventariable !== false;
+  document.getElementById('mi-error').textContent = '';
+  _loadUbiPicking(it.ubicacion_picking_id);
+  _openModal('modal-item');
+}
+
+async function _loadUbiPicking(selectedId) {
+  if (!_ubicaciones.length) {
+    const r = await _get('listar-ubicaciones');
+    if (r.ok) _ubicaciones = r.ubicaciones || [];
+  }
+  const sel = document.getElementById('mi-ubi-picking');
+  sel.innerHTML = '<option value="">Sin asignar</option>' + _ubicaciones.map(u =>
+    '<option value="' + u.id + '"' + (u.id === selectedId ? ' selected' : '') + '>' + u.codigo + ' — ' + u.nombre + '</option>'
+  ).join('');
+}
+
+async function _saveItem() {
+  const id = document.getElementById('mi-id').value;
+  const errEl = document.getElementById('mi-error');
+  errEl.textContent = '';
+
+  const body = {};
+  if (id) body.id = id;
+
+  const codigo = document.getElementById('mi-codigo').value.trim().toUpperCase();
+  const desc = document.getElementById('mi-desc').value.trim();
+  const familia = document.getElementById('mi-familia').value;
+
+  if (!id) {
+    // crear
+    if (!codigo || !desc || !familia) { errEl.textContent = 'Código, descripción y familia son requeridos'; return; }
+    body.codigo = codigo;
+    body.descripcion = desc;
+    body.familia = familia;
+    body.inventariable = document.getElementById('mi-inventariable').checked;
+    const unidad = document.getElementById('mi-unidad').value.trim();
+    if (unidad) body.unidad = unidad;
+    const min = document.getElementById('mi-min').value;
+    if (min !== '') body.stock_min = Number(min);
+    const max = document.getElementById('mi-max').value;
+    if (max !== '') body.stock_max = Number(max);
+    const ubiPick = document.getElementById('mi-ubi-picking').value;
+    if (ubiPick) body.ubicacion_picking_id = ubiPick;
+
+    const r = await _post('crear-item', body);
+    if (!r.ok) { errEl.textContent = r.msg || 'Error'; return; }
+  } else {
+    // editar — solo campos modificados
+    const it = _allItems.find(i => i.id === id);
+    if (!it) return;
+    if (!document.getElementById('mi-codigo').disabled && codigo !== (it.codigo || '')) body.codigo = codigo;
+    if (desc !== (it.descripcion || '')) body.descripcion = desc;
+    if (familia && familia !== it.familia) body.familia = familia;
+    const unidad = document.getElementById('mi-unidad').value.trim();
+    if (unidad !== (it.unidad || '')) body.unidad = unidad;
+    const inv = document.getElementById('mi-inventariable').checked;
+    if (inv !== (it.inventariable !== false)) body.inventariable = inv;
+    const min = document.getElementById('mi-min').value;
+    const minVal = min !== '' ? Number(min) : null;
+    if (minVal !== it.stock_min) body.stock_min = minVal;
+    const max = document.getElementById('mi-max').value;
+    const maxVal = max !== '' ? Number(max) : null;
+    if (maxVal !== it.stock_max) body.stock_max = maxVal;
+    const ubiPick = document.getElementById('mi-ubi-picking').value || null;
+    if (ubiPick !== it.ubicacion_picking_id) body.ubicacion_picking_id = ubiPick;
+
+    if (Object.keys(body).length <= 1) { _closeModal('modal-item'); return; }
+
+    const r = await _post('editar-item', body);
+    if (!r.ok) { errEl.textContent = r.msg || 'Error'; return; }
+  }
+
+  _closeModal('modal-item');
+  await _cargarItems();
+}
+
+// ── Sync Zoho ──
+async function _syncZoho() {
+  const btn = document.getElementById('btn-sync');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Sincronizando...';
+
+  const r = await _post('sync-items-zoho');
+  btn.disabled = false;
+  btn.textContent = '⟳ Sync Zoho';
+
+  if (!r.ok) { alert('Error: ' + (r.msg || 'desconocido')); return; }
+
+  let html = '<div style="font-family:\'Space Mono\',monospace;font-size:12px;line-height:2;">'
+    + '<div>Total Zoho: <b>' + r.total_zoho + '</b></div>'
+    + '<div>Nuevos: <b style="color:var(--green);">' + r.nuevos + '</b></div>'
+    + '<div>Actualizados: <b>' + r.actualizados + '</b></div>'
+    + '<div>Colisiones: <b style="color:var(--red);">' + (r.colisiones || []).length + '</b></div>'
+    + '</div>';
+
+  if (r.colisiones && r.colisiones.length) {
+    html += '<div style="margin-top:14px;max-height:200px;overflow-y:auto;font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:10px;">';
+    html += r.colisiones.map(c => '<div>' + c.codigo + ' → zoho_id: ' + c.zoho_item_id + '</div>').join('');
+    html += '</div>';
+  }
+
+  document.getElementById('sync-result').innerHTML = html;
+  _openModal('modal-sync');
+  await _cargarItems();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TAB UBICACIONES
+// ═══════════════════════════════════════════════════════════════════
+let _ubiData = [];
+let _selectedUbi = null;
+
+async function _cargarUbicaciones() {
+  const r = await _get('listar-ubicaciones', { todas: '1' });
+  if (!r.ok) return;
+  _ubiData = r.ubicaciones || [];
+  _ubisLoaded = true;
+  _renderTree();
+}
+
+function _renderTree() {
+  const byParent = {};
+  for (const u of _ubiData) {
+    const pid = u.parent_id || 'root';
+    if (!byParent[pid]) byParent[pid] = [];
+    byParent[pid].push(u);
+  }
+
+  function renderLevel(parentId, level) {
+    const children = byParent[parentId] || [];
+    return children.map(u => {
+      const cls = 'tree-node' + (level === 1 ? ' tree-lvl1' : level >= 2 ? ' tree-lvl2' : '') + (_selectedUbi === u.id ? ' selected' : '');
+      const inactive = u.activo === false ? ' style="opacity:.4;"' : '';
+      let html = '<div class="' + cls + '"' + inactive + ' onclick="_selectUbi(\'' + u.id + '\')">'
+        + '<span class="tn-code">' + u.codigo + '</span>'
+        + '<span class="tn-name">' + (u.nombre || '') + '</span>'
+        + '<span class="tn-edit" onclick="event.stopPropagation();_openEditUbi(\'' + u.id + '\')">✏</span>'
+        + '</div>';
+      if (level < 2) html += renderLevel(u.id, level + 1);
+      return html;
+    }).join('');
+  }
+
+  document.getElementById('ubi-tree').innerHTML = renderLevel('root', 0) || '<div class="placeholder">Sin ubicaciones</div>';
+}
+
+function _selectUbi(id) {
+  _selectedUbi = id;
+  _renderTree();
+  const u = _ubiData.find(x => x.id === id);
+  if (!u) return;
+
+  // Build path
+  let path = u.codigo;
+  let cur = u;
+  while (cur.parent_id) {
+    cur = _ubiData.find(x => x.id === cur.parent_id);
+    if (cur) path = cur.codigo + ' > ' + path; else break;
+  }
+
+  document.getElementById('ubi-panel').innerHTML =
+    '<div class="ubi-preview">'
+    + '<div class="big-code">' + u.codigo + '</div>'
+    + '<div class="big-name">' + (u.nombre || '') + '</div>'
+    + '<div class="big-path">' + path + '</div>'
+    + '<div style="margin-top:24px;">'
+    + '<button class="btn" disabled title="Disponible con el sistema de etiquetas (lote E)" onclick="/* TODO INV-1b2: Etiquetas.imprimir(\'inv-bin\', items) */">⎙ Imprimir etiqueta</button>'
+    + '</div>'
+    + '</div>';
+}
+
+// ── Crear ubicación ──
+function _openCrearUbi() {
+  document.getElementById('modal-ubi-title').textContent = 'Crear ubicación';
+  document.getElementById('mu-id').value = '';
+  document.getElementById('mu-codigo').value = '';
+  document.getElementById('mu-codigo').disabled = false;
+  document.getElementById('mu-nombre').value = '';
+  document.getElementById('mu-error').textContent = '';
+  // populate parent select
+  const sel = document.getElementById('mu-parent');
+  sel.innerHTML = '<option value="">— Raíz —</option>' + _ubiData.filter(u => u.activo !== false).map(u =>
+    '<option value="' + u.id + '">' + u.codigo + ' — ' + u.nombre + '</option>'
+  ).join('');
+  if (_selectedUbi) sel.value = _selectedUbi;
+  _openModal('modal-ubi');
+}
+
+async function _saveUbi() {
+  const errEl = document.getElementById('mu-error');
+  errEl.textContent = '';
+  const codigo = document.getElementById('mu-codigo').value.trim().toUpperCase();
+  const nombre = document.getElementById('mu-nombre').value.trim();
+  if (!codigo || !nombre) { errEl.textContent = 'Código y nombre requeridos'; return; }
+  const parentId = document.getElementById('mu-parent').value || undefined;
+  const r = await _post('crear-ubicacion', { codigo, nombre, parent_id: parentId });
+  if (!r.ok) { errEl.textContent = r.msg || 'Error'; return; }
+  _closeModal('modal-ubi');
+  await _cargarUbicaciones();
+}
+
+// ── Editar ubicación ──
+function _openEditUbi(id) {
+  const u = _ubiData.find(x => x.id === id);
+  if (!u) return;
+  document.getElementById('mue-id').value = u.id;
+  document.getElementById('mue-codigo').value = u.codigo;
+  document.getElementById('mue-nombre').value = u.nombre || '';
+  document.getElementById('mue-activo').checked = u.activo !== false;
+  document.getElementById('mue-error').textContent = '';
+  _openModal('modal-ubi-edit');
+}
+
+async function _saveUbiEdit() {
+  const errEl = document.getElementById('mue-error');
+  errEl.textContent = '';
+  const id = document.getElementById('mue-id').value;
+  const u = _ubiData.find(x => x.id === id);
+  if (!u) return;
+  const body = { id };
+  const nombre = document.getElementById('mue-nombre').value.trim();
+  if (nombre !== (u.nombre || '')) body.nombre = nombre;
+  const activo = document.getElementById('mue-activo').checked;
+  if (activo !== (u.activo !== false)) body.activo = activo;
+  if (Object.keys(body).length <= 1) { _closeModal('modal-ubi-edit'); return; }
+  const r = await _post('editar-ubicacion', body);
+  if (!r.ok) { errEl.textContent = r.msg || 'Error'; return; }
+  _closeModal('modal-ubi-edit');
+  await _cargarUbicaciones();
+}
+
+// ── Init ──
+_cargarItems();
+</script>
+</body>
+</html>
