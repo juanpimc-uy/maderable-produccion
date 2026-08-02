@@ -24,6 +24,7 @@
     ]},
     { id: 'madera',         icon: '🪵', label: 'Madera',         page: 'madera.html',            section: null,         roles: ['admin', 'oficina'] },
     { id: 'ctrl-despachos', icon: '⇥', label: 'CTRL Despachos', href: 'https://juanpimc-uy.github.io/ctrl-despachos/admin.html', external: true, roles: ['admin', 'oficina'] },
+    { id: 'etiquetas', icon: '⌗', label: 'Etiquetas', page: 'etiquetas-config.html', section: null, roles: ['admin', 'oficina'] },
     { id: 'stock',        icon: '⬡', label: 'Stock Placas', page: 'stock-placas.html',  section: null,         roles: ['admin', 'oficina'], hidden: true },
     { id: 'despacho',     icon: '⇥', label: 'Despacho',     page: 'despacho.html',      section: null,         roles: ['admin', 'oficina'], hidden: true },
     { id: 'informes-group', icon: '📊', label: 'Informes', group: true, roles: ['admin'], children: [
@@ -57,6 +58,7 @@
       'despacho.html':       'despacho',
       'informes.html':       (() => { const v = new URLSearchParams(location.search).get('vista'); return v === 'facturas' ? 'inf-facturas' : v === 'lean' ? 'inf-lean' : 'inf-costos'; })(),
       'config-formula.html': 'materiales',
+      'etiquetas-config.html': 'etiquetas',
     };
     return map[PAGE] || null;
   }

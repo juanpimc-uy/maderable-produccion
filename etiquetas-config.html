@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Etiquetas — Configurador</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="/js/supabase-config.js"></script>
+<script src="/js/auth.js"></script>
+<script src="/js/etiquetas.js"></script>
+<style>
+:root {
+  --bg: #0f0f0f; --panel: #1e1e1e; --card: #252525; --border: #333;
+  --accent: #FFD600; --amber: #FFD600; --text: #f0f0f0; --muted: #888;
+  --green: #22c55e; --red: #ef4444; --faint: rgba(255,255,255,.04);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+.mono { font-family: 'Space Mono', monospace; }
+
+.layout { display: flex; min-height: 100vh; }
+.main { flex: 1; overflow-y: auto; padding: 24px 32px; }
+
+.page-title {
+  font-family: 'Space Mono', monospace; font-size: 18px; font-weight: 700;
+  color: var(--accent); letter-spacing: 2px; text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+/* ── TARJETAS ── */
+.func-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 24px; margin-bottom: 24px;
+}
+.func-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px; gap: 12px; flex-wrap: wrap;
+}
+.func-name {
+  font-family: 'Space Mono', monospace; font-size: 14px; font-weight: 700;
+  color: var(--accent); letter-spacing: 1px; text-transform: uppercase;
+}
+.func-actions { display: flex; gap: 8px; align-items: center; }
+
+.lbl {
+  font-family: 'Space Mono', monospace; font-size: 9px; letter-spacing: 1px;
+  color: var(--muted); text-transform: uppercase; display: block; margin-bottom: 6px;
+}
+
+/* ── INPUT TITULAR ── */
+.titulo-input {
+  background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px 12px; color: var(--text); font-family: 'Space Mono', monospace;
+  font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+  width: 200px; outline: none;
+}
+.titulo-input:focus { border-color: var(--accent); }
+.titulo-hint {
+  font-family: 'Space Mono', monospace; font-size: 8px; color: var(--muted);
+  margin-top: 3px; letter-spacing: 0.5px;
+}
+
+/* ── RADIOS TAMAÑO ── */
+.radio-group { display: flex; gap: 8px; }
+.radio-btn {
+  background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 14px; cursor: pointer; font-family: 'Space Mono', monospace;
+  font-size: 11px; font-weight: 700; color: var(--muted); transition: all 0.15s;
+}
+.radio-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+/* ── TABLA CAMPOS ── */
+.campos-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.campos-table th {
+  font-family: 'Space Mono', monospace; font-size: 8px; letter-spacing: 1px;
+  color: var(--muted); text-transform: uppercase; text-align: left; padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.campos-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.03); vertical-align: middle; }
+.campo-nombre { font-size: 12px; font-weight: 600; }
+.tag-fijo {
+  font-family: 'Space Mono', monospace; font-size: 7px; font-weight: 700;
+  color: var(--accent); background: rgba(255,214,0,.1); padding: 1px 5px;
+  border-radius: 3px; margin-left: 6px; letter-spacing: 0.5px;
+}
+.campo-check { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+
+/* ── BOTONES POS ── */
+.pos-group { display: flex; gap: 4px; }
+.pos-btn {
+  background: var(--card); border: 1px solid var(--border); border-radius: 4px;
+  padding: 3px 8px; cursor: pointer; font-family: 'Space Mono', monospace;
+  font-size: 9px; font-weight: 700; color: var(--muted); transition: all 0.12s;
+  min-width: 26px; text-align: center;
+}
+.pos-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+.pos-btn.pos-P { color: #f97316; border-color: rgba(249,115,22,.4); }
+.pos-btn.pos-P.active { background: #f97316; color: #000; border-color: #f97316; }
+.pos-btn:disabled { opacity: .25; cursor: default; }
+
+/* ── CONTADOR LÍMITES ── */
+.limites {
+  font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted);
+  margin-top: 8px; letter-spacing: 0.5px;
+}
+.limites .over { color: var(--red); font-weight: 700; }
+
+/* ── PREVIEW ── */
+.preview-wrap {
+  margin-top: 16px; padding: 16px; background: #333; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── BOTONES ACCIÓN ── */
+.btn-sm {
+  background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 16px; cursor: pointer; font-family: 'Space Mono', monospace;
+  font-size: 10px; font-weight: 700; color: var(--muted); letter-spacing: 0.5px;
+  transition: all 0.15s; text-transform: uppercase;
+}
+.btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm.btn-accent { background: var(--accent); color: #000; border-color: var(--accent); }
+.btn-sm.btn-accent:hover { opacity: .9; }
+
+.feedback {
+  font-family: 'Space Mono', monospace; font-size: 10px; margin-left: 8px;
+  transition: opacity 0.3s;
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 700px) {
+  .main { padding: 16px; }
+  .titulo-input { width: 100%; }
+  .func-header { flex-direction: column; align-items: flex-start; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <div id="sidebar-root"></div>
+  <div class="main" id="main">
+    <div class="page-title">⌗ Configurador de Etiquetas</div>
+    <div id="cards-container">Cargando...</div>
+  </div>
+</div>
+
+<script src="/sidebar.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════════════════════════════
+var _session = null;
+var _states = {}; // { funcion: { tamano, titulo, campos: { '60x30': [...], '100x50': [...] } } }
+
+function getToken() {
+  return _session ? (_session.session_token || null) : null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INICIALIZACIÓN
+// ═══════════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', async function () {
+  try { _session = JSON.parse(localStorage.getItem('mble_session') || sessionStorage.getItem('mble_session') || '{}'); } catch (e) { _session = {}; }
+  if (!_session.session_token) {
+    document.getElementById('cards-container').textContent = 'Sesión no iniciada — ingresá desde admin.html';
+    return;
+  }
+
+  // Cargar config del servidor
+  await Etiquetas.cargarConfig();
+
+  // Inicializar estados
+  var FUNC = Etiquetas.FUNCIONES;
+  for (var fn in FUNC) {
+    var spec = FUNC[fn];
+    var saved = (window.Etiquetas._configCache || {})[fn];
+    var tamano = (saved && saved.tamano) ? saved.tamano : '60x30';
+    var titulo = (saved && saved.titulo != null) ? saved.titulo : spec.tituloDefault;
+    var campos = {};
+
+    ['60x30', '100x50'].forEach(function (fmt) {
+      var savedCampos = saved && saved.campos && saved.campos[fmt];
+      if (savedCampos) {
+        campos[fmt] = savedCampos;
+      } else {
+        campos[fmt] = spec.defaults[fmt].map(function (c) { return { id: c.id, pos: c.pos }; });
+      }
+    });
+
+    _states[fn] = { tamano: tamano, titulo: titulo, campos: campos };
+  }
+
+  // Exponer cache para resolverCampos
+  Etiquetas._configCache = Etiquetas._configCache || {};
+
+  renderCards();
+});
+
+// acceso al cache interno (para resolverCampos override)
+(function () {
+  var origCargar = Etiquetas.cargarConfig;
+  Etiquetas.cargarConfig = function () {
+    return origCargar().then(function (c) {
+      Etiquetas._configCache = c;
+      return c;
+    });
+  };
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════════════
+function renderCards() {
+  var container = document.getElementById('cards-container');
+  container.innerHTML = '';
+  var FUNC = Etiquetas.FUNCIONES;
+
+  for (var fn in FUNC) {
+    container.appendChild(buildCard(fn));
+  }
+}
+
+function buildCard(fn) {
+  var spec = Etiquetas.FUNCIONES[fn];
+  var st = _states[fn];
+  var fmt = st.tamano;
+  var is100 = fmt === '100x50';
+
+  var card = document.createElement('div');
+  card.className = 'func-card';
+  card.id = 'card-' + fn;
+
+  // ── Header
+  var header = document.createElement('div');
+  header.className = 'func-header';
+
+  var nameEl = document.createElement('span');
+  nameEl.className = 'func-name';
+  nameEl.textContent = fn;
+  header.appendChild(nameEl);
+
+  var actions = document.createElement('div');
+  actions.className = 'func-actions';
+
+  var btnPrint = document.createElement('button');
+  btnPrint.className = 'btn-sm';
+  btnPrint.textContent = '⎙ IMPRIMIR PRUEBA';
+  btnPrint.onclick = function () { imprimirPrueba(fn); };
+  actions.appendChild(btnPrint);
+
+  var btnSave = document.createElement('button');
+  btnSave.className = 'btn-sm btn-accent';
+  btnSave.textContent = 'GUARDAR';
+  btnSave.id = 'btn-save-' + fn;
+  btnSave.onclick = function () { guardar(fn); };
+  actions.appendChild(btnSave);
+
+  var fb = document.createElement('span');
+  fb.className = 'feedback';
+  fb.id = 'fb-' + fn;
+  actions.appendChild(fb);
+
+  header.appendChild(actions);
+  card.appendChild(header);
+
+  // ── Titular
+  var titBlock = document.createElement('div');
+  titBlock.style.marginBottom = '12px';
+  var titLbl = document.createElement('span');
+  titLbl.className = 'lbl';
+  titLbl.textContent = 'Titular de banda';
+  titBlock.appendChild(titLbl);
+
+  var titInput = document.createElement('input');
+  titInput.className = 'titulo-input';
+  titInput.id = 'tit-' + fn;
+  titInput.maxLength = 16;
+  titInput.value = st.titulo;
+  titInput.oninput = function () {
+    _states[fn].titulo = titInput.value;
+    refreshPreview(fn);
+  };
+  titBlock.appendChild(titInput);
+
+  var titHint = document.createElement('div');
+  titHint.className = 'titulo-hint';
+  titHint.textContent = 'Admite variables: {id_de_campo} — ej: {prov}';
+  titBlock.appendChild(titHint);
+  card.appendChild(titBlock);
+
+  // ── Tamaño
+  var tamBlock = document.createElement('div');
+  tamBlock.style.marginBottom = '12px';
+  var tamLbl = document.createElement('span');
+  tamLbl.className = 'lbl';
+  tamLbl.textContent = 'Tamaño';
+  tamBlock.appendChild(tamLbl);
+
+  var radios = document.createElement('div');
+  radios.className = 'radio-group';
+  radios.id = 'radios-' + fn;
+
+  ['60x30', '100x50'].forEach(function (t) {
+    var btn = document.createElement('button');
+    btn.className = 'radio-btn' + (t === fmt ? ' active' : '');
+    btn.textContent = t.replace('x', ' × ') + ' mm';
+    btn.dataset.tam = t;
+    btn.onclick = function () {
+      _states[fn].tamano = t;
+      rebuildCard(fn);
+    };
+    radios.appendChild(btn);
+  });
+  tamBlock.appendChild(radios);
+  card.appendChild(tamBlock);
+
+  // ── Tabla de campos
+  var activeCampos = st.campos[fmt] || [];
+  var activeIds = {};
+  activeCampos.forEach(function (c) { activeIds[c.id] = c.pos; });
+
+  var table = document.createElement('table');
+  table.className = 'campos-table';
+  var thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th></th><th>Campo</th><th>Posición</th></tr>';
+  table.appendChild(thead);
+
+  var tbody = document.createElement('tbody');
+  spec.campos.forEach(function (campo) {
+    var tr = document.createElement('tr');
+    var isOn = activeIds[campo.id] !== undefined;
+    var pos = activeIds[campo.id] || 'M';
+
+    // Checkbox
+    var tdCheck = document.createElement('td');
+    var chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.className = 'campo-check';
+    chk.checked = isOn;
+    chk.disabled = campo.fijo;
+    chk.onchange = function () {
+      if (chk.checked) {
+        addCampo(fn, campo.id, 'M');
+      } else {
+        removeCampo(fn, campo.id);
+      }
+      rebuildCard(fn);
+    };
+    tdCheck.appendChild(chk);
+    tr.appendChild(tdCheck);
+
+    // Nombre
+    var tdName = document.createElement('td');
+    var nameSpan = document.createElement('span');
+    nameSpan.className = 'campo-nombre';
+    nameSpan.textContent = campo.label;
+    tdName.appendChild(nameSpan);
+    if (campo.fijo) {
+      var fijo = document.createElement('span');
+      fijo.className = 'tag-fijo';
+      fijo.textContent = 'FIJO';
+      tdName.appendChild(fijo);
+    }
+    tr.appendChild(tdName);
+
+    // Posición
+    var tdPos = document.createElement('td');
+    if (isOn) {
+      var posGrp = document.createElement('div');
+      posGrp.className = 'pos-group';
+      var sizes = ['S', 'M', 'L', 'XL'];
+      if (is100) sizes.push('P');
+      sizes.forEach(function (sz) {
+        var btn = document.createElement('button');
+        btn.className = 'pos-btn' + (sz === pos ? ' active' : '') + (sz === 'P' ? ' pos-P' : '');
+        btn.textContent = sz;
+        btn.onclick = function () {
+          setCampoPos(fn, campo.id, sz);
+          rebuildCard(fn);
+        };
+        posGrp.appendChild(btn);
+      });
+      tdPos.appendChild(posGrp);
+    }
+    tr.appendChild(tdPos);
+
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  card.appendChild(table);
+
+  // ── Contador de límites
+  var limites = document.createElement('div');
+  limites.className = 'limites';
+  limites.id = 'lim-' + fn;
+  card.appendChild(limites);
+  updateLimites(fn, limites);
+
+  // ── Preview
+  var prevWrap = document.createElement('div');
+  prevWrap.className = 'preview-wrap';
+  prevWrap.id = 'prev-' + fn;
+  card.appendChild(prevWrap);
+  renderPreview(fn, prevWrap);
+
+  return card;
+}
+
+function rebuildCard(fn) {
+  var old = document.getElementById('card-' + fn);
+  if (!old) return;
+  var newCard = buildCard(fn);
+  old.parentNode.replaceChild(newCard, old);
+}
+
+function refreshPreview(fn) {
+  var wrap = document.getElementById('prev-' + fn);
+  if (wrap) renderPreview(fn, wrap);
+  var lim = document.getElementById('lim-' + fn);
+  if (lim) updateLimites(fn, lim);
+}
+
+function renderPreview(fn, wrap) {
+  wrap.innerHTML = '';
+  var st = _states[fn];
+  var cfgOverride = { _titulo: st.titulo, _tamano: st.tamano };
+  cfgOverride[st.tamano] = st.campos[st.tamano] || [];
+  var datos = {};
+  Etiquetas.FUNCIONES[fn].campos.forEach(function (c) { datos[c.id] = c.ej; });
+  var el = Etiquetas.preview(fn, st.tamano, cfgOverride, datos);
+  wrap.appendChild(el);
+}
+
+function updateLimites(fn, el) {
+  var st = _states[fn];
+  var fmt = st.tamano;
+  var campos = st.campos[fmt] || [];
+  var is100 = fmt === '100x50';
+  var maxCuerpo = is100 ? 7 : 4;
+  var maxXL = 1;
+  var maxL = 2;
+  var maxPie = 3;
+
+  var cuerpo = 0, xl = 0, l = 0, pie = 0;
+  campos.forEach(function (c) {
+    if (c.pos === 'P') { pie++; }
+    else { cuerpo++; if (c.pos === 'XL') xl++; if (c.pos === 'L') l++; }
+  });
+
+  function cls(v, max) { return v > max ? 'over' : ''; }
+  var html = '<span class="' + cls(cuerpo, maxCuerpo) + '">' + cuerpo + '/' + maxCuerpo + ' en cuerpo</span>'
+    + ' · <span class="' + cls(xl, maxXL) + '">' + xl + '/' + maxXL + ' XL</span>'
+    + ' · <span class="' + cls(l, maxL) + '">' + l + '/' + maxL + ' L</span>';
+  if (is100) html += ' · <span class="' + cls(pie, maxPie) + '">' + pie + '/' + maxPie + ' en pie</span>';
+  el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ACCIONES SOBRE CAMPOS
+// ═══════════════════════════════════════════════════════════════════════
+function addCampo(fn, id, pos) {
+  var st = _states[fn];
+  var fmt = st.tamano;
+  var arr = st.campos[fmt] = st.campos[fmt] || [];
+  if (!arr.find(function (c) { return c.id === id; })) arr.push({ id: id, pos: pos });
+}
+
+function removeCampo(fn, id) {
+  var st = _states[fn];
+  var fmt = st.tamano;
+  st.campos[fmt] = (st.campos[fmt] || []).filter(function (c) { return c.id !== id; });
+}
+
+function setCampoPos(fn, id, pos) {
+  var st = _states[fn];
+  var fmt = st.tamano;
+  var arr = st.campos[fmt] || [];
+  var c = arr.find(function (c) { return c.id === id; });
+  if (c) c.pos = pos;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// GUARDAR
+// ═══════════════════════════════════════════════════════════════════════
+async function guardar(fn) {
+  var st = _states[fn];
+  var btn = document.getElementById('btn-save-' + fn);
+  var fb = document.getElementById('fb-' + fn);
+
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+  fb.textContent = '';
+  fb.style.color = '';
+
+  try {
+    var resp = await fetch('/api/etiquetas?action=guardar-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: getToken(),
+        funcion: fn,
+        tamano: st.tamano,
+        titulo: st.titulo,
+        campos: st.campos,
+      }),
+    });
+    var json = await resp.json();
+    if (!resp.ok || !json.ok) throw new Error(json.error || 'Error al guardar');
+    fb.textContent = '✓ Guardado';
+    fb.style.color = 'var(--green)';
+  } catch (e) {
+    fb.textContent = '✗ ' + e.message;
+    fb.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'GUARDAR';
+    setTimeout(function () { fb.style.opacity = '0'; setTimeout(function () { fb.textContent = ''; fb.style.opacity = '1'; }, 300); }, 3000);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// IMPRIMIR PRUEBA
+// ═══════════════════════════════════════════════════════════════════════
+function imprimirPrueba(fn) {
+  var st = _states[fn];
+  var spec = Etiquetas.FUNCIONES[fn];
+  var datos = {};
+  spec.campos.forEach(function (c) { datos[c.id] = c.ej; });
+  datos.envio_num = '2';
+  datos.envio_total = '4';
+  datos._qr = spec.qrEj;
+
+  var cfgOverride = { _titulo: st.titulo, _tamano: st.tamano };
+  cfgOverride[st.tamano] = st.campos[st.tamano] || [];
+
+  Etiquetas.imprimir(fn, [datos], { config: cfgOverride, tamano: st.tamano });
+}
+</script>
+</body>
+</html>
