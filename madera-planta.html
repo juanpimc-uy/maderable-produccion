@@ -403,6 +403,9 @@ html, body { background: var(--bg); color: var(--text); font-family: 'DM Sans', 
 <!-- JS                                                                     -->
 <!-- ════════════════════════════════════════════════════════════════════════ -->
 <script>
+// Modo kiosco: si venimos del kiosco, el botón Home vuelve al kiosco
+const _MODO_KIOSCO = new URLSearchParams(location.search).get('kiosco') === '1';
+
 /* ── State ───────────────────────────────────────────────────────────────── */
 var usuario = null;      // {id, nombre, rol_app}
 var pinBuf = '';
@@ -465,6 +468,7 @@ function irHome() {
 }
 
 function logout() {
+  if (_MODO_KIOSCO) { location.href = '/planta-kioscos.html'; return; }
   usuario = null;
   document.getElementById('loginCedula').value = '';
   pinBuf = '';
