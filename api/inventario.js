@@ -383,10 +383,319 @@ async function accionStockUbicacion(req, res) {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// KIOSCO — Auth + actions de planta
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function verificarOperario(empleadoId) {
+  if (!empleadoId) return null;
+  const { data } = await supabase.from('empleados')
+    .select('id, nombre').eq('id', empleadoId).eq('activo', true).eq('archivado', false).maybeSingle();
+  return data || null;
+}
+
+async function resolverUbiPorCodigo(codigo) {
+  if (!codigo) return null;
+  const { data } = await supabase.from('inv_ubicaciones')
+    .select('id, codigo, nombre').eq('codigo', codigo.trim().toUpperCase()).eq('activo', true).maybeSingle();
+  return data || null;
+}
+
+// ── GET resolver-codigo ───────────────────────────────────────────────────
+async function accionResolverCodigo(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const emp = await verificarOperario(req.query.empleado_id);
+  if (!emp) return err(res, 'No autorizado', 401);
+
+  const codigo = (req.query.codigo || '').trim().toUpperCase();
+  if (!codigo) return err(res, 'codigo requerido');
+
+  // 1) Ubicación
+  const { data: ubi } = await supabase.from('inv_ubicaciones')
+    .select('*').eq('codigo', codigo).eq('activo', true).maybeSingle();
+  if (ubi) {
+    const { data: stock } = await supabase.from('inv_stock')
+      .select('item_id, cantidad, inv_items(id, codigo, descripcion, familia, unidad)')
+      .eq('ubicacion_id', ubi.id).neq('cantidad', 0);
+    return ok(res, { tipo: 'ubicacion', ubicacion: ubi, contenido: stock || [] });
+  }
+
+  // 2) Unidad serializada
+  const { data: unidad } = await supabase.from('inv_unidades')
+    .select('id, item_id, codigo, estado, inv_items(id, codigo, descripcion, familia)')
+    .eq('codigo', codigo).eq('estado', 'activa').maybeSingle();
+  if (unidad) return ok(res, { tipo: 'unidad', unidad, item: unidad.inv_items });
+
+  // 3) Pieza de madera
+  const { data: pieza } = await supabase.from('madera_piezas')
+    .select('id').eq('qr_codigo', codigo).maybeSingle();
+  if (pieza) return ok(res, { tipo: 'madera' });
+
+  // 4) Ítem por código
+  const { data: item } = await supabase.from('inv_items')
+    .select('*').eq('codigo', codigo).eq('activo', true).maybeSingle();
+  if (item) {
+    const { data: stock } = await supabase.from('inv_stock')
+      .select('ubicacion_id, cantidad, inv_ubicaciones(id, codigo, nombre)')
+      .eq('item_id', item.id).neq('cantidad', 0);
+    const total = (stock || []).reduce((s, r) => s + (r.cantidad || 0), 0);
+    return ok(res, { tipo: 'item', item, stock: stock || [], total });
+  }
+
+  return err(res, 'no encontrado', 404);
+}
+
+// ── GET buscar-items-kiosco ───────────────────────────────────────────────
+async function accionBuscarItemsKiosco(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const emp = await verificarOperario(req.query.empleado_id);
+  if (!emp) return err(res, 'No autorizado', 401);
+
+  const q = (req.query.q || '').trim().toLowerCase();
+  if (!q) return ok(res, { items: [] });
+
+  const { data, error } = await supabase.from('inv_items')
+    .select('id, codigo, descripcion, familia, foto_url, ubicacion_picking_id')
+    .eq('activo', true).eq('inventariable', true)
+    .or(`codigo.ilike.%${q}%,descripcion.ilike.%${q}%`)
+    .order('codigo').limit(20);
+  if (error) return err(res, error.message, 500);
+  return ok(res, { items: data || [] });
+}
+
+// ── POST movimiento ──────────────────────────────────────────────────────
+async function accionMovimiento(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const b = req.body || {};
+  const emp = await verificarOperario(b.empleado_id);
+  if (!emp) return err(res, 'No autorizado', 401);
+
+  const tipo = (b.tipo || '').trim();
+  const itemId = b.item_id;
+  const cantidad = Number(b.cantidad);
+  if (!tipo || !itemId) return err(res, 'tipo e item_id requeridos');
+
+  // Resolve ubicaciones by codigo if needed
+  let ubiId = b.ubicacion_id || null;
+  let ubiDestinoId = b.ubicacion_destino_id || null;
+  if (!ubiId && b.ubicacion_codigo) {
+    const u = await resolverUbiPorCodigo(b.ubicacion_codigo);
+    if (!u) return err(res, 'Ubicación origen no encontrada: ' + b.ubicacion_codigo, 404);
+    ubiId = u.id;
+  }
+  if (!ubiDestinoId && b.ubicacion_destino_codigo) {
+    const u = await resolverUbiPorCodigo(b.ubicacion_destino_codigo);
+    if (!u) return err(res, 'Ubicación destino no encontrada: ' + b.ubicacion_destino_codigo, 404);
+    ubiDestinoId = u.id;
+  }
+
+  // ── A PICKING ──
+  if (b.a_picking) {
+    const { data: item } = await supabase.from('inv_items').select('ubicacion_picking_id').eq('id', itemId).maybeSingle();
+    if (!item || !item.ubicacion_picking_id) return err(res, 'El ítem no tiene ubicación de picking asignada');
+    ubiDestinoId = item.ubicacion_picking_id;
+    // Origen = bin con más stock distinto del picking
+    const { data: stocks } = await supabase.from('inv_stock')
+      .select('ubicacion_id, cantidad').eq('item_id', itemId).neq('cantidad', 0)
+      .neq('ubicacion_id', ubiDestinoId).order('cantidad', { ascending: false }).limit(1);
+    if (!stocks || !stocks.length) return err(res, 'Sin stock fuera del picking');
+    ubiId = stocks[0].ubicacion_id;
+    if (cantidad > stocks[0].cantidad) return err(res, 'Stock insuficiente (disponible: ' + stocks[0].cantidad + ')');
+    const { data: rpcId, error: rpcErr } = await supabase.rpc('inv_registrar_movimiento', {
+      p_tipo: 'traslado', p_item_id: itemId, p_ubicacion_id: ubiId,
+      p_ubicacion_destino_id: ubiDestinoId, p_cantidad: cantidad,
+      p_proyecto_id: null, p_mueble_id: null, p_motivo: null,
+      p_origen: 'kiosco', p_empleado_id: b.empleado_id, p_nota: 'a picking'
+    });
+    if (rpcErr) return err(res, rpcErr.message, 500);
+    return ok(res, { movimiento_id: rpcId });
+  }
+
+  // ── SALIDA (cascada) ──
+  if (tipo === 'salida') {
+    if (!cantidad || cantidad <= 0) return err(res, 'cantidad debe ser > 0');
+    const motivo = (b.motivo || '').trim();
+    if (!['consumo_proyecto', 'venta', 'descarte'].includes(motivo)) return err(res, 'motivo requerido: consumo_proyecto|venta|descarte');
+    if (motivo === 'consumo_proyecto' && !b.proyecto_id) return err(res, 'proyecto_id requerido para consumo_proyecto');
+
+    if (ubiId) {
+      // Salida de un bin específico
+      const { data: rpcId, error: rpcErr } = await supabase.rpc('inv_registrar_movimiento', {
+        p_tipo: 'salida', p_item_id: itemId, p_ubicacion_id: ubiId,
+        p_ubicacion_destino_id: null, p_cantidad: cantidad,
+        p_proyecto_id: b.proyecto_id || null, p_mueble_id: b.mueble_id || null,
+        p_motivo: motivo, p_origen: 'kiosco', p_empleado_id: b.empleado_id, p_nota: b.nota || null
+      });
+      if (rpcErr) return err(res, rpcErr.message, 500);
+      return ok(res, { movimiento_id: rpcId, desglose: [{ ubicacion_id: ubiId, cantidad }] });
+    }
+
+    // Cascada: picking primero, luego el bin con más stock
+    const { data: item } = await supabase.from('inv_items').select('ubicacion_picking_id').eq('id', itemId).maybeSingle();
+    const pickingId = item ? item.ubicacion_picking_id : null;
+    const { data: stocks } = await supabase.from('inv_stock')
+      .select('ubicacion_id, cantidad').eq('item_id', itemId).neq('cantidad', 0).order('cantidad', { ascending: false });
+    if (!stocks || !stocks.length) return err(res, 'Sin stock');
+
+    // Reorder: picking first
+    const ordered = [];
+    if (pickingId) {
+      const pi = stocks.find(s => s.ubicacion_id === pickingId);
+      if (pi) ordered.push(pi);
+      stocks.forEach(s => { if (s.ubicacion_id !== pickingId) ordered.push(s); });
+    } else {
+      ordered.push(...stocks);
+    }
+
+    const totalDisp = ordered.reduce((s, r) => s + r.cantidad, 0);
+    if (cantidad > totalDisp) return err(res, 'Stock insuficiente (disponible: ' + totalDisp + ')');
+
+    let restante = cantidad;
+    const desglose = [];
+    for (const bin of ordered) {
+      if (restante <= 0) break;
+      const desc = Math.min(restante, bin.cantidad);
+      const { data: rpcId, error: rpcErr } = await supabase.rpc('inv_registrar_movimiento', {
+        p_tipo: 'salida', p_item_id: itemId, p_ubicacion_id: bin.ubicacion_id,
+        p_ubicacion_destino_id: null, p_cantidad: desc,
+        p_proyecto_id: b.proyecto_id || null, p_mueble_id: b.mueble_id || null,
+        p_motivo: motivo, p_origen: 'kiosco', p_empleado_id: b.empleado_id, p_nota: b.nota || null
+      });
+      if (rpcErr) return err(res, rpcErr.message, 500);
+      desglose.push({ ubicacion_id: bin.ubicacion_id, cantidad: desc, movimiento_id: rpcId });
+      restante -= desc;
+    }
+    return ok(res, { desglose });
+  }
+
+  // ── ENTRADA ──
+  if (tipo === 'entrada') {
+    if (!cantidad || cantidad <= 0) return err(res, 'cantidad debe ser > 0');
+    if (!ubiId) return err(res, 'ubicacion requerida para entrada');
+    const { data: rpcId, error: rpcErr } = await supabase.rpc('inv_registrar_movimiento', {
+      p_tipo: 'entrada', p_item_id: itemId, p_ubicacion_id: ubiId,
+      p_ubicacion_destino_id: null, p_cantidad: cantidad,
+      p_proyecto_id: null, p_mueble_id: null, p_motivo: null,
+      p_origen: 'kiosco', p_empleado_id: b.empleado_id, p_nota: b.nota || null
+    });
+    if (rpcErr) return err(res, rpcErr.message, 500);
+    return ok(res, { movimiento_id: rpcId });
+  }
+
+  // ── TRASLADO ──
+  if (tipo === 'traslado') {
+    if (!cantidad || cantidad <= 0) return err(res, 'cantidad debe ser > 0');
+    if (!ubiId) return err(res, 'ubicacion origen requerida');
+    if (!ubiDestinoId) return err(res, 'ubicacion destino requerida');
+    const { data: rpcId, error: rpcErr } = await supabase.rpc('inv_registrar_movimiento', {
+      p_tipo: 'traslado', p_item_id: itemId, p_ubicacion_id: ubiId,
+      p_ubicacion_destino_id: ubiDestinoId, p_cantidad: cantidad,
+      p_proyecto_id: null, p_mueble_id: null, p_motivo: null,
+      p_origen: 'kiosco', p_empleado_id: b.empleado_id, p_nota: b.nota || null
+    });
+    if (rpcErr) return err(res, rpcErr.message, 500);
+    return ok(res, { movimiento_id: rpcId });
+  }
+
+  // ── AJUSTE ──
+  if (tipo === 'ajuste') {
+    if (!ubiId) return err(res, 'ubicacion requerida para ajuste');
+    const nuevoVal = Number(b.ajuste_valor_nuevo);
+    if (isNaN(nuevoVal) || nuevoVal < 0) return err(res, 'ajuste_valor_nuevo debe ser >= 0');
+    // Leer valor actual
+    const { data: stockRow } = await supabase.from('inv_stock')
+      .select('cantidad').eq('item_id', itemId).eq('ubicacion_id', ubiId).maybeSingle();
+    const anterior = stockRow ? stockRow.cantidad : 0;
+    const { data: rpcId, error: rpcErr } = await supabase.rpc('inv_registrar_movimiento', {
+      p_tipo: 'ajuste', p_item_id: itemId, p_ubicacion_id: ubiId,
+      p_ubicacion_destino_id: null, p_cantidad: nuevoVal,
+      p_proyecto_id: null, p_mueble_id: null, p_motivo: null,
+      p_origen: 'kiosco', p_empleado_id: b.empleado_id, p_nota: 'conteo: ' + anterior + '→' + nuevoVal
+    });
+    if (rpcErr) return err(res, rpcErr.message, 500);
+    return ok(res, { movimiento_id: rpcId, anterior, nuevo: nuevoVal });
+  }
+
+  return err(res, 'tipo inválido: ' + tipo);
+}
+
+// ── POST alta-rapida ─────────────────────────────────────────────────────
+async function accionAltaRapida(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const b = req.body || {};
+  const emp = await verificarOperario(b.empleado_id);
+  if (!emp) return err(res, 'No autorizado', 401);
+
+  const codigo = (b.codigo || '').trim().toUpperCase();
+  const descripcion = (b.descripcion || '').trim();
+  const familia = (b.familia || '').trim();
+  if (!codigo) return err(res, 'codigo requerido');
+  if (!descripcion) return err(res, 'descripcion requerida');
+  if (!familia || !FAMILIAS_VALIDAS.includes(familia)) return err(res, 'familia inválida');
+
+  const ubiCodigo = (b.ubicacion_codigo || '').trim().toUpperCase();
+  if (!ubiCodigo) return err(res, 'ubicacion_codigo requerido');
+  const ubi = await resolverUbiPorCodigo(ubiCodigo);
+  if (!ubi) return err(res, 'Ubicación no encontrada: ' + ubiCodigo, 404);
+
+  const cantidad = Number(b.cantidad);
+  if (!cantidad || cantidad <= 0) return err(res, 'cantidad debe ser > 0');
+
+  // Crear ítem
+  const fila = { codigo, descripcion, familia, inventariable: true, creado_por: emp.id };
+  if (b.unidad !== undefined) fila.unidad = b.unidad;
+
+  const { data: item, error: itemErr } = await supabase.from('inv_items').insert(fila).select().single();
+  if (itemErr) {
+    if (itemErr.code === '23505') return err(res, 'El código "' + codigo + '" ya existe', 409);
+    return err(res, itemErr.message, 500);
+  }
+
+  // Foto (best-effort)
+  let fotoUrl = null;
+  let fotoError = null;
+  if (b.foto_base64) {
+    try {
+      const base64 = b.foto_base64.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64, 'base64');
+      const path = codigo + '.jpg';
+      const { error: upErr } = await supabase.storage.from('inv-fotos').upload(path, buffer, {
+        contentType: 'image/jpeg', upsert: true
+      });
+      if (upErr) {
+        fotoError = upErr.message;
+      } else {
+        const { data: urlData } = supabase.storage.from('inv-fotos').getPublicUrl(path);
+        fotoUrl = urlData ? urlData.publicUrl : null;
+        if (fotoUrl) {
+          await supabase.from('inv_items').update({ foto_url: fotoUrl }).eq('id', item.id);
+          item.foto_url = fotoUrl;
+        }
+      }
+    } catch (e) {
+      fotoError = e.message;
+    }
+  }
+
+  // Entrada de stock
+  const { error: rpcErr } = await supabase.rpc('inv_registrar_movimiento', {
+    p_tipo: 'entrada', p_item_id: item.id, p_ubicacion_id: ubi.id,
+    p_ubicacion_destino_id: null, p_cantidad: cantidad,
+    p_proyecto_id: null, p_mueble_id: null, p_motivo: null,
+    p_origen: 'kiosco', p_empleado_id: b.empleado_id, p_nota: 'alta rápida'
+  });
+  if (rpcErr) return err(res, rpcErr.message, 500);
+
+  const result = { item, ubicacion: ubi, cantidad };
+  if (fotoError) result.foto_error = fotoError;
+  return ok(res, result);
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const action = req.query.action;
   try {
+    // Oficina
     if (action === 'listar-items')        return await accionListarItems(req, res);
     if (action === 'crear-item')          return await accionCrearItem(req, res);
     if (action === 'editar-item')         return await accionEditarItem(req, res);
@@ -396,6 +705,11 @@ export default async function handler(req, res) {
     if (action === 'editar-ubicacion')    return await accionEditarUbicacion(req, res);
     if (action === 'stock-item')          return await accionStockItem(req, res);
     if (action === 'stock-ubicacion')     return await accionStockUbicacion(req, res);
+    // Kiosco
+    if (action === 'resolver-codigo')     return await accionResolverCodigo(req, res);
+    if (action === 'buscar-items-kiosco') return await accionBuscarItemsKiosco(req, res);
+    if (action === 'movimiento')          return await accionMovimiento(req, res);
+    if (action === 'alta-rapida')         return await accionAltaRapida(req, res);
     return err(res, 'Acción no reconocida');
   } catch (e) {
     console.error('[inventario]', action, e);
