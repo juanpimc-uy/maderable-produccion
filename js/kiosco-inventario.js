@@ -167,6 +167,7 @@
       + '<div class="inv-actions" style="margin-top:24px;">'
       + '<button class="inv-btn inv-btn-lg" onclick="_invAlta()">+ Alta rápida</button>'
       + '<button class="inv-btn inv-btn-lg" onclick="_invBuscar()">🔍 Buscar sin etiqueta</button>'
+      + '<button class="inv-btn inv-btn-lg" onclick="_invRecepcion()">📥 Recepción OC</button>'
       + '</div></div>';
     var inp = document.getElementById('inv-scan');
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') _invScan(inp.value); });
@@ -265,6 +266,10 @@
   // ── ACTIONS ──
   window._invShow = _show;
   window._invHome = function () { _show('home'); };
+  window._invRecepcion = function () {
+    if (window.abrirFlujo) { window.abrirFlujo('oc'); }
+    else { _fail('Recepción disponible desde el menú del kiosco'); }
+  };
   window._invAlta = function () { _show('alta'); };
   window._invBuscar = function () { _show('buscar'); };
   window._invScan = _invScan;

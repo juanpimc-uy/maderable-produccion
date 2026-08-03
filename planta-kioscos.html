@@ -566,6 +566,15 @@
   </div>
 </div>
 
+<!-- ════ FLUJO: INVENTARIO ════ -->
+<div id="screen-inventario" class="flujo-modal">
+  <div class="flujo-header">
+    <div class="flujo-title">Inventario</div>
+    <button class="btn-volver" onclick="volverAlMenu('inventario')">← Volver</button>
+  </div>
+  <div class="flujo-content" id="inventario-content"></div>
+</div>
+
 <script>
   // ═══ CONFIGURACIÓN DE FLUJOS ═══
   const FLUJOS_CONFIG = [
@@ -602,6 +611,14 @@
       destino: { tipo: 'directo', url: '/armado-so-planta.html' }
     },
     {
+      id: 'inventario',
+      nombre: 'Inventario',
+      icono: '🗄️',
+      descripcion: 'Stock, movimientos, altas y consumos',
+      activo: true,
+      destino: { tipo: 'iife' }
+    },
+    {
       id: 'madera',
       nombre: 'Madera',
       icono: '🪵',
@@ -609,14 +626,6 @@
       activo: true,
       destino: { tipo: 'bridge', url: '/madera-planta.html?kiosco=1' }
     },
-    {
-      id: 'placas',
-      nombre: 'Gestión Placas',
-      icono: '📋',
-      descripcion: 'Control de placas de cajas',
-      activo: false,
-      destino: null
-    }
   ];
 
   // ═══ ESTADO GLOBAL ═══
@@ -847,6 +856,11 @@
     } else if (d.tipo === 'directo') {
       sessionStorage.setItem('kiosco_origen', '1');
       window.location.href = d.url;
+    } else if (d.tipo === 'iife') {
+      ocultarTodos();
+      const screen = document.getElementById('screen-' + flujoId);
+      if (screen) screen.classList.add('active');
+      if (window['flujo_' + flujoId]) window['flujo_' + flujoId].cargar();
     } else if (d.tipo === 'externo') {
       window.location.href = d.url;
     }
@@ -968,6 +982,7 @@
 
 <!-- Importar flujos -->
 <script src="/js/kiosco-flujos.js"></script>
+<script src="/js/kiosco-inventario.js"></script>
 
 </body>
 </html>
