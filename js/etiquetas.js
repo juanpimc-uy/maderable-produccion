@@ -1,4 +1,4 @@
-/* js/etiquetas.js — Sistema central de etiquetas MBLE
+/* js/etiquetas.js v2 (raster) — Sistema central de etiquetas MBLE
    Autocontenido, sin dependencias del monolito.
    Uso: <script src="/js/etiquetas.js"></script>
    Expone window.Etiquetas: { imprimir, preview, cargarConfig, FUNCIONES } */
@@ -371,121 +371,318 @@
       return (orden[a.id] !== undefined ? orden[a.id] : 99) - (orden[b.id] !== undefined ? orden[b.id] : 99);
     });
 
-    // Generar HTML de cada etiqueta
-    var pages = '';
-    (items || []).forEach(function (item, idx) {
+    // Separar cuerpo y pie
+    var cuerpoCampos = [];
+    var pieCampos = [];
+    camposCfg.forEach(function (c) {
+      if (c.pos === 'P' && med.pie) pieCampos.push(c);
+      else cuerpoCampos.push(c);
+    });
+
+    // Cargar dependencias y rasterizar
+    var deps = [_ensureFont()];
+    if (spec.qr) deps.push(_ensureQRLib());
+    Promise.all(deps)
+      .then(function () { _rasterPrint(spec, items, med, cuerpoCampos, pieCampos, tituloRaw); })
+      .catch(function () { _rasterPrint(spec, items, med, cuerpoCampos, pieCampos, tituloRaw); });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // RASTER ENGINE
+  // ═══════════════════════════════════════════════════════════════════════
+  var DRAW_PX = 16; // px per mm, 2× oversample
+  var FINAL_PX = 8; // px per mm ≈ 203 dpi (Datamax native)
+  var CAMPO_GAP = Math.round(0.5 * DRAW_PX); // 0.5mm entre campos
+
+  function _mmPx(v) { return parseFloat(v) * DRAW_PX; }
+  function _ptPx(v) { return Math.round(parseFloat(v) * 0.3528 * DRAW_PX); }
+  function _padPx(s) {
+    var p = s.replace(/mm/g, '').trim().split(/\s+/);
+    return [parseFloat(p[0]) * DRAW_PX, (p.length > 1 ? parseFloat(p[1]) : parseFloat(p[0])) * DRAW_PX];
+  }
+
+  var _fontReady = false;
+  function _ensureFont() {
+    if (_fontReady) return Promise.resolve();
+
+    function _loadFaces() {
+      var loads = ['800 100px Montserrat', '700 100px Montserrat', '600 100px Montserrat'].map(function (f) {
+        return document.fonts.load(f).catch(function () {});
+      });
+      return Promise.all(loads).then(function () { _fontReady = true; });
+    }
+
+    var timeout = new Promise(function (r) { setTimeout(function () { _fontReady = true; r(); }, 1500); });
+
+    var existing = document.querySelector('link[href*="Montserrat"]');
+    if (existing) {
+      return Promise.race([_loadFaces(), timeout]);
+    }
+
+    // Inyectar stylesheet y esperar onload antes de fonts.load
+    var linkReady = new Promise(function (resolve) {
+      var lk = document.createElement('link');
+      lk.rel = 'stylesheet';
+      lk.href = 'https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&display=swap';
+      lk.onload = function () { _loadFaces().then(resolve).catch(resolve); };
+      lk.onerror = resolve;
+      document.head.appendChild(lk);
+    });
+
+    return Promise.race([linkReady, timeout]);
+  }
+
+  function _ensureQRLib() {
+    if (window.QRCode) return Promise.resolve();
+    return new Promise(function (resolve) {
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+      s.onload = resolve;
+      s.onerror = resolve;
+      document.head.appendChild(s);
+    });
+  }
+
+  function _genQRCanvas(text, sizePx) {
+    if (!window.QRCode || !text) return null;
+    var sz = Math.round(sizePx || 256);
+    var div = document.createElement('div');
+    div.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
+    document.body.appendChild(div);
+    try {
+      new QRCode(div, { text: text, width: sz, height: sz, correctLevel: QRCode.CorrectLevel.M });
+      var c = div.querySelector('canvas');
+      document.body.removeChild(div);
+      return c;
+    } catch (e) {
+      document.body.removeChild(div);
+      return null;
+    }
+  }
+
+  function _ellipsis(ctx, text, maxW) {
+    if (ctx.measureText(text).width <= maxW) return text;
+    var t = text;
+    while (t.length > 1 && ctx.measureText(t + '\u2026').width > maxW) t = t.slice(0, -1);
+    return t + '\u2026';
+  }
+
+  function _rasterPrint(spec, items, med, cuerpoCampos, pieCampos, tituloRaw) {
+    var wMM = parseFloat(med.pageW);
+    var hMM = parseFloat(med.pageH);
+    var drawW = Math.round(wMM * DRAW_PX);
+    var drawH = Math.round(hMM * DRAW_PX);
+    var finalW = Math.round(wMM * FINAL_PX);
+    var finalH = Math.round(hMM * FINAL_PX);
+
+    var dataUrls = [];
+    (items || []).forEach(function (item) {
       var d = {};
       spec.campos.forEach(function (sc) { d[sc.id] = item[sc.id] != null ? item[sc.id] : sc.ej; });
       d._qr = item._qr || spec.qrEj || '';
       d.envio_num = item.envio_num;
       d.envio_total = item.envio_total;
-
       var titulo = interpolarTitulo(tituloRaw, d);
-
-      var cuerpoCampos = [];
-      var pieCampos = [];
-      camposCfg.forEach(function (c) {
-        if (c.pos === 'P' && med.pie) pieCampos.push(c);
-        else cuerpoCampos.push(c);
-      });
-
-      if (idx > 0) pages += '<div style="page-break-before:always;"></div>';
-
-      // Banda
-      pages += '<div class="etiqueta">';
-      pages += '<div class="banda">';
-      pages += '<span class="banda-titulo">' + esc(titulo) + '</span>';
-      if (spec.chipEnvio && d.envio_num && parseInt(d.envio_num) > 1) {
-        pages += '<span class="chip-envio">' + esc('ENVÍO ' + d.envio_num) + '</span>';
-      }
-      pages += '<span class="banda-marca">MADERABLE</span>';
-      pages += '</div>';
-
-      // Cuerpo
-      pages += '<div class="cuerpo">';
-      if (spec.qr) {
-        pages += '<div class="qr-wrap" id="qr-' + idx + '" data-qr="' + esc(d._qr) + '"></div>';
-      }
-      pages += '<div class="campos-col">';
-      cuerpoCampos.forEach(function (c) {
-        var specCampo = spec.campos.find(function (sc) { return sc.id === c.id; });
-        if (!specCampo) return;
-        var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
-        if (c.pos === 'XL' || c.pos === 'L') {
-          pages += '<div class="campo campo-' + c.pos + '">' + esc(val) + '</div>';
-        } else if (c.pos === 'M') {
-          pages += '<div class="campo campo-M"><div class="micro-label">' + esc(specCampo.label) + '</div><div class="campo-val">' + esc(val) + '</div></div>';
-        } else if (c.pos === 'S') {
-          pages += '<div class="campo campo-S"><span class="label-inline">' + esc(specCampo.label) + ': </span>' + esc(val) + '</div>';
-        }
-      });
-      pages += '</div></div>';
-
-      // Pie
-      if (med.pie && pieCampos.length > 0) {
-        pages += '<div class="pie">';
-        pieCampos.forEach(function (c) {
-          var specCampo = spec.campos.find(function (sc) { return sc.id === c.id; });
-          if (!specCampo) return;
-          var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
-          pages += '<span class="campo-P"><span class="label-inline">' + esc(specCampo.label) + ': </span>' + esc(val) + '</span>';
-        });
-        pages += '</div>';
-      }
-      pages += '</div>';
+      dataUrls.push(_drawEtiqueta(spec, d, med, cuerpoCampos, pieCampos, titulo, drawW, drawH, finalW, finalH));
     });
 
-    // QR script
-    var qrScript = '';
-    if (spec.qr) {
-      qrScript = 'var qrs=document.querySelectorAll(".qr-wrap");'
-        + 'for(var i=0;i<qrs.length;i++){var el=qrs[i];var t=el.getAttribute("data-qr");'
-        + 'if(t){try{new QRCode(el,{text:t,width:128,height:128,correctLevel:QRCode.CorrectLevel.M});}catch(e){}}}'
-        + 'setTimeout(function(){var cs=document.querySelectorAll(".qr-wrap canvas");'
-        + 'for(var i=0;i<cs.length;i++){var c=cs[i];var img=document.createElement("img");'
-        + 'img.src=c.toDataURL("image/png");img.style.cssText="width:100%;height:100%;";'
-        + 'c.parentNode.replaceChild(img,c);}},200);';
-    }
-
-    var noQr = !spec.qr;
-    var css = '@page{size:' + med.pageW + ' ' + med.pageH + ';margin:0}'
-      + '*{margin:0;padding:0;box-sizing:border-box}'
-      + 'html,body{background:#fff;color:#000;print-color-adjust:exact;-webkit-print-color-adjust:exact;}'
-      + '.etiqueta{width:' + med.pageW + ';height:' + med.pageH + ';display:flex;flex-direction:column;overflow:hidden;font-family:Montserrat,sans-serif;}'
-      + '.banda{height:' + med.bandaH + ';background:#000;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:' + med.bandaPad + ';flex-shrink:0;}'
-      + '.banda-titulo{font-size:' + med.tituloSize + ';font-weight:800;letter-spacing:2px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
-      + '.banda-marca{font-size:' + med.marcaSize + ';font-weight:600;letter-spacing:1px;white-space:nowrap;flex-shrink:0;margin-left:1mm;}'
-      + '.chip-envio{background:#fff;color:#000;font-size:' + med.chipSize + ';font-weight:800;padding:' + med.chipPad + ';border-radius:1mm;white-space:nowrap;flex-shrink:0;margin-left:1mm;}'
-      + '.cuerpo{flex:1;display:flex;padding:' + med.bodyPad + ';gap:' + med.bodyGap + ';overflow:hidden;align-items:center;}'
-      + '.qr-wrap{width:' + med.qrSize + ';height:' + med.qrSize + ';flex-shrink:0;}'
-      + '.qr-wrap canvas,.qr-wrap img{width:' + med.qrSize + '!important;height:' + med.qrSize + '!important;}'
-      + '.campos-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:0.5mm;justify-content:center;' + (noQr ? 'width:100%;' : '') + '}'
-      + '.campo{text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}'
-      + '.campo-XL{font-size:' + med.XL + ';font-weight:' + med.XLw + ';line-height:1.1;}'
-      + '.campo-L{font-size:' + med.L + ';font-weight:' + med.Lw + ';line-height:1.1;}'
-      + '.campo-M .micro-label{font-size:' + med.microLabel + ';font-weight:700;color:#000;text-transform:uppercase;line-height:1;}'
-      + '.campo-M .campo-val{font-size:' + med.M + ';font-weight:' + med.Mw + ';text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
-      + '.campo-S{font-size:' + med.S + ';font-weight:' + med.Sw + ';}'
-      + '.label-inline{color:#000;}'
-      + (med.pie
-        ? '.pie{border-top:.2mm solid #000;padding:' + med.piePad + ';display:flex;justify-content:space-between;flex-shrink:0;}'
-        + '.campo-P{font-size:' + med.pieSize + ';font-weight:' + (med.Pw || 600) + ';text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
-        : '');
-
+    // Ventana de impresión: solo imágenes
     var win = window.open('', '_blank', 'width=500,height=400');
     if (!win) { alert('El navegador bloqueó la ventana de impresión. Habilitá pop-ups.'); return; }
+
+    var imgs = '';
+    for (var i = 0; i < dataUrls.length; i++) {
+      var brk = i < dataUrls.length - 1 ? 'page-break-after:always;' : '';
+      imgs += '<img src="' + dataUrls[i] + '" style="width:' + med.pageW + ';height:' + med.pageH + ';display:block;' + brk + '">';
+    }
+
     win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8">'
-      + '<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">'
-      + (spec.qr ? '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>' : '')
-      + '<style>' + css + '</style>'
-      + '</head><body>' + pages
+      + '<style>@page{size:' + med.pageW + ' ' + med.pageH + ';margin:0}'
+      + '*{margin:0;padding:0}body{background:#fff;}</style>'
+      + '</head><body>' + imgs
       + '<script>'
-      + qrScript
-      + 'var _printed=false;function doPrint(){if(_printed)return;_printed=true;window.print();}'
-      + 'document.fonts.ready.then(function(){setTimeout(doPrint,200);}).catch(function(){setTimeout(doPrint,200);});'
-      + 'setTimeout(doPrint,1500);'
+      + 'var _p=false;function go(){if(_p)return;_p=true;window.print();}'
+      + 'var ii=document.querySelectorAll("img"),n=0;'
+      + 'function ck(){n++;if(n>=ii.length)setTimeout(go,100);}'
+      + 'for(var j=0;j<ii.length;j++){if(ii[j].complete)ck();else ii[j].onload=ck;}'
+      + 'setTimeout(go,1500);'
       + '<\/script></body></html>');
     win.document.close();
+  }
+
+  function _drawEtiqueta(spec, d, med, cuerpoCampos, pieCampos, titulo, drawW, drawH, finalW, finalH) {
+    var cv = document.createElement('canvas');
+    cv.width = drawW; cv.height = drawH;
+    var ctx = cv.getContext('2d');
+    var FNT = 'Montserrat, sans-serif';
+
+    // Fondo blanco
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, drawW, drawH);
+
+    // ── BANDA ──
+    var bandaH = _mmPx(med.bandaH);
+    var bPad = _padPx(med.bandaPad);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, drawW, bandaH);
+    ctx.textBaseline = 'middle';
+    var bandaY = bandaH / 2;
+
+    // Layout derecha→izquierda: marca, chip (si hay), título
+    var marcaSz = _ptPx(med.marcaSize);
+    ctx.font = '600 ' + marcaSz + 'px ' + FNT;
+    var marcaW = ctx.measureText('MADERABLE').width;
+    var curR = drawW - bPad[1];
+
+    // Marca
+    ctx.fillStyle = '#fff';
+    ctx.fillText('MADERABLE', curR - marcaW, bandaY);
+    curR -= marcaW + _mmPx('1');
+
+    // Chip envío
+    if (spec.chipEnvio && d.envio_num && parseInt(d.envio_num) > 1) {
+      var chipText = 'ENVÍO ' + d.envio_num;
+      var chipSz = _ptPx(med.chipSize);
+      var cPad = _padPx(med.chipPad);
+      ctx.font = '800 ' + chipSz + 'px ' + FNT;
+      var cTxtW = ctx.measureText(chipText).width;
+      var cBoxW = cTxtW + cPad[1] * 2;
+      var cBoxH = chipSz + cPad[0] * 2;
+      var cBoxX = curR - cBoxW;
+      var cBoxY = (bandaH - cBoxH) / 2;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(cBoxX, cBoxY, cBoxW, cBoxH);
+      ctx.fillStyle = '#000';
+      ctx.fillText(chipText, cBoxX + cPad[1], bandaY);
+      curR = cBoxX - _mmPx('1');
+    }
+
+    // Título
+    var titSz = _ptPx(med.tituloSize);
+    ctx.fillStyle = '#fff';
+    ctx.font = '800 ' + titSz + 'px ' + FNT;
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '2px';
+    ctx.fillText(_ellipsis(ctx, titulo, curR - bPad[1]), bPad[1], bandaY);
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+
+    // ── PIE (medir primero para bounds del cuerpo) ──
+    var pieH = 0;
+    var pPad = [0, 0];
+    var pieBorder = 3;
+    if (med.pie && pieCampos.length > 0) {
+      pPad = _padPx(med.piePad);
+      pieH = pieBorder + pPad[0] * 2 + _ptPx(med.pieSize);
+    }
+
+    // ── CUERPO ──
+    var bodyPad = _padPx(med.bodyPad);
+    var bodyGap = _mmPx(med.bodyGap);
+    var bodyTop = bandaH + bodyPad[0];
+    var bodyBot = drawH - pieH - bodyPad[0];
+    var bodyL = bodyPad[1];
+    var bodyR = drawW - bodyPad[1];
+
+    // QR
+    var camposL = bodyL;
+    if (spec.qr) {
+      var qrPx = _mmPx(med.qrSize);
+      var qrY = bodyTop + (bodyBot - bodyTop - qrPx) / 2;
+      if (qrY < bodyTop) qrY = bodyTop;
+      var qrCv = _genQRCanvas(d._qr, qrPx);
+      if (qrCv) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(qrCv, bodyL, qrY, qrPx, qrPx);
+        ctx.imageSmoothingEnabled = true;
+      }
+      camposL = bodyL + qrPx + bodyGap;
+    }
+    var camposW = bodyR - camposL;
+
+    // ── CAMPOS (cuerpo) ──
+    ctx.fillStyle = '#000';
+    ctx.textBaseline = 'top';
+
+    // Medir alturas para centrar verticalmente
+    var heights = [];
+    cuerpoCampos.forEach(function (c) {
+      if (c.pos === 'XL' || c.pos === 'L') heights.push(_ptPx(med[c.pos]));
+      else if (c.pos === 'M') heights.push(_ptPx(med.microLabel) + 2 + _ptPx(med.M));
+      else if (c.pos === 'S') heights.push(_ptPx(med.S));
+    });
+    var totalH = 0;
+    for (var h = 0; h < heights.length; h++) { totalH += heights[h]; if (h < heights.length - 1) totalH += CAMPO_GAP; }
+
+    var cy = bodyTop + (bodyBot - bodyTop - totalH) / 2;
+    if (cy < bodyTop) cy = bodyTop;
+
+    cuerpoCampos.forEach(function (c) {
+      var sc = spec.campos.find(function (x) { return x.id === c.id; });
+      if (!sc) return;
+      var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
+
+      if (c.pos === 'XL' || c.pos === 'L') {
+        var sz = _ptPx(med[c.pos]);
+        ctx.font = '800 ' + sz + 'px ' + FNT;
+        ctx.fillText(_ellipsis(ctx, val, camposW), camposL, cy);
+        cy += sz + CAMPO_GAP;
+      } else if (c.pos === 'M') {
+        var mls = _ptPx(med.microLabel);
+        var ms = _ptPx(med.M);
+        ctx.font = '700 ' + mls + 'px ' + FNT;
+        ctx.fillText(_ellipsis(ctx, sc.label, camposW), camposL, cy);
+        cy += mls + 2;
+        ctx.font = '700 ' + ms + 'px ' + FNT;
+        ctx.fillText(_ellipsis(ctx, val, camposW), camposL, cy);
+        cy += ms + CAMPO_GAP;
+      } else if (c.pos === 'S') {
+        var ss = _ptPx(med.S);
+        ctx.font = '600 ' + ss + 'px ' + FNT;
+        var lbl = sc.label + ': ';
+        var lblW = ctx.measureText(lbl).width;
+        ctx.fillText(lbl, camposL, cy);
+        ctx.fillText(_ellipsis(ctx, val, camposW - lblW), camposL + lblW, cy);
+        cy += ss + CAMPO_GAP;
+      }
+    });
+
+    // ── PIE ──
+    if (med.pie && pieCampos.length > 0) {
+      var pieTop = drawH - pieH;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, pieTop, drawW, pieBorder);
+      var pieSz = _ptPx(med.pieSize);
+      ctx.font = '600 ' + pieSz + 'px ' + FNT;
+      ctx.textBaseline = 'middle';
+      var pieY = pieTop + pieBorder + pPad[0] + pieSz / 2;
+
+      pieCampos.forEach(function (c, idx) {
+        var sc = spec.campos.find(function (x) { return x.id === c.id; });
+        if (!sc) return;
+        var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
+        var txt = sc.label + ': ' + val;
+        var tw = ctx.measureText(txt).width;
+        var x;
+        if (idx === 0) x = pPad[1];
+        else if (idx === pieCampos.length - 1) x = drawW - pPad[1] - tw;
+        else x = (drawW - tw) / 2;
+        ctx.fillText(_ellipsis(ctx, txt, drawW - pPad[1] * 2), x, pieY);
+      });
+    }
+
+    // ── DOWNSCALE + BINARIZACIÓN ──
+    var fcv = document.createElement('canvas');
+    fcv.width = finalW; fcv.height = finalH;
+    var fctx = fcv.getContext('2d');
+    fctx.drawImage(cv, 0, 0, finalW, finalH);
+    var id = fctx.getImageData(0, 0, finalW, finalH);
+    var px = id.data;
+    for (var b = 0; b < px.length; b += 4) {
+      var lum = 0.299 * px[b] + 0.587 * px[b+1] + 0.114 * px[b+2];
+      var bw = lum < 128 ? 0 : 255;
+      px[b] = px[b+1] = px[b+2] = bw; px[b+3] = 255;
+    }
+    fctx.putImageData(id, 0, 0);
+    return fcv.toDataURL('image/png');
   }
 
   // ═══════════════════════════════════════════════════════════════════════
