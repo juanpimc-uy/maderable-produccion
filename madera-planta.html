@@ -405,6 +405,11 @@ html, body { background: var(--bg); color: var(--text); font-family: 'DM Sans', 
 <script>
 // Modo kiosco: si venimos del kiosco, el botón Home vuelve al kiosco
 const _MODO_KIOSCO = new URLSearchParams(location.search).get('kiosco') === '1';
+const _sesionKiosco = (() => {
+  if (!_MODO_KIOSCO) return null;
+  try { const s = JSON.parse(sessionStorage.getItem('kiosco_sesion') || 'null'); return s && s.id ? s : null; }
+  catch(e) { return null; }
+})();
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 var usuario = null;      // {id, nombre, rol_app}
@@ -834,6 +839,15 @@ async function imprimirEtiquetas(partida_id, n) {
   } catch (e) {
     alert('Error de conexion');
   }
+}
+
+/* ── Boot: auto-login si venimos del kiosco con sesión ───────────────────── */
+if (_sesionKiosco) {
+  usuario = { id: _sesionKiosco.id, nombre: _sesionKiosco.nombre, rol_app: _sesionKiosco.rol_app };
+  document.getElementById('headerUser').textContent = usuario.nombre;
+  document.getElementById('btnStock').style.display = (usuario.rol_app === 'admin') ? '' : 'none';
+  mostrar('pHome');
+  cargarBadges();
 }
 
 /* ── Util ────────────────────────────────────────────────────────────────── */
