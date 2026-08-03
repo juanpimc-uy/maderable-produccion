@@ -29,7 +29,7 @@
     'tercerizado-bulto': {
       tituloDefault: 'TERCERIZADO',
       qr: true, chipEnvio: false,
-      qrEj: 'https://maderable.vercel.app/envio.html?id=ENV-0087',
+      qrEj: 'https://maderable-produccion.vercel.app/envio.html?id=ENV-0087',
       campos: [
         { id: 'prov',    label: 'Proveedor', ej: 'BARU',                     fijo: true },
         { id: 'envio',   label: 'Envío',     ej: 'ENV-0087',                 fijo: true },
@@ -216,6 +216,13 @@
     var tituloRaw = resolverTitulo(funcion, cfgOverride ? cfgOverride._titulo : undefined);
     var titulo = interpolarTitulo(tituloRaw, datos || {});
 
+    // Ordenar campos según índice en la spec
+    var orden = {};
+    spec.campos.forEach(function (sc, i) { orden[sc.id] = i; });
+    camposCfg = camposCfg.slice().sort(function (a, b) {
+      return (orden[a.id] !== undefined ? orden[a.id] : 99) - (orden[b.id] !== undefined ? orden[b.id] : 99);
+    });
+
     // Separar cuerpo y pie
     var cuerpoCampos = [];
     var pieCampos = [];
@@ -241,15 +248,15 @@
     banda.appendChild(tit);
 
     // Chip envío
-    if (spec.chipEnvio && d.envio_total && parseInt(d.envio_total) > 1) {
+    if (spec.chipEnvio && d.envio_num && parseInt(d.envio_num) > 1) {
       var chip = document.createElement('span');
       chip.style.cssText = 'background:#fff;color:#000;font-size:' + med.chipSize + ';font-weight:800;padding:' + med.chipPad + ';border-radius:1mm;white-space:nowrap;flex-shrink:0;margin-left:1mm;';
-      chip.textContent = (d.envio_num || '?') + '/' + d.envio_total;
+      chip.textContent = 'ENVÍO ' + d.envio_num;
       banda.appendChild(chip);
     }
 
     var marca = document.createElement('span');
-    marca.style.cssText = 'font-size:' + med.marcaSize + ';font-weight:600;opacity:.55;letter-spacing:1px;white-space:nowrap;flex-shrink:0;margin-left:1mm;';
+    marca.style.cssText = 'font-size:' + med.marcaSize + ';font-weight:600;letter-spacing:1px;white-space:nowrap;flex-shrink:0;margin-left:1mm;';
     marca.textContent = 'MADERABLE';
     banda.appendChild(marca);
     et.appendChild(banda);
@@ -286,7 +293,7 @@
         wrap.textContent = val;
       } else if (c.pos === 'M') {
         var micro = document.createElement('div');
-        micro.style.cssText = 'font-size:' + med.microLabel + ';font-weight:600;color:#666;text-transform:uppercase;line-height:1;';
+        micro.style.cssText = 'font-size:' + med.microLabel + ';font-weight:700;color:#000;text-transform:uppercase;line-height:1;';
         micro.textContent = label;
         wrap.appendChild(micro);
         var valEl = document.createElement('div');
@@ -296,7 +303,7 @@
       } else if (c.pos === 'S') {
         wrap.style.cssText = 'font-size:' + med.S + ';font-weight:' + med.Sw + ';text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;';
         var lblSpan = document.createElement('span');
-        lblSpan.style.cssText = 'color:#666;';
+        lblSpan.style.cssText = 'color:#000;';
         lblSpan.textContent = label + ': ';
         wrap.appendChild(lblSpan);
         wrap.appendChild(document.createTextNode(val));
@@ -310,7 +317,7 @@
     // ── PIE (solo 100×50) ──
     if (med.pie && pieCampos.length > 0) {
       var pie = document.createElement('div');
-      pie.style.cssText = 'border-top:.2mm solid #ccc;padding:' + med.piePad + ';display:flex;justify-content:space-between;opacity:.55;flex-shrink:0;';
+      pie.style.cssText = 'border-top:.2mm solid #000;padding:' + med.piePad + ';display:flex;justify-content:space-between;flex-shrink:0;';
 
       pieCampos.forEach(function (c) {
         var specCampo = spec.campos.find(function (sc) { return sc.id === c.id; });
@@ -319,7 +326,7 @@
         var span = document.createElement('span');
         span.style.cssText = 'font-size:' + med.pieSize + ';font-weight:' + (med.Pw || 600) + ';text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
         var lblSpan = document.createElement('span');
-        lblSpan.style.cssText = 'color:#666;';
+        lblSpan.style.cssText = 'color:#000;';
         lblSpan.textContent = specCampo.label + ': ';
         span.appendChild(lblSpan);
         span.appendChild(document.createTextNode(val));
@@ -357,6 +364,13 @@
     var camposCfg = resolverCampos(funcion, fmt, cfgOverride);
     var tituloRaw = resolverTitulo(funcion, cfgOverride ? cfgOverride._titulo : undefined);
 
+    // Ordenar campos según índice en la spec
+    var orden = {};
+    spec.campos.forEach(function (sc, i) { orden[sc.id] = i; });
+    camposCfg = camposCfg.slice().sort(function (a, b) {
+      return (orden[a.id] !== undefined ? orden[a.id] : 99) - (orden[b.id] !== undefined ? orden[b.id] : 99);
+    });
+
     // Generar HTML de cada etiqueta
     var pages = '';
     (items || []).forEach(function (item, idx) {
@@ -381,8 +395,8 @@
       pages += '<div class="etiqueta">';
       pages += '<div class="banda">';
       pages += '<span class="banda-titulo">' + esc(titulo) + '</span>';
-      if (spec.chipEnvio && d.envio_total && parseInt(d.envio_total) > 1) {
-        pages += '<span class="chip-envio">' + esc((d.envio_num || '?') + '/' + d.envio_total) + '</span>';
+      if (spec.chipEnvio && d.envio_num && parseInt(d.envio_num) > 1) {
+        pages += '<span class="chip-envio">' + esc('ENVÍO ' + d.envio_num) + '</span>';
       }
       pages += '<span class="banda-marca">MADERABLE</span>';
       pages += '</div>';
@@ -440,7 +454,7 @@
       + '.etiqueta{width:' + med.pageW + ';height:' + med.pageH + ';display:flex;flex-direction:column;overflow:hidden;font-family:Montserrat,sans-serif;}'
       + '.banda{height:' + med.bandaH + ';background:#000;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:' + med.bandaPad + ';flex-shrink:0;}'
       + '.banda-titulo{font-size:' + med.tituloSize + ';font-weight:800;letter-spacing:2px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
-      + '.banda-marca{font-size:' + med.marcaSize + ';font-weight:600;opacity:.55;letter-spacing:1px;white-space:nowrap;flex-shrink:0;margin-left:1mm;}'
+      + '.banda-marca{font-size:' + med.marcaSize + ';font-weight:600;letter-spacing:1px;white-space:nowrap;flex-shrink:0;margin-left:1mm;}'
       + '.chip-envio{background:#fff;color:#000;font-size:' + med.chipSize + ';font-weight:800;padding:' + med.chipPad + ';border-radius:1mm;white-space:nowrap;flex-shrink:0;margin-left:1mm;}'
       + '.cuerpo{flex:1;display:flex;padding:' + med.bodyPad + ';gap:' + med.bodyGap + ';overflow:hidden;align-items:center;}'
       + '.qr-wrap{width:' + med.qrSize + ';height:' + med.qrSize + ';flex-shrink:0;}'
@@ -449,12 +463,12 @@
       + '.campo{text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}'
       + '.campo-XL{font-size:' + med.XL + ';font-weight:' + med.XLw + ';line-height:1.1;}'
       + '.campo-L{font-size:' + med.L + ';font-weight:' + med.Lw + ';line-height:1.1;}'
-      + '.campo-M .micro-label{font-size:' + med.microLabel + ';font-weight:600;color:#666;text-transform:uppercase;line-height:1;}'
+      + '.campo-M .micro-label{font-size:' + med.microLabel + ';font-weight:700;color:#000;text-transform:uppercase;line-height:1;}'
       + '.campo-M .campo-val{font-size:' + med.M + ';font-weight:' + med.Mw + ';text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
       + '.campo-S{font-size:' + med.S + ';font-weight:' + med.Sw + ';}'
-      + '.label-inline{color:#666;}'
+      + '.label-inline{color:#000;}'
       + (med.pie
-        ? '.pie{border-top:.2mm solid #ccc;padding:' + med.piePad + ';display:flex;justify-content:space-between;opacity:.55;flex-shrink:0;}'
+        ? '.pie{border-top:.2mm solid #000;padding:' + med.piePad + ';display:flex;justify-content:space-between;flex-shrink:0;}'
         + '.campo-P{font-size:' + med.pieSize + ';font-weight:' + (med.Pw || 600) + ';text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
         : '');
 
