@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <link rel="icon" href="data:,">
 <script src="/js/supabase-config.js"></script>
+<script src="/js/etiquetas.js"></script>
 <script src="/js/kiosco-modo.js"></script>
 <script src="/js/auth.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -865,59 +866,22 @@ function imprimirEtiquetas(id) {
     ? 'https://maderable-produccion.vercel.app/baru-recepcion.html?id=' + encodeURIComponent(p.id)
     : 'https://maderable-produccion.vercel.app/envio.html?id=' + encodeURIComponent(envio);
 
-  // Generar todas las etiquetas en una sola ventana (page-break entre cada una)
-  let pages = '';
-  for (let b = 1; b <= totalBultos; b++) {
-    const bultoLine = totalBultos > 1 ? `<div class="bulto-label">BULTO ${b} DE ${totalBultos}</div>` : '';
-    const footBulto = totalBultos > 1 ? `B${b}/${totalBultos}` : `${totalBultos} bulto(s)`;
-    pages += `
-      <div class="etiqueta${b < totalBultos ? ' page-break' : ''}">
-        <div class="top"><span class="marca">\u25CB MADERABLE</span><span class="env">${envio}</span></div>
-        <div class="mid"><div class="ml">
-          <div class="prov-big">${provShort}</div>
-          <div class="cli-big">${cliente}</div>
-          <div class="odf-sm">${odf}</div>
-          <div class="proj-big">${proyecto}</div>
-          <div class="mueble">${muebleNombre}</div>
-        </div><div class="qr-wrap" id="qr-${b}"></div></div>
-        ${bultoLine}
-        <div class="foot"><span>${codigo}</span><span>${footBulto} \u00b7 ${retorno}</span></div>
-      </div>`;
+  var items = [];
+  for (var b = 1; b <= totalBultos; b++) {
+    items.push({
+      prov: provShort,
+      envio: envio,
+      cliente: cliente,
+      obra: proyecto,
+      mueble: muebleNombre,
+      bulto: totalBultos > 1 ? ('BULTO ' + b + ' DE ' + totalBultos) : '1 BULTO',
+      retorno: retorno,
+      odf: odf,
+      codigo: codigo,
+      _qr: qrUrl,
+    });
   }
-
-  const win = window.open('', '_blank', 'width=450,height=350');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
-<style>
-@page{size:60mm 30mm;margin:0}
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{font-family:'Courier New',Courier,monospace;background:#fff;color:#000}
-.etiqueta{width:60mm;height:30mm;display:flex;flex-direction:column;padding:0;overflow:hidden}
-.page-break{page-break-after:always}
-.top{padding:1.5mm 2mm 1mm;border-bottom:0.2mm solid #ddd;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
-.marca{font-size:3pt;letter-spacing:0.5pt;opacity:.4;text-transform:uppercase}
-.env{font-size:5.5pt;font-weight:bold;letter-spacing:0.5pt}
-.mid{flex:1;display:flex;padding:1.5mm 2mm;gap:1.5mm;align-items:center;overflow:hidden}
-.ml{flex:1;min-width:0;display:flex;flex-direction:column;gap:0}
-.prov-big{font-size:6.5pt;font-weight:bold;text-transform:uppercase;color:#aaa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cli-big{font-size:6.5pt;font-weight:bold;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:0.3mm}
-.odf-sm{font-size:3pt;opacity:.4;text-transform:uppercase;margin:0.8mm 0 0.2mm;letter-spacing:0.3pt}
-.proj-big{font-size:6.5pt;font-weight:bold;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mueble{font-size:3pt;font-weight:bold;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.5;margin-top:1mm}
-.qr-wrap{width:16mm;height:16mm;flex-shrink:0}
-.qr-wrap canvas,.qr-wrap img{width:16mm!important;height:16mm!important}
-.bulto-label{font-size:5pt;font-weight:bold;text-align:center;letter-spacing:0.5pt;padding:0.5mm 0;border-top:0.2mm dashed #ccc;flex-shrink:0}
-.foot{border-top:0.2mm solid #ddd;padding:0.8mm 2mm;display:flex;justify-content:space-between;font-size:2.8pt;text-transform:uppercase;opacity:.38;flex-shrink:0}
-</style></head><body>
-${pages}
-<script>
-for(var i=1;i<=${totalBultos};i++){
-  var el=document.getElementById('qr-'+i);
-  if(el)new QRCode(el,{text:'${qrUrl}',width:128,height:128,correctLevel:QRCode.CorrectLevel.M});
-}
-setTimeout(function(){window.print();window.close();},800);
-<\/script></body></html>`);
-  win.document.close();
+  Etiquetas.imprimir('tercerizado-bulto', items);
 }
 
 function _fmtFechaCorta(dateStr) {
