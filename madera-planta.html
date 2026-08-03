@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Madera MBLE">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <script src="/js/supabase-config.js"></script>
+<script src="/js/etiquetas.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Maderable - Madera</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -775,15 +776,57 @@ async function irEtiquetas() {
 
 async function imprimirEtiquetas(partida_id, n) {
   try {
-    var res = await fetch('/api/madera?action=marcar-etiquetas-impresas', {
+    // 1. Obtener partida + piezas
+    var res = await fetch('/api/madera?action=partida&partida_id=' + encodeURIComponent(partida_id));
+    var data = await res.json();
+    if (!data.ok) { alert(data.error || 'Error al cargar partida'); return; }
+    var partida = data.partida;
+    var piezas = data.piezas || [];
+
+    // 2. Filtrar solo las no impresas
+    var pendientes = piezas.filter(function (p) { return p.etiqueta_impresa === false; });
+    if (pendientes.length === 0) { alert('No hay piezas pendientes de impresion'); return; }
+
+    // 3. Mapear al formato madera-pieza
+    var numPartida = 'PARTIDA ' + String(partida.numero).padStart(4, '0');
+    var espNombre = (partida.especie && (partida.especie.nombre || partida.especie.nombre_corto)) || '';
+    var espEspesor = partida.espesor
+      ? (partida.espesor.descripcion || ((partida.espesor.valor || '') + (partida.espesor.unidad || '')))
+      : '';
+    var fechaRomaneo = '';
+    if (partida.romaneada_en) {
+      var dr = new Date(partida.romaneada_en);
+      fechaRomaneo = String(dr.getDate()).padStart(2, '0') + '/' + String(dr.getMonth() + 1).padStart(2, '0');
+    }
+
+    var items = pendientes.map(function (p) {
+      return {
+        pieza: 'PIEZA ' + p.numero_pieza,
+        partida: numPartida,
+        especie: espNombre,
+        espesor: espEspesor,
+        medidas: p.ancho_cm + ' × ' + p.largo_cm + ' CM',
+        pies: p.pies_maderero + ' P²',
+        ubic: p.ubicacion || '',
+        prov: partida.proveedor_nombre || '',
+        fecha: fechaRomaneo,
+        _qr: p.qr_codigo,
+      };
+    });
+
+    // 4. Imprimir via sistema central
+    Etiquetas.imprimir('madera-pieza', items);
+
+    // 5. Marcar como impresas
+    var piezaIds = pendientes.map(function (p) { return p.id; });
+    await fetch('/api/madera?action=marcar-etiquetas-impresas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: usuario.id, partida_id: partida_id })
+      body: JSON.stringify({ user_id: usuario.id, pieza_ids: piezaIds })
     });
-    var data = await res.json();
-    if (!data.ok) { alert(data.error || 'Error'); return; }
-    alert('Impresion Datamax MAD-3. Marcadas como impresas para testing.');
-    irEtiquetas(); // refresh
+
+    // 6. Refrescar
+    irEtiquetas();
   } catch (e) {
     alert('Error de conexion');
   }
