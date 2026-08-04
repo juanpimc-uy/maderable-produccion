@@ -390,15 +390,15 @@
   // ═══════════════════════════════════════════════════════════════════════
   // RASTER ENGINE
   // ═══════════════════════════════════════════════════════════════════════
-  var DRAW_PX = 16; // px per mm, 2× oversample
-  var FINAL_PX = 8; // px per mm ≈ 203 dpi (Datamax native)
-  var CAMPO_GAP = Math.round(0.5 * DRAW_PX); // 0.5mm entre campos
+  var SUPER_PX = 32; // px per mm, sobremuestreo 2× para texto nítido
+  var OUT_PX = 16;   // px per mm, salida final (2× cabezal 203dpi)
+  var CAMPO_GAP = Math.round(0.5 * SUPER_PX); // 0.5mm entre campos
 
-  function _mmPx(v) { return parseFloat(v) * DRAW_PX; }
-  function _ptPx(v) { return Math.round(parseFloat(v) * 0.3528 * DRAW_PX); }
+  function _mmPx(v) { return parseFloat(v) * SUPER_PX; }
+  function _ptPx(v) { return Math.round(parseFloat(v) * 0.3528 * SUPER_PX); }
   function _padPx(s) {
     var p = s.replace(/mm/g, '').trim().split(/\s+/);
-    return [parseFloat(p[0]) * DRAW_PX, (p.length > 1 ? parseFloat(p[1]) : parseFloat(p[0])) * DRAW_PX];
+    return [parseFloat(p[0]) * SUPER_PX, (p.length > 1 ? parseFloat(p[1]) : parseFloat(p[0])) * SUPER_PX];
   }
 
   var _fontReady = false;
@@ -470,10 +470,10 @@
   function _rasterPrint(spec, items, med, cuerpoCampos, pieCampos, tituloRaw) {
     var wMM = parseFloat(med.pageW);
     var hMM = parseFloat(med.pageH);
-    var drawW = Math.round(wMM * DRAW_PX);
-    var drawH = Math.round(hMM * DRAW_PX);
-    var finalW = Math.round(wMM * FINAL_PX);
-    var finalH = Math.round(hMM * FINAL_PX);
+    var superW = Math.round(wMM * SUPER_PX);
+    var superH = Math.round(hMM * SUPER_PX);
+    var outW = Math.round(wMM * OUT_PX);
+    var outH = Math.round(hMM * OUT_PX);
 
     var dataUrls = [];
     (items || []).forEach(function (item) {
@@ -483,7 +483,7 @@
       d.envio_num = item.envio_num;
       d.envio_total = item.envio_total;
       var titulo = interpolarTitulo(tituloRaw, d);
-      dataUrls.push(_drawEtiqueta(spec, d, med, cuerpoCampos, pieCampos, titulo, drawW, drawH, finalW, finalH));
+      dataUrls.push(_drawEtiqueta(spec, d, med, cuerpoCampos, pieCampos, titulo, superW, superH, outW, outH));
     });
 
     // Ventana de impresión: solo imágenes
@@ -510,21 +510,21 @@
     win.document.close();
   }
 
-  function _drawEtiqueta(spec, d, med, cuerpoCampos, pieCampos, titulo, drawW, drawH, finalW, finalH) {
+  function _drawEtiqueta(spec, d, med, cuerpoCampos, pieCampos, titulo, superW, superH, outW, outH) {
     var cv = document.createElement('canvas');
-    cv.width = drawW; cv.height = drawH;
+    cv.width = superW; cv.height = superH;
     var ctx = cv.getContext('2d');
     var FNT = 'Montserrat, sans-serif';
 
     // Fondo blanco
     ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, drawW, drawH);
+    ctx.fillRect(0, 0, superW, superH);
 
     // ── BANDA ──
     var bandaH = _mmPx(med.bandaH);
     var bPad = _padPx(med.bandaPad);
     ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, drawW, bandaH);
+    ctx.fillRect(0, 0, superW, bandaH);
     ctx.textBaseline = 'middle';
     var bandaY = bandaH / 2;
 
@@ -532,7 +532,7 @@
     var marcaSz = _ptPx(med.marcaSize);
     ctx.font = '600 ' + marcaSz + 'px ' + FNT;
     var marcaW = ctx.measureText('MADERABLE').width;
-    var curR = drawW - bPad[1];
+    var curR = superW - bPad[1];
 
     // Marca
     ctx.fillStyle = '#fff';
@@ -578,23 +578,16 @@
     var bodyPad = _padPx(med.bodyPad);
     var bodyGap = _mmPx(med.bodyGap);
     var bodyTop = bandaH + bodyPad[0];
-    var bodyBot = drawH - pieH - bodyPad[0];
+    var bodyBot = superH - pieH - bodyPad[0];
     var bodyL = bodyPad[1];
-    var bodyR = drawW - bodyPad[1];
+    var bodyR = superW - bodyPad[1];
 
-    // QR
+    // QR: reservar espacio pero no dibujar (se estampa directo en canvas final)
     var camposL = bodyL;
+    var qrPxSuper = 0;
     if (spec.qr) {
-      var qrPx = _mmPx(med.qrSize);
-      var qrY = bodyTop + (bodyBot - bodyTop - qrPx) / 2;
-      if (qrY < bodyTop) qrY = bodyTop;
-      var qrCv = _genQRCanvas(d._qr, qrPx);
-      if (qrCv) {
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(qrCv, bodyL, qrY, qrPx, qrPx);
-        ctx.imageSmoothingEnabled = true;
-      }
-      camposL = bodyL + qrPx + bodyGap;
+      qrPxSuper = _mmPx(med.qrSize);
+      camposL = bodyL + qrPxSuper + bodyGap;
     }
     var camposW = bodyR - camposL;
 
@@ -647,9 +640,9 @@
 
     // ── PIE ──
     if (med.pie && pieCampos.length > 0) {
-      var pieTop = drawH - pieH;
+      var pieTop = superH - pieH;
       ctx.fillStyle = '#000';
-      ctx.fillRect(0, pieTop, drawW, pieBorder);
+      ctx.fillRect(0, pieTop, superW, pieBorder);
       var pieSz = _ptPx(med.pieSize);
       ctx.font = '600 ' + pieSz + 'px ' + FNT;
       ctx.textBaseline = 'middle';
@@ -663,22 +656,41 @@
         var tw = ctx.measureText(txt).width;
         var x;
         if (idx === 0) x = pPad[1];
-        else if (idx === pieCampos.length - 1) x = drawW - pPad[1] - tw;
-        else x = (drawW - tw) / 2;
-        ctx.fillText(_ellipsis(ctx, txt, drawW - pPad[1] * 2), x, pieY);
+        else if (idx === pieCampos.length - 1) x = superW - pPad[1] - tw;
+        else x = (superW - tw) / 2;
+        ctx.fillText(_ellipsis(ctx, txt, superW - pPad[1] * 2), x, pieY);
       });
     }
 
-    // ── DOWNSCALE + BINARIZACIÓN ──
+    // ── DOWNSCALE (32→16 px/mm, con smoothing para texto) ──
     var fcv = document.createElement('canvas');
-    fcv.width = finalW; fcv.height = finalH;
+    fcv.width = outW; fcv.height = outH;
     var fctx = fcv.getContext('2d');
-    fctx.drawImage(cv, 0, 0, finalW, finalH);
-    var id = fctx.getImageData(0, 0, finalW, finalH);
+    fctx.drawImage(cv, 0, 0, outW, outH);
+
+    // ── QR directo al canvas final (sin pasar por sobremuestreo → módulos nítidos) ──
+    if (spec.qr) {
+      var qrOutPx = Math.round(parseFloat(med.qrSize) * OUT_PX);
+      var qrCv = _genQRCanvas(d._qr, qrOutPx);
+      if (qrCv) {
+        var outBodyPad = _padPx(med.bodyPad); // recalcular a escala super, luego dividir
+        var qrX = Math.round(bodyL / 2); // bodyL está a escala super → /2 = escala out
+        var qrBodyTop = Math.round(bodyTop / 2);
+        var qrBodyBot = Math.round(bodyBot / 2);
+        var qrYout = qrBodyTop + (qrBodyBot - qrBodyTop - qrOutPx) / 2;
+        if (qrYout < qrBodyTop) qrYout = qrBodyTop;
+        fctx.imageSmoothingEnabled = false;
+        fctx.drawImage(qrCv, qrX, qrYout, qrOutPx, qrOutPx);
+        fctx.imageSmoothingEnabled = true;
+      }
+    }
+
+    // ── BINARIZACIÓN (umbral 180 → antialiasing pasa a negro → trazos llenos) ──
+    var id = fctx.getImageData(0, 0, outW, outH);
     var px = id.data;
     for (var b = 0; b < px.length; b += 4) {
       var lum = 0.299 * px[b] + 0.587 * px[b+1] + 0.114 * px[b+2];
-      var bw = lum < 128 ? 0 : 255;
+      var bw = lum < 180 ? 0 : 255;
       px[b] = px[b+1] = px[b+2] = bw; px[b+3] = 255;
     }
     fctx.putImageData(id, 0, 0);
