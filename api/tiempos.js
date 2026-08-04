@@ -792,6 +792,13 @@ export default async function handler(req) {
       const token = url.searchParams.get('session_token');
       const user = await verificarSesion(token);
       if (!user) return err('Sesión inválida o expirada', 401);
+      // Renovación deslizante: cada visita de oficina/admin extiende la sesión 30 días.
+      // Gateado por rol para no extender tokens de kiosco (10 min) de operarios.
+      if (user.rol_app === 'admin' || user.rol_app === 'oficina') {
+        await supabase.from('empleados')
+          .update({ session_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() })
+          .eq('id', user.id);
+      }
       return ok({ ok: true, user: { id: user.id, nombre: user.nombre, rol_app: user.rol_app } });
     }
 
@@ -2649,7 +2656,7 @@ export default async function handler(req) {
       if (!email || !credential) return err('email y credencial requeridos', 400);
       const { data, error } = await supabase
         .from('empleados')
-        .select('id, nombre, email, categoria, rol_app, pin, password_hash, acceso_tiempos, centros_autorizados')
+        .select('id, nombre, email, categoria, rol_app, pin, password_hash, acceso_tiempos, centros_autorizados, session_token, session_expires_at')
         .eq('email', email)
         .eq('archivado', false)
         .in('rol_app', ['admin', 'oficina'])
@@ -2679,9 +2686,13 @@ export default async function handler(req) {
       }
       if (!valid) { recordFailedAttempt(rateKey); return new Response(JSON.stringify({ ok: false, error: 'Credenciales incorrectas' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } }); }
       clearRateLimit(rateKey);
-      // Generar token de sesión (12 horas)
-      const sessionToken = crypto.randomUUID();
-      const sessionExpiry = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+      // Sesión de 30 días. Si ya hay token vigente, reusarlo (multi-dispositivo:
+      // loguearse en otra máquina no mata la sesión anterior) y extender vencimiento.
+      const SESION_MS = 30 * 24 * 60 * 60 * 1000;
+      const tokenVigente = data.session_token && data.session_expires_at
+        && new Date(data.session_expires_at) > new Date();
+      const sessionToken = tokenVigente ? data.session_token : crypto.randomUUID();
+      const sessionExpiry = new Date(Date.now() + SESION_MS).toISOString();
       await supabase.from('empleados')
         .update({ session_token: sessionToken, session_expires_at: sessionExpiry })
         .eq('id', data.id);
