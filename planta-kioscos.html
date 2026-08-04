@@ -668,6 +668,7 @@
         opt.textContent = e.nombre;
         sel.appendChild(opt);
       });
+      if (document.getElementById('pantalla-login').classList.contains('activa')) sel.focus();
     } catch (e) {
       toast('Sin conexión al servidor', 'var(--red)');
     }
@@ -695,6 +696,17 @@
     for (let i = 0; i < 4; i++)
       document.getElementById('pd' + i).classList.toggle('lleno', i < _pin.length);
   }
+
+  // ─── Teclado físico (uso en compu): dígitos → PIN · Backspace borra · Esc limpia · Enter entra ───
+  document.addEventListener('keydown', (e) => {
+    const login = document.getElementById('pantalla-login');
+    if (!login || !login.classList.contains('activa')) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (/^[0-9]$/.test(e.key)) { pinTap(e.key); return; }
+    if (e.key === 'Backspace') { e.preventDefault(); pinBorrar(); return; }
+    if (e.key === 'Escape')    { pinClear(); return; }
+    if (e.key === 'Enter')     { e.preventDefault(); if (_pin.length === 4) autenticar(); }
+  });
 
   // ═══ AUTENTICACIÓN ═══
   async function autenticar() {
