@@ -273,6 +273,7 @@ async function accionCrearUbicacion(req, res) {
 
   const fila = { codigo, nombre };
   if (b.parent_id !== undefined) fila.parent_id = b.parent_id;
+  if (b.tipo !== undefined) fila.tipo = b.tipo;
 
   const { data, error } = await supabase.from('inv_ubicaciones').insert(fila).select().single();
   if (error) {
@@ -296,6 +297,7 @@ async function accionEditarUbicacion(req, res) {
   if (b.nombre !== undefined) campos.nombre = b.nombre;
   if (b.parent_id !== undefined) campos.parent_id = b.parent_id;
   if (b.activo !== undefined) campos.activo = b.activo;
+  if (b.tipo !== undefined) campos.tipo = b.tipo;
 
   if (Object.keys(campos).length === 0) return err(res, 'Nada que actualizar');
 

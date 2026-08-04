@@ -109,9 +109,7 @@
   .tree-node .tn-edit{opacity:0;color:var(--muted);cursor:pointer;margin-left:auto;font-size:12px;transition:opacity .15s;}
   .tree-node:hover .tn-edit{opacity:1;}
   .tree-node .tn-edit:hover{color:var(--amber);}
-  .tree-lvl1{padding-left:24px;}
-  .tree-lvl2{padding-left:48px;}
-  .tree-lvl3{padding-left:72px;}
+  .mu-tipo-btn.selected{background:var(--amber);color:#000;border-color:var(--amber);}
   .ubi-preview{text-align:center;padding:32px 16px;}
   .ubi-preview .big-code{font-family:'Space Mono',monospace;font-size:28px;font-weight:700;color:var(--amber);letter-spacing:2px;}
   .ubi-preview .big-name{font-size:14px;color:var(--text);margin-top:8px;}
@@ -285,17 +283,25 @@
     <button class="modal-x" onclick="_closeModal('modal-ubi')">✕</button>
     <div class="modal-title" id="modal-ubi-title">Crear ubicación</div>
     <div class="field"><label>Crear dentro de</label>
-      <select class="inp" id="mu-parent" onchange="_onUbiParentChange()"><option value="">— Raíz (nuevo Lugar) —</option></select>
+      <select class="inp" id="mu-parent" onchange="_onUbiParentChange()"><option value="">— Raíz (nuevo lugar) —</option></select>
     </div>
-    <div id="mu-level-hint" style="font-family:'Space Mono',monospace;font-size:10px;color:var(--amber);margin:-6px 0 14px 0;letter-spacing:.5px;"></div>
-    <div class="field"><label>Segmento</label>
+    <div id="mu-tipo-row" class="field">
+      <label>Tipo de lugar</label>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-sm mu-tipo-btn" data-tipo="deposito" onclick="_selTipo(this)">Depósito</button>
+        <button class="btn btn-sm mu-tipo-btn" data-tipo="rack" onclick="_selTipo(this)">Rack</button>
+        <button class="btn btn-sm mu-tipo-btn" data-tipo="zona" onclick="_selTipo(this)">Zona</button>
+      </div>
+    </div>
+    <div id="mu-level-hint" style="font-family:'Space Mono',monospace;font-size:10px;color:var(--amber);margin:0 0 14px 0;letter-spacing:.5px;"></div>
+    <div class="field"><label id="mu-seg-label">Código</label>
       <div style="display:flex;gap:8px;align-items:center;">
-        <span id="mu-prefix" style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--amber);min-width:20px;">L</span>
-        <input class="inp" id="mu-segment" placeholder="1" style="text-transform:uppercase;flex:1;" oninput="_onUbiSegmentChange()">
+        <span id="mu-prefix" style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--amber);min-width:16px;"></span>
+        <input class="inp" id="mu-segment" placeholder="DEPO1, PL275..." style="text-transform:uppercase;flex:1;" oninput="_onUbiSegmentChange()">
       </div>
     </div>
     <div id="mu-preview" style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--amber);padding:8px 0;letter-spacing:1px;"></div>
-    <div class="field"><label>Nombre (opcional)</label><input class="inp" id="mu-nombre" placeholder="Ej: Estante superior"></div>
+    <div class="field"><label>Nombre (opcional)</label><input class="inp" id="mu-nombre" placeholder="Ej: Depósito chico, Estante superior"></div>
     <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin:-6px 0 14px 0;letter-spacing:.5px;">El código se imprime en la etiqueta física — no se puede cambiar después</div>
     <div id="mu-error" class="err-msg"></div>
     <div class="modal-actions">
@@ -675,13 +681,59 @@ async function _cargarUbicaciones() {
   _renderTree();
 }
 
-const NIVEL_NOMBRES = ['Lugar', 'Pasillo', 'Módulo', 'Estante'];
-const NIVEL_PREFIJOS = ['L', 'P', 'M', 'E'];
+// ── Ubicaciones: helpers de tipo y nivel ──
+const TIPOS_LUGAR = {
+  deposito: { label: 'Depósito', niveles: ['Lugar', 'Pasillo', 'Módulo', 'Estante'], formatos: ['libre', 'letra', 'letra', 'num2'] },
+  rack:     { label: 'Rack',     niveles: ['Lugar', 'Columna', 'Estante'],           formatos: ['libre', 'letra', 'num2'] },
+  zona:     { label: 'Zona',     niveles: ['Lugar'],                                  formatos: ['libre'] }, // profundidad libre
+};
 
-function _ubiLevel(u) {
-  let depth = 0, cur = u;
-  while (cur && cur.parent_id) { cur = _ubiData.find(x => x.id === cur.parent_id); depth++; }
-  return depth; // 0=Lugar, 1=Pasillo, 2=Módulo, 3=Estante
+function _ubiDepth(u) {
+  let d = 0, cur = u;
+  while (cur && cur.parent_id) { cur = _ubiData.find(x => x.id === cur.parent_id); d++; }
+  return d;
+}
+
+function _ubiRaiz(u) {
+  let cur = u;
+  while (cur && cur.parent_id) { cur = _ubiData.find(x => x.id === cur.parent_id) || null; }
+  return cur;
+}
+
+function _ubiTipo(u) {
+  const raiz = _ubiRaiz(u);
+  return (raiz && raiz.tipo) || 'zona';
+}
+
+function _ubiHijos(u) {
+  return _ubiData.filter(x => x.parent_id === u.id);
+}
+
+function _ubiEsHoja(u) {
+  return _ubiHijos(u).length === 0;
+}
+
+function _ubiPuedeSerPadre(u) {
+  const tipo = _ubiTipo(u);
+  const depth = _ubiDepth(u);
+  const spec = TIPOS_LUGAR[tipo];
+  if (!spec) return true; // zona: siempre
+  if (tipo === 'zona') return true;
+  return depth < spec.niveles.length - 1;
+}
+
+function _ubiNivelLabel(tipo, depth) {
+  const spec = TIPOS_LUGAR[tipo];
+  if (!spec) return 'Ubicación';
+  if (tipo === 'zona' && depth > 0) return 'Sub-zona';
+  return spec.niveles[depth] || 'Ubicación';
+}
+
+function _ubiFormato(tipo, depth) {
+  const spec = TIPOS_LUGAR[tipo];
+  if (!spec) return 'libre';
+  if (tipo === 'zona' && depth > 0) return 'alfanum'; // letra+num2
+  return spec.formatos[depth] || 'libre';
 }
 
 function _renderTree() {
@@ -692,18 +744,19 @@ function _renderTree() {
     byParent[pid].push(u);
   }
 
-  function renderLevel(parentId, level) {
+  function renderLevel(parentId, depth) {
     const children = byParent[parentId] || [];
     return children.map(u => {
-      const lvlCls = level === 1 ? ' tree-lvl1' : level === 2 ? ' tree-lvl2' : level >= 3 ? ' tree-lvl3' : '';
-      const cls = 'tree-node' + lvlCls + (_selectedUbi === u.id ? ' selected' : '');
+      const indent = Math.min(depth, 4) * 24;
+      const cls = 'tree-node' + (_selectedUbi === u.id ? ' selected' : '');
       const inactive = u.activo === false ? ' style="opacity:.4;"' : '';
-      let html = '<div class="' + cls + '"' + inactive + ' onclick="_selectUbi(\'' + u.id + '\')">'
+      const tipoTag = depth === 0 && u.tipo ? ' <span style="font-family:\'Space Mono\',monospace;font-size:8px;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin-left:4px;text-transform:uppercase;">' + u.tipo + '</span>' : '';
+      let html = '<div class="' + cls + '" style="padding-left:' + (10 + indent) + 'px;"' + inactive + ' onclick="_selectUbi(\'' + u.id + '\')">'
         + '<span class="tn-code">' + u.codigo + '</span>'
-        + '<span class="tn-name">' + (u.nombre || '') + '</span>'
+        + '<span class="tn-name">' + (u.nombre || '') + tipoTag + '</span>'
         + '<span class="tn-edit" onclick="event.stopPropagation();_openEditUbi(\'' + u.id + '\')">✏</span>'
         + '</div>';
-      if (level < 3) html += renderLevel(u.id, level + 1);
+      html += renderLevel(u.id, depth + 1);
       return html;
     }).join('');
   }
@@ -725,44 +778,43 @@ function _selectUbi(id) {
     if (cur) path = cur.codigo + ' > ' + path; else break;
   }
 
-  const lvl = _ubiLevel(u);
-  const lvlLabel = NIVEL_NOMBRES[lvl] || 'Ubicación';
-  const esEstante = lvl === 3;
+  const tipo = _ubiTipo(u);
+  const depth = _ubiDepth(u);
+  const lvlLabel = _ubiNivelLabel(tipo, depth);
+  const esHoja = _ubiEsHoja(u);
   document.getElementById('ubi-panel').innerHTML =
     '<div class="ubi-preview">'
-    + '<div style="font-family:\'Space Mono\',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">' + lvlLabel + '</div>'
+    + '<div style="font-family:\'Space Mono\',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">' + lvlLabel + (tipo ? ' · ' + tipo : '') + '</div>'
     + '<div class="big-code">' + u.codigo + '</div>'
     + '<div class="big-name">' + (u.nombre || '') + '</div>'
     + '<div class="big-path">' + path + '</div>'
-    + (esEstante
+    + (esHoja
       ? '<div style="margin-top:24px;"><button class="btn" onclick="_imprimirEtiquetaUbi(\'' + u.id + '\')">⎙ Imprimir etiqueta</button></div>'
-      : '<div style="margin-top:24px;font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);">Solo los Estantes (nivel 4) se etiquetan y escanean</div>')
+      : '<div style="margin-top:24px;font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);">Los puntos de guardado son las ubicaciones finales (hojas)</div>')
     + '</div>';
 }
 
-// ── Crear ubicación (jerárquica 4 niveles) ──
-function _ubiJerarquia(u) {
-  const parts = [];
-  let cur = u;
-  while (cur) { parts.unshift(cur); cur = cur.parent_id ? _ubiData.find(x => x.id === cur.parent_id) : null; }
-  return parts.map((p, i) => NIVEL_NOMBRES[i] + ' ' + p.codigo.split('-').pop()).join(' · ') + '  [' + u.codigo + ']';
+function _selTipo(btn) {
+  document.querySelectorAll('.mu-tipo-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
 }
 
+// ── Crear ubicación (por tipo de lugar) ──
 function _openCrearUbi() {
   document.getElementById('modal-ubi-title').textContent = 'Crear ubicación';
   document.getElementById('mu-segment').value = '';
   document.getElementById('mu-nombre').value = '';
   document.getElementById('mu-error').textContent = '';
-  // Populate parent select — only levels 0-2 (Lugar/Pasillo/Módulo) can be parents
+  // Populate parent select — only ubicaciones that can have children
   const sel = document.getElementById('mu-parent');
-  const padres = _ubiData.filter(u => u.activo !== false && _ubiLevel(u) < 3);
-  sel.innerHTML = '<option value="">— Raíz (nuevo Lugar) —</option>' + padres.map(u =>
-    '<option value="' + u.id + '">' + _ubiJerarquia(u) + '</option>'
-  ).join('');
-  // Pre-select current selection if it can be a parent
+  const padres = _ubiData.filter(u => u.activo !== false && _ubiPuedeSerPadre(u));
+  sel.innerHTML = '<option value="">— Raíz (nuevo lugar) —</option>' + padres.map(u => {
+    const tipo = _ubiTipo(u);
+    return '<option value="' + u.id + '">' + u.codigo + ' — ' + (u.nombre || '') + '  [' + tipo + ']</option>';
+  }).join('');
   if (_selectedUbi) {
     const selUbi = _ubiData.find(x => x.id === _selectedUbi);
-    if (selUbi && _ubiLevel(selUbi) < 3) sel.value = _selectedUbi;
+    if (selUbi && _ubiPuedeSerPadre(selUbi)) sel.value = _selectedUbi;
     else if (selUbi && selUbi.parent_id) sel.value = selUbi.parent_id;
   }
   _onUbiParentChange();
@@ -772,25 +824,58 @@ function _openCrearUbi() {
 function _onUbiParentChange() {
   const parentId = document.getElementById('mu-parent').value;
   const parent = parentId ? _ubiData.find(x => x.id === parentId) : null;
-  const parentLevel = parent ? _ubiLevel(parent) : -1;
-  const newLevel = parentLevel + 1; // 0=Lugar, 1=Pasillo, 2=Módulo, 3=Estante
-  const prefijo = NIVEL_PREFIJOS[newLevel] || 'X';
-  const nombreNivel = NIVEL_NOMBRES[newLevel] || 'Ubicación';
-  document.getElementById('mu-prefix').textContent = prefijo;
-  document.getElementById('mu-level-hint').textContent = 'Estás creando un ' + nombreNivel.toUpperCase() + (parent ? ' dentro de ' + parent.codigo : '');
+  const tipoRow = document.getElementById('mu-tipo-row');
+  const prefixEl = document.getElementById('mu-prefix');
+  const hintEl = document.getElementById('mu-level-hint');
+  const segEl = document.getElementById('mu-segment');
+
+  if (!parent) {
+    // Raíz: mostrar selector de tipo, segmento = código libre
+    if (tipoRow) tipoRow.style.display = '';
+    prefixEl.textContent = '';
+    hintEl.textContent = 'Nuevo lugar raíz — elegí el tipo y escribí el código';
+    segEl.placeholder = 'DEPO1, PL275, MTERM...';
+  } else {
+    // Hijo: heredar tipo, determinar nivel
+    if (tipoRow) tipoRow.style.display = 'none';
+    const tipo = _ubiTipo(parent);
+    const parentDepth = _ubiDepth(parent);
+    const newDepth = parentDepth + 1;
+    const nivelLabel = _ubiNivelLabel(tipo, newDepth);
+    const formato = _ubiFormato(tipo, newDepth);
+    hintEl.textContent = 'Creando ' + nivelLabel.toUpperCase() + ' dentro de ' + parent.codigo + ' [' + tipo + ']';
+    if (formato === 'letra') { prefixEl.textContent = ''; segEl.placeholder = 'A, B, C...'; }
+    else if (formato === 'num2') { prefixEl.textContent = ''; segEl.placeholder = '01, 02...'; }
+    else if (formato === 'alfanum') { prefixEl.textContent = ''; segEl.placeholder = 'A01, B02...'; }
+    else { prefixEl.textContent = ''; segEl.placeholder = 'Código del segmento'; }
+  }
   _onUbiSegmentChange();
+}
+
+function _formatSegmento(seg, formato) {
+  seg = seg.trim().toUpperCase().replace(/[-\s]/g, '');
+  if (formato === 'letra') return seg.replace(/[^A-Z]/g, '').substring(0, 1);
+  if (formato === 'num2') { const n = seg.replace(/[^0-9]/g, ''); return n ? n.padStart(2, '0') : ''; }
+  if (formato === 'alfanum') return seg.replace(/[^A-Z0-9]/g, '');
+  return seg;
 }
 
 function _onUbiSegmentChange() {
   const parentId = document.getElementById('mu-parent').value;
   const parent = parentId ? _ubiData.find(x => x.id === parentId) : null;
-  const parentLevel = parent ? _ubiLevel(parent) : -1;
-  const newLevel = parentLevel + 1;
-  const prefijo = NIVEL_PREFIJOS[newLevel] || 'X';
   const seg = (document.getElementById('mu-segment').value || '').trim().toUpperCase().replace(/[-\s]/g, '');
-  const codigoPadre = parent ? parent.codigo : '';
-  const codigoFinal = codigoPadre ? codigoPadre + '-' + prefijo + seg : prefijo + seg;
-  document.getElementById('mu-preview').textContent = seg ? codigoFinal : '';
+
+  if (!parent) {
+    // Raíz: código = segmento tal cual
+    document.getElementById('mu-preview').textContent = seg || '';
+  } else {
+    const tipo = _ubiTipo(parent);
+    const newDepth = _ubiDepth(parent) + 1;
+    const formato = _ubiFormato(tipo, newDepth);
+    const formatted = _formatSegmento(seg, formato);
+    const codigo = formatted ? parent.codigo + '-' + formatted : '';
+    document.getElementById('mu-preview').textContent = codigo;
+  }
 }
 
 async function _saveUbi() {
@@ -798,16 +883,32 @@ async function _saveUbi() {
   errEl.textContent = '';
   const parentId = document.getElementById('mu-parent').value || undefined;
   const parent = parentId ? _ubiData.find(x => x.id === parentId) : null;
-  const parentLevel = parent ? _ubiLevel(parent) : -1;
-  const newLevel = parentLevel + 1;
-  const prefijo = NIVEL_PREFIJOS[newLevel] || 'X';
   const seg = (document.getElementById('mu-segment').value || '').trim().toUpperCase().replace(/[-\s]/g, '');
-  if (!seg) { errEl.textContent = 'Ingresá el segmento (número o identificador)'; return; }
-  const codigoPadre = parent ? parent.codigo : '';
-  const codigo = codigoPadre ? codigoPadre + '-' + prefijo + seg : prefijo + seg;
+  if (!seg) { errEl.textContent = 'Ingresá el segmento o código'; return; }
+
+  let codigo, tipo;
+  if (!parent) {
+    // Raíz: código = seg tal cual; tipo del selector
+    codigo = seg;
+    const tipoSel = document.querySelector('.mu-tipo-btn.selected');
+    tipo = tipoSel ? tipoSel.dataset.tipo : null;
+    if (!tipo) { errEl.textContent = 'Elegí el tipo de lugar'; return; }
+  } else {
+    // Hijo: componer código, formatear segmento
+    const tipoP = _ubiTipo(parent);
+    const newDepth = _ubiDepth(parent) + 1;
+    const formato = _ubiFormato(tipoP, newDepth);
+    const formatted = _formatSegmento(seg, formato);
+    if (!formatted) { errEl.textContent = 'Segmento inválido para este nivel'; return; }
+    codigo = parent.codigo + '-' + formatted;
+  }
+
   const nombreInput = document.getElementById('mu-nombre').value.trim();
   const nombre = nombreInput || codigo;
-  const r = await _post('crear-ubicacion', { codigo, nombre, parent_id: parentId });
+  const body = { codigo, nombre };
+  if (parentId) body.parent_id = parentId;
+  if (tipo) body.tipo = tipo;
+  const r = await _post('crear-ubicacion', body);
   if (!r.ok) { errEl.textContent = r.msg || 'Error'; return; }
   _closeModal('modal-ubi');
   await _cargarUbicaciones();
