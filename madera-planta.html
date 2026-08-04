@@ -407,7 +407,7 @@ html, body { background: var(--bg); color: var(--text); font-family: 'DM Sans', 
 const _MODO_KIOSCO = new URLSearchParams(location.search).get('kiosco') === '1';
 const _sesionKiosco = (() => {
   if (!_MODO_KIOSCO) return null;
-  try { const s = JSON.parse(sessionStorage.getItem('kiosco_sesion') || 'null'); return s && s.id ? s : null; }
+  try { const s = JSON.parse(sessionStorage.getItem('kiosco_sesion') || 'null'); return s && s.empleado_id ? s : null; }
   catch(e) { return null; }
 })();
 
@@ -843,11 +843,20 @@ async function imprimirEtiquetas(partida_id, n) {
 
 /* ── Boot: auto-login si venimos del kiosco con sesión ───────────────────── */
 if (_sesionKiosco) {
-  usuario = { id: _sesionKiosco.id, nombre: _sesionKiosco.nombre, rol_app: _sesionKiosco.rol_app };
-  document.getElementById('headerUser').textContent = usuario.nombre;
-  document.getElementById('btnStock').style.display = (usuario.rol_app === 'admin') ? '' : 'none';
-  mostrar('pHome');
-  cargarBadges();
+  (async () => {
+    try {
+      const r = await fetch('/api/tiempos?action=check-session&session_token=' + encodeURIComponent(_sesionKiosco.session_token));
+      const data = await r.json();
+      if (!data.ok || !data.user) throw new Error('sesión inválida');
+      usuario = { id: data.user.id, nombre: data.user.nombre, rol_app: data.user.rol_app };
+      document.getElementById('headerUser').textContent = usuario.nombre;
+      document.getElementById('btnStock').style.display = (usuario.rol_app === 'admin') ? '' : 'none';
+      mostrar('pHome');
+      cargarBadges();
+    } catch (e) {
+      console.warn('[kiosco] no se pudo hidratar sesión, cae al login', e);
+    }
+  })();
 }
 
 /* ── Util ────────────────────────────────────────────────────────────────── */
