@@ -111,6 +111,7 @@
   .tree-node .tn-edit:hover{color:var(--amber);}
   .tree-lvl1{padding-left:24px;}
   .tree-lvl2{padding-left:48px;}
+  .tree-lvl3{padding-left:72px;}
   .ubi-preview{text-align:center;padding:32px 16px;}
   .ubi-preview .big-code{font-family:'Space Mono',monospace;font-size:28px;font-weight:700;color:var(--amber);letter-spacing:2px;}
   .ubi-preview .big-name{font-size:14px;color:var(--text);margin-top:8px;}
@@ -274,7 +275,7 @@
     <button class="modal-x" onclick="_closeModal('modal-sync')">✕</button>
     <div class="modal-title">Resultado Sync Zoho</div>
     <div id="sync-result"></div>
-    <div class="modal-actions"><button class="btn" onclick="_closeModal('modal-sync')">Cerrar</button></div>
+    <div class="modal-actions"><button class="btn" onclick="_closeModal('modal-sync');_cargarItems()">Cerrar</button></div>
   </div>
 </div>
 
@@ -283,13 +284,19 @@
   <div class="modal">
     <button class="modal-x" onclick="_closeModal('modal-ubi')">✕</button>
     <div class="modal-title" id="modal-ubi-title">Crear ubicación</div>
-    <input type="hidden" id="mu-id">
-    <div class="field"><label>Código</label><input class="inp" id="mu-codigo" placeholder="GAL1-R03-E2" style="text-transform:uppercase;"></div>
-    <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--red);margin:-8px 0 14px 0;letter-spacing:.5px;">El código se imprime en la etiqueta física — no se puede cambiar después</div>
-    <div class="field"><label>Nombre</label><input class="inp" id="mu-nombre" placeholder="Galería 1, Rack 3, Estante 2"></div>
-    <div class="field"><label>Padre</label>
-      <select class="inp" id="mu-parent"><option value="">— Raíz —</option></select>
+    <div class="field"><label>Crear dentro de</label>
+      <select class="inp" id="mu-parent" onchange="_onUbiParentChange()"><option value="">— Raíz (nuevo Lugar) —</option></select>
     </div>
+    <div id="mu-level-hint" style="font-family:'Space Mono',monospace;font-size:10px;color:var(--amber);margin:-6px 0 14px 0;letter-spacing:.5px;"></div>
+    <div class="field"><label>Segmento</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span id="mu-prefix" style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--amber);min-width:20px;">L</span>
+        <input class="inp" id="mu-segment" placeholder="1" style="text-transform:uppercase;flex:1;" oninput="_onUbiSegmentChange()">
+      </div>
+    </div>
+    <div id="mu-preview" style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--amber);padding:8px 0;letter-spacing:1px;"></div>
+    <div class="field"><label>Nombre (opcional)</label><input class="inp" id="mu-nombre" placeholder="Ej: Estante superior"></div>
+    <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin:-6px 0 14px 0;letter-spacing:.5px;">El código se imprime en la etiqueta física — no se puede cambiar después</div>
     <div id="mu-error" class="err-msg"></div>
     <div class="modal-actions">
       <button class="btn" onclick="_closeModal('modal-ubi')">Cancelar</button>
@@ -668,6 +675,15 @@ async function _cargarUbicaciones() {
   _renderTree();
 }
 
+const NIVEL_NOMBRES = ['Lugar', 'Pasillo', 'Módulo', 'Estante'];
+const NIVEL_PREFIJOS = ['L', 'P', 'M', 'E'];
+
+function _ubiLevel(u) {
+  let depth = 0, cur = u;
+  while (cur && cur.parent_id) { cur = _ubiData.find(x => x.id === cur.parent_id); depth++; }
+  return depth; // 0=Lugar, 1=Pasillo, 2=Módulo, 3=Estante
+}
+
 function _renderTree() {
   const byParent = {};
   for (const u of _ubiData) {
@@ -679,14 +695,15 @@ function _renderTree() {
   function renderLevel(parentId, level) {
     const children = byParent[parentId] || [];
     return children.map(u => {
-      const cls = 'tree-node' + (level === 1 ? ' tree-lvl1' : level >= 2 ? ' tree-lvl2' : '') + (_selectedUbi === u.id ? ' selected' : '');
+      const lvlCls = level === 1 ? ' tree-lvl1' : level === 2 ? ' tree-lvl2' : level >= 3 ? ' tree-lvl3' : '';
+      const cls = 'tree-node' + lvlCls + (_selectedUbi === u.id ? ' selected' : '');
       const inactive = u.activo === false ? ' style="opacity:.4;"' : '';
       let html = '<div class="' + cls + '"' + inactive + ' onclick="_selectUbi(\'' + u.id + '\')">'
         + '<span class="tn-code">' + u.codigo + '</span>'
         + '<span class="tn-name">' + (u.nombre || '') + '</span>'
         + '<span class="tn-edit" onclick="event.stopPropagation();_openEditUbi(\'' + u.id + '\')">✏</span>'
         + '</div>';
-      if (level < 2) html += renderLevel(u.id, level + 1);
+      if (level < 3) html += renderLevel(u.id, level + 1);
       return html;
     }).join('');
   }
@@ -708,41 +725,88 @@ function _selectUbi(id) {
     if (cur) path = cur.codigo + ' > ' + path; else break;
   }
 
+  const lvl = _ubiLevel(u);
+  const lvlLabel = NIVEL_NOMBRES[lvl] || 'Ubicación';
+  const esEstante = lvl === 3;
   document.getElementById('ubi-panel').innerHTML =
     '<div class="ubi-preview">'
+    + '<div style="font-family:\'Space Mono\',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">' + lvlLabel + '</div>'
     + '<div class="big-code">' + u.codigo + '</div>'
     + '<div class="big-name">' + (u.nombre || '') + '</div>'
     + '<div class="big-path">' + path + '</div>'
-    + '<div style="margin-top:24px;">'
-    + '<button class="btn" onclick="_imprimirEtiquetaUbi(\'' + u.id + '\')">⎙ Imprimir etiqueta</button>'
-    + '</div>'
+    + (esEstante
+      ? '<div style="margin-top:24px;"><button class="btn" onclick="_imprimirEtiquetaUbi(\'' + u.id + '\')">⎙ Imprimir etiqueta</button></div>'
+      : '<div style="margin-top:24px;font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);">Solo los Estantes (nivel 4) se etiquetan y escanean</div>')
     + '</div>';
 }
 
-// ── Crear ubicación ──
+// ── Crear ubicación (jerárquica 4 niveles) ──
+function _ubiJerarquia(u) {
+  const parts = [];
+  let cur = u;
+  while (cur) { parts.unshift(cur); cur = cur.parent_id ? _ubiData.find(x => x.id === cur.parent_id) : null; }
+  return parts.map((p, i) => NIVEL_NOMBRES[i] + ' ' + p.codigo.split('-').pop()).join(' · ') + '  [' + u.codigo + ']';
+}
+
 function _openCrearUbi() {
   document.getElementById('modal-ubi-title').textContent = 'Crear ubicación';
-  document.getElementById('mu-id').value = '';
-  document.getElementById('mu-codigo').value = '';
-  document.getElementById('mu-codigo').disabled = false;
+  document.getElementById('mu-segment').value = '';
   document.getElementById('mu-nombre').value = '';
   document.getElementById('mu-error').textContent = '';
-  // populate parent select
+  // Populate parent select — only levels 0-2 (Lugar/Pasillo/Módulo) can be parents
   const sel = document.getElementById('mu-parent');
-  sel.innerHTML = '<option value="">— Raíz —</option>' + _ubiData.filter(u => u.activo !== false).map(u =>
-    '<option value="' + u.id + '">' + u.codigo + ' — ' + u.nombre + '</option>'
+  const padres = _ubiData.filter(u => u.activo !== false && _ubiLevel(u) < 3);
+  sel.innerHTML = '<option value="">— Raíz (nuevo Lugar) —</option>' + padres.map(u =>
+    '<option value="' + u.id + '">' + _ubiJerarquia(u) + '</option>'
   ).join('');
-  if (_selectedUbi) sel.value = _selectedUbi;
+  // Pre-select current selection if it can be a parent
+  if (_selectedUbi) {
+    const selUbi = _ubiData.find(x => x.id === _selectedUbi);
+    if (selUbi && _ubiLevel(selUbi) < 3) sel.value = _selectedUbi;
+    else if (selUbi && selUbi.parent_id) sel.value = selUbi.parent_id;
+  }
+  _onUbiParentChange();
   _openModal('modal-ubi');
+}
+
+function _onUbiParentChange() {
+  const parentId = document.getElementById('mu-parent').value;
+  const parent = parentId ? _ubiData.find(x => x.id === parentId) : null;
+  const parentLevel = parent ? _ubiLevel(parent) : -1;
+  const newLevel = parentLevel + 1; // 0=Lugar, 1=Pasillo, 2=Módulo, 3=Estante
+  const prefijo = NIVEL_PREFIJOS[newLevel] || 'X';
+  const nombreNivel = NIVEL_NOMBRES[newLevel] || 'Ubicación';
+  document.getElementById('mu-prefix').textContent = prefijo;
+  document.getElementById('mu-level-hint').textContent = 'Estás creando un ' + nombreNivel.toUpperCase() + (parent ? ' dentro de ' + parent.codigo : '');
+  _onUbiSegmentChange();
+}
+
+function _onUbiSegmentChange() {
+  const parentId = document.getElementById('mu-parent').value;
+  const parent = parentId ? _ubiData.find(x => x.id === parentId) : null;
+  const parentLevel = parent ? _ubiLevel(parent) : -1;
+  const newLevel = parentLevel + 1;
+  const prefijo = NIVEL_PREFIJOS[newLevel] || 'X';
+  const seg = (document.getElementById('mu-segment').value || '').trim().toUpperCase().replace(/[-\s]/g, '');
+  const codigoPadre = parent ? parent.codigo : '';
+  const codigoFinal = codigoPadre ? codigoPadre + '-' + prefijo + seg : prefijo + seg;
+  document.getElementById('mu-preview').textContent = seg ? codigoFinal : '';
 }
 
 async function _saveUbi() {
   const errEl = document.getElementById('mu-error');
   errEl.textContent = '';
-  const codigo = document.getElementById('mu-codigo').value.trim().toUpperCase();
-  const nombre = document.getElementById('mu-nombre').value.trim();
-  if (!codigo || !nombre) { errEl.textContent = 'Código y nombre requeridos'; return; }
   const parentId = document.getElementById('mu-parent').value || undefined;
+  const parent = parentId ? _ubiData.find(x => x.id === parentId) : null;
+  const parentLevel = parent ? _ubiLevel(parent) : -1;
+  const newLevel = parentLevel + 1;
+  const prefijo = NIVEL_PREFIJOS[newLevel] || 'X';
+  const seg = (document.getElementById('mu-segment').value || '').trim().toUpperCase().replace(/[-\s]/g, '');
+  if (!seg) { errEl.textContent = 'Ingresá el segmento (número o identificador)'; return; }
+  const codigoPadre = parent ? parent.codigo : '';
+  const codigo = codigoPadre ? codigoPadre + '-' + prefijo + seg : prefijo + seg;
+  const nombreInput = document.getElementById('mu-nombre').value.trim();
+  const nombre = nombreInput || codigo;
   const r = await _post('crear-ubicacion', { codigo, nombre, parent_id: parentId });
   if (!r.ok) { errEl.textContent = r.msg || 'Error'; return; }
   _closeModal('modal-ubi');
