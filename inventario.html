@@ -823,7 +823,7 @@ function _openCrearUbi() {
 
 function _onUbiParentChange() {
   const parentId = document.getElementById('mu-parent').value;
-  const parent = parentId ? _ubiData.find(x => x.id === parentId) : null;
+  const parent = parentId ? _ubiData.find(x => String(x.id) === String(parentId)) : null;
   const tipoRow = document.getElementById('mu-tipo-row');
   const prefixEl = document.getElementById('mu-prefix');
   const hintEl = document.getElementById('mu-level-hint');
@@ -862,7 +862,7 @@ function _formatSegmento(seg, formato) {
 
 function _onUbiSegmentChange() {
   const parentId = document.getElementById('mu-parent').value;
-  const parent = parentId ? _ubiData.find(x => x.id === parentId) : null;
+  const parent = parentId ? _ubiData.find(x => String(x.id) === String(parentId)) : null;
   const seg = (document.getElementById('mu-segment').value || '').trim().toUpperCase().replace(/[-\s]/g, '');
 
   if (!parent) {
@@ -882,7 +882,7 @@ async function _saveUbi() {
   const errEl = document.getElementById('mu-error');
   errEl.textContent = '';
   const parentId = document.getElementById('mu-parent').value || undefined;
-  const parent = parentId ? _ubiData.find(x => x.id === parentId) : null;
+  const parent = parentId ? _ubiData.find(x => String(x.id) === String(parentId)) : null;
   const seg = (document.getElementById('mu-segment').value || '').trim().toUpperCase().replace(/[-\s]/g, '');
   if (!seg) { errEl.textContent = 'Ingresá el segmento o código'; return; }
 
