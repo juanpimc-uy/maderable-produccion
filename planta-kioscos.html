@@ -222,6 +222,15 @@
       font-size: 48px;
       line-height: 1;
     }
+    .card-icon svg {
+      width: 48px;
+      height: 48px;
+      stroke: var(--accent);
+      fill: none;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
 
     .card-title {
       font-family: 'Space Mono', monospace;
@@ -581,7 +590,7 @@
     {
       id: 'despachos',
       nombre: 'Despachos',
-      icono: '🚚',
+      icono: '<svg viewBox="0 0 24 24"><path d="M1 6h13v10H1z M14 9h4l3 3v4h-7z"/><circle cx="6" cy="18.5" r="1.8"/><circle cx="17.5" cy="18.5" r="1.8"/></svg>',
       descripcion: 'Gestionar bultos, envíos y imprimir etiquetas 60×30mm',
       activo: true,
       destino: { tipo: 'externo', url: 'https://juanpimc-uy.github.io/ctrl-despachos/admin.html?kiosco=1' }
@@ -589,7 +598,7 @@
     {
       id: 'tercerizados',
       nombre: 'Tercerizados',
-      icono: '📦',
+      icono: '<svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/></svg>',
       descripcion: 'Despachar, recibir y retornar piezas de Baru / Rodart',
       activo: true,
       destino: { tipo: 'bridge', url: '/tercerizados.html' }
@@ -597,7 +606,7 @@
     {
       id: 'oc',
       nombre: 'Recepciones OC',
-      icono: '📥',
+      icono: '<svg viewBox="0 0 24 24"><path d="M12 3v10"/><path d="m8 9 4 4 4-4"/><path d="M2 15h5l2 3h6l2-3h5"/><path d="M4 15v5h16v-5"/></svg>',
       descripcion: 'Escanear y confirmar llegada de órdenes de compra',
       activo: true,
       destino: { tipo: 'bridge', url: '/recepciones-oc.html' }
@@ -605,7 +614,7 @@
     {
       id: 'kitting',
       nombre: 'Kitting',
-      icono: '🔩',
+      icono: '<svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
       descripcion: 'Armar órdenes de servicio y marcar líneas completas',
       activo: true,
       destino: { tipo: 'directo', url: '/armado-so-planta.html' }
@@ -613,7 +622,7 @@
     {
       id: 'inventario',
       nombre: 'Inventario',
-      icono: '🗄️',
+      icono: '<svg viewBox="0 0 24 24"><path d="M3 4h18v5H3z"/><path d="M4 9v10h16V9"/><path d="M9 13h6"/></svg>',
       descripcion: 'Stock, movimientos, altas y consumos',
       activo: true,
       destino: { tipo: 'iife' }
@@ -621,7 +630,7 @@
     {
       id: 'madera',
       nombre: 'Madera',
-      icono: '🪵',
+      icono: '<svg viewBox="0 0 24 24"><circle cx="7.5" cy="16" r="3.5"/><circle cx="7.5" cy="16" r="1"/><circle cx="16.5" cy="16" r="3.5"/><circle cx="16.5" cy="16" r="1"/><circle cx="12" cy="8.5" r="3.5"/><circle cx="12" cy="8.5" r="1"/></svg>',
       descripcion: 'Romaneo, ingreso de stock, consumo e impresión de etiquetas',
       activo: true,
       destino: { tipo: 'bridge', url: '/madera-planta.html?kiosco=1' }
