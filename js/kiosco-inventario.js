@@ -266,6 +266,11 @@
   // ── ACTIONS ──
   window._invShow = _show;
   window._invHome = function () { _show('home'); };
+  window._invImprimirItem = function () {
+    if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
+    if (!_item) return;
+    Etiquetas.imprimir('inv-item', [{ codigo: _item.codigo, descripcion: _item.descripcion, familia: _item.familia || '', _qr: _item.codigo }]);
+  };
   window._invRecepcion = function () {
     if (window.abrirFlujo) { window.abrirFlujo('oc'); }
     else { _fail('Recepción disponible desde el menú del kiosco'); }
@@ -605,8 +610,7 @@
       + '<div class="inv-code">' + _esc(_item.codigo) + '</div>'
       + '<div class="inv-desc">' + _esc(_item.descripcion) + '</div>'
       + '<div style="margin-top:24px;">'
-      + '<button class="inv-btn" disabled title="Próximamente">⎙ Etiqueta de ítem — próximamente</button>'
-      // TODO INV-2c: función 'inv-item' en Etiquetas.FUNCIONES
+      + '<button class="inv-btn" onclick="_invImprimirItem()">⎙ Imprimir etiqueta</button>'
       + '</div>'
       + '<div class="inv-actions" style="margin-top:24px;">'
       + '<button class="inv-btn inv-btn-accent inv-btn-lg" onclick="_invHome()">VOLVER AL INICIO</button>'

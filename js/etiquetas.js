@@ -79,6 +79,20 @@
         '100x50': [{ id: 'mueble', pos: 'XL' }, { id: 'cliente', pos: 'L' }, { id: 'obra', pos: 'M' }, { id: 'so', pos: 'P' }, { id: 'fecha', pos: 'P' }],
       }
     },
+    'inv-item': {
+      tituloDefault: 'ITEM',
+      qr: true, chipEnvio: false,
+      qrEj: 'BIS-35',
+      campos: [
+        { id: 'codigo',      label: 'Código',      ej: 'BIS-35',                    fijo: true },
+        { id: 'descripcion', label: 'Descripción', ej: 'Bisagra codo 35mm Blum',    fijo: false },
+        { id: 'familia',     label: 'Familia',     ej: 'HERRAJE',                   fijo: false },
+      ],
+      defaults: {
+        '60x30':  [{ id: 'codigo', pos: 'XL' }, { id: 'descripcion', pos: 'M' }],
+        '100x50': [{ id: 'codigo', pos: 'XL' }, { id: 'descripcion', pos: 'L' }, { id: 'familia', pos: 'M' }],
+      }
+    },
     'inv-bin': {
       tituloDefault: 'UBICACIÓN',
       qr: true, chipEnvio: false,
