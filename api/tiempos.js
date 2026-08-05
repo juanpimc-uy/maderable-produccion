@@ -1524,7 +1524,7 @@ export default async function handler(req) {
     // ── GET proyectos activos desde proyectos_cache (para planta) ─────────
     if (action === 'proyectos-activos' && req.method === 'GET') {
       console.log('Consultando proyectos_cache...');
-      const { data, error } = await supabase.from('proyectos_cache').select('*').eq('activo', true).order('nombre');
+      const { data, error } = await supabase.from('proyectos_cache').select('*').eq('activo', true).neq('estado', 'terminado').order('nombre');
       console.log('Proyectos encontrados:', data?.length, error?.message);
       const proyectos = await _inyectarCompletado(data || []);
       return ok({ proyectos });
