@@ -120,13 +120,25 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
 
   <div class="content">
     <!-- Tab bar -->
-    <div class="tab-bar" id="tab-bar">
-      <button class="tab-btn active" data-tab="stock">Stock</button>
-      <button class="tab-btn" data-tab="partidas">Partidas</button>
-      <button class="tab-btn" data-tab="pendientes">Pendientes</button>
-      <button class="tab-btn" data-tab="crear-recepcion">Crear recepcion</button>
-      <button class="tab-btn" data-tab="cargar-stock" id="tab-btn-cargar-stock" style="display:none;">Cargar stock</button>
-      <button class="tab-btn" data-tab="catalogos" id="tab-btn-catalogos" style="display:none;">Catalogos</button>
+    <div class="tab-bar" id="tab-bar" style="gap:0;">
+      <div style="display:flex;align-items:flex-end;gap:4px;padding-right:14px;border-right:1px solid var(--border);">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;padding:0 4px 6px;">📊 Ver</div>
+        <button class="tab-btn active" data-tab="stock">Stock</button>
+        <button class="tab-btn" data-tab="partidas">Lotes</button>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:4px;padding:0 14px;border-right:1px solid var(--border);">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;padding:0 4px 6px;">➕ Agregar</div>
+        <button class="tab-btn" data-tab="crear-recepcion">+ Nueva recepción</button>
+        <button class="tab-btn" data-tab="cargar-stock" id="tab-btn-cargar-stock" style="display:none;">+ Cargar recorte</button>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:4px;padding:0 14px;border-right:1px solid var(--border);">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;padding:0 4px 6px;">⏳ Pendientes</div>
+        <button class="tab-btn" data-tab="pendientes">Pendientes</button>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:4px;padding-left:14px;">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;padding:0 4px 6px;">⚙ Admin</div>
+        <button class="tab-btn" data-tab="catalogos" id="tab-btn-catalogos" style="display:none;">Catálogos</button>
+      </div>
       <a href="/planta-kioscos.html" target="_blank" style="margin-left:auto;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);text-decoration:none;padding:7px 12px;border:1px solid var(--border);border-radius:5px;white-space:nowrap;">🏭 Vista planta →</a>
     </div>
 
@@ -134,6 +146,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
     <div class="tab-pane active" id="pane-stock">
       <div class="sec">Stock agregado por especie + espesor</div>
       <div id="stock-table-wrap"><div class="empty"><span class="spinner"></span> Cargando stock...</div></div>
+      <div style="margin-top:24px;font-size:11px;color:var(--muted);">💡 Toda la madera activa disponible para usar.</div>
     </div>
 
     <!-- TAB: Partidas -->
@@ -145,23 +158,25 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
         <button class="btn btn-sm btn-ghost partida-filter" data-estado="activa">Activas</button>
         <button class="btn btn-sm btn-ghost partida-filter" data-estado="archivada">Archivadas</button>
       </div>
-      <div id="partidas-table-wrap"><div class="empty"><span class="spinner"></span> Cargando partidas...</div></div>
+      <div id="partidas-table-wrap"><div class="empty"><span class="spinner"></span> Cargando lotes...</div></div>
+      <div style="margin-top:24px;font-size:11px;color:var(--muted);">💡 Historial de cada ingreso de madera al sistema.</div>
     </div>
 
     <!-- TAB: Pendientes -->
     <div class="tab-pane" id="pane-pendientes">
       <div class="pending-section">
-        <div class="pending-section-title">Recepciones esperadas</div>
+        <div class="pending-section-title">⏳ Pedidos sin romaneo <span id="pend-cnt-esp" style="font-size:11px;color:var(--muted);font-weight:400;"></span></div>
         <div id="pend-esperadas"><div class="empty"><span class="spinner"></span> Cargando...</div></div>
       </div>
       <div class="pending-section">
-        <div class="pending-section-title">Pendientes de factura</div>
+        <div class="pending-section-title">📄 Romaneos sin factura <span id="pend-cnt-fac" style="font-size:11px;color:var(--muted);font-weight:400;"></span></div>
         <div id="pend-factura"><div class="empty"><span class="spinner"></span> Cargando...</div></div>
       </div>
       <div class="pending-section">
-        <div class="pending-section-title">Pendientes de impresion de etiquetas</div>
+        <div class="pending-section-title">🏷 Sin etiqueta <span id="pend-cnt-imp" style="font-size:11px;color:var(--muted);font-weight:400;"></span></div>
         <div id="pend-impresion"><div class="empty"><span class="spinner"></span> Cargando...</div></div>
       </div>
+      <div style="margin-top:24px;font-size:11px;color:var(--muted);">💡 Recepciones, romaneos o etiquetas que requieren acción tuya.</div>
     </div>
 
     <!-- TAB: Crear recepcion -->
@@ -203,26 +218,17 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
           <textarea id="rec-notas" placeholder="Notas opcionales..."></textarea>
         </div>
         <div style="margin-top:16px;">
-          <button class="btn btn-primary" id="btn-crear-recepcion" onclick="crearRecepcion()">Crear recepcion</button>
+          <button class="btn btn-primary" id="btn-crear-recepcion" onclick="crearRecepcion()">Crear recepción</button>
         </div>
       </div>
+      <div style="margin-top:24px;font-size:11px;color:var(--muted);">💡 Antes de que llegue el camión, anotá qué esperás recibir.</div>
     </div>
 
     <!-- TAB: Cargar stock -->
     <div class="tab-pane" id="pane-cargar-stock">
       <div class="card" style="max-width:700px;">
-        <div class="sec">Carga inicial de stock (partida sin recepcion)</div>
+        <div class="sec">Carga de recorte (lote sin recepción)</div>
         <div class="g2">
-          <div class="field">
-            <label>Motivo</label>
-            <select id="cs-motivo">
-              <option value="">-- Seleccionar --</option>
-              <option value="recorte">Recorte</option>
-              <option value="migracion">Migracion (datos previos)</option>
-              <option value="sin_factura">Sin factura</option>
-              <option value="otro">Otro</option>
-            </select>
-          </div>
           <div class="field">
             <label>Especie</label>
             <div style="display:flex;gap:6px;">
@@ -253,10 +259,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
             </div>
             <span id="cs-costo-ref" class="mono" style="font-size:10px;color:var(--muted);"></span>
           </div>
-          <div class="field">
-            <label>Ubicacion (opcional)</label>
-            <input id="cs-ubicacion" placeholder="Ej: Estanteria A">
-          </div>
+        </div>
         </div>
 
         <div style="margin-top:20px;">
@@ -280,9 +283,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
         </div>
 
         <div style="margin-top:20px;">
-          <button class="btn btn-primary" id="btn-cargar-stock" onclick="cargarStock()">Cargar partida</button>
+          <button class="btn btn-primary" id="btn-cargar-stock" onclick="cargarStock()">Cargar lote</button>
         </div>
       </div>
+      <div style="margin-top:24px;font-size:11px;color:var(--muted);">💡 Recortes que sobraron del corte o madera vieja sin factura.</div>
     </div>
 
     <!-- TAB: Catalogos (admin) -->
@@ -313,6 +317,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
         </div>
         <div id="cat-espesores-wrap"></div>
       </div>
+      <div style="margin-top:24px;font-size:11px;color:var(--muted);">💡 Gestioná especies, espesores y proveedores.</div>
     </div>
 
   </div><!-- /content -->
@@ -322,7 +327,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
 <div class="overlay" id="partida-overlay" onclick="if(event.target===this)cerrarDetallePartida()">
   <div class="modal" style="width:760px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-      <div class="modal-title" id="partida-modal-title">Detalle partida</div>
+      <div class="modal-title" id="partida-modal-title">Detalle lote</div>
       <button onclick="cerrarDetallePartida()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">&times;</button>
     </div>
     <div id="partida-modal-content"></div>
@@ -630,7 +635,7 @@ async function cargarStock_tab() {
     }
     let html = '<table class="tbl"><thead><tr>' +
       '<th>Especie</th><th>Espesor</th><th style="text-align:right;">Piezas</th>' +
-      '<th style="text-align:right;">Pies</th><th style="text-align:right;">Costo USD</th><th style="text-align:right;">Partidas</th>' +
+      '<th style="text-align:right;">Pies</th><th style="text-align:right;">Costo USD</th><th style="text-align:right;">Lotes</th>' +
       '</tr></thead><tbody>';
     for (const r of rows) {
       html += '<tr>' +
@@ -654,14 +659,14 @@ async function cargarStock_tab() {
 // ═══════════════════════════════════════════════════════════
 async function cargarPartidas(estado) {
   const wrap = document.getElementById('partidas-table-wrap');
-  wrap.innerHTML = '<div class="empty"><span class="spinner"></span> Cargando partidas...</div>';
+  wrap.innerHTML = '<div class="empty"><span class="spinner"></span> Cargando lotes...</div>';
   try {
     const params = {};
     if (estado) params.estado = estado;
     const data = await api('partidas-listado', params);
     const rows = data.partidas || [];
     if (!rows.length) {
-      wrap.innerHTML = '<div class="empty">No hay partidas' + (estado ? ' con estado "' + esc(estado.replace(/_/g, ' ')) + '"' : '') + '</div>';
+      wrap.innerHTML = '<div class="empty">No hay lotes' + (estado ? ' con estado "' + esc(estado.replace(/_/g, ' ')) + '"' : '') + '</div>';
       return;
     }
     let html = '<table class="tbl"><thead><tr>' +
@@ -700,7 +705,7 @@ async function abrirDetallePartida(partidaId) {
     const p = data.partida;
     const piezas = data.piezas || [];
 
-    title.textContent = 'Partida ' + (p.numero || partidaId.slice(0, 8));
+    title.textContent = 'Lote ' + (p.numero || partidaId.slice(0, 8));
 
     let html = '<div class="g2" style="margin-bottom:16px;">' +
       '<div><span class="mono" style="font-size:10px;color:var(--muted);">ESPECIE</span><br>' + esc(p.especie_nombre || p.especie || '') + '</div>' +
@@ -725,7 +730,7 @@ async function abrirDetallePartida(partidaId) {
       html += '<button class="btn btn-sm btn-primary" onclick="abrirCargarFactura(\'' + p.id + '\',' + (p.pies_romaneados || 0) + ')">Cargar factura</button>';
     }
     if (p.estado !== 'archivada') {
-      html += '<button class="btn btn-sm btn-danger" onclick="archivarPartida(\'' + p.id + '\')">Archivar</button>';
+      html += '<button class="btn btn-sm btn-danger" onclick="archivarPartida(\'' + p.id + '\')">Archivar lote</button>';
     }
     if (piezas.length > 0) {
       const tieneNoImpresas = piezas.some(z => !z.etiqueta_impresa);
@@ -780,7 +785,7 @@ function abrirCargarFactura(partidaId, piesRomaneados) {
   const content = document.getElementById('factura-modal-content');
 
   content.innerHTML =
-    '<div class="info-box">Pies romaneados de esta partida: <strong>' + fmtPies(piesRomaneados) + '</strong></div>' +
+    '<div class="info-box">Pies romaneados de este lote: <strong>' + fmtPies(piesRomaneados) + '</strong></div>' +
     '<div class="field"><label>Factura #</label><input id="fac-numero" placeholder="Ej: F-001"></div>' +
     '<div class="g2">' +
       '<div class="field"><label>Fecha factura</label><input id="fac-fecha" type="date"></div>' +
@@ -853,7 +858,7 @@ async function archivarPartida(partidaId) {
       motivo_archivo: motivo.trim(),
     });
     cerrarDetallePartida();
-    alert('Partida archivada');
+    alert('Lote archivado');
     cargarPartidas(document.querySelector('.partida-filter.active')?.dataset.estado || '');
   } catch (e) {
     alert('Error: ' + e.message);
@@ -862,7 +867,7 @@ async function archivarPartida(partidaId) {
 
 // ── Etiquetas ───────────────────────────────────────────────
 async function marcarEtiquetasImpresas(partidaId) {
-  if (!confirm('Marcar todas las etiquetas de esta partida como impresas?')) return;
+  if (!confirm('Marcar todas las etiquetas de este lote como impresas?')) return;
   try {
     await apiPost('marcar-etiquetas-impresas', {
       user_id: usuario.id,
@@ -913,8 +918,9 @@ async function cargarPendientes() {
 
     // Esperadas
     const esperadas = espData.partidas || [];
+    document.getElementById('pend-cnt-esp').textContent = '(' + esperadas.length + ')';
     if (!esperadas.length) {
-      wrapEsp.innerHTML = '<div class="empty">Sin recepciones esperadas</div>';
+      wrapEsp.innerHTML = '<div class="empty">— sin items —</div>';
     } else {
       let html = '<table class="tbl"><thead><tr>' +
         '<th>Especie</th><th>Espesor</th><th>Proveedor</th><th>Pies aprox.</th><th>Fecha</th><th>Notas</th><th>Acciones</th>' +
@@ -939,8 +945,9 @@ async function cargarPendientes() {
 
     // Pendientes factura
     const factura = facData.partidas || [];
+    document.getElementById('pend-cnt-fac').textContent = '(' + factura.length + ')';
     if (!factura.length) {
-      wrapFac.innerHTML = '<div class="empty">Sin partidas pendientes de factura</div>';
+      wrapFac.innerHTML = '<div class="empty">— sin items —</div>';
     } else {
       let html = '<table class="tbl"><thead><tr>' +
         '<th>#</th><th>Especie</th><th>Espesor</th><th>Proveedor</th><th style="text-align:right;">Pies</th><th>Acciones</th>' +
@@ -961,11 +968,12 @@ async function cargarPendientes() {
 
     // Pendientes impresion
     const impresion = impData.partidas || [];
+    document.getElementById('pend-cnt-imp').textContent = '(' + impresion.length + ')';
     if (!impresion.length) {
-      wrapImp.innerHTML = '<div class="empty">Sin piezas pendientes de impresion</div>';
+      wrapImp.innerHTML = '<div class="empty">— sin items —</div>';
     } else {
       let html = '<table class="tbl"><thead><tr>' +
-        '<th>Partida</th><th>Especie</th><th>Espesor</th><th style="text-align:right;">Piezas pend.</th><th>Acciones</th>' +
+        '<th>Lote</th><th>Especie</th><th>Espesor</th><th style="text-align:right;">Piezas pend.</th><th>Acciones</th>' +
         '</tr></thead><tbody>';
       for (const p of impresion) {
         html += '<tr>' +
@@ -973,7 +981,7 @@ async function cargarPendientes() {
           '<td>' + esc(p.especie_nombre || p.especie || '') + '</td>' +
           '<td class="mono" style="font-size:12px;">' + esc((p.espesor_valor || '') + ' ' + (p.espesor_unidad || '')) + '</td>' +
           '<td style="text-align:right;" class="mono">' + (p.piezas_pendientes ?? p.cantidad ?? '—') + '</td>' +
-          '<td><button class="btn btn-sm btn-ghost" onclick="abrirDetallePartida(\'' + (p.partida_id || p.id) + '\')">Ver partida</button></td>' +
+          '<td><button class="btn btn-sm btn-ghost" onclick="abrirDetallePartida(\'' + (p.partida_id || p.id) + '\')">Ver lote</button></td>' +
           '</tr>';
       }
       html += '</tbody></table>';
@@ -1144,7 +1152,7 @@ async function sugerirCosto() {
     const data = await api('ultimo-costo-por-producto', { especie_id: especieId, espesor_id: espesorId });
     if (data.costo_por_pie_usd != null) {
       document.getElementById('cs-costo-pie').value = data.costo_por_pie_usd;
-      document.getElementById('cs-costo-ref').textContent = 'Ref: ' + fmtUSD(data.costo_por_pie_usd) + '/pie (partida ' + (data.partida_referencia || '?') + ')';
+      document.getElementById('cs-costo-ref').textContent = 'Ref: ' + fmtUSD(data.costo_por_pie_usd) + '/pie (lote ' + (data.partida_referencia || '?') + ')';
     } else {
       document.getElementById('cs-costo-ref').textContent = 'Sin referencia de costo anterior';
     }
@@ -1154,13 +1162,10 @@ async function sugerirCosto() {
 }
 
 async function cargarStock() {
-  const motivo = document.getElementById('cs-motivo').value;
   const especieId = document.getElementById('cs-especie').value;
   const espesorId = document.getElementById('cs-espesor').value;
   const costoPie = parseFloat(document.getElementById('cs-costo-pie').value);
-  const ubicacion = document.getElementById('cs-ubicacion').value.trim();
 
-  if (!motivo) return alert('Selecciona un motivo');
   if (!especieId) return alert('Selecciona una especie');
   if (!espesorId) return alert('Selecciona un espesor');
 
@@ -1186,14 +1191,12 @@ async function cargarStock() {
       espesor_id: espesorId,
       proveedor_nombre: (proveedorCsState && proveedorCsState.nombre) || null,
       proveedor_zoho_id: (proveedorCsState && proveedorCsState.zoho_id) || null,
-      motivo: motivo,
+      motivo: null,
       costo_por_pie_usd: costoPie || null,
-      ubicacion: ubicacion || null,
       romaneo: romaneo,
     });
-    alert('Partida creada con ' + romaneo.length + ' filas de romaneo');
+    alert('Lote creado con ' + romaneo.length + ' filas de romaneo');
     // Clear form
-    document.getElementById('cs-motivo').value = '';
     if (proveedorCsState) { proveedorCsState.zoho_id = null; proveedorCsState.nombre = null; }
     proveedorCsState = null;
     poblarSelectsCargaStock();
@@ -1348,7 +1351,7 @@ function confirmarArchivarEspecie(id, nombre) {
       const data = await apiPost('archivar-especie', { admin_id: usuario.id, id });
       cerrarCatConfirm();
       const n = data.partidas_activas_asociadas || 0;
-      showToast('Especie archivada' + (n > 0 ? '. Partidas activas asociadas: ' + n : ''));
+      showToast('Especie archivada' + (n > 0 ? '. Lotes activos asociados: ' + n : ''));
       await cargarEspecies();
       renderCatEspecies();
       poblarSelectEspecie('rec-especie');
@@ -1457,7 +1460,7 @@ function confirmarArchivarEspesor(id, label) {
       const data = await apiPost('archivar-espesor', { admin_id: usuario.id, id });
       cerrarCatConfirm();
       const n = data.partidas_activas_asociadas || 0;
-      showToast('Espesor archivado' + (n > 0 ? '. Partidas activas asociadas: ' + n : ''));
+      showToast('Espesor archivado' + (n > 0 ? '. Lotes activos asociados: ' + n : ''));
       await cargarEspesores();
       renderCatEspesores();
       poblarSelectEspesor('rec-espesor');
