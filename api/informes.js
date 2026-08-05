@@ -1177,7 +1177,7 @@ async function accionSincronizarPreciosMuebles(req, res) {
     // Write (only if not dry and modified)
     if (!dry && proyModificado) {
       await supabase.from('proyectos_cache')
-        .update({ muebles })
+        .update({ muebles, items: muebles })
         .eq('id', proy.id);
     }
   }
