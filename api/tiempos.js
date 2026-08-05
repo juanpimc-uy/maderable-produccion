@@ -3691,7 +3691,7 @@ export default async function handler(req) {
           { status: 403, headers: { ...CORS, 'Content-Type': 'application/json' } });
       }
       const { data: pr, error: prErr } = await supabase
-        .from('proyectos_cache').select('muebles').eq('id', proyecto_id).maybeSingle();
+        .from('proyectos_cache').select('muebles, estado, numero').eq('id', proyecto_id).maybeSingle();
       if (prErr) throw prErr;
       if (!pr) return err('Proyecto no encontrado', 404);
       const muebles = Array.isArray(pr.muebles) ? pr.muebles : [];
@@ -3727,7 +3727,24 @@ export default async function handler(req) {
       const { error: uErr } = await supabase
         .from('proyectos_cache').update({ muebles }).eq('id', proyecto_id);
       if (uErr) throw uErr;
-      return ok({ ok: true, etapa });
+
+      // Si la ODF estaba terminada, agregar trabajo nuevo la reabre
+      let odfReabierta = false;
+      if (pr.estado === 'terminado') {
+        await supabase.from('proyectos_cache')
+          .update({ estado: 'en_produccion' }).eq('id', proyecto_id);
+        await supabase.from('odf_completado_log').insert({
+          proyecto_id,
+          numero: pr.numero || null,
+          evento: 'reabierta',
+          items_total: muebles.length,
+          items_completos: null,
+          creado_por: actor_id,
+        });
+        odfReabierta = true;
+      }
+
+      return ok({ ok: true, etapa, odf_reabierta: odfReabierta });
     }
 
     // ── POST eliminar-etapa (admin/oficina) — borra una etapa del array muebles ──
