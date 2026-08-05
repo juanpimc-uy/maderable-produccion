@@ -1156,6 +1156,7 @@ function abrirModalPedirPieza() {
   if (document.getElementById('modal-pedir-pieza')) return;
   if (!empleadoActual) { toast('Iniciá sesión primero', 'var(--red)'); return; }
   if (!proyectos || !proyectos.length) { toast('Proyectos no cargados aún', 'var(--red)'); return; }
+  cancelarTimeout30s();
   const ov = document.createElement('div');
   ov.id = 'modal-pedir-pieza';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:24px 18px;overflow-y:auto;';
@@ -1200,8 +1201,10 @@ function abrirModalPedirPieza() {
 function cerrarModalPedirPieza() {
   const ov = document.getElementById('modal-pedir-pieza');
   if (ov) ov.remove();
+  if (empleadoActual) arrancarTimeout30s();
 }
 async function pedirPieza() {
+  if (!empleadoActual) { toast('Se cerró la sesión por inactividad — volvé a entrar', 'var(--red)'); cerrarModalPedirPieza(); return; }
   const p = _ppPr, it = _ppMf;
   const cod = (document.getElementById('pp-codigo').value||'').trim();
   const mot = (document.getElementById('pp-motivo').value||'').trim();
