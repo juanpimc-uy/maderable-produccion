@@ -1364,7 +1364,7 @@ export default async function handler(req) {
           .eq('estado', 'activo'),
         supabase.from('proyectos_cache')
           .select('id, numero, nombre, obra, cliente, cliente_nombre, muebles')
-          .eq('activo', true).order('nombre'),
+          .eq('activo', true).neq('estado', 'terminado').order('nombre'),
         supabase.from('empleados')
           .select('id, nombre').eq('activo', true).eq('archivado', false),
       ]);
@@ -1428,7 +1428,7 @@ export default async function handler(req) {
       }
 
       // 5. Construir ultimos_3_proyectos
-      const ultimos3Proyectos = ultimos3ProyIds.map(pid => {
+      const ultimos3Proyectos = ultimos3ProyIds.filter(pid => proyectoById[pid]).map(pid => {
         const p = proyectoById[pid];
         if (!p) return { id: pid, numero: pid, obra: '', cliente: '' };
         return {
