@@ -707,6 +707,175 @@ async function accionAltaRapida(req, res) {
   return ok(res, result);
 }
 
+// ── GET oc-para-inventario ─────────────────────────────────────────────────
+// Lee el PO de Zoho con precio y moneda, matchea con inv_items
+async function accionOcParaInventario(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const sesion = await verificarSesionAdminOficina(req);
+  if (!sesion) return err(res, 'No autorizado', 401);
+
+  const ocIdZoho = req.query.oc_id_zoho;
+  if (!ocIdZoho) return err(res, 'oc_id_zoho requerido');
+
+  const orgId = process.env.ZOHO_ORG_ID;
+  const token = await getZohoToken();
+  const poRes = await fetch(
+    `https://www.zohoapis.com/books/v3/purchaseorders/${ocIdZoho}?organization_id=${orgId}`,
+    { headers: { Authorization: `Zoho-oauthtoken ${token}` } }
+  );
+  if (!poRes.ok) {
+    const detail = await poRes.text();
+    return err(res, 'Error Zoho: ' + detail, 502);
+  }
+  const poData = await poRes.json();
+  const po = poData.purchaseorder || {};
+  const currencyCode = po.currency_code || 'USD';
+
+  const tc = await _fetchTcUsd(currencyCode);
+  if (!tc) return err(res, `Sin tipo de cambio para ${currencyCode}`, 400);
+
+  // Obtener todos los zoho_item_ids de las líneas para matchear en batch
+  const zohoIds = (po.line_items || []).map(li => li.item_id).filter(Boolean);
+  let itemsMap = {};
+  if (zohoIds.length) {
+    const { data: invItems } = await supabase.from('inv_items')
+      .select('id, codigo, familia, zoho_item_id')
+      .in('zoho_item_id', zohoIds);
+    for (const it of (invItems || [])) {
+      itemsMap[it.zoho_item_id] = it;
+    }
+  }
+
+  const lineas = (po.line_items || []).map(li => {
+    const match = itemsMap[li.item_id];
+    return {
+      zoho_item_id: li.item_id || '',
+      name: li.name || '',
+      sku: li.sku || '',
+      description: li.description || '',
+      quantity: li.quantity,
+      rate: li.rate,
+      unit: li.unit || '',
+      inv_item_id: match ? match.id : null,
+      inv_codigo: match ? match.codigo : null,
+      familia: match ? match.familia : null,
+      sin_item: !match,
+    };
+  });
+
+  return ok(res, {
+    oc_numero: po.purchaseorder_number || '',
+    vendor: po.vendor_name || '',
+    currency_code: currencyCode,
+    tc_aplicado: tc,
+    lineas,
+  });
+}
+
+// ── POST recepcionar-inventario ─────────────────────────────────────────────
+// Congelar costos y crear stock desde líneas de OC
+async function accionRecepcionarInventario(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const sesion = await verificarSesionAdminOficina(req);
+  if (!sesion) return err(res, 'No autorizado', 401);
+
+  const b = req.body || {};
+  const { empleado_id, oc_numero, currency_code, ubicacion_placa_id, lineas } = b;
+  if (!empleado_id) return err(res, 'empleado_id requerido');
+  if (!oc_numero) return err(res, 'oc_numero requerido');
+  if (!ubicacion_placa_id) return err(res, 'ubicacion_placa_id requerido');
+  if (!Array.isArray(lineas) || !lineas.length) return err(res, 'lineas requeridas');
+
+  const cc = (currency_code || 'USD').toUpperCase();
+  const tc = await _fetchTcUsd(cc);
+  if (!tc) return err(res, `Sin tipo de cambio para ${cc}`, 400);
+
+  const placasCreadas = [];
+  const lineasCantidad = [];
+  const errores = [];
+
+  for (const li of lineas) {
+    const { inv_item_id, familia, cantidad, rate, atributos, reserva_proyecto_id } = li;
+    if (!inv_item_id || !cantidad || cantidad <= 0 || rate == null) {
+      errores.push({ inv_item_id, error: 'datos incompletos (inv_item_id, cantidad, rate)' });
+      continue;
+    }
+
+    const costoUsd = cc === 'USD' ? rate : rate / tc;
+
+    // ── Serializada (placa/madera) ──
+    if (familia === 'placa' || familia === 'madera') {
+      const { data: codigos, error: rpcErr } = await supabase.rpc('inv_recibir_serializado', {
+        p_item_id: inv_item_id,
+        p_cantidad: Math.floor(cantidad),
+        p_ubicacion_id: ubicacion_placa_id,
+        p_costo_usd: costoUsd,
+        p_atributos: atributos || null,
+        p_empleado_id: empleado_id,
+        p_reserva_proyecto_id: reserva_proyecto_id || null,
+        p_oc_numero: oc_numero,
+      });
+      if (rpcErr) {
+        errores.push({ inv_item_id, error: rpcErr.message });
+        continue;
+      }
+      placasCreadas.push({ inv_item_id, codigos: codigos || [] });
+      continue;
+    }
+
+    // ── Por cantidad (herraje/consumible/otro) ──
+    // 1. Registrar movimiento de entrada
+    const { data: movId, error: movErr } = await supabase.rpc('inv_registrar_movimiento', {
+      p_tipo: 'entrada',
+      p_item_id: inv_item_id,
+      p_ubicacion_id: ubicacion_placa_id,
+      p_ubicacion_destino_id: null,
+      p_cantidad: cantidad,
+      p_proyecto_id: null,
+      p_mueble_id: null,
+      p_motivo: 'recepcion_oc',
+      p_origen: 'recepcion',
+      p_empleado_id: empleado_id,
+      p_nota: 'OC ' + (oc_numero || ''),
+    });
+    if (movErr) {
+      errores.push({ inv_item_id, error: movErr.message });
+      continue;
+    }
+
+    // 2. Setear costo en el movimiento (la RPC no tiene params de costo)
+    if (movId) {
+      await supabase.from('inv_movimientos')
+        .update({ costo_unitario_usd: costoUsd, costo_verificado: true })
+        .eq('id', movId);
+    }
+
+    // 3. Recalcular promedio ponderado
+    const { data: itemRow } = await supabase.from('inv_items')
+      .select('costo_promedio_usd').eq('id', inv_item_id).maybeSingle();
+    const { data: stockRows } = await supabase.from('inv_stock')
+      .select('cantidad').eq('item_id', inv_item_id);
+    const stockActual = (stockRows || []).reduce((s, r) => s + Number(r.cantidad || 0), 0);
+    // stockActual ya incluye la entrada recién registrada por la RPC
+    const stockPrevio = stockActual - cantidad;
+    const promAnterior = (itemRow && itemRow.costo_promedio_usd != null) ? Number(itemRow.costo_promedio_usd) : 0;
+    let nuevoPromedio;
+    if (stockPrevio <= 0 || !promAnterior) {
+      nuevoPromedio = costoUsd;
+    } else {
+      nuevoPromedio = (stockPrevio * promAnterior + cantidad * costoUsd) / stockActual;
+    }
+
+    await supabase.from('inv_items')
+      .update({ costo_promedio_usd: nuevoPromedio, costo_ultimo_usd: costoUsd })
+      .eq('id', inv_item_id);
+
+    lineasCantidad.push({ inv_item_id, cantidad, nuevo_promedio: nuevoPromedio });
+  }
+
+  return ok(res, { placas_creadas: placasCreadas, lineas_cantidad: lineasCantidad, errores });
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const action = req.query.action;
@@ -726,6 +895,9 @@ export default async function handler(req, res) {
     if (action === 'buscar-items-kiosco') return await accionBuscarItemsKiosco(req, res);
     if (action === 'movimiento')          return await accionMovimiento(req, res);
     if (action === 'alta-rapida')         return await accionAltaRapida(req, res);
+    // Recepción OC → inventario
+    if (action === 'oc-para-inventario')      return await accionOcParaInventario(req, res);
+    if (action === 'recepcionar-inventario')  return await accionRecepcionarInventario(req, res);
     return err(res, 'Acción no reconocida');
   } catch (e) {
     console.error('[inventario]', action, e);

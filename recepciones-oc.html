@@ -111,6 +111,20 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .toast-btn-skip{background:transparent;border:1px solid var(--border);color:var(--muted);}
 .toast-btn-print{background:var(--accent);color:#0f0f0f;}
 
+/* ── Inventario panel ── */
+.inv-panel{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:12px;}
+.inv-table{width:100%;border-collapse:collapse;margin:10px 0;}
+.inv-table th{text-align:left;font-size:9px;color:var(--muted);padding:4px 6px;font-family:'Space Mono',monospace;letter-spacing:1px;border-bottom:1px solid var(--border);}
+.inv-table td{font-size:12px;padding:6px;border-bottom:1px solid #1a1a1a;}
+.inv-table td.mono{font-size:11px;}
+.inv-tag{display:inline-block;font-family:'Space Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;letter-spacing:.5px;}
+.inv-tag-placa{background:rgba(126,184,247,.15);color:var(--blue);}
+.inv-tag-herraje{background:rgba(255,214,0,.12);color:var(--accent);}
+.inv-tag-sin{background:rgba(240,92,92,.15);color:var(--red);}
+.inv-codigos{font-family:'Space Mono',monospace;font-size:10px;color:var(--green);margin-top:8px;line-height:1.6;}
+.inv-resumen{margin-top:12px;padding:10px;background:var(--faint);border-radius:6px;}
+.inv-resumen-item{font-size:12px;padding:3px 0;display:flex;justify-content:space-between;}
+
 /* ── Responsive ── */
 @media(max-width:600px){
   .filters{padding:10px 16px;}
@@ -204,6 +218,31 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
   </div>
 </div>
 </div><!-- /screen-app -->
+
+<!-- ═══ MODAL INVENTARIO ══════════════════════════════════════════════════ -->
+<div class="overlay" id="modal-inventario" onclick="_cerrarInventario()">
+  <div class="modal" style="max-width:640px;" onclick="event.stopPropagation()">
+    <div class="modal-title" style="color:var(--green);">GENERAR INVENTARIO</div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+      <div class="modal-chip" id="inv-oc" style="background:rgba(61,214,140,.1);color:var(--green);"></div>
+      <div id="inv-vendor" style="font-size:13px;font-weight:600;"></div>
+    </div>
+    <div id="inv-tc-info" class="mono" style="font-size:10px;color:var(--muted);margin-bottom:10px;"></div>
+    <div id="inv-lineas" style="margin-bottom:14px;">
+      <span class="mono" style="font-size:11px;color:var(--muted);">Cargando...</span>
+    </div>
+    <div class="modal-label">UBICACIÓN DESTINO (PLACAS)</div>
+    <select id="inv-ubicacion" style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-size:13px;outline:none;margin-bottom:14px;color-scheme:dark;">
+      <option value="">Cargando ubicaciones...</option>
+    </select>
+    <div class="modal-error" id="inv-error"></div>
+    <div class="modal-btns">
+      <button class="modal-btn modal-btn-cancel" onclick="_cerrarInventario()">Omitir</button>
+      <button class="modal-btn" id="inv-btn" style="background:var(--green);color:#0f0f0f;" onclick="_confirmarInventario()">GENERAR INVENTARIO</button>
+    </div>
+    <div id="inv-resultado" style="display:none;margin-top:14px;"></div>
+  </div>
+</div>
 
 <!-- ═══ TOAST ═════════════════════════════════════════════════════════════ -->
 <div class="toast" id="toast-etiquetas">
@@ -488,7 +527,12 @@ async function _confirmarRecibir() {
     _currentOc.notas_recepcion = document.getElementById('mr-notas').value.trim() || null;
     _cerrarRecibir();
     _render();
-    _mostrarToastEtiquetas();
+    // Intentar flujo de inventario; si no hay líneas inventariables, toast normal
+    if (_currentOc.oc_id_zoho) {
+      _abrirInventario(_currentOc);
+    } else {
+      _mostrarToastEtiquetas();
+    }
   } catch (e) {
     errEl.textContent = e.message;
     btn.disabled = false;
@@ -589,6 +633,159 @@ async function _abrirEtiquetasOc(ocNumero, ocIdZoho) {
     }
   } catch {
     window.open('https://juanpimc-uy.github.io/etiquetas-maderable/?fuente=zoho', '_blank');
+  }
+}
+
+// ── Inventario desde OC ─────────────────────────────────────────────────
+let _invLineas = [];
+let _invData = null;
+
+async function _abrirInventario(oc) {
+  const panel = document.getElementById('modal-inventario');
+  document.getElementById('inv-oc').textContent = oc.oc_numero;
+  document.getElementById('inv-vendor').textContent = oc.proveedor || '';
+  document.getElementById('inv-lineas').innerHTML = '<span class="mono" style="font-size:11px;color:var(--muted);">Cargando líneas de Zoho...</span>';
+  document.getElementById('inv-error').textContent = '';
+  document.getElementById('inv-resultado').style.display = 'none';
+  document.getElementById('inv-btn').disabled = false;
+  document.getElementById('inv-btn').textContent = 'GENERAR INVENTARIO';
+  panel.classList.add('open');
+
+  // Cargar ubicaciones para el selector
+  try {
+    const uRes = await fetch('/api/inventario?action=listar-ubicaciones', {
+      headers: { Authorization: 'Bearer ' + ((_erpSess && _erpSess.session_token) || '') }
+    }).then(r => r.json());
+    const sel = document.getElementById('inv-ubicacion');
+    sel.innerHTML = '<option value="">— seleccionar —</option>';
+    if (uRes.ok && uRes.ubicaciones) {
+      for (const u of uRes.ubicaciones) {
+        sel.innerHTML += `<option value="${u.id}">${u.codigo} — ${u.nombre || ''}</option>`;
+      }
+    }
+  } catch {}
+
+  // Cargar líneas con precio desde Zoho
+  try {
+    const r = await fetch(`/api/inventario?action=oc-para-inventario&oc_id_zoho=${oc.oc_id_zoho}`, {
+      headers: { Authorization: 'Bearer ' + ((_erpSess && _erpSess.session_token) || '') }
+    }).then(r => r.json());
+    if (!r.ok) throw new Error(r.msg || 'Error cargando OC');
+    _invData = r;
+    _invLineas = r.lineas || [];
+
+    const inventariables = _invLineas.filter(l => !l.sin_item);
+    if (!inventariables.length) {
+      _cerrarInventario();
+      _mostrarToastEtiquetas();
+      return;
+    }
+
+    const tcLabel = r.currency_code !== 'USD' ? `TC ${r.currency_code}→USD: ${r.tc_aplicado}` : 'Moneda: USD';
+    document.getElementById('inv-tc-info').textContent = `${r.currency_code} · ${tcLabel}`;
+
+    document.getElementById('inv-lineas').innerHTML = `<table class="inv-table">
+      <tr><th>ARTÍCULO</th><th>FAMILIA</th><th style="text-align:right;">CANT</th><th style="text-align:right;">PRECIO</th><th style="text-align:right;">USD</th></tr>
+      ${_invLineas.map(li => {
+        const costoUsd = r.currency_code === 'USD' ? li.rate : li.rate / r.tc_aplicado;
+        const famTag = li.sin_item
+          ? '<span class="inv-tag inv-tag-sin">SIN ITEM</span>'
+          : (li.familia === 'placa' || li.familia === 'madera')
+            ? `<span class="inv-tag inv-tag-placa">${li.familia}</span>`
+            : `<span class="inv-tag inv-tag-herraje">${li.familia}</span>`;
+        return `<tr${li.sin_item ? ' style="opacity:.5;"' : ''}>
+          <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${li.name}">${li.name}</td>
+          <td>${famTag}</td>
+          <td class="mono" style="text-align:right;color:var(--accent);">${li.quantity}</td>
+          <td class="mono" style="text-align:right;">${li.rate != null ? li.rate.toFixed(2) : '—'}</td>
+          <td class="mono" style="text-align:right;color:var(--green);">${costoUsd.toFixed(2)}</td>
+        </tr>`;
+      }).join('')}
+    </table>`;
+  } catch (e) {
+    document.getElementById('inv-lineas').innerHTML = `<span class="mono" style="font-size:11px;color:var(--red);">${e.message}</span>`;
+  }
+}
+
+function _cerrarInventario() {
+  document.getElementById('modal-inventario').classList.remove('open');
+}
+
+async function _confirmarInventario() {
+  const btn = document.getElementById('inv-btn');
+  const errEl = document.getElementById('inv-error');
+  const ubicId = document.getElementById('inv-ubicacion').value;
+  if (!ubicId) { errEl.textContent = 'Seleccioná una ubicación destino'; return; }
+
+  btn.disabled = true;
+  btn.textContent = '...';
+  errEl.textContent = '';
+
+  const lineasBody = _invLineas.filter(l => !l.sin_item).map(l => ({
+    inv_item_id: l.inv_item_id,
+    familia: l.familia,
+    cantidad: l.quantity,
+    rate: l.rate,
+    atributos: null,
+    reserva_proyecto_id: null,
+  }));
+
+  try {
+    const r = await fetch('/api/inventario?action=recepcionar-inventario', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + ((_erpSess && _erpSess.session_token) || ''),
+      },
+      body: JSON.stringify({
+        empleado_id: (_erpSess && _erpSess.id) || 1,
+        oc_numero: _invData.oc_numero,
+        currency_code: _invData.currency_code,
+        ubicacion_placa_id: Number(ubicId),
+        lineas: lineasBody,
+      }),
+    }).then(r => r.json());
+    if (!r.ok) throw new Error(r.msg || 'Error');
+
+    // Mostrar resultado
+    btn.style.display = 'none';
+    const resEl = document.getElementById('inv-resultado');
+    resEl.style.display = 'block';
+    let html = '<div class="inv-resumen">';
+    html += '<div class="mono" style="font-size:10px;color:var(--green);letter-spacing:1px;margin-bottom:8px;">✓ INVENTARIO GENERADO</div>';
+
+    if (r.placas_creadas && r.placas_creadas.length) {
+      for (const p of r.placas_creadas) {
+        html += `<div class="inv-codigos">Placas: ${p.codigos.join(', ')}</div>`;
+      }
+      // TODO: inv-placa — botón de etiquetas deshabilitado hasta INV-3c
+      html += '<button class="modal-btn" style="margin-top:8px;background:var(--border);color:var(--muted);cursor:not-allowed;" disabled>IMPRIMIR ETIQUETAS (próximamente)</button>';
+    }
+
+    if (r.lineas_cantidad && r.lineas_cantidad.length) {
+      for (const l of r.lineas_cantidad) {
+        const item = _invLineas.find(x => x.inv_item_id === l.inv_item_id);
+        html += `<div class="inv-resumen-item">
+          <span>${item ? item.name : 'Item ' + l.inv_item_id}</span>
+          <span class="mono" style="color:var(--accent);">+${l.cantidad} · prom USD ${l.nuevo_promedio.toFixed(2)}</span>
+        </div>`;
+      }
+    }
+
+    if (r.errores && r.errores.length) {
+      html += '<div class="mono" style="font-size:10px;color:var(--red);margin-top:8px;">Errores:</div>';
+      for (const e of r.errores) {
+        html += `<div class="mono" style="font-size:10px;color:var(--red);">· Item ${e.inv_item_id}: ${e.error}</div>`;
+      }
+    }
+
+    html += '</div>';
+    html += '<button class="modal-btn modal-btn-cancel" style="margin-top:10px;" onclick="_cerrarInventario()">Cerrar</button>';
+    resEl.innerHTML = html;
+  } catch (e) {
+    errEl.textContent = e.message;
+    btn.disabled = false;
+    btn.textContent = 'GENERAR INVENTARIO';
   }
 }
 
