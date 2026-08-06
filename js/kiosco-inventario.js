@@ -8,8 +8,13 @@
   var _stock = [];
   var _total = 0;
   var _container = null;
-  var _screen = 'home'; // home | ficha | salida-motivo | salida-proyecto | salida-mueble | keypad | alta | alta-ok | contenido-ubi
+  var _screen = 'home'; // home | ficha | salida-motivo | salida-proyecto | salida-mueble | keypad | alta | alta-ok | contenido-ubi | ficha-placa | placa-consumo-proy | placa-consumo-mueble | placa-consumo-reserva | placa-consumo-ok | placa-traslado | placa-descarte
   var _action = null; // entrada | salida | traslado | ajuste | a_picking | alta
+  var _unidad = null; // ficha placa actual
+  var _unidadItem = null;
+  var _unidadReserva = null;
+  var _placaProyElegido = null;
+  var _placaMuebleElegido = null;
   var _proyectos = null;
   var _proyectoElegido = null;
   var _muebleElegido = null;
@@ -157,6 +162,13 @@
     else if (_screen === 'buscar') _renderBuscar();
     else if (_screen === 'ajuste-bin') _renderAjusteBin();
     else if (_screen === 'scan-ubi') _renderScanUbi();
+    else if (_screen === 'ficha-placa') _renderFichaPlaca();
+    else if (_screen === 'placa-consumo-proy') _renderPlacaConsumoProy();
+    else if (_screen === 'placa-consumo-mueble') _renderPlacaConsumoMueble();
+    else if (_screen === 'placa-consumo-reserva') _renderPlacaConsumoReserva();
+    else if (_screen === 'placa-consumo-ok') _renderPlacaConsumoOk();
+    else if (_screen === 'placa-traslado') _renderPlacaTraslado();
+    else if (_screen === 'placa-descarte') _renderPlacaDescarte();
   }
 
   // ── HOME ──
@@ -189,7 +201,8 @@
         _contenidoUbi = { ubicacion: r.ubicacion, contenido: r.contenido || [] };
         _show('contenido-ubi');
       } else if (r.tipo === 'unidad') {
-        _fail('Placa: disponible con el módulo Placa (INV-3)');
+        _unidad = r.unidad; _unidadItem = r.item; _unidadReserva = r.reserva_nombre || null;
+        _show('ficha-placa');
       } else if (r.tipo === 'madera') {
         _fail('Pieza de madera — usá el flujo Madera');
       }
@@ -484,6 +497,242 @@
         if (r2.ok && r2.tipo === 'item') { _item = r2.item; _stock = r2.stock || []; _total = r2.total || 0; }
         _show('ficha');
       });
+    }).catch(function () { _fail('Error de conexión'); });
+  };
+
+  // ── FICHA PLACA ──
+  function _renderFichaPlaca() {
+    var u = _unidad || {};
+    var it = _unidadItem || {};
+    var ubi = u.ubicacion || {};
+    var html = '<div class="inv-wrap" style="padding:24px;">'
+      + '<div class="inv-back" onclick="_invHome()">← Volver</div>';
+    // Reserva banner
+    if (_unidadReserva) {
+      html += '<div style="background:rgba(255,160,0,.12);border:1px solid rgba(255,160,0,.3);border-radius:8px;padding:10px 14px;margin-bottom:14px;">'
+        + '<div class="inv-label" style="color:#FFA000;">RESERVADA PARA</div>'
+        + '<div style="font-size:13px;font-weight:600;color:#FFA000;">' + _esc(_unidadReserva) + '</div></div>';
+    }
+    html += '<div class="inv-code">' + _esc(u.codigo) + '</div>'
+      + '<div class="inv-desc">' + _esc(it.descripcion || '') + '</div>'
+      + '<div style="margin-top:8px;">'
+      + '<span class="inv-badge inv-badge-' + _esc(it.familia || 'otro') + '">' + _esc(it.familia || 'otro') + '</span>'
+      + '<span class="inv-badge" style="background:#0a2a0a;color:#3DD68C;border:1px solid #1f3a26;">' + _esc(u.estado || 'activa') + '</span>'
+      + '</div>';
+    if (ubi.codigo) {
+      html += '<div style="margin-top:12px;"><div class="inv-label">Ubicación</div>'
+        + '<div style="font-size:13px;"><span style="font-family:\'Space Mono\',monospace;font-weight:700;color:#FFD600;">' + _esc(ubi.codigo) + '</span>'
+        + (ubi.nombre ? ' · ' + _esc(ubi.nombre) : '') + '</div></div>';
+    }
+    if (u.atributos) {
+      var attrs = typeof u.atributos === 'object' ? u.atributos : {};
+      var attrParts = [];
+      if (attrs.espesor) attrParts.push(attrs.espesor);
+      if (attrs.medida) attrParts.push(attrs.medida);
+      if (attrs.material) attrParts.push(attrs.material);
+      if (attrParts.length) {
+        html += '<div style="margin-top:8px;font-size:12px;color:#888;">' + _esc(attrParts.join(' · ')) + '</div>';
+      }
+    }
+    // Actions
+    if (u.estado === 'activa') {
+      html += '<div class="inv-actions" style="margin-top:24px;">'
+        + '<button class="inv-btn inv-btn-accent inv-btn-lg" onclick="_invPlacaConsumir()">CONSUMIR EN PROYECTO</button>'
+        + '<button class="inv-btn inv-btn-lg" onclick="_invPlacaTrasladar()">TRASLADAR</button>'
+        + '<button class="inv-btn inv-btn-lg" onclick="_invPlacaDescartar()">DESCARTAR</button>'
+        + '</div>';
+      if (u.reserva_proyecto_id) {
+        html += '<div style="margin-top:12px;text-align:center;">'
+          + '<button class="inv-btn" style="font-size:10px;" onclick="_invPlacaLiberarReserva()">Liberar reserva</button></div>';
+      }
+    } else {
+      html += '<div style="margin-top:24px;color:#888;font-size:12px;">Esta placa no está activa (' + _esc(u.estado) + ')</div>';
+    }
+    html += '<div style="margin-top:20px;">'
+      + '<button class="inv-btn" style="font-size:10px;" onclick="_invPlacaImprimir()">⎙ Imprimir etiqueta</button></div>';
+    html += '</div>';
+    _container.innerHTML = html;
+  }
+
+  window._invPlacaConsumir = function () { _placaProyElegido = null; _placaMuebleElegido = null; _show('placa-consumo-proy'); };
+  window._invPlacaTrasladar = function () { _show('placa-traslado'); };
+  window._invPlacaDescartar = function () { _show('placa-descarte'); };
+  window._invPlacaImprimir = function () {
+    if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
+    if (!_unidad || !_unidadItem) return;
+    var attrs = (typeof _unidad.atributos === 'object' && _unidad.atributos) || {};
+    Etiquetas.imprimir('inv-placa', [{
+      codigo: _unidad.codigo,
+      descripcion: _unidadItem.descripcion || '',
+      medida: attrs.medida || '',
+      _qr: _unidad.codigo
+    }]);
+  };
+  window._invPlacaLiberarReserva = function () {
+    _post('setear-reserva-unidad', { codigo: _unidad.codigo, reserva_proyecto_id: null }).then(function (r) {
+      if (!r.ok) { _fail(r.msg || 'Error'); return; }
+      _ok('Reserva liberada ✓');
+      _unidad.reserva_proyecto_id = null; _unidadReserva = null;
+      _show('ficha-placa');
+    }).catch(function () { _fail('Error de conexión'); });
+  };
+
+  // ── PLACA: consumo proyecto picker ──
+  function _renderPlacaConsumoProy() {
+    _container.innerHTML = '<div class="inv-wrap" style="padding:24px;">'
+      + '<div class="inv-back" onclick="_invShow(\'ficha-placa\')">← Volver a ficha</div>'
+      + '<div class="inv-label">Elegir proyecto para consumo</div>'
+      + '<input id="inv-placa-proy-q" class="inv-search-input" placeholder="Buscar por número, nombre, obra, cliente..." autofocus>'
+      + '<div id="inv-placa-proy-list" style="margin-top:12px;max-height:400px;overflow-y:auto;"></div></div>';
+    var inp = document.getElementById('inv-placa-proy-q');
+    inp.addEventListener('input', function () { _filterPlacaProys(inp.value); });
+    if (!_proyectos) {
+      fetch('/api/tiempos?action=proyectos-activos').then(function (r) { return r.json(); }).then(function (r) {
+        _proyectos = (r.proyectos || r.data || []);
+        _filterPlacaProys('');
+      }).catch(function () { _fail('Error cargando proyectos'); });
+    } else {
+      _filterPlacaProys('');
+    }
+  }
+  function _filterPlacaProys(q) {
+    q = (q || '').toLowerCase();
+    var list = (_proyectos || []).filter(function (p) {
+      if (!q) return true;
+      return ((p.numero || '') + ' ' + (p.nombre || '') + ' ' + (p.obra || '') + ' ' + (p.cliente || '') + ' ' + (p.cliente_nombre || '')).toLowerCase().indexOf(q) >= 0;
+    }).slice(0, 30);
+    var el = document.getElementById('inv-placa-proy-list');
+    if (!el) return;
+    el.innerHTML = list.map(function (p) {
+      return '<div class="inv-list-item" onclick="_invPlacaPickProy(\'' + _esc(p.id) + '\')">'
+        + '<div style="flex:1;"><div class="li-code">' + _esc(p.numero || '') + '</div><div class="li-desc">' + _esc(p.nombre || p.cliente_nombre || '') + '</div></div></div>';
+    }).join('') || '<div style="color:#888;padding:12px;">Sin resultados</div>';
+  }
+  window._invPlacaPickProy = function (id) {
+    _placaProyElegido = (_proyectos || []).find(function (p) { return p.id === id; }) || { id: id };
+    _show('placa-consumo-mueble');
+  };
+
+  // ── PLACA: consumo mueble picker ──
+  function _renderPlacaConsumoMueble() {
+    var muebles = [];
+    if (_placaProyElegido && Array.isArray(_placaProyElegido.muebles)) {
+      muebles = _placaProyElegido.muebles;
+    }
+    var html = '<div class="inv-wrap" style="padding:24px;">'
+      + '<div class="inv-back" onclick="_invShow(\'placa-consumo-proy\')">← Volver</div>'
+      + '<div class="inv-label">Mueble (opcional)</div>'
+      + '<div class="inv-list-item" onclick="_invPlacaPickMueble(null)"><div style="flex:1;"><div class="li-code">SIN MUEBLE</div></div></div>';
+    muebles.forEach(function (m) {
+      html += '<div class="inv-list-item" onclick="_invPlacaPickMueble(\'' + _esc(m.id || '') + '\')">'
+        + '<div style="flex:1;"><div class="li-code">' + _esc(m.codigo || m.id) + '</div><div class="li-desc">' + _esc(m.nombre || '') + '</div></div></div>';
+    });
+    html += '</div>';
+    _container.innerHTML = html;
+  }
+  window._invPlacaPickMueble = function (id) {
+    _placaMuebleElegido = id;
+    _doConsumoPlaca(false);
+  };
+
+  function _doConsumoPlaca(forzar) {
+    var body = { codigo: _unidad.codigo, proyecto_id: _placaProyElegido.id };
+    if (_placaMuebleElegido) body.mueble_id = _placaMuebleElegido;
+    if (forzar) body.forzar_reserva = true;
+    _post('consumir-unidad', body).then(function (r) {
+      if (r.requiere_confirmacion) {
+        _unidadReserva = r.reserva_nombre || 'otro proyecto';
+        _show('placa-consumo-reserva');
+        return;
+      }
+      if (!r.ok) { _fail(r.msg || 'Error'); return; }
+      _ok('Placa consumida ✓');
+      _show('placa-consumo-ok');
+    }).catch(function () { _fail('Error de conexión'); });
+  }
+
+  // ── PLACA: aviso de reserva ──
+  function _renderPlacaConsumoReserva() {
+    var html = '<div class="inv-wrap" style="padding:24px;text-align:center;">'
+      + '<div style="background:rgba(255,160,0,.12);border:1px solid rgba(255,160,0,.3);border-radius:8px;padding:20px;margin-bottom:20px;">'
+      + '<div style="font-size:32px;margin-bottom:12px;">⚠</div>'
+      + '<div class="inv-label" style="color:#FFA000;">ESTA PLACA ESTÁ RESERVADA PARA</div>'
+      + '<div style="font-size:15px;font-weight:700;color:#FFA000;margin-top:6px;">' + _esc(_unidadReserva) + '</div></div>'
+      + '<div class="inv-actions" style="flex-direction:column;gap:12px;">'
+      + '<button class="inv-btn inv-btn-accent inv-btn-lg" style="width:100%;" onclick="_invShow(\'ficha-placa\')">CANCELAR — NO CONSUMIR</button>'
+      + '<button class="inv-btn" style="width:100%;font-size:10px;opacity:.7;" onclick="_invPlacaForzarConsumo()">Consumir igual →</button>'
+      + '</div></div>';
+    _container.innerHTML = html;
+  }
+  window._invPlacaForzarConsumo = function () { _doConsumoPlaca(true); };
+
+  // ── PLACA: consumo OK ──
+  function _renderPlacaConsumoOk() {
+    var proy = _placaProyElegido || {};
+    var html = '<div class="inv-wrap" style="padding:24px;text-align:center;">'
+      + '<div style="font-size:48px;margin-bottom:16px;">✓</div>'
+      + '<div class="inv-code">' + _esc((_unidad || {}).codigo) + '</div>'
+      + '<div style="margin-top:8px;font-size:13px;color:#888;">Consumida en ' + _esc(proy.numero || proy.id || '') + '</div>'
+      + '<div class="inv-actions" style="margin-top:24px;flex-direction:column;gap:12px;">'
+      + '<button class="inv-btn inv-btn-accent inv-btn-lg" onclick="_invHome()">VOLVER AL INICIO</button>'
+      + '<button class="inv-btn" onclick="_invPlacaAltaSobrante()">+ Alta sobrante de placa</button>'
+      + '</div></div>';
+    _container.innerHTML = html;
+  }
+  window._invPlacaAltaSobrante = function () {
+    _show('alta');
+  };
+
+  // ── PLACA: traslado ──
+  function _renderPlacaTraslado() {
+    _container.innerHTML = '<div class="inv-wrap" style="padding:24px;">'
+      + '<div class="inv-back" onclick="_invShow(\'ficha-placa\')">← Volver a ficha</div>'
+      + '<div class="inv-label">Escanear bin de DESTINO</div>'
+      + '<input id="inv-placa-trs-scan" class="inv-home-input" placeholder="Escanear ubicación..." autofocus>'
+      + '</div>';
+    var inp = document.getElementById('inv-placa-trs-scan');
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        var cod = (inp.value || '').trim().toUpperCase();
+        if (!cod) return;
+        _post('trasladar-unidad', { codigo: _unidad.codigo, ubicacion_destino_codigo: cod }).then(function (r) {
+          if (!r.ok) { _fail(r.msg || 'Error'); return; }
+          _ok('Trasladada a ' + cod + ' ✓');
+          // Refresh ficha
+          _get('resolver-codigo', { codigo: _unidad.codigo }).then(function (r2) {
+            if (r2.ok && r2.tipo === 'unidad') {
+              _unidad = r2.unidad; _unidadItem = r2.item; _unidadReserva = r2.reserva_nombre || null;
+            }
+            _show('ficha-placa');
+          });
+        }).catch(function () { _fail('Error de conexión'); });
+      }
+    });
+    inp.focus();
+  }
+
+  // ── PLACA: descarte ──
+  function _renderPlacaDescarte() {
+    _container.innerHTML = '<div class="inv-wrap" style="padding:24px;text-align:center;">'
+      + '<div style="font-size:32px;margin-bottom:12px;">🗑</div>'
+      + '<div class="inv-label">¿Descartar placa ' + _esc((_unidad || {}).codigo) + '?</div>'
+      + '<div style="margin-top:12px;">'
+      + '<div class="inv-label">Motivo (opcional)</div>'
+      + '<input id="inv-placa-desc-motivo" class="inv-search-input" placeholder="Ej: rota, defectuosa...">'
+      + '</div>'
+      + '<div class="inv-actions" style="margin-top:20px;">'
+      + '<button class="inv-btn" onclick="_invShow(\'ficha-placa\')">Cancelar</button>'
+      + '<button class="inv-btn" style="background:rgba(240,92,92,.15);color:#F05C5C;border-color:rgba(240,92,92,.3);" onclick="_invPlacaDescartarConfirm()">DESCARTAR</button>'
+      + '</div></div>';
+    var inp = document.getElementById('inv-placa-desc-motivo');
+    if (inp) inp.focus();
+  }
+  window._invPlacaDescartarConfirm = function () {
+    var motivo = (document.getElementById('inv-placa-desc-motivo') || {}).value || '';
+    _post('descartar-unidad', { codigo: _unidad.codigo, motivo: motivo.trim() || null }).then(function (r) {
+      if (!r.ok) { _fail(r.msg || 'Error'); return; }
+      _ok('Placa descartada ✓');
+      _invHome();
     }).catch(function () { _fail('Error de conexión'); });
   };
 

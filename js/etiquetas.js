@@ -93,6 +93,20 @@
         '100x50': [{ id: 'codigo', pos: 'XL' }, { id: 'descripcion', pos: 'L' }, { id: 'familia', pos: 'M' }],
       }
     },
+    'inv-placa': {
+      tituloDefault: 'PLACA',
+      qr: true, chipEnvio: false,
+      qrEj: 'PL-000481',
+      campos: [
+        { id: 'codigo',      label: 'Código',      ej: 'PL-000481',              fijo: true },
+        { id: 'descripcion', label: 'Descripción', ej: 'MDF 18mm Blanco',        fijo: false },
+        { id: 'medida',      label: 'Medida',      ej: '1.83×2.60',              fijo: false },
+      ],
+      defaults: {
+        '60x30':  [{ id: 'codigo', pos: 'XL' }, { id: 'descripcion', pos: 'M' }, { id: 'medida', pos: 'S' }],
+        '100x50': [{ id: 'codigo', pos: 'XL' }, { id: 'descripcion', pos: 'L' }, { id: 'medida', pos: 'M' }],
+      }
+    },
     'inv-bin': {
       tituloDefault: 'UBICACIÓN',
       qr: true, chipEnvio: false,

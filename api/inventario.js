@@ -438,9 +438,24 @@ async function accionResolverCodigo(req, res) {
 
   // 2) Unidad serializada
   const { data: unidad } = await supabase.from('inv_unidades')
-    .select('id, item_id, codigo, estado, inv_items(id, codigo, descripcion, familia)')
-    .eq('codigo', codigo).eq('estado', 'activa').maybeSingle();
-  if (unidad) return ok(res, { tipo: 'unidad', unidad, item: unidad.inv_items });
+    .select('id, item_id, codigo, estado, atributos, ubicacion_id, costo_usd, reserva_proyecto_id, proyecto_consumo_id, mueble_consumo_id, inv_items(id, codigo, descripcion, familia), inv_ubicaciones:ubicacion_id(id, codigo, nombre)')
+    .eq('codigo', codigo).maybeSingle();
+  if (unidad) {
+    const uData = {
+      id: unidad.id, item_id: unidad.item_id, codigo: unidad.codigo,
+      estado: unidad.estado, atributos: unidad.atributos,
+      ubicacion_id: unidad.ubicacion_id, reserva_proyecto_id: unidad.reserva_proyecto_id,
+      ubicacion: unidad.inv_ubicaciones || null,
+    };
+    // Resolver nombre de proyecto de reserva
+    let reserva_nombre = null;
+    if (unidad.reserva_proyecto_id) {
+      const { data: proy } = await supabase.from('proyectos_cache')
+        .select('numero, nombre').eq('id', unidad.reserva_proyecto_id).maybeSingle();
+      reserva_nombre = proy ? ((proy.numero || '') + ' · ' + (proy.nombre || '')).trim() : unidad.reserva_proyecto_id;
+    }
+    return ok(res, { tipo: 'unidad', unidad: uData, item: unidad.inv_items, reserva_nombre });
+  }
 
   // 3) Pieza de madera
   const { data: pieza } = await supabase.from('madera_piezas')
@@ -707,6 +722,155 @@ async function accionAltaRapida(req, res) {
   return ok(res, result);
 }
 
+// ── POST consumir-unidad ─────────────────────────────────────────────────
+async function accionConsumirUnidad(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const b = req.body || {};
+  const emp = await verificarOperario(b.empleado_id);
+  if (!emp) return err(res, 'No autorizado', 401);
+
+  const codigo = (b.codigo || '').trim().toUpperCase();
+  if (!codigo) return err(res, 'codigo requerido');
+  if (!b.proyecto_id) return err(res, 'proyecto_id requerido');
+
+  const { data: unidad } = await supabase.from('inv_unidades')
+    .select('id, item_id, ubicacion_id, costo_usd, reserva_proyecto_id')
+    .eq('codigo', codigo).eq('estado', 'activa').maybeSingle();
+  if (!unidad) return err(res, 'Unidad no encontrada o no activa', 404);
+
+  // Guard de reserva
+  if (unidad.reserva_proyecto_id && unidad.reserva_proyecto_id !== b.proyecto_id && !b.forzar_reserva) {
+    let reserva_nombre = unidad.reserva_proyecto_id;
+    const { data: proy } = await supabase.from('proyectos_cache')
+      .select('numero, nombre').eq('id', unidad.reserva_proyecto_id).maybeSingle();
+    if (proy) reserva_nombre = ((proy.numero || '') + ' · ' + (proy.nombre || '')).trim();
+    return res.status(200).json({ ok: false, requiere_confirmacion: true, reserva_nombre });
+  }
+
+  // Consumir: actualizar unidad
+  const { error: updErr } = await supabase.from('inv_unidades')
+    .update({ estado: 'consumida', proyecto_consumo_id: b.proyecto_id, mueble_consumo_id: b.mueble_id || null, consumido_en: new Date().toISOString() })
+    .eq('id', unidad.id);
+  if (updErr) return err(res, updErr.message, 500);
+
+  // Movimiento de salida
+  const { data: movId, error: movErr } = await supabase.rpc('inv_registrar_movimiento', {
+    p_tipo: 'salida', p_item_id: unidad.item_id, p_ubicacion_id: unidad.ubicacion_id,
+    p_ubicacion_destino_id: null, p_cantidad: 1,
+    p_proyecto_id: b.proyecto_id, p_mueble_id: b.mueble_id || null,
+    p_motivo: 'consumo_proyecto', p_origen: 'kiosco', p_empleado_id: b.empleado_id,
+    p_nota: 'Placa ' + codigo,
+  });
+  if (movErr) return err(res, movErr.message, 500);
+
+  // Setear costo en el movimiento
+  if (movId && unidad.costo_usd != null) {
+    await supabase.from('inv_movimientos')
+      .update({ costo_unitario_usd: unidad.costo_usd, costo_verificado: true })
+      .eq('id', movId);
+  }
+
+  return ok(res, { codigo, proyecto_id: b.proyecto_id });
+}
+
+// ── POST trasladar-unidad ───────────────────────────────────────────────
+async function accionTrasladarUnidad(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const b = req.body || {};
+  const emp = await verificarOperario(b.empleado_id);
+  if (!emp) return err(res, 'No autorizado', 401);
+
+  const codigo = (b.codigo || '').trim().toUpperCase();
+  if (!codigo) return err(res, 'codigo requerido');
+  const destCodigo = (b.ubicacion_destino_codigo || '').trim().toUpperCase();
+  if (!destCodigo) return err(res, 'ubicacion_destino_codigo requerido');
+
+  const { data: unidad } = await supabase.from('inv_unidades')
+    .select('id, item_id, ubicacion_id')
+    .eq('codigo', codigo).eq('estado', 'activa').maybeSingle();
+  if (!unidad) return err(res, 'Unidad no encontrada o no activa', 404);
+
+  const destino = await resolverUbiPorCodigo(destCodigo);
+  if (!destino) return err(res, 'Ubicación destino no encontrada: ' + destCodigo, 404);
+  if (destino.id === unidad.ubicacion_id) return err(res, 'La unidad ya está en esa ubicación');
+
+  // Movimiento traslado
+  const { error: movErr } = await supabase.rpc('inv_registrar_movimiento', {
+    p_tipo: 'traslado', p_item_id: unidad.item_id, p_ubicacion_id: unidad.ubicacion_id,
+    p_ubicacion_destino_id: destino.id, p_cantidad: 1,
+    p_proyecto_id: null, p_mueble_id: null, p_motivo: null,
+    p_origen: 'kiosco', p_empleado_id: b.empleado_id, p_nota: 'Placa ' + codigo,
+  });
+  if (movErr) return err(res, movErr.message, 500);
+
+  // Actualizar ubicación de la unidad
+  await supabase.from('inv_unidades').update({ ubicacion_id: destino.id }).eq('id', unidad.id);
+
+  return ok(res, { codigo, ubicacion_destino: destCodigo });
+}
+
+// ── POST descartar-unidad ───────────────────────────────────────────────
+async function accionDescartarUnidad(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const b = req.body || {};
+  const emp = await verificarOperario(b.empleado_id);
+  if (!emp) return err(res, 'No autorizado', 401);
+
+  const codigo = (b.codigo || '').trim().toUpperCase();
+  if (!codigo) return err(res, 'codigo requerido');
+
+  const { data: unidad } = await supabase.from('inv_unidades')
+    .select('id, item_id, ubicacion_id, costo_usd')
+    .eq('codigo', codigo).eq('estado', 'activa').maybeSingle();
+  if (!unidad) return err(res, 'Unidad no encontrada o no activa', 404);
+
+  // Actualizar estado
+  const { error: updErr } = await supabase.from('inv_unidades')
+    .update({ estado: 'descartada', consumido_en: new Date().toISOString() })
+    .eq('id', unidad.id);
+  if (updErr) return err(res, updErr.message, 500);
+
+  // Movimiento de salida
+  const { data: movId, error: movErr } = await supabase.rpc('inv_registrar_movimiento', {
+    p_tipo: 'salida', p_item_id: unidad.item_id, p_ubicacion_id: unidad.ubicacion_id,
+    p_ubicacion_destino_id: null, p_cantidad: 1,
+    p_proyecto_id: null, p_mueble_id: null, p_motivo: 'descarte',
+    p_origen: 'kiosco', p_empleado_id: b.empleado_id,
+    p_nota: 'Placa ' + codigo + (b.motivo ? ' — ' + b.motivo : ''),
+  });
+  if (movErr) return err(res, movErr.message, 500);
+
+  if (movId && unidad.costo_usd != null) {
+    await supabase.from('inv_movimientos')
+      .update({ costo_unitario_usd: unidad.costo_usd, costo_verificado: true })
+      .eq('id', movId);
+  }
+
+  return ok(res, { codigo });
+}
+
+// ── POST setear-reserva-unidad ──────────────────────────────────────────
+async function accionSetearReservaUnidad(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const b = req.body || {};
+  const emp = await verificarOperario(b.empleado_id);
+  if (!emp) return err(res, 'No autorizado', 401);
+
+  const codigo = (b.codigo || '').trim().toUpperCase();
+  if (!codigo) return err(res, 'codigo requerido');
+
+  const { data: unidad } = await supabase.from('inv_unidades')
+    .select('id').eq('codigo', codigo).eq('estado', 'activa').maybeSingle();
+  if (!unidad) return err(res, 'Unidad no encontrada o no activa', 404);
+
+  const { error } = await supabase.from('inv_unidades')
+    .update({ reserva_proyecto_id: b.reserva_proyecto_id || null })
+    .eq('id', unidad.id);
+  if (error) return err(res, error.message, 500);
+
+  return ok(res, { codigo, reserva_proyecto_id: b.reserva_proyecto_id || null });
+}
+
 // ── GET oc-para-inventario ─────────────────────────────────────────────────
 // Lee el PO de Zoho con precio y moneda, matchea con inv_items
 async function accionOcParaInventario(req, res) {
@@ -895,6 +1059,11 @@ export default async function handler(req, res) {
     if (action === 'buscar-items-kiosco') return await accionBuscarItemsKiosco(req, res);
     if (action === 'movimiento')          return await accionMovimiento(req, res);
     if (action === 'alta-rapida')         return await accionAltaRapida(req, res);
+    // Kiosco placa (unidad serializada)
+    if (action === 'consumir-unidad')         return await accionConsumirUnidad(req, res);
+    if (action === 'trasladar-unidad')        return await accionTrasladarUnidad(req, res);
+    if (action === 'descartar-unidad')        return await accionDescartarUnidad(req, res);
+    if (action === 'setear-reserva-unidad')   return await accionSetearReservaUnidad(req, res);
     // Recepción OC → inventario
     if (action === 'oc-para-inventario')      return await accionOcParaInventario(req, res);
     if (action === 'recepcionar-inventario')  return await accionRecepcionarInventario(req, res);
