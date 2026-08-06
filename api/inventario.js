@@ -722,6 +722,145 @@ async function accionAltaRapida(req, res) {
   return ok(res, result);
 }
 
+// ── GET valor-inventario (solo lectura) ──────────────────────────────────
+async function accionValorInventario(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const sesion = await verificarSesionAdminOficina(req);
+  if (!sesion) return err(res, 'No autorizado', 401);
+
+  // 1. Serializado: inv_unidades activas con costo_usd, paginado
+  let unidades = [];
+  let from = 0;
+  const CHUNK = 1000;
+  while (true) {
+    const { data } = await supabase.from('inv_unidades')
+      .select('costo_usd, item_id, ubicacion_id')
+      .eq('estado', 'activa')
+      .range(from, from + CHUNK - 1);
+    if (!data || !data.length) break;
+    unidades = unidades.concat(data);
+    if (data.length < CHUNK) break;
+    from += CHUNK;
+  }
+
+  // 2. Por cantidad: inv_stock con cantidad>0 + item (familia, costo_promedio_usd), paginado
+  let stockRows = [];
+  from = 0;
+  while (true) {
+    const { data } = await supabase.from('inv_stock')
+      .select('item_id, ubicacion_id, cantidad, inv_items(familia, costo_promedio_usd)')
+      .gt('cantidad', 0)
+      .range(from, from + CHUNK - 1);
+    if (!data || !data.length) break;
+    stockRows = stockRows.concat(data);
+    if (data.length < CHUNK) break;
+    from += CHUNK;
+  }
+
+  // 3. Ubicaciones lookup (para nombres)
+  const ubiIds = new Set();
+  unidades.forEach(u => ubiIds.add(u.ubicacion_id));
+  stockRows.forEach(s => ubiIds.add(s.ubicacion_id));
+  let ubiMap = {};
+  if (ubiIds.size) {
+    const ids = [...ubiIds].filter(Boolean);
+    // Paginar en chunks de 1000 ids
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const batch = ids.slice(i, i + CHUNK);
+      const { data } = await supabase.from('inv_ubicaciones')
+        .select('id, codigo, nombre').in('id', batch);
+      (data || []).forEach(u => { ubiMap[u.id] = u; });
+    }
+  }
+
+  // 4. Items lookup (para familia de unidades serializadas)
+  const itemIds = new Set();
+  unidades.forEach(u => itemIds.add(u.item_id));
+  let itemMap = {};
+  if (itemIds.size) {
+    const ids = [...itemIds].filter(Boolean);
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const batch = ids.slice(i, i + CHUNK);
+      const { data } = await supabase.from('inv_items')
+        .select('id, familia').in('id', batch);
+      (data || []).forEach(it => { itemMap[it.id] = it; });
+    }
+  }
+
+  // 5. Calcular totales
+  let serializadoUsd = 0;
+  let serializadoVerificado = 0;
+  const familiaAcc = {};
+  const ubiAcc = {}; // { ubiId: { valor, verificado } }
+
+  for (const u of unidades) {
+    const costo = Number(u.costo_usd || 0);
+    serializadoUsd += costo;
+    // Simplificación: costo_usd > 0 = verificado (de recepción); retazos a 0 no suman
+    const esVerif = costo > 0;
+    if (esVerif) serializadoVerificado += costo;
+    const fam = (itemMap[u.item_id] || {}).familia || 'otro';
+    familiaAcc[fam] = (familiaAcc[fam] || 0) + costo;
+    const uid = u.ubicacion_id || 0;
+    if (!ubiAcc[uid]) ubiAcc[uid] = { valor: 0, verificado: 0 };
+    ubiAcc[uid].valor += costo;
+    if (esVerif) ubiAcc[uid].verificado += costo;
+  }
+
+  let cantidadUsd = 0;
+  let cantidadVerificado = 0;
+  for (const s of stockRows) {
+    const it = s.inv_items || {};
+    const prom = Number(it.costo_promedio_usd || 0);
+    const cant = Number(s.cantidad || 0);
+    const valor = cant * prom;
+    cantidadUsd += valor;
+    // Simplificación: costo_promedio_usd > 0 = verificado (solo se llena por recepción)
+    const esVerif = prom > 0;
+    if (esVerif) cantidadVerificado += valor;
+    const fam = it.familia || 'otro';
+    familiaAcc[fam] = (familiaAcc[fam] || 0) + valor;
+    const uid = s.ubicacion_id || 0;
+    if (!ubiAcc[uid]) ubiAcc[uid] = { valor: 0, verificado: 0 };
+    ubiAcc[uid].valor += valor;
+    if (esVerif) ubiAcc[uid].verificado += valor;
+  }
+
+  const totalUsd = serializadoUsd + cantidadUsd;
+  const verificadoUsd = serializadoVerificado + cantidadVerificado;
+  const estimadoUsd = totalUsd - verificadoUsd;
+
+  // TC actual
+  const tcActual = await _fetchTcUsd('UYU') || 1;
+  const totalUyu = totalUsd * tcActual;
+
+  // Por familia
+  const porFamilia = Object.entries(familiaAcc).map(([familia, valor_usd]) => ({ familia, valor_usd }))
+    .sort((a, b) => b.valor_usd - a.valor_usd);
+
+  // Por ubicación top 10
+  const porUbicacion = Object.entries(ubiAcc)
+    .map(([uid, acc]) => {
+      const u = ubiMap[uid] || {};
+      return { codigo: u.codigo || '?', nombre: u.nombre || '', valor_usd: acc.valor, pct_verificado: acc.valor > 0 ? Math.round(acc.verificado / acc.valor * 100) : 0 };
+    })
+    .filter(x => x.valor_usd > 0)
+    .sort((a, b) => b.valor_usd - a.valor_usd)
+    .slice(0, 10);
+
+  return ok(res, {
+    total_usd: totalUsd,
+    serializado_usd: serializadoUsd,
+    cantidad_usd: cantidadUsd,
+    verificado_usd: verificadoUsd,
+    estimado_usd: estimadoUsd,
+    tc_actual: tcActual,
+    total_uyu: totalUyu,
+    por_familia: porFamilia,
+    por_ubicacion: porUbicacion,
+  });
+}
+
 // ── POST consumir-unidad ─────────────────────────────────────────────────
 async function accionConsumirUnidad(req, res) {
   if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
@@ -1059,6 +1198,7 @@ export default async function handler(req, res) {
     if (action === 'buscar-items-kiosco') return await accionBuscarItemsKiosco(req, res);
     if (action === 'movimiento')          return await accionMovimiento(req, res);
     if (action === 'alta-rapida')         return await accionAltaRapida(req, res);
+    if (action === 'valor-inventario')       return await accionValorInventario(req, res);
     // Kiosco placa (unidad serializada)
     if (action === 'consumir-unidad')         return await accionConsumirUnidad(req, res);
     if (action === 'trasladar-unidad')        return await accionTrasladarUnidad(req, res);

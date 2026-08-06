@@ -141,6 +141,7 @@
   <div class="tabs">
     <div class="tab active" data-tab="items" onclick="_switchTab('items')">Ítems</div>
     <div class="tab" data-tab="ubicaciones" onclick="_switchTab('ubicaciones')">Ubicaciones</div>
+    <div class="tab" data-tab="valuacion" onclick="_switchTab('valuacion')">Valuación</div>
     <div class="tab" data-tab="reposicion" onclick="_switchTab('reposicion')">Reposición</div>
   </div>
 
@@ -216,6 +217,23 @@
       <div class="ubi-tree" id="ubi-tree"></div>
       <div class="ubi-panel" id="ubi-panel">
         <div class="placeholder">Seleccioná una ubicación del árbol</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ TAB: VALUACIÓN ═══════ -->
+  <div id="tab-valuacion" class="tab-content">
+    <div class="hdr-row">
+      <span class="hdr-title">Valuación de inventario</span>
+      <span class="spacer"></span>
+      <button class="btn" onclick="_cargarValuacion()">⟳ Actualizar</button>
+    </div>
+    <div id="val-content">
+      <div class="placeholder">
+        <div>
+          <div style="font-size:28px;margin-bottom:16px;">📊</div>
+          <div style="font-size:14px;font-weight:700;color:var(--amber);margin-bottom:8px;">Cargando valuación...</div>
+        </div>
       </div>
     </div>
   </div>
@@ -356,6 +374,7 @@ function _switchTab(id) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + id));
   if (id === 'ubicaciones' && !_ubisLoaded) _cargarUbicaciones();
+  if (id === 'valuacion' && !_valLoaded) _cargarValuacion();
 }
 
 // ── Modals ──
@@ -951,6 +970,93 @@ function _imprimirEtiquetaUbi(ubiId) {
   if (!u) return;
   const p = u.parent_id ? _ubiData.find(x => x.id === u.parent_id) : null;
   Etiquetas.imprimir('inv-bin', [{ codigo: u.codigo, nombre: u.nombre || '', padre: p ? (p.nombre || p.codigo) : '', _qr: u.codigo }]);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TAB VALUACIÓN
+// ═══════════════════════════════════════════════════════════════════
+let _valLoaded = false;
+
+function _fmtUsd(v) {
+  return Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+async function _cargarValuacion() {
+  const el = document.getElementById('val-content');
+  el.innerHTML = '<div class="placeholder"><div><div style="font-size:14px;color:var(--muted);">Calculando...</div></div></div>';
+  const r = await _get('valor-inventario');
+  if (!r.ok) { el.innerHTML = '<div class="placeholder"><div style="color:var(--red);">' + (r.msg || 'Error') + '</div></div>'; return; }
+  _valLoaded = true;
+
+  if (r.total_usd === 0) {
+    el.innerHTML = '<div class="placeholder"><div>'
+      + '<div style="font-size:28px;margin-bottom:16px;">📊</div>'
+      + '<div style="font-size:14px;font-weight:700;color:var(--amber);margin-bottom:8px;">Sin stock valuado todavía</div>'
+      + '<div style="color:var(--muted);font-size:13px;max-width:400px;">El valor se llena a medida que recibís órdenes de compra con costo verificado.</div>'
+      + '</div></div>';
+    return;
+  }
+
+  const pctVerif = r.total_usd > 0 ? Math.round(r.verificado_usd / r.total_usd * 100) : 0;
+  let html = '';
+
+  // Número grande
+  html += '<div style="text-align:center;padding:20px 0 24px;">'
+    + '<div class="mono" style="font-size:36px;font-weight:700;color:var(--amber);letter-spacing:1px;">USD ' + _fmtUsd(r.total_usd) + '</div>'
+    + '<div class="mono" style="font-size:12px;color:var(--muted);margin-top:6px;">al TC ' + r.tc_actual + ' · equivale a $ ' + _fmtUsd(r.total_uyu) + '</div>'
+    + '</div>';
+
+  // Barra verificado/estimado
+  html += '<div style="max-width:600px;margin:0 auto 24px;">'
+    + '<div style="display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--card);">'
+    + '<div style="width:' + pctVerif + '%;background:var(--green);transition:width .3s;"></div>'
+    + '<div style="flex:1;background:var(--amber);opacity:.3;"></div>'
+    + '</div>'
+    + '<div style="display:flex;justify-content:space-between;margin-top:6px;">'
+    + '<span class="mono" style="font-size:10px;color:var(--green);">USD ' + _fmtUsd(r.verificado_usd) + ' verificado (' + pctVerif + '%)</span>'
+    + '<span class="mono" style="font-size:10px;color:var(--amber);opacity:.6;">USD ' + _fmtUsd(r.estimado_usd) + ' estimado</span>'
+    + '</div>'
+    + '</div>';
+
+  // Desglose serializado vs cantidad
+  html += '<div style="display:flex;gap:16px;max-width:600px;margin:0 auto 24px;">'
+    + '<div style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px;">'
+    + '<div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;">SERIALIZADO (PLACAS)</div>'
+    + '<div class="mono" style="font-size:18px;font-weight:700;">USD ' + _fmtUsd(r.serializado_usd) + '</div></div>'
+    + '<div style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px;">'
+    + '<div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;">POR CANTIDAD (HERRAJES)</div>'
+    + '<div class="mono" style="font-size:18px;font-weight:700;">USD ' + _fmtUsd(r.cantidad_usd) + '</div></div>'
+    + '</div>';
+
+  // Grid por familia
+  if (r.por_familia && r.por_familia.length) {
+    html += '<div style="max-width:600px;margin:0 auto 24px;">'
+      + '<div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">POR FAMILIA</div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
+    r.por_familia.forEach(function(f) {
+      html += '<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;min-width:100px;">'
+        + '<span class="badge badge-' + f.familia + '">' + f.familia + '</span>'
+        + '<div class="mono" style="font-size:14px;font-weight:700;margin-top:6px;">USD ' + _fmtUsd(f.valor_usd) + '</div></div>';
+    });
+    html += '</div></div>';
+  }
+
+  // Tabla top ubicaciones
+  if (r.por_ubicacion && r.por_ubicacion.length) {
+    html += '<div style="max-width:600px;margin:0 auto 24px;">'
+      + '<div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">TOP UBICACIONES POR VALOR</div>'
+      + '<table class="tbl" style="font-size:12px;"><thead><tr>'
+      + '<th>Ubicación</th><th style="text-align:right;">Valor USD</th><th style="text-align:right;">% Verificado</th>'
+      + '</tr></thead><tbody>';
+    r.por_ubicacion.forEach(function(u) {
+      html += '<tr><td><span class="cod">' + u.codigo + '</span> <span style="color:var(--muted);font-size:11px;">' + (u.nombre || '') + '</span></td>'
+        + '<td class="mono" style="text-align:right;">USD ' + _fmtUsd(u.valor_usd) + '</td>'
+        + '<td class="mono" style="text-align:right;">' + u.pct_verificado + '%</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  el.innerHTML = html;
 }
 
 // ── Init ──
