@@ -709,13 +709,13 @@ const TIPOS_LUGAR = {
 
 function _ubiDepth(u) {
   let d = 0, cur = u;
-  while (cur && cur.parent_id) { cur = _ubiData.find(x => x.id === cur.parent_id); d++; }
+  while (cur && cur.parent_id) { cur = _ubiData.find(x => String(x.id) === String(cur.parent_id)); d++; }
   return d;
 }
 
 function _ubiRaiz(u) {
   let cur = u;
-  while (cur && cur.parent_id) { cur = _ubiData.find(x => x.id === cur.parent_id) || null; }
+  while (cur && cur.parent_id) { cur = _ubiData.find(x => String(x.id) === String(cur.parent_id)) || null; }
   return cur;
 }
 
@@ -786,14 +786,14 @@ function _renderTree() {
 function _selectUbi(id) {
   _selectedUbi = id;
   _renderTree();
-  const u = _ubiData.find(x => x.id === id);
+  const u = _ubiData.find(x => String(x.id) === String(id));
   if (!u) return;
 
   // Build path
   let path = u.codigo;
   let cur = u;
   while (cur.parent_id) {
-    cur = _ubiData.find(x => x.id === cur.parent_id);
+    cur = _ubiData.find(x => String(x.id) === String(cur.parent_id));
     if (cur) path = cur.codigo + ' > ' + path; else break;
   }
 
@@ -832,7 +832,7 @@ function _openCrearUbi() {
     return '<option value="' + u.id + '">' + u.codigo + ' — ' + (u.nombre || '') + '  [' + tipo + ']</option>';
   }).join('');
   if (_selectedUbi) {
-    const selUbi = _ubiData.find(x => x.id === _selectedUbi);
+    const selUbi = _ubiData.find(x => String(x.id) === String(_selectedUbi));
     if (selUbi && _ubiPuedeSerPadre(selUbi)) sel.value = _selectedUbi;
     else if (selUbi && selUbi.parent_id) sel.value = selUbi.parent_id;
   }
@@ -935,7 +935,7 @@ async function _saveUbi() {
 
 // ── Editar ubicación ──
 function _openEditUbi(id) {
-  const u = _ubiData.find(x => x.id === id);
+  const u = _ubiData.find(x => String(x.id) === String(id));
   if (!u) return;
   document.getElementById('mue-id').value = u.id;
   document.getElementById('mue-codigo').value = u.codigo;
@@ -949,7 +949,7 @@ async function _saveUbiEdit() {
   const errEl = document.getElementById('mue-error');
   errEl.textContent = '';
   const id = document.getElementById('mue-id').value;
-  const u = _ubiData.find(x => x.id === id);
+  const u = _ubiData.find(x => String(x.id) === String(id));
   if (!u) return;
   const body = { id };
   const nombre = document.getElementById('mue-nombre').value.trim();
@@ -966,9 +966,9 @@ async function _saveUbiEdit() {
 // ── Imprimir etiqueta de ubicación ──
 function _imprimirEtiquetaUbi(ubiId) {
   if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
-  const u = _ubiData.find(x => x.id === ubiId);
+  const u = _ubiData.find(x => String(x.id) === String(ubiId));
   if (!u) return;
-  const p = u.parent_id ? _ubiData.find(x => x.id === u.parent_id) : null;
+  const p = u.parent_id ? _ubiData.find(x => String(x.id) === String(u.parent_id)) : null;
   Etiquetas.imprimir('inv-bin', [{ codigo: u.codigo, nombre: u.nombre || '', padre: p ? (p.nombre || p.codigo) : '', _qr: u.codigo }]);
 }
 
