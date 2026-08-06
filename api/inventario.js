@@ -26,6 +26,17 @@ async function verificarSesionAdminOficina(req) {
 
 const FAMILIAS_VALIDAS = ['placa', 'madera', 'herraje', 'consumible', 'otro'];
 
+// Convierte un monto de una moneda a USD usando tipo_cambio. Devuelve number o null.
+// tipo_cambio: {moneda_origen, moneda_destino, valor}. Ej: UYU→USD valor 39 => 1 USD = 39 UYU.
+async function _fetchTcUsd(moneda) {
+  const m = (moneda || 'USD').toUpperCase();
+  if (m === 'USD') return 1;
+  const { data } = await supabase.from('tipo_cambio')
+    .select('valor').eq('moneda_origen', m).eq('moneda_destino', 'USD')
+    .order('actualizado_en', { ascending: false }).limit(1).maybeSingle();
+  return (data && data.valor) ? Number(data.valor) : null;
+}
+
 // ── GET listar-items ──────────────────────────────────────────────────────
 async function accionListarItems(req, res) {
   if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
@@ -193,14 +204,15 @@ async function accionSyncItemsZoho(req, res) {
     const codigo = sku || ('Z-' + zohoItemId);
     const descripcion = zi.name || '';
     const activo = zi.status === 'active';
+    const costoUsd = (zi.purchase_rate && Number(zi.purchase_rate)) ? Number(zi.purchase_rate) : null;
 
     const existente = mapZoho.get(zohoItemId);
 
     if (existente) {
-      // UPDATE solo descripcion y activo
-      const { error } = await supabase.from('inv_items')
-        .update({ descripcion, activo, actualizado_en: new Date().toISOString() })
-        .eq('id', existente.id);
+      // UPDATE descripcion, activo y costo último (NO tocar costo_promedio_usd)
+      const upd = { descripcion, activo, actualizado_en: new Date().toISOString() };
+      if (costoUsd != null) upd.costo_ultimo_usd = costoUsd;
+      const { error } = await supabase.from('inv_items').update(upd).eq('id', existente.id);
       if (!error) actualizados++;
     } else {
       // INSERT — pero verificar colisión de codigo
@@ -213,14 +225,16 @@ async function accionSyncItemsZoho(req, res) {
         if (cta.includes('HERRAJE')) familia = 'herraje';
         else if (cta.includes('MADERA Y PLACA')) familia = 'placa';
         else if (cta.includes('INDIRECTO')) familia = 'consumible';
-        paraInsertar.push({
+        const item = {
           codigo,
           descripcion,
           familia,
           zoho_item_id: zohoItemId,
           inventariable: !esVentaPura,
           activo,
-        });
+        };
+        if (costoUsd != null) item.costo_ultimo_usd = costoUsd;
+        paraInsertar.push(item);
         codigosUsados.add(codigo); // evitar colisiones entre items del mismo batch
       }
     }
