@@ -428,7 +428,7 @@ async function cargarDetalle(soId) {
       <td class="mono" style="text-align:center;">${l.cantidad_total}</td>
       <td style="display:flex;align-items:center;gap:6px;">
         <input type="number" class="linea-input ${inputClass}" min="0" max="${l.cantidad_total}" step="1"
-          value="${l.cantidad_armada}" data-so="${soId}" data-total="${l.cantidad_total}"
+          value="${l.cantidad_armada}" data-so="${soId}" data-total="${l.cantidad_total}" data-item-zoho="${l.item_zoho_id || ''}"
           onblur="guardarLinea('${soId}','${l.linea_zoho_id}',this)"
           onkeydown="if(event.key==='Enter')this.blur()">
         <input type="checkbox" class="chk-todo" ${checked}
@@ -524,6 +524,7 @@ async function marcarTodo(soId) {
     apiPost('upsert-linea-estado', {
       so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: l.linea_zoho_id,
       empleado_id: EMPLEADO_ID, cantidad_armada: l.cantidad_total, estado: 'completo',
+      item_zoho_id: l.item_zoho_id || null, proyecto_id: so?.proyecto_id || null,
     })
   ));
   await cargarDetalle(soId);
@@ -538,6 +539,7 @@ async function guardarLinea(soId, lineaId, input) {
   await apiPost('upsert-linea-estado', {
     so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: lineaId,
     empleado_id: EMPLEADO_ID, cantidad_armada: val, estado: so.estado,
+    item_zoho_id: input.dataset.itemZoho || null, proyecto_id: so?.proyecto_id || null,
   });
 }
 
@@ -551,6 +553,7 @@ async function todoLinea(soId, lineaId, chk, total) {
   await apiPost('upsert-linea-estado', {
     so_zoho_id: soId, so_numero: so?.so_numero, linea_zoho_id: lineaId,
     empleado_id: EMPLEADO_ID, cantidad_armada: val, estado: so.estado,
+    item_zoho_id: inp?.dataset.itemZoho || null, proyecto_id: so?.proyecto_id || null,
   });
 }
 

@@ -165,6 +165,7 @@ export default async function handler(req) {
         const est = estadoMap[li.line_item_id] || {};
         return {
           linea_zoho_id:  li.line_item_id,
+          item_zoho_id:   li.item_id || null,
           descripcion:    li.name || li.description || '',
           cantidad_total: li.quantity,
           cantidad_armada: Number(est.cantidad_armada || 0),
@@ -201,6 +202,23 @@ export default async function handler(req) {
         { onConflict: 'so_zoho_id,linea_zoho_id' }
       );
       if (error) throw error;
+
+      // Disparar descuento de inventario (best-effort, no bloquea el kitting)
+      if (body.cantidad_armada !== undefined) {
+        try {
+          await fetch(`${new URL(req.url).origin}/api/inventario?action=descontar-kitting`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-internal-secret': process.env.INTERNAL_SECRET || '' },
+            body: JSON.stringify({
+              so_zoho_id, linea_zoho_id,
+              item_zoho_id: body.item_zoho_id || null,
+              cantidad_armada: Number(body.cantidad_armada),
+              proyecto_id: body.proyecto_id || null,
+              empleado_id: empleado_id || null,
+            }),
+          });
+        } catch (_) {}
+      }
 
       return ok({ ok: true });
     }

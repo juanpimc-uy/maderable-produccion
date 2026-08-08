@@ -1010,6 +1010,132 @@ async function accionSetearReservaUnidad(req, res) {
   return ok(res, { codigo, reserva_proyecto_id: b.reserva_proyecto_id || null });
 }
 
+// ── POST descontar-kitting (server-to-server) ───────────────────────────
+async function accionDescontarKitting(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const secret = req.headers['x-internal-secret'] || '';
+  if (!secret || secret !== process.env.INTERNAL_SECRET) return err(res, 'No autorizado', 401);
+
+  const b = req.body || {};
+  const { so_zoho_id, linea_zoho_id, item_zoho_id, cantidad_armada, proyecto_id, empleado_id } = b;
+  if (!so_zoho_id || !linea_zoho_id) return err(res, 'so_zoho_id y linea_zoho_id requeridos');
+
+  // 1. Sin item_zoho_id → no se puede resolver
+  if (!item_zoho_id) return ok(res, { skip: 'sin_item_zoho' });
+
+  // 2. Buscar ítem en catálogo
+  const { data: invItem } = await supabase.from('inv_items')
+    .select('id, familia, ubicacion_picking_id, costo_promedio_usd')
+    .eq('zoho_item_id', item_zoho_id).maybeSingle();
+  if (!invItem) return ok(res, { skip: 'no_catalogado', item_zoho_id });
+
+  // 3. Serializado → no descontar (se consume por escaneo)
+  if (invItem.familia === 'placa' || invItem.familia === 'madera') {
+    return ok(res, { skip: 'serializado' });
+  }
+
+  // 4. Delta: leer cuánto ya se descontó
+  const { data: lineaEst } = await supabase.from('so_lineas_estado')
+    .select('cantidad_descontada_inv')
+    .eq('so_zoho_id', so_zoho_id).eq('linea_zoho_id', linea_zoho_id).maybeSingle();
+  const yaDescontado = Number((lineaEst || {}).cantidad_descontada_inv || 0);
+  const armado = Number(cantidad_armada || 0);
+  const delta = armado - yaDescontado;
+
+  if (delta === 0) return ok(res, { delta: 0 });
+
+  const empId = empleado_id || null;
+  const costoUsd = invItem.costo_promedio_usd ? Number(invItem.costo_promedio_usd) : null;
+  const costoVerif = costoUsd != null && costoUsd > 0;
+
+  if (delta > 0) {
+    // SALIDA — cascada: picking primero, luego bin con más stock
+    const pickingId = invItem.ubicacion_picking_id || null;
+    const { data: stocks } = await supabase.from('inv_stock')
+      .select('ubicacion_id, cantidad').eq('item_id', invItem.id).gt('cantidad', 0)
+      .order('cantidad', { ascending: false });
+
+    const ordered = [];
+    if (pickingId && stocks) {
+      const pi = stocks.find(s => s.ubicacion_id === pickingId);
+      if (pi) ordered.push(pi);
+      stocks.forEach(s => { if (s.ubicacion_id !== pickingId) ordered.push(s); });
+    } else if (stocks) {
+      ordered.push(...stocks);
+    }
+
+    const totalDisp = ordered.reduce((s, r) => s + Number(r.cantidad), 0);
+    // Descontar lo que haya, sin frenar si no alcanza
+    const aDescontar = Math.min(delta, totalDisp);
+    let restante = aDescontar;
+    const desglose = [];
+
+    for (const bin of ordered) {
+      if (restante <= 0) break;
+      const desc = Math.min(restante, Number(bin.cantidad));
+      const { data: movId, error: movErr } = await supabase.rpc('inv_registrar_movimiento', {
+        p_tipo: 'salida', p_item_id: invItem.id, p_ubicacion_id: bin.ubicacion_id,
+        p_ubicacion_destino_id: null, p_cantidad: desc,
+        p_proyecto_id: proyecto_id || null, p_mueble_id: null,
+        p_motivo: 'kitting', p_origen: 'kitting', p_empleado_id: empId,
+        p_nota: 'SO ' + (so_zoho_id || ''),
+      });
+      if (movErr) { console.warn('[descontar-kitting] movErr', movErr.message); break; }
+      // Setear costo
+      if (movId && costoUsd != null) {
+        await supabase.from('inv_movimientos')
+          .update({ costo_unitario_usd: costoUsd, costo_verificado: costoVerif })
+          .eq('id', movId);
+      }
+      desglose.push({ ubicacion_id: bin.ubicacion_id, cantidad: desc });
+      restante -= desc;
+    }
+
+    // Actualizar tracking (sumar lo efectivamente descontado)
+    const efectivo = aDescontar - restante;
+    await supabase.from('so_lineas_estado')
+      .update({ cantidad_descontada_inv: yaDescontado + efectivo, item_zoho_id })
+      .eq('so_zoho_id', so_zoho_id).eq('linea_zoho_id', linea_zoho_id);
+
+    return ok(res, { delta, descontado: efectivo, faltante: delta - efectivo, desglose });
+
+  } else {
+    // delta < 0 → ENTRADA (devolución al picking)
+    const cantDevolver = Math.abs(delta);
+    const destUbiId = invItem.ubicacion_picking_id;
+    if (!destUbiId) {
+      // Sin picking → buscar cualquier bin con stock del ítem
+      const { data: anyBin } = await supabase.from('inv_stock')
+        .select('ubicacion_id').eq('item_id', invItem.id).order('cantidad', { ascending: false }).limit(1).maybeSingle();
+      if (!anyBin) return ok(res, { delta, skip: 'sin_ubicacion_destino' });
+    }
+    const ubiDestino = destUbiId || (await supabase.from('inv_stock')
+      .select('ubicacion_id').eq('item_id', invItem.id).order('cantidad', { ascending: false }).limit(1).maybeSingle()).data?.ubicacion_id;
+
+    if (!ubiDestino) return ok(res, { delta, skip: 'sin_ubicacion_destino' });
+
+    const { data: movId, error: movErr } = await supabase.rpc('inv_registrar_movimiento', {
+      p_tipo: 'entrada', p_item_id: invItem.id, p_ubicacion_id: ubiDestino,
+      p_ubicacion_destino_id: null, p_cantidad: cantDevolver,
+      p_proyecto_id: proyecto_id || null, p_mueble_id: null,
+      p_motivo: 'kitting_reverso', p_origen: 'kitting', p_empleado_id: empId,
+      p_nota: 'SO ' + (so_zoho_id || '') + ' (reverso)',
+    });
+    if (movErr) return err(res, movErr.message, 500);
+    if (movId && costoUsd != null) {
+      await supabase.from('inv_movimientos')
+        .update({ costo_unitario_usd: costoUsd, costo_verificado: costoVerif })
+        .eq('id', movId);
+    }
+
+    await supabase.from('so_lineas_estado')
+      .update({ cantidad_descontada_inv: armado, item_zoho_id })
+      .eq('so_zoho_id', so_zoho_id).eq('linea_zoho_id', linea_zoho_id);
+
+    return ok(res, { delta, devuelto: cantDevolver });
+  }
+}
+
 // ── GET oc-para-inventario ─────────────────────────────────────────────────
 // Lee el PO de Zoho con precio y moneda, matchea con inv_items
 async function accionOcParaInventario(req, res) {
@@ -1199,6 +1325,8 @@ export default async function handler(req, res) {
     if (action === 'movimiento')          return await accionMovimiento(req, res);
     if (action === 'alta-rapida')         return await accionAltaRapida(req, res);
     if (action === 'valor-inventario')       return await accionValorInventario(req, res);
+    // Kitting (server-to-server)
+    if (action === 'descontar-kitting')      return await accionDescontarKitting(req, res);
     // Kiosco placa (unidad serializada)
     if (action === 'consumir-unidad')         return await accionConsumirUnidad(req, res);
     if (action === 'trasladar-unidad')        return await accionTrasladarUnidad(req, res);
