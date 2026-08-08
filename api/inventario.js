@@ -1010,6 +1010,88 @@ async function accionSetearReservaUnidad(req, res) {
   return ok(res, { codigo, reserva_proyecto_id: b.reserva_proyecto_id || null });
 }
 
+// ── GET items-reposicion (solo lectura) ──────────────────────────────────
+async function accionItemsReposicion(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const sesion = await verificarSesionAdminOficina(req);
+  if (!sesion) return err(res, 'No autorizado', 401);
+
+  const CHUNK = 1000;
+
+  // 1. Traer ítems inventariables por cantidad (no placa/madera)
+  let items = [];
+  let from = 0;
+  while (true) {
+    const { data } = await supabase.from('inv_items')
+      .select('id, codigo, descripcion, familia, stock_min, costo_promedio_usd')
+      .eq('inventariable', true).eq('activo', true)
+      .not('familia', 'in', '("placa","madera")')
+      .range(from, from + CHUNK - 1);
+    if (!data || !data.length) break;
+    items = items.concat(data);
+    if (data.length < CHUNK) break;
+    from += CHUNK;
+  }
+
+  // 2. Stock total por ítem (todas las filas de inv_stock, paginado)
+  const stockMap = {}; // item_id → total
+  from = 0;
+  while (true) {
+    const { data } = await supabase.from('inv_stock')
+      .select('item_id, cantidad')
+      .range(from, from + CHUNK - 1);
+    if (!data || !data.length) break;
+    for (const s of data) {
+      stockMap[s.item_id] = (stockMap[s.item_id] || 0) + Number(s.cantidad || 0);
+    }
+    if (data.length < CHUNK) break;
+    from += CHUNK;
+  }
+
+  // 3. Ítems que rotaron: los que tienen fila en inv_stock (aunque sea 0)
+  // Simplificación: si item_id aparece en stockMap, tuvo stock alguna vez
+  const tuvoStock = new Set(Object.keys(stockMap).map(Number));
+
+  // 4. Filtrar y armar resultado
+  const resultado = [];
+  for (const it of items) {
+    const stockActual = stockMap[it.id] || 0;
+    const minDef = it.stock_min != null && Number(it.stock_min) > 0;
+
+    let incluir = false;
+    let motivo = '';
+
+    if (minDef && stockActual < Number(it.stock_min)) {
+      incluir = true;
+      motivo = 'bajo_minimo';
+    } else if (stockActual <= 0 && tuvoStock.has(it.id)) {
+      incluir = true;
+      motivo = 'sin_stock';
+    }
+
+    if (!incluir) continue;
+
+    resultado.push({
+      codigo: it.codigo,
+      descripcion: it.descripcion,
+      familia: it.familia,
+      stock_actual: stockActual,
+      stock_min: minDef ? Number(it.stock_min) : null,
+      faltante: minDef ? Math.max(0, Number(it.stock_min) - stockActual) : null,
+      motivo,
+    });
+  }
+
+  // 5. Ordenar: faltante desc (bajo_minimo primero), luego sin_stock
+  resultado.sort((a, b) => {
+    if (a.motivo !== b.motivo) return a.motivo === 'bajo_minimo' ? -1 : 1;
+    if (a.faltante != null && b.faltante != null) return b.faltante - a.faltante;
+    return 0;
+  });
+
+  return ok(res, { total: resultado.length, items: resultado });
+}
+
 // ── POST descontar-kitting (server-to-server) ───────────────────────────
 async function accionDescontarKitting(req, res) {
   if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
@@ -1325,6 +1407,7 @@ export default async function handler(req, res) {
     if (action === 'movimiento')          return await accionMovimiento(req, res);
     if (action === 'alta-rapida')         return await accionAltaRapida(req, res);
     if (action === 'valor-inventario')       return await accionValorInventario(req, res);
+    if (action === 'items-reposicion')       return await accionItemsReposicion(req, res);
     // Kitting (server-to-server)
     if (action === 'descontar-kitting')      return await accionDescontarKitting(req, res);
     // Kiosco placa (unidad serializada)

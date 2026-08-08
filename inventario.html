@@ -240,12 +240,14 @@
 
   <!-- ═══════ TAB: REPOSICIÓN ═══════ -->
   <div id="tab-reposicion" class="tab-content">
-    <div class="placeholder">
-      <div>
-        <div style="font-size:28px;margin-bottom:16px;">📦</div>
-        <div style="font-size:14px;font-weight:700;color:var(--amber);margin-bottom:8px;">REPOSICIÓN</div>
-        <div>Disponible en INV-6 — ítems bajo mínimo agrupados por proveedor</div>
-      </div>
+    <div class="hdr-row">
+      <span class="hdr-title">Reposición</span>
+      <span id="repo-count" class="mono" style="font-size:11px;color:var(--muted);margin-left:12px;"></span>
+      <span class="spacer"></span>
+      <button class="btn" onclick="_cargarReposicion()">⟳ Actualizar</button>
+    </div>
+    <div id="repo-content">
+      <div class="placeholder"><div><div style="font-size:14px;color:var(--muted);">Cargando...</div></div></div>
     </div>
   </div>
 </div>
@@ -375,6 +377,7 @@ function _switchTab(id) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + id));
   if (id === 'ubicaciones' && !_ubisLoaded) _cargarUbicaciones();
   if (id === 'valuacion' && !_valLoaded) _cargarValuacion();
+  if (id === 'reposicion' && !_repoLoaded) _cargarReposicion();
 }
 
 // ── Modals ──
@@ -1056,6 +1059,58 @@ async function _cargarValuacion() {
     html += '</tbody></table></div>';
   }
 
+  el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TAB REPOSICIÓN
+// ═══════════════════════════════════════════════════════════════════
+let _repoLoaded = false;
+
+async function _cargarReposicion() {
+  const el = document.getElementById('repo-content');
+  const countEl = document.getElementById('repo-count');
+  el.innerHTML = '<div class="placeholder"><div><div style="font-size:14px;color:var(--muted);">Calculando...</div></div></div>';
+  countEl.textContent = '';
+  const r = await _get('items-reposicion');
+  if (!r.ok) { el.innerHTML = '<div class="placeholder"><div style="color:var(--red);">' + (r.msg || 'Error') + '</div></div>'; return; }
+  _repoLoaded = true;
+
+  const items = r.items || [];
+  if (!items.length) {
+    countEl.textContent = '';
+    el.innerHTML = '<div class="placeholder"><div>'
+      + '<div style="font-size:28px;margin-bottom:16px;">✓</div>'
+      + '<div style="font-size:14px;font-weight:700;color:var(--green);margin-bottom:8px;">Todo en orden</div>'
+      + '<div style="color:var(--muted);font-size:13px;max-width:440px;">Ningún ítem bajo mínimo. Definí mínimos en la ficha de cada ítem (campo Stock mín) para controlar reposición.</div>'
+      + '</div></div>';
+    return;
+  }
+
+  countEl.textContent = items.length + ' ítem' + (items.length > 1 ? 's' : '') + ' a reponer';
+
+  let html = '<div style="flex:1;overflow-y:auto;"><table class="tbl"><thead><tr>'
+    + '<th>Código</th><th>Descripción</th><th>Familia</th>'
+    + '<th style="text-align:right;">Stock</th><th style="text-align:right;">Mínimo</th>'
+    + '<th style="text-align:right;">Faltante</th><th>Motivo</th>'
+    + '</tr></thead><tbody>';
+
+  items.forEach(function(it) {
+    const motivoBadge = it.motivo === 'bajo_minimo'
+      ? '<span class="badge" style="background:rgba(255,214,0,.1);color:var(--amber);border:1px solid rgba(255,214,0,.3);">BAJO MÍNIMO</span>'
+      : '<span class="badge" style="background:rgba(240,92,92,.1);color:var(--red);border:1px solid rgba(240,92,92,.3);">SIN STOCK</span>';
+    html += '<tr>'
+      + '<td class="cod">' + it.codigo + '</td>'
+      + '<td>' + it.descripcion + '</td>'
+      + '<td><span class="badge badge-' + it.familia + '">' + it.familia + '</span></td>'
+      + '<td class="mono" style="text-align:right;' + (it.stock_actual <= 0 ? 'color:var(--red);font-weight:700;' : '') + '">' + it.stock_actual + '</td>'
+      + '<td class="mono" style="text-align:right;color:var(--muted);">' + (it.stock_min != null ? it.stock_min : '—') + '</td>'
+      + '<td class="mono" style="text-align:right;font-weight:700;color:var(--amber);">' + (it.faltante != null ? it.faltante : '—') + '</td>'
+      + '<td>' + motivoBadge + '</td>'
+      + '</tr>';
+  });
+
+  html += '</tbody></table></div>';
   el.innerHTML = html;
 }
 
