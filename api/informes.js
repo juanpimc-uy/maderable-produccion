@@ -191,6 +191,82 @@ async function recalcularMaterialesProyecto(proyectoId) {
   return snapshot;
 }
 
+// ── Helper A2: consumo real de inventario contra un proyecto ──────────────
+// Lee placa serializada (inv_unidades consumidas) + herraje/consumible (inv_movimientos kitting).
+// Devuelve costo total USD y detalle por ítem. Solo lectura — no toca el costeo.
+async function consumoRealProyecto(proyectoId) {
+  const porItem = {}; // item_id → { item_id, codigo, descripcion, familia, cantidad, costo_usd }
+  const CHUNK = 1000;
+
+  // A. Placa/madera: unidades consumidas contra el proyecto
+  let from = 0;
+  while (true) {
+    const { data } = await supabase.from('inv_unidades')
+      .select('item_id, costo_usd')
+      .eq('proyecto_consumo_id', proyectoId)
+      .eq('estado', 'consumida')
+      .range(from, from + CHUNK - 1);
+    if (!data || !data.length) break;
+    for (const u of data) {
+      const k = u.item_id;
+      if (!porItem[k]) porItem[k] = { item_id: k, cantidad: 0, costo_usd: 0 };
+      porItem[k].cantidad += 1;
+      porItem[k].costo_usd += Number(u.costo_usd || 0);
+    }
+    if (data.length < CHUNK) break;
+    from += CHUNK;
+  }
+
+  // B. Herraje/consumible: salidas de kitting contra el proyecto
+  from = 0;
+  while (true) {
+    const { data } = await supabase.from('inv_movimientos')
+      .select('item_id, cantidad, costo_unitario_usd')
+      .eq('proyecto_id', proyectoId)
+      .eq('motivo', 'kitting')
+      .eq('tipo', 'salida')
+      .range(from, from + CHUNK - 1);
+    if (!data || !data.length) break;
+    for (const m of data) {
+      const k = m.item_id;
+      if (!porItem[k]) porItem[k] = { item_id: k, cantidad: 0, costo_usd: 0 };
+      porItem[k].cantidad += Number(m.cantidad || 0);
+      porItem[k].costo_usd += Number(m.cantidad || 0) * Number(m.costo_unitario_usd || 0);
+    }
+    if (data.length < CHUNK) break;
+    from += CHUNK;
+  }
+
+  // Resolver info de ítems en batch
+  const itemIds = Object.keys(porItem).map(Number).filter(Boolean);
+  if (itemIds.length) {
+    for (let i = 0; i < itemIds.length; i += CHUNK) {
+      const batch = itemIds.slice(i, i + CHUNK);
+      const { data: itemsData } = await supabase.from('inv_items')
+        .select('id, codigo, descripcion, familia')
+        .in('id', batch);
+      for (const it of (itemsData || [])) {
+        if (porItem[it.id]) {
+          porItem[it.id].codigo = it.codigo;
+          porItem[it.id].descripcion = it.descripcion;
+          porItem[it.id].familia = it.familia;
+        }
+      }
+    }
+  }
+
+  const items = Object.values(porItem).map(i => ({
+    item_id: i.item_id,
+    codigo: i.codigo || '',
+    descripcion: i.descripcion || '',
+    familia: i.familia || '',
+    cantidad: i.cantidad,
+    costo_usd: round2(i.costo_usd),
+  }));
+  const costo_total = round2(items.reduce((s, i) => s + i.costo_usd, 0));
+  return { costo_total, items };
+}
+
 // ── Helper B: sumar materiales al corte desde snapshot ───────────────────
 function sumarMaterialesAlCorte(snapshot, fecha_corte) {
   if (!snapshot || !Array.isArray(snapshot.sos)) return { total_usd: 0, sos_incluidas: [] };
@@ -2302,6 +2378,17 @@ async function accionImportarPreciosMuebles(req, res) {
 // Handler principal
 // ══════════════════════════════════════════════════════════════════════════
 
+// ── GET consumo-real — lectura del consumo real de inventario por proyecto ──
+async function accionConsumoReal(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const sesion = await verificarSesionAdminOficina(req);
+  if (!sesion) return err(res, 'No autorizado', 401);
+  const proyectoId = req.query.proyecto_id;
+  if (!proyectoId) return err(res, 'proyecto_id requerido');
+  const resultado = await consumoRealProyecto(proyectoId);
+  return ok(res, resultado);
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -2331,6 +2418,7 @@ export default async function handler(req, res) {
     if (action === 'importar-factura-lineas')   return await accionImportarFacturaLineas(req, res);
     if (action === 'reconciliar-facturas')      return await accionReconciliarFacturas(req, res);
     if (action === 'importar-precios-muebles') return await accionImportarPreciosMuebles(req, res);
+    if (action === 'consumo-real')             return await accionConsumoReal(req, res);
     return err(res, 'Acción no reconocida');
   } catch (e) {
     console.error('[informes]', action, e);
