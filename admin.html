@@ -738,8 +738,9 @@
         </div>
         <div style="display:flex;gap:12px;justify-content:flex-end;">
           <button class="btn btn-ghost" onclick="fResetear()">Restaurar defaults</button>
-          <button class="btn btn-primary" onclick="fGuardar()">✓ Guardar Fórmula</button>
+          <button class="btn btn-primary" id="f-guardar-btn" onclick="fGuardar()">Guardar</button>
         </div>
+        <div id="f-error-msg" style="display:none;margin-top:10px;padding:10px 14px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:6px;color:#ef4444;font-family:'JetBrains Mono',monospace;font-size:11px;"></div>
       </div>
       </div><!-- /panel formula -->
 
@@ -3656,6 +3657,24 @@ async function _renderCostosPr(prId) {
           <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;">TOTAL MATERIALES</span>
           <span class="mono" style="font-size:14px;font-weight:700;">${fmtUSD(mat_total_usd_round)}</span>
         </div>
+        ${(() => {
+          const ct = data.costo_teorico_usd;
+          const cc = data.costo_consumido_usd;
+          if (ct == null && cc == null) return '';
+          const teorico = Number(ct || 0);
+          const consumido = Number(cc || 0);
+          const desvio = Math.round((consumido - teorico) * 100) / 100;
+          const desvioColor = consumido <= teorico ? 'var(--green)' : 'var(--red)';
+          const desvioSign = desvio > 0 ? '+' : '';
+          if (consumido === 0) {
+            return '<div style="padding:8px 14px;border-top:1px solid #1e1e1e;font-size:11px;color:var(--muted);font-style:italic;">Sin consumo de inventario registrado aún — costo por SO (teórico)</div>';
+          }
+          return '<div style="padding:10px 14px;border-top:1px solid #1e1e1e;display:flex;gap:20px;flex-wrap:wrap;align-items:center;">'
+            + '<div><span style="font-family:\'Space Mono\',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;">TEÓRICO (SO)</span><br><span class="mono" style="font-size:12px;">' + fmtUSD(teorico) + '</span></div>'
+            + '<div><span style="font-family:\'Space Mono\',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;">CONSUMIDO (REAL)</span><br><span class="mono" style="font-size:12px;">' + fmtUSD(consumido) + '</span></div>'
+            + '<div><span style="font-family:\'Space Mono\',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;">DESVÍO</span><br><span class="mono" style="font-size:12px;font-weight:700;color:' + desvioColor + ';">' + desvioSign + fmtUSD(desvio) + '</span></div>'
+            + '</div>';
+        })()}
       </div>
 
       <div style="border-top:2px solid var(--border);margin-top:16px;padding-top:12px;display:flex;justify-content:space-between;align-items:center;">
@@ -4009,14 +4028,7 @@ function setPlacasInline(prId,mId,val){
   const m=pr?.muebles?.find(x=>x.id===mId);
   if(!m)return;
   m.placas=Number(val)||1;
-  // recalculate horas using stored coef/dif
-  const COEF_DEF={corte:0.5,enchapado:0.3,armado:0.8,revision:0.2,colocacion:0.15,herreria:0.20,electrica:0.20,macizo:0.20};
-  const DIF_DEF={1:0.7,2:1.0,3:1.5,4:2.2};
-  const coef=JSON.parse(localStorage.getItem('coef')||JSON.stringify(COEF_DEF));
-  const dif=JSON.parse(localStorage.getItem('dif')||JSON.stringify(DIF_DEF));
-  const f=dif[m.dif||2]||1;
-  const horas={};['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'].forEach(k=>{horas[k]=Math.round(m.placas*(coef[k]||0)*f*10)/10;});
-  m.horas=horas;
+  m.horas=_calcHorasMueble(m);
   guardarMueblesLS(prId,pr);
   syncProyectoSupabase(pr);
   // update items so hEstPr works correctly
@@ -4073,13 +4085,7 @@ function setDifInline(prId,mId,dif){
   const m=pr?.muebles?.find(x=>x.id===mId);
   if(!m)return;
   m.dif=dif;
-  const COEF_DEF={corte:0.5,enchapado:0.3,armado:0.8,revision:0.2,colocacion:0.15,herreria:0.20,electrica:0.20,macizo:0.20};
-  const DIF_DEF={1:0.7,2:1.0,3:1.5,4:2.2};
-  const coef=JSON.parse(localStorage.getItem('coef')||JSON.stringify(COEF_DEF));
-  const dif_map=JSON.parse(localStorage.getItem('dif')||JSON.stringify(DIF_DEF));
-  const f=dif_map[dif]||1;
-  const horas={};['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'].forEach(k=>{horas[k]=Math.round((m.placas||4)*(coef[k]||0)*f*10)/10;});
-  m.horas=horas;
+  m.horas=_calcHorasMueble(m);
   guardarMueblesLS(prId,pr);
   syncProyectoSupabase(pr);
   pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
@@ -4102,13 +4108,7 @@ function setCantInline(prId,itemId,val){
   const m=(pr.muebles||[]).find(x=>x.id===itemId);
   if(!m)return;
   m.cant=Math.max(1,parseInt(val)||1);
-  const COEF_DEF={corte:0.5,enchapado:0.3,armado:0.8,revision:0.2,colocacion:0.15,herreria:0.20,electrica:0.20,macizo:0.20};
-  const DIF_DEF={1:0.7,2:1.0,3:1.5,4:2.2};
-  const coef=JSON.parse(localStorage.getItem('coef')||JSON.stringify(COEF_DEF));
-  const dif_map=JSON.parse(localStorage.getItem('dif')||JSON.stringify(DIF_DEF));
-  const f=dif_map[m.dif||2]||1;
-  const horas={};['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'].forEach(k=>{horas[k]=Math.round((m.placas||4)*(coef[k]||0)*f*10)/10;});
-  m.horas=horas;
+  m.horas=_calcHorasMueble(m);
   guardarMueblesLS(prId,pr);
   syncProyectoSupabase(pr);
   pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
@@ -5634,6 +5634,28 @@ const F_CENTRO_ICON  = {corte:'⬡',enchapado:'◈',armado:'⬗',revision:'◎',
 const F_CENTRO_COLOR = {corte:'var(--amber)',enchapado:'var(--blue)',armado:'var(--purple)',revision:'var(--teal)',colocacion:'var(--green)',herreria:'#94a3b8',electrica:'var(--yellow)',macizo:'#f97316'};
 const F_COEF_DEF = {corte:0.50,enchapado:0.30,armado:0.80,revision:0.20,colocacion:0.20,herreria:0.20,electrica:0.20,macizo:0.20};
 const F_DIF_DEF  = {1:0.7,2:1.0,3:1.5,4:2.2};
+
+function _formulaActual(){
+  var coef, dif;
+  try { coef = JSON.parse(localStorage.getItem('coef')); } catch(e) {}
+  try { dif  = JSON.parse(localStorage.getItem('dif'));  } catch(e) {}
+  return {
+    coef: (coef && typeof coef === 'object') ? coef : F_COEF_DEF,
+    dif:  (dif  && typeof dif  === 'object') ? dif  : F_DIF_DEF
+  };
+}
+
+function _calcHorasMueble(m){
+  var f = _formulaActual();
+  var mult = f.dif[m.dif || 2] || 1;
+  var placas = Number(m.placas) || 4;
+  var horas = {};
+  F_CENTROS.forEach(function(k){
+    horas[k] = Math.round(placas * (f.coef[k] || 0) * mult * 10) / 10;
+  });
+  return horas;
+}
+
 const F_DIF_NAMES = {1:'Simple',2:'Medio',3:'Complejo',4:'Muy complejo'};
 const F_DIF_DESC  = {
   1:'Cortes rectos sin detalles especiales. Sin herrajes complejos.',
@@ -5732,18 +5754,16 @@ async function fInit(){
   if (sec) sec.style.display = '';
   // Si los inputs ya existen, no reconstruir (evita resetear durante edición)
   if (document.getElementById('f-coef-corte')) return;
-  // Cargar de localStorage; si no hay, intentar desde Supabase
-  if (!localStorage.getItem('coef')) {
-    try {
-      const res = await fetch('/api/tiempos?action=config');
-      const data = await res.json();
-      if (data.config?.formula_coef) {
-        const saved = typeof data.config.formula_coef === 'string' ? JSON.parse(data.config.formula_coef) : data.config.formula_coef;
-        if (saved.coef) localStorage.setItem('coef', JSON.stringify(saved.coef));
-        if (saved.dif) localStorage.setItem('dif', JSON.stringify(saved.dif));
-      }
-    } catch(e) {}
-  }
+  // La base manda; localStorage es caché offline
+  try {
+    const res = await fetch('/api/tiempos?action=config');
+    const data = await res.json();
+    if (data.config?.formula_coef) {
+      const saved = typeof data.config.formula_coef === 'string' ? JSON.parse(data.config.formula_coef) : data.config.formula_coef;
+      if (saved.coef) localStorage.setItem('coef', JSON.stringify(saved.coef));
+      if (saved.dif) localStorage.setItem('dif', JSON.stringify(saved.dif));
+    }
+  } catch(e) {}
   const COEF=JSON.parse(localStorage.getItem('coef')||JSON.stringify(F_COEF_DEF));
   const DIF=JSON.parse(localStorage.getItem('dif')||JSON.stringify(F_DIF_DEF));
   const cg=document.getElementById('f-coef-grid');
@@ -5766,17 +5786,31 @@ async function fInit(){
   fOnInput();
 }
 
-function fGuardar(){
+async function fGuardar(){
+  const btn=document.getElementById('f-guardar-btn');
+  if(btn){btn.disabled=true;btn.textContent='Guardando…';}
   const{coef,dif}=fReadCurrent();
-  localStorage.setItem('coef',JSON.stringify(coef));
-  localStorage.setItem('dif',JSON.stringify(dif));
-  fetch('/api/tiempos?action=guardar-config&st=' + window.AUTH.getSessionToken(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clave: 'formula_coef', valor: JSON.stringify({ coef, dif }), session_token: window.AUTH.getSessionToken() })
-  }).catch(console.error);
-  const b=document.getElementById('ok-banner-f');
-  if(b){b.classList.add('show');setTimeout(()=>b.classList.remove('show'),3000);}
+  try {
+    const res = await fetch('/api/tiempos?action=guardar-config&st=' + window.AUTH.getSessionToken(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clave: 'formula_coef', valor: JSON.stringify({ coef, dif }), session_token: window.AUTH.getSessionToken() })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || data.msg || 'Error del servidor');
+    localStorage.setItem('coef',JSON.stringify(coef));
+    localStorage.setItem('dif',JSON.stringify(dif));
+    const b=document.getElementById('ok-banner-f');
+    if(b){b.classList.add('show');setTimeout(()=>b.classList.remove('show'),3000);}
+  } catch(e) {
+    const errEl=document.getElementById('f-error-msg');
+    if(errEl){errEl.textContent='Error al guardar: '+e.message+'. Los valores quedaron solo en este navegador.';errEl.style.display='block';setTimeout(()=>{errEl.style.display='none';},8000);}
+    else alert('Error al guardar: '+e.message);
+    localStorage.setItem('coef',JSON.stringify(coef));
+    localStorage.setItem('dif',JSON.stringify(dif));
+  } finally {
+    if(btn){btn.disabled=false;btn.textContent='Guardar';}
+  }
 }
 
 function fResetear(){

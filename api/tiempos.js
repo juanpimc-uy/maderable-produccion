@@ -3577,7 +3577,7 @@ export default async function handler(req) {
       // Proyecto
       const { data: pr } = await supabase
         .from('proyectos_cache')
-        .select('id, numero, nombre, obra, cliente_nombre, materiales')
+        .select('id, numero, nombre, obra, cliente_nombre, materiales, costo_materiales_usd, costo_teorico_usd, costo_consumido_usd')
         .eq('id', proyecto_id).maybeSingle();
       if (!pr) return err('Proyecto no encontrado', 404);
       // Registros de trabajo finalizados
@@ -3674,6 +3674,8 @@ export default async function handler(req) {
         costos_directos: { items: costos_directos, total_usd: cd_total_usd_round },
         tercerizados: { items: tercerizados_items, total_usd: terc_total_usd_round },
         total_proyecto_usd,
+        costo_teorico_usd: pr.costo_teorico_usd != null ? Number(pr.costo_teorico_usd) : null,
+        costo_consumido_usd: pr.costo_consumido_usd != null ? Number(pr.costo_consumido_usd) : null,
         sin_costear: { registros_sin_categoria, materiales_sin_costo },
       });
     }
