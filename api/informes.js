@@ -176,15 +176,36 @@ async function recalcularMaterialesProyecto(proyectoId) {
     }
   }
 
+  const costoTeorico = round2(totalHistorico);
+
+  // Consumo real de inventario (4b.1). Si falla, degradar a teórico (no romper el costeo).
+  let costoConsumido = 0;
+  let consumoItems = [];
+  try {
+    const consumo = await consumoRealProyecto(proyectoId);
+    costoConsumido = consumo.costo_total || 0;
+    consumoItems = consumo.items || [];
+  } catch (e) {
+    console.error('[recalcularMat] consumo real error:', e.message);
+  }
+
+  // Transición: el teórico es piso. costo final = max(real, teórico).
+  const costoFinal = round2(Math.max(costoConsumido, costoTeorico));
+
   const snapshot = {
     recalculado_en: new Date().toISOString(),
     sos,
+    costo_teorico_usd: costoTeorico,
+    costo_consumido_usd: round2(costoConsumido),
+    consumo_items: consumoItems,
   };
 
   await supabase.from('proyectos_cache')
     .update({
       materiales_snapshot: snapshot,
-      costo_materiales_usd: round2(totalHistorico),
+      costo_materiales_usd: costoFinal,
+      costo_teorico_usd: costoTeorico,
+      costo_consumido_usd: round2(costoConsumido),
     })
     .eq('id', proyectoId);
 
