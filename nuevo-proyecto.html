@@ -136,7 +136,13 @@
 
   /* tabla muebles */
   .tbl-wrap{width:100%;overflow-x:auto;}
-  .tbl-row{display:grid;grid-template-columns:68px 1fr 46px 52px 118px 1fr 28px;gap:5px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);}
+  .tbl-row{display:grid;grid-template-columns:68px 1fr 46px 52px 118px 92px 1fr 28px;gap:5px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);}
+  .tbl-row.est-falta{background:rgba(240,92,92,.05);}
+  .tbl-row.est-sind{opacity:.6;}
+  .est-badge{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;padding:2px 5px;border-radius:3px;}
+  .est-b-falta{background:rgba(240,92,92,.15);color:var(--red);border:1px solid rgba(240,92,92,.4);}
+  .est-b-sind{background:var(--faint);color:var(--muted);border:1px solid var(--border);}
+  .est-link{font-size:8px;color:var(--muted);text-decoration:underline;cursor:pointer;display:block;margin-top:3px;font-family:'JetBrains Mono',monospace;}
   .tbl-hdr span{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
   .tbl-in{background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:5px 7px;color:var(--text);font-family:'Sora',sans-serif;font-size:12px;outline:none;width:100%;}
   .tbl-in.mono{font-family:'JetBrains Mono',monospace;}
@@ -268,7 +274,7 @@
     </div>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px;">
       <button class="btn btn-ghost" onclick="goStep(2)">← Atrás</button>
-      <button class="btn btn-primary" onclick="goStep(4)">Siguiente → Materiales</button>
+      <button class="btn btn-primary" onclick="continuarMuebles()">Siguiente → Materiales</button>
     </div>
   </div>
 
@@ -352,9 +358,35 @@ const DIF_DEF ={1:0.7,2:1.0,3:1.5,4:2.2};
 const CENTROS =['corte','enchapado','armado','revision','colocacion','herreria','electrica','macizo'];
 const C_LABEL ={corte:'CORTE',enchapado:'ENCHAPADO',armado:'ARMADO',revision:'REVISION',colocacion:'COLOCACION',herreria:'HERRERIA',electrica:'ELECTRICA',macizo:'MACIZO'};
 const DIF_NAMES={1:'Simple',2:'Medio',3:'Complejo',4:'Muy Comp.'};
-function getCoef(){return JSON.parse(localStorage.getItem('coef')||JSON.stringify(COEF_DEF));}
-function getDif() {return JSON.parse(localStorage.getItem('dif') ||JSON.stringify(DIF_DEF));}
-function calcHoras(placas,dif){const c=getCoef(),d=getDif(),f=d[dif]||1,h={};CENTROS.forEach(k=>{h[k]=Math.round(placas*(c[k]||0)*f*10)/10;});return h;}
+// La base manda (config_global.formula_coef); COEF_DEF/DIF_DEF son solo fallback offline.
+let FORMULA={coef:COEF_DEF,dif:DIF_DEF};
+async function cargarFormula(){
+  try{
+    const res=await fetch('/api/tiempos?action=config');
+    const data=await res.json();
+    if(data.config?.formula_coef){
+      const saved=typeof data.config.formula_coef==='string'?JSON.parse(data.config.formula_coef):data.config.formula_coef;
+      if(saved.coef)FORMULA.coef=saved.coef;
+      if(saved.dif)FORMULA.dif=saved.dif;
+      localStorage.setItem('coef',JSON.stringify(FORMULA.coef));
+      localStorage.setItem('dif',JSON.stringify(FORMULA.dif));
+    }
+  }catch(e){}
+  // recalcular lo ya cargado con la fórmula fresca
+  muebles.forEach(m=>{m.horas=calcHoras(m.placas,m.dif);});
+  if(step===3)renderMuebles();
+}
+function getCoef(){return FORMULA.coef;}
+function getDif() {return FORMULA.dif;}
+function calcHoras(placas,dif){
+  if(placas==null||dif==null)return null; // sin estimar: no se fabrican horas
+  const c=getCoef(),d=getDif(),f=d[dif]||1,h={};CENTROS.forEach(k=>{h[k]=Math.round(placas*(c[k]||0)*f*10)/10;});return h;
+}
+function estadoEst(m){
+  if(m.sin_datos)return 'sind';
+  if(m.placas!=null&&m.dif!=null)return 'ok';
+  return 'falta';
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 // ESTADO
@@ -501,7 +533,7 @@ async function seleccionarODF(invoiceId,numFallback,btn){
       cant:item.quantity||1,
       flujos:[],
       hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},
-      placas:4,dif:2,horas:calcHoras(4,2),mats:[],
+      placas:null,dif:null,sin_datos:false,horas:null,mats:[],
       odfId:invoiceId
     }));
     goStep(2);
@@ -567,7 +599,7 @@ async function buscarODF(){
       cant:item.quantity||1,
       flujos:[],
       hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},
-      placas:4,dif:2,horas:calcHoras(4,2),mats:[]
+      placas:null,dif:null,sin_datos:false,horas:null,mats:[]
     }));
     document.getElementById('odf-result').innerHTML=`
       <div style="background:rgba(61,214,140,.05);border:1px solid rgba(61,214,140,.2);border-radius:6px;padding:12px;margin-top:4px;">
@@ -662,25 +694,31 @@ function renderMuebles(){
   }
   const rows=muebles.map((m,idx)=>{
     const DIF_LABEL={1:'S',2:'M',3:'L',4:'XL'};
-    const difBtns=[1,2,3,4].map(d=>`<button onclick="tblDif(${idx},${d})" style="padding:3px 5px;border:1px solid ${m.dif===d?'var(--amber)':'var(--border)'};border-radius:3px;background:${m.dif===d?'rgba(245,166,35,.12)':'var(--faint)'};color:${m.dif===d?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;">${DIF_LABEL[d]}</button>`).join('');
+    const st=estadoEst(m);
+    const difBtns=[1,2,3,4].map(d=>`<button onclick="tblDif(${idx},${d})" style="padding:3px 5px;border:1px solid ${m.dif===d?'var(--amber)':'var(--border)'};border-radius:3px;background:${m.dif===d?'rgba(245,166,35,.12)':'var(--faint)'};color:${m.dif===d?'var(--amber)':'var(--muted)'};cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;${m.sin_datos?'opacity:.4;':''}">${DIF_LABEL[d]}</button>`).join('');
+    let hCell;
+    if(st==='ok'){const hTot=CENTROS.reduce((a,c)=>a+((m.horas||{})[c]||0),0)*(m.cant||1);hCell=`<span class="mono" style="color:var(--amber);font-weight:700;font-size:12px;">≈ ${hTot.toFixed(0)}h</span>`;}
+    else if(st==='sind'){hCell=`<span class="est-badge est-b-sind">SIN DATOS</span><span class="est-link" onclick="tblSinDatos(${idx},false)">volver a estimar</span>`;}
+    else{hCell=`<span class="est-badge est-b-falta">FALTA ESTIMAR</span><span class="est-link" onclick="tblSinDatos(${idx},true)">no tengo datos →</span>`;}
     const chips=FC.map(f=>{
       const on=m.flujos.includes(f.id);
       return `<button class="fc-chip ${on?f.cls:''}" onclick="tblFlujo(${idx},'${f.id}')">${f.label}</button>`
             +(on&&f.interno?`<input type="number" min="0" step="0.5" value="${m.hrsExtra[f.id]||0}" onchange="tblHrs(${idx},'${f.id}',+this.value)" class="hrs-tiny" title="${FLUJOS_CONFIG[f.id].label} h estimadas"/>`:``);
     }).join('');
-    return `<div class="tbl-row">
+    return `<div class="tbl-row ${st==='falta'?'est-falta':''}${st==='sind'?'est-sind':''}">
       <input class="tbl-in mono" value="${m.codigo}" onchange="tblUpd(${idx},'codigo',this.value)" style="color:var(--amber);font-size:11px;font-weight:700;"/>
       <input class="tbl-in" value="${m.nombre}" placeholder="Nombre del mueble" onchange="tblUpd(${idx},'nombre',this.value)"/>
       <input class="tbl-in mono" type="number" min="1" value="${m.cant}" onchange="tblUpd(${idx},'cant',+this.value)" style="text-align:center;"/>
-      <input class="tbl-in mono" type="number" min="1" value="${m.placas}" onchange="tblPlacas(${idx},+this.value)" style="text-align:center;"/>
+      <input class="tbl-in mono" type="number" min="1" value="${m.placas??''}" placeholder="—" onchange="tblPlacas(${idx},this.value)" style="text-align:center;" ${m.sin_datos?'disabled':''}/>
       <div style="display:flex;gap:2px;">${difBtns}</div>
+      <div style="text-align:right;line-height:1.2;">${hCell}</div>
       <div style="display:flex;gap:3px;flex-wrap:wrap;align-items:center;">${chips}</div>
       <button onclick="delM('${m.id}')" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 7px;cursor:pointer;color:var(--red);font-weight:700;font-size:12px;">×</button>
     </div>`;
   }).join('');
   list.innerHTML=`
     <div class="tbl-row tbl-hdr" style="padding-bottom:8px;">
-      <span>CÓDIGO</span><span>NOMBRE</span><span>CANT</span><span>PLACAS</span><span>TAMAÑO</span><span>FLUJOS EXTRA (HER/ELE/MAC incluyen horas)</span><span></span>
+      <span>CÓDIGO</span><span>NOMBRE</span><span>CANT</span><span>PLACAS</span><span>TAMAÑO</span><span style="text-align:right;">HORAS</span><span>FLUJOS EXTRA (HER/ELE/MAC incluyen horas)</span><span></span>
     </div>
     ${rows}
     <button class="btn btn-ghost btn-sm" onclick="addMueble()" style="margin-top:10px;width:100%;">+ Agregar mueble</button>`;
@@ -692,10 +730,18 @@ function renderHorasTotales(){
   if(!muebles.length){el.innerHTML='';return;}
   const tot={};CENTROS.forEach(c=>{tot[c]=0;});let gran=0,ext=0;
   muebles.forEach(m=>{
-    CENTROS.forEach(c=>{const h=(m.horas[c]||0)*m.cant;tot[c]+=h;gran+=h;});
+    CENTROS.forEach(c=>{const h=((m.horas||{})[c]||0)*m.cant;tot[c]+=h;gran+=h;});
     if(m.hrsExtra)Object.values(m.hrsExtra).forEach(h=>{ext+=(h||0)*m.cant;});
   });
-  el.innerHTML=`<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+  const nOk=muebles.filter(m=>estadoEst(m)==='ok').length;
+  const nFalta=muebles.filter(m=>estadoEst(m)==='falta').length;
+  const nSind=muebles.filter(m=>estadoEst(m)==='sind').length;
+  el.innerHTML=`<div class="mono" style="font-size:11px;margin-bottom:10px;">
+    <span style="color:var(--green);">${nOk} estimado${nOk!==1?'s':''}</span>
+    ${nFalta?` · <span style="color:var(--red);">${nFalta} sin estimar</span>`:''}
+    ${nSind?` · <span style="color:var(--muted);">${nSind} sin datos (queda${nSind!==1?'n':''} fuera de la predicción)</span>`:''}
+  </div>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
     <span class="mono" style="font-size:9px;color:var(--muted);">ESTIMACIÓN TOTAL →</span>
     ${CENTROS.map(c=>`<div style="text-align:center;"><div class="mono" style="font-size:9px;color:var(--muted);">${C_LABEL[c]}</div><div class="mono" style="font-size:12px;color:var(--amber);font-weight:700;">${tot[c].toFixed(1)}h</div></div>`).join('')}
     <div style="margin-left:auto;display:flex;gap:12px;">
@@ -706,8 +752,17 @@ function renderHorasTotales(){
 }
 
 function tblUpd(idx,key,val){if(muebles[idx])muebles[idx][key]=val;}
-function tblPlacas(idx,val){if(!muebles[idx])return;muebles[idx].placas=val;muebles[idx].horas=calcHoras(val,muebles[idx].dif);renderHorasTotales();}
-function tblDif(idx,val){if(!muebles[idx])return;muebles[idx].dif=val;muebles[idx].horas=calcHoras(muebles[idx].placas,val);renderMuebles();}
+function tblPlacas(idx,val){if(!muebles[idx])return;const v=val===''?null:Math.max(1,+val||0)||null;muebles[idx].placas=v;muebles[idx].horas=calcHoras(v,muebles[idx].dif);renderMuebles();}
+function tblDif(idx,val){if(!muebles[idx]||muebles[idx].sin_datos)return;muebles[idx].dif=val;muebles[idx].horas=calcHoras(muebles[idx].placas,val);renderMuebles();}
+function tblSinDatos(idx,on){if(!muebles[idx])return;muebles[idx].sin_datos=on;if(on){muebles[idx].placas=null;muebles[idx].dif=null;muebles[idx].horas=null;}renderMuebles();}
+function continuarMuebles(){
+  const falta=muebles.filter(m=>estadoEst(m)==='falta');
+  if(falta.length){
+    alert('Falta estimar: '+falta.map(m=>m.codigo||'(sin código)').join(', ')+'\n\nCargá placas y tamaño de cada mueble, o marcá "no tengo datos" en los que no se puedan estimar todavía.');
+    return;
+  }
+  goStep(4);
+}
 function tblFlujo(idx,fid){
   if(!muebles[idx])return;
   const m=muebles[idx];
@@ -717,7 +772,7 @@ function tblFlujo(idx,fid){
 function tblHrs(idx,fid,val){if(!muebles[idx])return;if(!muebles[idx].hrsExtra)muebles[idx].hrsExtra={};muebles[idx].hrsExtra[fid]=val;}
 
 function addMueble(){
-  muebles.push({id:'mf_'+Date.now(),codigo:'C'+muebles.length.toString().padStart(2,'0'),nombre:'',cant:1,flujos:[],hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},placas:4,dif:2,horas:calcHoras(4,2),mats:[]});
+  muebles.push({id:'mf_'+Date.now(),codigo:'C'+muebles.length.toString().padStart(2,'0'),nombre:'',cant:1,flujos:[],hrsExtra:{tapiceria:0,herreria:0,lustre:0,electricidad:0,madera_maciza:0},placas:null,dif:null,sin_datos:false,horas:null,mats:[]});
   renderMuebles();
 }
 function delM(id){muebles=muebles.filter(m=>m.id!==id);renderMuebles();}
@@ -876,9 +931,11 @@ function renderResumen(){
 
   // verificar flujos internos sin horas
   const sinHrs=muebles.filter(m=>m.flujos.some(f=>FLUJOS_CONFIG[f]?.tipo==='interno'&&!(m.hrsExtra?.[f]>0)));
+  const sinDatos=muebles.filter(m=>m.sin_datos);
 
   document.getElementById('res-datos').innerHTML=`
     ${sinHrs.length?`<div class="warn-box" style="margin-bottom:14px;">⚠ Los siguientes muebles tienen flujos internos sin horas estimadas: <strong>${sinHrs.map(m=>m.codigo).join(', ')}</strong>. Podés guardar igual y completarlos después.</div>`:''}
+    ${sinDatos.length?`<div class="warn-box" style="margin-bottom:14px;">⚠ Sin estimación (marcados "sin datos"): <strong>${sinDatos.map(m=>m.codigo).join(', ')}</strong>. Quedan fuera de la predicción de capacidad hasta que alguien los estime.</div>`:''}
     <div class="res-row"><span style="color:var(--muted);">Documento</span><span class="mono" style="color:var(--amber);font-weight:700;">${num||'—'}</span></div>
     <div class="res-row"><span style="color:var(--muted);">Obra</span><span style="font-weight:600;">${obra||'—'}</span></div>
     <div class="res-row"><span style="color:var(--muted);">Cliente</span><span>${cli||'—'}</span></div>
@@ -890,7 +947,7 @@ function renderResumen(){
   const tot={};CENTROS.forEach(c=>{tot[c]=0;});let gran=0;
   let hrsExtrasTotal=0;
   muebles.forEach(m=>{
-    CENTROS.forEach(c=>{const h=(m.horas[c]||0)*m.cant;tot[c]+=h;gran+=h;});
+    CENTROS.forEach(c=>{const h=((m.horas||{})[c]||0)*m.cant;tot[c]+=h;gran+=h;});
     if(m.hrsExtra)Object.values(m.hrsExtra).forEach(h=>{hrsExtrasTotal+=(h||0)*m.cant;});
   });
 
@@ -912,7 +969,7 @@ function renderResumen(){
       </div>
     </div>
     <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">DETALLE POR MUEBLE</div>
-    ${muebles.map(m=>{const ht=CENTROS.reduce((a,c)=>a+(m.horas[c]||0),0)*m.cant;const hte=Object.values(m.hrsExtra||{}).reduce((a,v)=>a+v,0)*m.cant;return`<div class="res-row"><div><span class="mono" style="font-size:11px;color:var(--amber);margin-right:8px;">${m.codigo}</span><span style="font-size:13px;">${m.nombre||'Sin nombre'}</span><span class="mono" style="font-size:11px;color:var(--muted);margin-left:6px;">×${m.cant}</span><div style="margin-top:4px;display:flex;gap:5px;flex-wrap:wrap;">${tags(m)} ${hrsExtraM(m)}</div></div><div style="text-align:right;"><span class="mono" style="color:var(--amber);">${ht.toFixed(1)}h</span>${hte>0?`<br><span class="mono" style="font-size:11px;color:var(--blue);">+${hte.toFixed(1)}h int.</span>`:''}</div></div>`;}).join('')}`;
+    ${muebles.map(m=>{const ht=CENTROS.reduce((a,c)=>a+((m.horas||{})[c]||0),0)*m.cant;const hte=Object.values(m.hrsExtra||{}).reduce((a,v)=>a+v,0)*m.cant;return`<div class="res-row"><div><span class="mono" style="font-size:11px;color:var(--amber);margin-right:8px;">${m.codigo}</span><span style="font-size:13px;">${m.nombre||'Sin nombre'}</span><span class="mono" style="font-size:11px;color:var(--muted);margin-left:6px;">×${m.cant}</span><div style="margin-top:4px;display:flex;gap:5px;flex-wrap:wrap;">${tags(m)} ${hrsExtraM(m)}</div></div><div style="text-align:right;"><span class="mono" style="color:var(--amber);">${ht.toFixed(1)}h</span>${hte>0?`<br><span class="mono" style="font-size:11px;color:var(--blue);">+${hte.toFixed(1)}h int.</span>`:''}</div></div>`;}).join('')}`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -963,6 +1020,7 @@ function showErr(t,msg,show=1){const el=document.getElementById('err-'+t);if(!el
 
 document.getElementById('f-inicio').value=new Date().toISOString().split('T')[0];
 cargarListaODFs();
+cargarFormula();
 
 let _proyectosCache=[];
 fetch('/api/tiempos?action=proyectos-completos').then(r=>r.json()).then(d=>{
