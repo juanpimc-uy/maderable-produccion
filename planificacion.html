@@ -305,7 +305,10 @@ function renderGantt() {
   document.getElementById('gantt-legend').innerHTML = legendHtml;
 
   if (filtered.length === 0) {
-    document.getElementById('gantt-content').innerHTML = '<div class="empty-msg">Todos los muebles pendientes tienen fecha. Sin entregas pendientes.</div>';
+    var msg = _conFecha.length === 0
+      ? 'Todos los muebles pendientes tienen fecha. Sin entregas pendientes.'
+      : 'Sin resultados para el filtro o la búsqueda actual.';
+    document.getElementById('gantt-content').innerHTML = '<div class="empty-msg">' + msg + '</div>';
     return;
   }
 
@@ -398,6 +401,7 @@ function renderGantt() {
     // HOY line
     html += '<div class="tl-hoy" style="left:' + hoyX + 'px;"></div>';
 
+    var stripDaysSet = new Set();
     if (strip.length > 0) {
       // Sort strip by day
       var sortedStrip = strip.slice().sort(function(a,b){ return a.dia < b.dia ? -1 : a.dia > b.dia ? 1 : 0; });
@@ -411,15 +415,37 @@ function renderGantt() {
 
       // Colored cells
       sortedStrip.forEach(function(s) {
+        if (s.dia < W0) return; // FIX 2: no apilar días fuera de ventana en x=0
         var cx = dayX(s.dia);
         var color = ETAPA_COLORS[s.etapa] || TERCERO_COLOR;
-        // Check if etapa looks like a tercero (not in standard list)
         if (!ETAPA_COLORS[s.etapa]) color = TERCERO_COLOR;
         html += '<div class="tl-cell" style="left:' + cx + 'px;width:' + Math.max(DW - 1, 1) + 'px;background:' + color + ';" title="' + esc(s.dia) + ' · ' + esc(s.etapa) + '"></div>';
+        stripDaysSet.add(s.dia);
       });
     } else {
       // sin actividad: dashed bar from W0 to today
       html += '<div class="tl-dashed" style="left:0px;width:' + hoyX + 'px;"></div>';
+    }
+
+    // FIX 1: pintar ventanas de terceros (días sin etapa → violeta)
+    if (m.terceros && m.terceros.length) {
+      m.terceros.forEach(function(t) {
+        if (!t.desde) return;
+        var tDesde = t.desde > W0 ? t.desde : W0;
+        var tHasta = (t.hasta || TODAY) < W1 ? (t.hasta || TODAY) : W1;
+        var cur = new Date(tDesde + 'T00:00:00');
+        var fin = new Date(tHasta + 'T00:00:00');
+        var guard = 0;
+        while (cur <= fin && guard < 120) {
+          var ds = cur.toISOString().slice(0,10);
+          if (!stripDaysSet.has(ds)) {
+            var tcx = dayX(ds);
+            html += '<div class="tl-cell" style="left:' + tcx + 'px;width:' + Math.max(DW - 1, 1) + 'px;background:#8a5cc0;" title="' + esc(ds) + ' · EN TERCERO · ' + esc(t.prov||'') + '"></div>';
+          }
+          cur = new Date(cur.getTime() + 86400000);
+          guard++;
+        }
+      });
     }
 
     // Overdue wash
@@ -490,7 +516,10 @@ function renderSinFecha() {
     '<span class="stat muted">' + order.length + ' proyectos</span>';
 
   if (order.length === 0) {
-    document.getElementById('sf-content').innerHTML = '<div class="empty-msg">Todos los muebles pendientes tienen fecha &#10003;</div>';
+    var msg = _sinFecha.length === 0
+      ? 'Todos los muebles pendientes tienen fecha &#10003;'
+      : 'Sin resultados para la búsqueda.';
+    document.getElementById('sf-content').innerHTML = '<div class="empty-msg">' + msg + '</div>';
     return;
   }
 
@@ -590,9 +619,8 @@ async function onApplyAll(proyecto_id) {
   var dateInput = document.getElementById('sf-all-date-' + proyecto_id);
   var value = dateInput ? dateInput.value : '';
   if (!value) { alert('Selecciona una fecha primero.'); return; }
-  if (!confirm('Asignar fecha ' + value + ' a todos los muebles de este proyecto?')) return;
 
-  // Gather all items of this project in sinFecha
+  // Armar entregas ANTES del confirm para mostrar el conteo
   var entregas = [];
   _sinFecha.forEach(function(m) {
     if (m.proyecto_id === proyecto_id) {
@@ -600,6 +628,7 @@ async function onApplyAll(proyecto_id) {
     }
   });
   if (entregas.length === 0) return;
+  if (!confirm('Asignar fecha ' + value + ' a ' + entregas.length + ' muebles de este proyecto?')) return;
 
   try {
     var r = await fetch('/api/tiempos?action=set-entrega-comprometida', {
