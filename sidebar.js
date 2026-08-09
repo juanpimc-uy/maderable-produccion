@@ -14,6 +14,7 @@
       roles: ['admin','oficina'], group: true, collapsible: true, defaultOpen: false, navigable: true,
       children: [
         { id: 'planificacion', icon: '▤', label: 'Planificación', page: 'planificacion.html', roles: ['admin','oficina'] },
+        { id: 'capacidad', icon: '▥', label: 'Capacidad', page: 'capacidad.html', roles: ['admin','oficina'] },
       ] },
     { id: 'retrabajos', icon: 'ↄ', label: 'Retrabajos', page: 'admin.html', section: 'retrabajos', roles: ['admin','oficina'] },
     { type: 'sep' },
@@ -82,6 +83,7 @@
       'armado-so-planta.html':'kitting',
       'recepciones-oc.html':  'recepcion',
       'planificacion.html':   'planificacion',
+      'capacidad.html':       'capacidad',
       'madera.html':          'madera',
       'tercerizados.html':    'tercerizados-dyn',
       'informes.html':        (function(){ var v = new URLSearchParams(location.search).get('vista'); return v === 'facturas' ? 'facturas' : v === 'lean' ? 'lean' : 'costos'; })(),

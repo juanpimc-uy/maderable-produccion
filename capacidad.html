@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:,">
+<script src="/js/supabase-config.js"></script>
+<script src="/js/auth.js"></script>
+<title>Maderable · Capacidad</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+:root {
+  --bg:#0f0f0f; --panel:#1e1e1e; --card:#252525; --border:#2a2a2a;
+  --text:#e8e8e8; --muted:#888; --muted2:#5a5a5a; --faint:#1a1a1a;
+  --accent:#FFD600; --green:#4ade80; --red:#ef4444; --gris:#6f6f6f;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
+.mono{font-family:'Space Mono',monospace;}
+.main{margin-left:200px;padding:24px 28px;max-width:1180px;}
+h1{font-family:'Space Mono',monospace;font-size:15px;letter-spacing:3px;text-transform:uppercase;margin-bottom:20px;}
+.err-box{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.4);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--red);display:none;}
+
+.head{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:12px;margin-bottom:24px;}
+.hcard{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px 18px;}
+.hcard .lbl{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:8px;}
+.hcard .big{font-family:'Space Mono',monospace;font-size:24px;font-weight:700;}
+.hcard .sub{font-size:11px;color:var(--muted);margin-top:4px;}
+.hueco{border-color:rgba(255,214,0,.5);}
+.hueco .big{color:var(--accent);}
+
+.chart-card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:20px;}
+.chart{display:flex;gap:8px;align-items:flex-end;padding-top:14px;overflow-x:auto;}
+.wk{flex:1;min-width:64px;display:flex;flex-direction:column;align-items:center;cursor:pointer;}
+.barwrap{width:100%;max-width:54px;position:relative;height:200px;display:flex;flex-direction:column;justify-content:flex-end;}
+.cap-line{position:absolute;left:-4px;right:-4px;border-top:2px dashed #777;z-index:3;}
+.stack{width:100%;position:relative;display:flex;flex-direction:column;justify-content:flex-end;border-radius:3px 3px 0 0;overflow:hidden;}
+.seg-sin{width:100%;background:var(--gris);}
+.seg-est{width:100%;background:var(--accent);}
+.ovl{position:absolute;top:0;left:0;right:0;background:var(--red);z-index:2;}
+.wklbl{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin-top:8px;white-space:nowrap;}
+.wk.sel .wklbl{color:var(--accent);}
+.capin{width:54px;margin-top:4px;background:#151515;border:1px solid var(--border);border-radius:4px;color:var(--muted);font-family:'Space Mono',monospace;font-size:10px;padding:2px 4px;text-align:center;}
+.capin:disabled{opacity:.5;}
+.wkpct{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;margin-top:3px;}
+.leyenda{display:flex;gap:16px;margin-top:14px;font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;flex-wrap:wrap;}
+.leyenda span{display:inline-flex;align-items:center;gap:6px;}
+.sw{width:12px;height:12px;border-radius:2px;display:inline-block;}
+
+.sinfecha{background:var(--panel);border:1px dashed var(--border);border-radius:10px;padding:12px 20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);}
+.sinfecha a{color:var(--accent);}
+
+.det{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px 20px;}
+.det h3{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;color:var(--accent);margin-bottom:12px;}
+.drow{display:grid;grid-template-columns:1fr 110px 90px;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;align-items:center;}
+.drow:last-child{border-bottom:none;}
+.drow .h{text-align:right;font-family:'Space Mono',monospace;}
+.badge{font-family:'Space Mono',monospace;font-size:8px;font-weight:700;letter-spacing:1px;padding:2px 6px;border-radius:3px;text-align:center;}
+.b-est{background:rgba(255,214,0,.12);color:var(--accent);border:1px solid rgba(255,214,0,.4);}
+.b-sin{background:#2a2a2a;color:var(--muted);border:1px solid var(--border);}
+.b-atr{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.4);margin-left:4px;}
+.totrow{display:flex;justify-content:space-between;padding-top:12px;font-family:'Space Mono',monospace;font-size:12px;}
+.loading{text-align:center;color:var(--muted);font-family:'Space Mono',monospace;font-size:12px;padding:60px 0;}
+</style>
+</head>
+<body>
+<div class="main">
+  <h1>Capacidad de planta</h1>
+  <div class="err-box" id="err-box"></div>
+  <div id="content"><div class="loading">Cargando…</div></div>
+</div>
+
+<script src="sidebar.js"></script>
+<script>
+let DATA = null, sel = 0, puedeEditar = false;
+
+function fmtWk(iso){
+  const d = new Date(iso + 'T00:00:00Z');
+  const dd = String(d.getUTCDate()).padStart(2,'0');
+  const mes = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SET','OCT','NOV','DIC'][d.getUTCMonth()];
+  return dd + ' ' + mes;
+}
+function showErr(msg){
+  const b = document.getElementById('err-box');
+  b.textContent = '⚠ ' + msg; b.style.display = 'block';
+}
+
+async function cargar(){
+  try {
+    const r = await fetch('/api/capacidad?action=semanas');
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    DATA = d;
+    // seleccionar la semana actual si existe
+    sel = Math.max(0, DATA.semanas.findIndex(s => s.semana >= DATA.semana_actual));
+    render();
+  } catch(e) {
+    document.getElementById('content').innerHTML = '';
+    showErr('No se pudo cargar capacidad: ' + e.message);
+  }
+}
+
+function render(){
+  const D = DATA;
+  if (!D.semanas.length) {
+    document.getElementById('content').innerHTML =
+      '<div class="loading">No hay muebles pendientes con fecha comprometida.<br>Asigná fechas desde Planificación para que aparezcan acá.</div>';
+    return;
+  }
+  const maxCap = Math.max(...D.semanas.map(s => Math.max(s.cap, s.est + s.sin)), 100);
+  const H = 200;
+
+  // headline
+  const actual = D.semanas.find(s => s.semana === D.semana_actual);
+  const pctActual = actual ? Math.round((actual.est + actual.sin) / actual.cap * 100) : null;
+  const hueco = D.semanas.find(s => s.semana >= D.semana_actual && (s.est + s.sin) < s.cap);
+
+  const head = `<div class="head">
+    <div class="hcard hueco">
+      <div class="lbl">Primera semana con hueco</div>
+      <div class="big">${hueco ? fmtWk(hueco.semana) : '—'}</div>
+      <div class="sub">${hueco ? '≈ ' + Math.round(hueco.cap - hueco.est - hueco.sin) + ' h de taller libres' : 'ninguna semana con margen a la vista'}</div>
+    </div>
+    <div class="hcard">
+      <div class="lbl">Esta semana</div>
+      <div class="big" style="color:${pctActual == null ? 'var(--muted)' : pctActual > 100 ? 'var(--red)' : pctActual > 85 ? 'var(--accent)' : 'var(--green)'};">${pctActual == null ? '—' : pctActual + '%'}</div>
+      <div class="sub">${actual ? Math.round(actual.est + actual.sin) + 'h comprometidas / ' + actual.cap + 'h' : 'sin carga con fecha esta semana'}</div>
+    </div>
+    <div class="hcard">
+      <div class="lbl">Capacidad por semana</div>
+      <div class="big" style="font-size:14px;color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:400;">Editá el número bajo cada barra ↓</div>
+      <div class="sub">Fórmula: ${D.formula_usada.h_por_placa_taller} h/placa de taller (Ajustes → Fórmula)</div>
+    </div>
+    <div class="hcard">
+      <div class="lbl">Carga sin estimar</div>
+      <div class="big" style="color:var(--gris);">≈${D.sin_estimar.horas}<span style="font-size:13px;color:var(--muted);">h</span></div>
+      <div class="sub">${D.sin_estimar.muebles} muebles sin placas/tamaño (incluye los viejos en 4/M)</div>
+    </div>
+  </div>`;
+
+  const barras = D.semanas.map((s, i) => {
+    const dem = s.est + s.sin;
+    const totH = Math.round(dem / maxCap * H);
+    const estH = Math.round(s.est / maxCap * H);
+    const capPos = Math.round(s.cap / maxCap * H);
+    const overH = dem > s.cap ? Math.round((dem - s.cap) / maxCap * H) : 0;
+    const pct = Math.round(dem / s.cap * 100);
+    return `<div class="wk ${i === sel ? 'sel' : ''}" onclick="selWk(${i})">
+      <div class="barwrap">
+        <div class="cap-line" style="bottom:${capPos}px;"></div>
+        <div class="stack" style="height:${totH}px;">
+          <div class="ovl" style="height:${overH}px;"></div>
+          <div class="seg-sin" style="height:${totH - estH}px;"></div>
+          <div class="seg-est" style="height:${estH}px;"></div>
+        </div>
+      </div>
+      <div class="wklbl">${fmtWk(s.semana)}</div>
+      <input class="capin" type="number" value="${s.cap}" min="50" step="10" ${puedeEditar ? '' : 'disabled title="Solo admin/oficina"'}
+        onclick="event.stopPropagation()" onchange="setCap(${i}, this.value)"/>
+      <div class="wkpct" style="color:${pct > 100 ? 'var(--red)' : pct > 85 ? 'var(--accent)' : 'var(--green)'};">${pct}%</div>
+    </div>`;
+  }).join('');
+
+  const chart = `<div class="chart-card">
+    <div class="chart">${barras}</div>
+    <div class="leyenda">
+      <span><span class="sw" style="border-top:2px dashed #777;height:0;"></span> capacidad de la semana</span>
+      <span><span class="sw" style="background:var(--accent);"></span> con fecha + estimado</span>
+      <span><span class="sw" style="background:var(--gris);"></span> con fecha, sin estimar (≈)</span>
+      <span><span class="sw" style="background:var(--red);"></span> no entra</span>
+    </div>
+  </div>`;
+
+  const sf = `<div class="sinfecha">
+    <span>⚠ En producción <b>sin fecha comprometida</b> (no aparecen en ninguna semana):</span>
+    <span class="mono">${D.sin_fecha.muebles} muebles · ≈ ${D.sin_fecha.horas} h — <a href="/planificacion.html">asignar en Planificación →</a></span>
+  </div>`;
+
+  const s = D.semanas[sel];
+  const dem = s ? s.est + s.sin : 0;
+  const det = s ? `<div class="det">
+    <h3>SEMANA DEL ${fmtWk(s.semana)} — ${Math.round(dem)}h comprometidas / ${s.cap}h${s.sin ? ` · <span style="color:var(--gris)">≈${Math.round(s.sin)}h sin estimar</span>` : ''}</h3>
+    ${s.items.map(it => `<div class="drow">
+      <div><span class="mono" style="color:var(--accent);font-size:11px;margin-right:8px;">${it.numero || ''} ${it.codigo || ''}</span>${it.nombre || ''}<span style="color:var(--muted);font-size:11px;"> · ${it.proyecto || ''}</span></div>
+      <div><span class="badge ${it.estado === 'est' ? 'b-est' : 'b-sin'}">${it.estado === 'est' ? 'ESTIMADO' : 'SIN ESTIMAR'}</span>${it.atrasado ? '<span class="badge b-atr">VENCIDA</span>' : ''}</div>
+      <div class="h" style="color:${it.estado === 'est' ? 'var(--accent)' : 'var(--muted)'};">${it.estado === 'est' ? '' : '≈ '}${Math.round(it.h)}h</div>
+    </div>`).join('')}
+    <div class="totrow">
+      <span style="color:var(--muted);">${dem > s.cap ? '⚠ ' + Math.round(dem - s.cap) + 'h no entran en la semana' : 'Margen libre: ' + Math.round(s.cap - dem) + 'h'}</span>
+      <span style="color:${dem > s.cap ? 'var(--red)' : 'var(--green)'};">${Math.round(dem / s.cap * 100)}% ocupada</span>
+    </div>
+  </div>` : '';
+
+  document.getElementById('content').innerHTML = head + chart + sf + det;
+}
+
+function selWk(i){ sel = i; render(); }
+
+async function setCap(i, val){
+  const v = Math.max(50, +val || 0);
+  const s = DATA.semanas[i];
+  const cfg = DATA.config;
+  if (!cfg.semanas) cfg.semanas = {};
+  cfg.semanas[s.semana] = v;
+  s.cap = v;
+  render();
+  try {
+    const r = await fetch('/api/tiempos?action=guardar-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_token: window.AUTH.getSessionToken(), clave: 'capacidad_semanal', valor: cfg }),
+    });
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.error || ('HTTP ' + r.status));
+  } catch(e) {
+    showErr('La capacidad de ' + fmtWk(s.semana) + ' NO se guardó: ' + e.message + ' — recargá y reintentá.');
+  }
+}
+
+(async function init(){
+  if (window.AUTH) {
+    const valid = await window.AUTH.checkSession();
+    if (!valid) return;
+    const u = window.AUTH.usuarioActual();
+    puedeEditar = !!u && (u.rol_app === 'admin' || u.rol_app === 'oficina');
+  }
+  cargar();
+})();
+</script>
+</body>
+</html>
