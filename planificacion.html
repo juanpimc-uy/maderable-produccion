@@ -12,7 +12,7 @@
 :root {
   --bg:#0f0f0f; --panel:#1e1e1e; --card:#252525; --border:#2a2a2a; --borderL:#333;
   --text:#e8e8e8; --muted:#888; --faint:#1a1a1a;
-  --accent:#FFD600; --amber:#FFD600; --green:#4ade80; --red:#ef4444; --blue:#3b82f6;
+  --accent:#FFD600; --amber:#FFD600; --green:#3DD68C; --red:#F05C5C; --blue:#3b82f6;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
@@ -86,7 +86,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .gantt-right-inner .counter{font-family:'Space Mono',monospace;font-size:11px;white-space:nowrap;flex-shrink:0;}
 .gantt-right-inner input[type="date"]{background:#1a1a1a;border:1px solid var(--border);color:var(--text);
   font-family:'Space Mono',monospace;font-size:11px;padding:2px 4px;border-radius:3px;width:120px;}
-.gantt-right-inner .btn-completar{background:none;border:1px solid var(--green);color:var(--green);
+.gantt-right-inner .btn-completar{background:none;border:1px solid var(--border);color:var(--muted);
   font-family:'Space Mono',monospace;font-size:10px;padding:2px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;}
 .gantt-right-inner .btn-completar:hover{background:var(--green);color:#000;}
 
@@ -96,7 +96,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .tl-cell{position:absolute;height:16px;top:3px;border-radius:1px;}
 .tl-entrega{position:absolute;width:2px;top:0;height:100%;background:var(--red);}
 .tl-hoy{position:absolute;width:1px;top:0;height:100%;background:#FFD60077;}
-.tl-overdue-wash{position:absolute;top:0;height:100%;background:rgba(239,68,68,0.08);}
+.tl-overdue-wash{position:absolute;top:0;height:100%;background:rgba(240,92,92,0.08);}
 .tl-dashed{position:absolute;height:2px;top:10px;border-top:2px dashed #555;opacity:.55;}
 
 /* Month labels */
@@ -127,7 +127,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .sf-row .name{font-size:12px;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sf-row input[type="date"]{background:#1a1a1a;border:1px solid var(--border);color:var(--text);
   font-family:'Space Mono',monospace;font-size:11px;padding:2px 4px;border-radius:3px;width:120px;}
-.sf-row .btn-completar{background:none;border:1px solid var(--green);color:var(--green);
+.sf-row .btn-completar{background:none;border:1px solid var(--border);color:var(--muted);
   font-family:'Space Mono',monospace;font-size:10px;padding:2px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;}
 .sf-row .btn-completar:hover{background:var(--green);color:#000;}
 
@@ -670,7 +670,6 @@ async function onApplyAll(proyecto_id) {
 }
 
 async function onCompletar(proyecto_id, item_id, codigo, nombre) {
-  if (!confirm('Completar ' + codigo + ' — ' + nombre + '?')) return;
   try {
     var st = window.AUTH.getSessionToken();
     var r = await fetch('/api/tiempos?action=marcar-item&st=' + encodeURIComponent(st), {
