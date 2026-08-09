@@ -10,7 +10,11 @@
 
   var NAV_ITEMS = [
     { id: 'dashboard',  icon: '◈', label: 'Dashboard',  page: 'admin.html', section: 'dashboard',  roles: ['admin','oficina'] },
-    { id: 'proyectos',  icon: '▦', label: 'Proyectos',  page: 'admin.html', section: 'proyectos',  roles: ['admin','oficina'] },
+    { id: 'proyectos',  icon: '▦', label: 'Proyectos',  page: 'admin.html', section: 'proyectos',
+      roles: ['admin','oficina'], group: true, collapsible: true, defaultOpen: false, navigable: true,
+      children: [
+        { id: 'planificacion', icon: '▤', label: 'Planificación', page: 'planificacion.html', roles: ['admin','oficina'] },
+      ] },
     { id: 'retrabajos', icon: 'ↄ', label: 'Retrabajos', page: 'admin.html', section: 'retrabajos', roles: ['admin','oficina'] },
     { type: 'sep' },
     { id: 'operarios',  icon: '◎', label: 'Operarios',  page: 'admin.html', section: 'operarios',  roles: ['admin'] },
@@ -77,6 +81,7 @@
       'armado-so.html':       'kitting',
       'armado-so-planta.html':'kitting',
       'recepciones-oc.html':  'recepcion',
+      'planificacion.html':   'planificacion',
       'madera.html':          'madera',
       'tercerizados.html':    'tercerizados-dyn',
       'informes.html':        (function(){ var v = new URLSearchParams(location.search).get('vista'); return v === 'facturas' ? 'facturas' : v === 'lean' ? 'lean' : 'costos'; })(),
@@ -130,10 +135,25 @@
       var children = (item.children || []).filter(function(c){ return !c.type && (!c.roles || c.roles.includes(rol)) && !c.hidden; });
       var open = isGroupOpen(item.id, item.defaultOpen);
       var hasActive = findActiveInChildren(children, activeId);
-      var arrow = item.collapsible ? '<span class="nav-group-arrow' + (open ? ' open' : '') + '">\u25B8</span>' : '';
+      // Si un hijo está activo, forzar abierto
+      if (hasActive) open = true;
+      var arrow = item.collapsible ? '<span class="nav-group-arrow' + (open ? ' open' : '') + '" onclick="_sbToggleGroup(\'' + item.id + '\');event.stopPropagation();event.preventDefault();return false;" style="padding:4px 8px;margin:-4px -8px;cursor:pointer;">\u25B8</span>' : '';
       var hdrCls = 'nav-item nav-group-header' + (hasActive ? ' has-active' : '');
-      var onclick = item.collapsible ? ' onclick="_sbToggleGroup(\'' + item.id + '\')"' : '';
-      var html = '<div class="' + hdrCls + '" style="padding-left:' + pad + 'px;"' + onclick + '>' + iconHtml(item) + ' ' + item.label + arrow + '</div>';
+      var html;
+      if (item.navigable && (item.section || item.page)) {
+        // Grupo navegable: clic en header navega, caret solo toggle
+        if (ON_ADMIN && item.section) {
+          html = '<div class="' + hdrCls + '" style="padding-left:' + pad + 'px;" onclick="navTo(\'' + item.section + '\')">' + iconHtml(item) + ' ' + item.label + arrow + '</div>';
+        } else if (!ON_ADMIN && item.section) {
+          html = '<a href="admin.html#' + item.section + '" style="text-decoration:none;"><div class="' + hdrCls + '" style="padding-left:' + pad + 'px;">' + iconHtml(item) + ' ' + item.label + arrow + '</div></a>';
+        } else if (item.page) {
+          html = '<a href="' + item.page + '" style="text-decoration:none;"><div class="' + hdrCls + '" style="padding-left:' + pad + 'px;">' + iconHtml(item) + ' ' + item.label + arrow + '</div></a>';
+        }
+      } else {
+        // Grupo no navegable: clic en todo el header toggle
+        var onclick = item.collapsible ? ' onclick="_sbToggleGroup(\'' + item.id + '\')"' : '';
+        html = '<div class="' + hdrCls + '" style="padding-left:' + pad + 'px;"' + onclick + '>' + iconHtml(item) + ' ' + item.label + arrow + '</div>';
+      }
       if (open || !item.collapsible) {
         html += '<div class="nav-group-body" id="sb-grp-' + item.id + '">';
         for (var i = 0; i < children.length; i++) {
