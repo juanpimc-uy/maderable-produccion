@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:,">
+<script src="/js/supabase-config.js"></script>
+<script src="/js/auth.js"></script>
+<title>Maderable · Planificación</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+:root {
+  --bg:#0f0f0f; --panel:#1e1e1e; --card:#252525; --border:#2a2a2a; --borderL:#333;
+  --text:#e8e8e8; --muted:#888; --faint:#1a1a1a;
+  --accent:#FFD600; --amber:#FFD600; --green:#4ade80; --red:#ef4444; --blue:#3b82f6;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:#333;border-radius:2px;}
+
+.main{margin-left:200px;padding:24px 28px;}
+
+/* Tabs */
+.tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid var(--border);}
+.tab-btn{background:none;border:none;color:var(--muted);font-family:'Space Mono',monospace;font-size:13px;
+  padding:10px 20px;cursor:pointer;border-bottom:2px solid transparent;transition:.2s;}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-btn:hover{color:var(--text);}
+.tab-badge{display:inline-block;font-size:11px;padding:1px 7px;border-radius:8px;margin-left:6px;
+  background:#333;color:var(--muted);font-family:'Space Mono',monospace;}
+.tab-badge.red{background:var(--red);color:#fff;}
+
+/* Stats bar */
+.stats-bar{display:flex;align-items:center;gap:18px;margin-bottom:14px;flex-wrap:wrap;}
+.stat{font-family:'Space Mono',monospace;font-size:13px;}
+.stat.red{color:var(--red);}
+.stat.amber{color:var(--amber);}
+.stat.muted{color:var(--muted);}
+.stat.green{color:var(--green);}
+
+/* Filter chips */
+.chips{display:flex;gap:6px;margin-bottom:14px;}
+.chip{background:#252525;border:1px solid var(--border);color:var(--muted);font-family:'Space Mono',monospace;
+  font-size:11px;padding:4px 12px;border-radius:4px;cursor:pointer;transition:.15s;}
+.chip.active{background:var(--accent);color:#000;border-color:var(--accent);}
+.chip:hover{border-color:var(--muted);}
+
+/* Search */
+.search-input{background:#1a1a1a;border:1px solid var(--border);color:var(--text);font-family:'DM Sans',sans-serif;
+  font-size:13px;padding:6px 12px;border-radius:4px;width:260px;outline:none;}
+.search-input:focus{border-color:var(--accent);}
+.search-input::placeholder{color:#555;}
+
+/* Legend */
+.legend{display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
+.legend-item{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;}
+.legend-swatch{width:12px;height:12px;border-radius:2px;display:inline-block;}
+
+/* Gantt container */
+.gantt-wrapper{position:relative;overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 260px);
+  border:1px solid var(--border);border-radius:6px;background:var(--panel);}
+.gantt-table{border-collapse:collapse;width:max-content;min-width:100%;}
+.gantt-header-row{position:sticky;top:0;z-index:3;background:var(--panel);}
+.gantt-header-row th{padding:0;border-bottom:1px solid var(--border);}
+.gantt-row{height:26px;border-bottom:1px solid #1a1a1a;}
+.gantt-row:hover{background:#1a1a1a;}
+
+.gantt-left{position:sticky;left:0;z-index:2;background:var(--panel);width:350px;min-width:350px;max-width:350px;
+  padding:2px 8px;vertical-align:middle;border-right:1px solid var(--border);}
+.gantt-row:hover .gantt-left{background:#1a1a1a;}
+.gantt-left-inner{display:flex;flex-direction:column;gap:0;overflow:hidden;}
+.gantt-left-top{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gantt-left-top .num{color:#999;font-family:'Space Mono',monospace;}
+.gantt-left-bot{display:flex;gap:6px;align-items:center;overflow:hidden;}
+.gantt-left-bot .code{font-family:'Space Mono',monospace;font-size:12px;color:var(--amber);flex-shrink:0;}
+.gantt-left-bot .name{font-size:12px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+.gantt-timeline{position:relative;padding:0;vertical-align:middle;}
+.gantt-right{position:sticky;right:0;z-index:2;background:var(--panel);width:290px;min-width:290px;max-width:290px;
+  padding:2px 8px;vertical-align:middle;border-left:1px solid var(--border);}
+.gantt-row:hover .gantt-right{background:#1a1a1a;}
+.gantt-right-inner{display:flex;align-items:center;gap:8px;}
+.gantt-right-inner .counter{font-family:'Space Mono',monospace;font-size:11px;white-space:nowrap;flex-shrink:0;}
+.gantt-right-inner input[type="date"]{background:#1a1a1a;border:1px solid var(--border);color:var(--text);
+  font-family:'Space Mono',monospace;font-size:11px;padding:2px 4px;border-radius:3px;width:120px;}
+.gantt-right-inner .btn-completar{background:none;border:1px solid var(--green);color:var(--green);
+  font-family:'Space Mono',monospace;font-size:10px;padding:2px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;}
+.gantt-right-inner .btn-completar:hover{background:var(--green);color:#000;}
+
+/* Timeline canvas */
+.tl-canvas{position:relative;height:22px;}
+.tl-bar{position:absolute;height:2px;top:10px;background:#444;border-radius:1px;}
+.tl-cell{position:absolute;height:16px;top:3px;border-radius:1px;}
+.tl-entrega{position:absolute;width:2px;top:0;height:100%;background:var(--red);}
+.tl-hoy{position:absolute;width:1px;top:0;height:100%;background:#FFD60077;}
+.tl-overdue-wash{position:absolute;top:0;height:100%;background:rgba(239,68,68,0.08);}
+.tl-dashed{position:absolute;height:2px;top:10px;border-top:2px dashed #555;opacity:.55;}
+
+/* Month labels */
+.month-labels{display:flex;position:relative;height:18px;background:var(--panel);}
+.month-label{position:absolute;font-size:10px;font-family:'Space Mono',monospace;color:var(--muted);top:2px;}
+.week-bands{position:relative;height:100%;}
+
+/* Sin fecha tab */
+.sf-container{max-height:calc(100vh - 260px);overflow-y:auto;}
+.sf-group{margin-bottom:16px;border:1px solid var(--border);border-radius:6px;background:var(--panel);overflow:hidden;}
+.sf-group-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+  background:#1a1a1a;border-bottom:1px solid var(--border);gap:12px;flex-wrap:wrap;}
+.sf-group-header .proj-num{font-family:'Space Mono',monospace;font-size:13px;color:var(--amber);}
+.sf-group-header .proj-name{font-size:13px;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sf-group-header .badge{font-family:'Space Mono',monospace;font-size:11px;background:var(--red);color:#fff;
+  padding:1px 8px;border-radius:8px;flex-shrink:0;}
+.sf-group-right{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.sf-group-right label{font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;}
+.sf-group-right input[type="date"]{background:#1a1a1a;border:1px solid var(--border);color:var(--text);
+  font-family:'Space Mono',monospace;font-size:11px;padding:2px 6px;border-radius:3px;}
+.sf-group-right .btn-aplicar{background:none;border:1px solid var(--amber);color:var(--amber);
+  font-family:'Space Mono',monospace;font-size:10px;padding:2px 10px;border-radius:3px;cursor:pointer;}
+.sf-group-right .btn-aplicar:hover{background:var(--amber);color:#000;}
+
+.sf-row{display:flex;align-items:center;padding:6px 14px;border-bottom:1px solid #1a1a1a;gap:10px;height:34px;}
+.sf-row:last-child{border-bottom:none;}
+.sf-row .code{font-family:'Space Mono',monospace;font-size:12px;color:var(--amber);flex-shrink:0;width:90px;}
+.sf-row .name{font-size:12px;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sf-row input[type="date"]{background:#1a1a1a;border:1px solid var(--border);color:var(--text);
+  font-family:'Space Mono',monospace;font-size:11px;padding:2px 4px;border-radius:3px;width:120px;}
+.sf-row .btn-completar{background:none;border:1px solid var(--green);color:var(--green);
+  font-family:'Space Mono',monospace;font-size:10px;padding:2px 8px;border-radius:3px;cursor:pointer;white-space:nowrap;}
+.sf-row .btn-completar:hover{background:var(--green);color:#000;}
+
+/* Empty & error */
+.empty-msg{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px;}
+.error-msg{text-align:center;padding:40px 20px;color:var(--red);font-size:14px;}
+.loading-msg{text-align:center;padding:60px 20px;color:var(--muted);font-size:13px;font-family:'Space Mono',monospace;}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<script src="sidebar.js"></script>
+<div id="sidebar-root"></div>
+
+<!-- MAIN -->
+<div class="main">
+
+<div class="tabs">
+  <button class="tab-btn active" id="tab-gantt" onclick="switchTab('gantt')">GANTT ENTREGAS <span class="tab-badge" id="badge-gantt">0</span></button>
+  <button class="tab-btn" id="tab-sinfecha" onclick="switchTab('sinfecha')">SIN FECHA <span class="tab-badge" id="badge-sinfecha">0</span></button>
+</div>
+
+<div id="panel-gantt">
+  <div class="stats-bar" id="gantt-stats"></div>
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;flex-wrap:wrap;">
+    <div class="chips" id="gantt-chips"></div>
+    <input class="search-input" id="gantt-search" placeholder="Buscar proyecto / ODF..." oninput="renderGantt()">
+  </div>
+  <div class="legend" id="gantt-legend"></div>
+  <div id="gantt-content"><div class="loading-msg">Cargando...</div></div>
+</div>
+
+<div id="panel-sinfecha" style="display:none;">
+  <div class="stats-bar" id="sf-stats"></div>
+  <div style="margin-bottom:12px;">
+    <input class="search-input" id="sf-search" placeholder="Buscar proyecto..." oninput="renderSinFecha()">
+  </div>
+  <div id="sf-content"><div class="loading-msg">Cargando...</div></div>
+</div>
+
+</div><!-- .main -->
+
+<script>
+// ── Globals ──
+const TODAY = new Date().toISOString().slice(0,10);
+const DW = 7; // day width px
+
+const ETAPA_COLORS = {
+  MODELADO:'#3b6ea5', CAM:'#5fa8d3', CORTE:'#e8833a',
+  'ENCH/PERF':'#b08d57', ARMADO:'#FFD600', OTRO:'#6b6b6b'
+};
+const TERCERO_COLOR = '#8a5cc0';
+
+let _data = null;       // raw response
+let _conFecha = [];
+let _sinFecha = [];
+let _stripMap = {};     // "proyecto_id|item_id" → [{dia, etapa}]
+let _activeTab = 'gantt';
+let _ganttFilter = 'TODAS'; // TODAS | VENCIDAS | 30DIAS
+
+function daysBetween(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000); }
+
+// ── Auth ──
+(async function _auth() {
+  const u = window.AUTH?.usuarioActual();
+  if (!u) { window.location.href = '/index.html'; return; }
+  if (u.rol_app !== 'admin' && u.rol_app !== 'oficina') { window.location.href = '/index.html'; return; }
+  if (window.AUTH) { const valid = await window.AUTH.checkSession(); if (!valid) return; }
+  init();
+})();
+
+async function init() {
+  try {
+    const st = window.AUTH.getSessionToken();
+    const r = await fetch('/api/planificacion?action=gantt', {
+      headers: { 'Authorization': 'Bearer ' + st }
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const json = await r.json();
+    if (!json.ok) throw new Error(json.error || 'Error desconocido');
+    _data = json;
+    processData();
+    renderAll();
+  } catch (e) {
+    document.getElementById('gantt-content').innerHTML = '<div class="error-msg">Error al cargar datos: ' + esc(e.message) + '</div>';
+    document.getElementById('sf-content').innerHTML = '';
+  }
+}
+
+function processData() {
+  _stripMap = {};
+  (_data.strip || []).forEach(function(s) {
+    var k = s.proyecto_id + '|' + s.item_id;
+    if (!_stripMap[k]) _stripMap[k] = [];
+    _stripMap[k].push({ dia: s.dia, etapa: s.etapa });
+  });
+
+  _conFecha = [];
+  _sinFecha = [];
+  (_data.muebles || []).forEach(function(m) {
+    if (m.fecha_comprometida) _conFecha.push(m);
+    else _sinFecha.push(m);
+  });
+
+  // sort conFecha: vencidas first, then by fecha asc
+  _conFecha.sort(function(a, b) {
+    var aOver = a.fecha_comprometida < TODAY ? 0 : 1;
+    var bOver = b.fecha_comprometida < TODAY ? 0 : 1;
+    if (aOver !== bOver) return aOver - bOver;
+    return a.fecha_comprometida < b.fecha_comprometida ? -1 : a.fecha_comprometida > b.fecha_comprometida ? 1 : 0;
+  });
+}
+
+function renderAll() {
+  updateBadges();
+  renderGantt();
+  renderSinFecha();
+}
+
+function updateBadges() {
+  document.getElementById('badge-gantt').textContent = _conFecha.length;
+  var sfBadge = document.getElementById('badge-sinfecha');
+  sfBadge.textContent = _sinFecha.length;
+  sfBadge.className = 'tab-badge' + (_sinFecha.length > 0 ? ' red' : '');
+}
+
+// ── Tabs ──
+function switchTab(tab) {
+  _activeTab = tab;
+  document.getElementById('tab-gantt').className = 'tab-btn' + (tab === 'gantt' ? ' active' : '');
+  document.getElementById('tab-sinfecha').className = 'tab-btn' + (tab === 'sinfecha' ? ' active' : '');
+  document.getElementById('panel-gantt').style.display = tab === 'gantt' ? '' : 'none';
+  document.getElementById('panel-sinfecha').style.display = tab === 'sinfecha' ? '' : 'none';
+}
+
+// ── Gantt ──
+function renderGantt() {
+  var search = (document.getElementById('gantt-search').value || '').toLowerCase();
+  var filtered = _conFecha.filter(function(m) {
+    if (search && (m.numero || '').toLowerCase().indexOf(search) === -1 &&
+        (m.proyecto_nombre || '').toLowerCase().indexOf(search) === -1) return false;
+    if (_ganttFilter === 'VENCIDAS') return m.fecha_comprometida < TODAY;
+    if (_ganttFilter === '30DIAS') return daysBetween(TODAY, m.fecha_comprometida) <= 30;
+    return true;
+  });
+
+  // Stats
+  var nVencidas = 0, nSemana = 0, nProximas = 0;
+  _conFecha.forEach(function(m) {
+    var d = daysBetween(TODAY, m.fecha_comprometida);
+    if (d < 0) nVencidas++;
+    else if (d <= 7) nSemana++;
+    else nProximas++;
+  });
+  document.getElementById('gantt-stats').innerHTML =
+    '<span class="stat red">' + nVencidas + ' vencidas</span>' +
+    '<span class="stat amber">' + nSemana + ' esta semana</span>' +
+    '<span class="stat muted">' + nProximas + ' proximas</span>';
+
+  // Chips
+  document.getElementById('gantt-chips').innerHTML =
+    ['TODAS','VENCIDAS','30 DIAS'].map(function(c) {
+      var key = c.replace(' ','');
+      return '<button class="chip' + (_ganttFilter === key ? ' active' : '') + '" onclick="setGanttFilter(\'' + key + '\')">' + c + '</button>';
+    }).join('');
+
+  // Legend
+  var legendHtml = '';
+  Object.keys(ETAPA_COLORS).forEach(function(e) {
+    legendHtml += '<span class="legend-item"><span class="legend-swatch" style="background:' + ETAPA_COLORS[e] + '"></span>' + e + '</span>';
+  });
+  legendHtml += '<span class="legend-item"><span class="legend-swatch" style="background:' + TERCERO_COLOR + '"></span>Tercero</span>';
+  legendHtml += '<span class="legend-item"><span class="legend-swatch" style="background:var(--red)"></span>Entrega</span>';
+  legendHtml += '<span class="legend-item"><span class="legend-swatch" style="background:var(--amber);opacity:.5"></span>Hoy</span>';
+  document.getElementById('gantt-legend').innerHTML = legendHtml;
+
+  if (filtered.length === 0) {
+    document.getElementById('gantt-content').innerHTML = '<div class="empty-msg">Todos los muebles pendientes tienen fecha. Sin entregas pendientes.</div>';
+    return;
+  }
+
+  // Timeline window
+  var W0date = new Date(TODAY); W0date.setDate(W0date.getDate() - 45);
+  var W0 = W0date.toISOString().slice(0,10);
+  var maxFecha = TODAY;
+  filtered.forEach(function(m) { if (m.fecha_comprometida > maxFecha) maxFecha = m.fecha_comprometida; });
+  var W1date = new Date(maxFecha); W1date.setDate(W1date.getDate() + 7);
+  var W1 = W1date.toISOString().slice(0,10);
+  var totalDays = daysBetween(W0, W1);
+  var tlWidth = totalDays * DW;
+
+  function dayX(d) {
+    var dx = daysBetween(W0, d);
+    return Math.max(0, Math.min(dx * DW, tlWidth));
+  }
+
+  // Month labels
+  var monthsHtml = '';
+  var cur = new Date(W0);
+  var lastMonth = -1;
+  for (var i = 0; i <= totalDays; i++) {
+    var dd = new Date(W0); dd.setDate(dd.getDate() + i);
+    if (dd.getMonth() !== lastMonth) {
+      lastMonth = dd.getMonth();
+      var mNames = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+      monthsHtml += '<span class="month-label" style="left:' + (i * DW) + 'px">' + mNames[dd.getMonth()] + ' ' + dd.getFullYear() + '</span>';
+    }
+  }
+
+  // Weekly bands
+  var bandsHtml = '';
+  var bandStart = new Date(W0);
+  // align to monday
+  var dow = bandStart.getDay(); // 0=sun
+  var offset = dow === 0 ? -6 : 1 - dow;
+  bandStart.setDate(bandStart.getDate() + offset);
+  var weekIdx = 0;
+  while (bandStart < W1date) {
+    var wEnd = new Date(bandStart); wEnd.setDate(wEnd.getDate() + 7);
+    var x1 = dayX(bandStart.toISOString().slice(0,10));
+    var x2 = dayX(wEnd.toISOString().slice(0,10));
+    if (weekIdx % 2 === 1) {
+      bandsHtml += '<div style="position:absolute;left:' + x1 + 'px;width:' + (x2-x1) + 'px;top:0;height:100%;background:rgba(255,255,255,0.015);"></div>';
+    }
+    bandStart = wEnd;
+    weekIdx++;
+  }
+
+  // HOY line position
+  var hoyX = dayX(TODAY);
+
+  // Build table
+  var html = '<div class="gantt-wrapper"><table class="gantt-table">';
+  // Header
+  html += '<tr class="gantt-header-row">';
+  html += '<th class="gantt-left" style="font-size:11px;color:var(--muted);text-align:left;padding:4px 8px;font-family:\'Space Mono\',monospace;">MUEBLE</th>';
+  html += '<th class="gantt-timeline" style="width:' + tlWidth + 'px;min-width:' + tlWidth + 'px;">';
+  html += '<div class="month-labels" style="width:' + tlWidth + 'px;">' + monthsHtml + '</div>';
+  html += '</th>';
+  html += '<th class="gantt-right" style="font-size:11px;color:var(--muted);text-align:left;padding:4px 8px;font-family:\'Space Mono\',monospace;">ENTREGA</th>';
+  html += '</tr>';
+
+  // Rows
+  filtered.forEach(function(m, idx) {
+    var k = m.proyecto_id + '|' + m.item_id;
+    var strip = _stripMap[k] || [];
+    var dToEntrega = daysBetween(TODAY, m.fecha_comprometida);
+    var isOverdue = dToEntrega < 0;
+    var isSoon = dToEntrega >= 0 && dToEntrega <= 7;
+    var borderColor = isOverdue ? 'var(--red)' : isSoon ? 'var(--amber)' : 'transparent';
+
+    html += '<tr class="gantt-row" data-idx="' + idx + '">';
+
+    // Left col
+    html += '<td class="gantt-left" style="border-left:3px solid ' + borderColor + ';">';
+    html += '<div class="gantt-left-inner">';
+    html += '<div class="gantt-left-top" title="' + esc(m.numero + ' ' + (m.proyecto_nombre||'')) + '"><span class="num">' + esc(m.numero||'') + '</span> ' + esc(m.proyecto_nombre||'') + '</div>';
+    html += '<div class="gantt-left-bot"><span class="code">' + esc(m.codigo||m.item_id||'') + '</span><span class="name" title="' + esc(m.item_nombre||'') + '">' + esc(m.item_nombre||'') + '</span></div>';
+    html += '</div></td>';
+
+    // Timeline
+    html += '<td class="gantt-timeline" style="width:' + tlWidth + 'px;min-width:' + tlWidth + 'px;">';
+    html += '<div class="tl-canvas" style="width:' + tlWidth + 'px;">';
+
+    // Weekly bands (background)
+    html += bandsHtml;
+
+    // HOY line
+    html += '<div class="tl-hoy" style="left:' + hoyX + 'px;"></div>';
+
+    if (strip.length > 0) {
+      // Sort strip by day
+      var sortedStrip = strip.slice().sort(function(a,b){ return a.dia < b.dia ? -1 : a.dia > b.dia ? 1 : 0; });
+      var primerToque = sortedStrip[0].dia;
+      var ultimoToque = sortedStrip[sortedStrip.length - 1].dia;
+
+      // Gray baseline
+      var bx1 = dayX(primerToque);
+      var bx2 = dayX(ultimoToque);
+      html += '<div class="tl-bar" style="left:' + bx1 + 'px;width:' + Math.max(bx2 - bx1, 2) + 'px;"></div>';
+
+      // Colored cells
+      sortedStrip.forEach(function(s) {
+        var cx = dayX(s.dia);
+        var color = ETAPA_COLORS[s.etapa] || TERCERO_COLOR;
+        // Check if etapa looks like a tercero (not in standard list)
+        if (!ETAPA_COLORS[s.etapa]) color = TERCERO_COLOR;
+        html += '<div class="tl-cell" style="left:' + cx + 'px;width:' + Math.max(DW - 1, 1) + 'px;background:' + color + ';" title="' + esc(s.dia) + ' · ' + esc(s.etapa) + '"></div>';
+      });
+    } else {
+      // sin actividad: dashed bar from W0 to today
+      html += '<div class="tl-dashed" style="left:0px;width:' + hoyX + 'px;"></div>';
+    }
+
+    // Overdue wash
+    if (isOverdue) {
+      var washX1 = dayX(m.fecha_comprometida);
+      var washX2 = hoyX;
+      html += '<div class="tl-overdue-wash" style="left:' + washX1 + 'px;width:' + (washX2 - washX1) + 'px;"></div>';
+    }
+
+    // Entrega line
+    var eX = dayX(m.fecha_comprometida);
+    html += '<div class="tl-entrega" style="left:' + eX + 'px;"></div>';
+
+    html += '</div></td>'; // tl-canvas + td
+
+    // Right col
+    html += '<td class="gantt-right"><div class="gantt-right-inner">';
+    if (isOverdue) {
+      html += '<span class="counter" style="color:var(--red);">+' + Math.abs(dToEntrega) + 'd VENCIDA</span>';
+    } else if (dToEntrega === 0) {
+      html += '<span class="counter" style="color:var(--amber);">HOY</span>';
+    } else if (isSoon) {
+      html += '<span class="counter" style="color:var(--amber);">' + dToEntrega + 'd P/ ENTREGA</span>';
+    } else {
+      html += '<span class="counter" style="color:var(--muted);">' + dToEntrega + 'd P/ ENTREGA</span>';
+    }
+    html += '<input type="date" value="' + esc(m.fecha_comprometida) + '" onchange="onChangeDate(this,\'' + esc(m.proyecto_id) + '\',\'' + esc(m.item_id) + '\')">';
+    html += '<button class="btn-completar" onclick="onCompletar(\'' + esc(m.proyecto_id) + '\',\'' + esc(m.item_id) + '\',\'' + esc(m.codigo||m.item_id) + '\',\'' + esc((m.item_nombre||'').replace(/'/g,'')) + '\')">&#10003; COMPLETAR</button>';
+    html += '</div></td>';
+
+    html += '</tr>';
+  });
+
+  html += '</table></div>';
+  document.getElementById('gantt-content').innerHTML = html;
+}
+
+function setGanttFilter(f) {
+  _ganttFilter = f;
+  renderGantt();
+}
+
+// ── Sin Fecha ──
+function renderSinFecha() {
+  var search = (document.getElementById('sf-search').value || '').toLowerCase();
+
+  // Group by proyecto
+  var groups = {};
+  var order = [];
+  _sinFecha.forEach(function(m) {
+    if (search && (m.numero||'').toLowerCase().indexOf(search) === -1 &&
+        (m.proyecto_nombre||'').toLowerCase().indexOf(search) === -1) return;
+    if (!groups[m.proyecto_id]) {
+      groups[m.proyecto_id] = { proyecto_id: m.proyecto_id, numero: m.numero, proyecto_nombre: m.proyecto_nombre, items: [] };
+      order.push(m.proyecto_id);
+    }
+    groups[m.proyecto_id].items.push(m);
+  });
+
+  // Sort: most items first
+  order.sort(function(a,b) { return groups[b].items.length - groups[a].items.length; });
+
+  // Stats
+  var totalItems = 0;
+  order.forEach(function(pid) { totalItems += groups[pid].items.length; });
+  document.getElementById('sf-stats').innerHTML =
+    '<span class="stat red">' + totalItems + ' muebles sin fecha</span>' +
+    '<span class="stat muted">' + order.length + ' proyectos</span>';
+
+  if (order.length === 0) {
+    document.getElementById('sf-content').innerHTML = '<div class="empty-msg">Todos los muebles pendientes tienen fecha &#10003;</div>';
+    return;
+  }
+
+  var html = '<div class="sf-container">';
+  order.forEach(function(pid) {
+    var g = groups[pid];
+    html += '<div class="sf-group" data-pid="' + esc(pid) + '">';
+    html += '<div class="sf-group-header">';
+    html += '<span class="proj-num">' + esc(g.numero||'') + '</span>';
+    html += '<span class="proj-name" title="' + esc(g.proyecto_nombre||'') + '">' + esc(g.proyecto_nombre||'') + '</span>';
+    html += '<span class="badge">' + g.items.length + ' sin fecha</span>';
+    html += '<div class="sf-group-right">';
+    html += '<label>Todos:</label>';
+    html += '<input type="date" id="sf-all-date-' + esc(pid) + '">';
+    html += '<button class="btn-aplicar" onclick="onApplyAll(\'' + esc(pid) + '\')">APLICAR</button>';
+    html += '</div>';
+    html += '</div>';
+
+    g.items.forEach(function(m) {
+      html += '<div class="sf-row" data-item="' + esc(m.item_id) + '">';
+      html += '<span class="code">' + esc(m.codigo||m.item_id||'') + '</span>';
+      html += '<span class="name" title="' + esc(m.item_nombre||'') + '">' + esc(m.item_nombre||'') + '</span>';
+      html += '<input type="date" value="" onchange="onChangeDate(this,\'' + esc(m.proyecto_id) + '\',\'' + esc(m.item_id) + '\')">';
+      html += '<button class="btn-completar" onclick="onCompletar(\'' + esc(m.proyecto_id) + '\',\'' + esc(m.item_id) + '\',\'' + esc(m.codigo||m.item_id) + '\',\'' + esc((m.item_nombre||'').replace(/'/g,'')) + '\')">&#10003; COMPLETAR</button>';
+      html += '</div>';
+    });
+
+    html += '</div>';
+  });
+  html += '</div>';
+  document.getElementById('sf-content').innerHTML = html;
+}
+
+// ── Actions ──
+async function onChangeDate(input, proyecto_id, item_id) {
+  var value = input.value || null;
+  try {
+    var r = await fetch('/api/tiempos?action=set-entrega-comprometida', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_token: window.AUTH.getSessionToken(),
+        proyecto_id: proyecto_id,
+        entregas: [{ item_id: item_id, fecha_comprometida: value }]
+      })
+    });
+    var json = await r.json();
+    if (!json.ok) throw new Error(json.error || 'Error');
+
+    // Update local data
+    var found = false;
+    // Check in conFecha
+    for (var i = 0; i < _conFecha.length; i++) {
+      if (_conFecha[i].proyecto_id === proyecto_id && _conFecha[i].item_id === item_id) {
+        if (value) {
+          _conFecha[i].fecha_comprometida = value;
+        } else {
+          // Move to sinFecha
+          var item = _conFecha.splice(i, 1)[0];
+          item.fecha_comprometida = null;
+          _sinFecha.push(item);
+        }
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      // Check in sinFecha
+      for (var j = 0; j < _sinFecha.length; j++) {
+        if (_sinFecha[j].proyecto_id === proyecto_id && _sinFecha[j].item_id === item_id) {
+          if (value) {
+            var item2 = _sinFecha.splice(j, 1)[0];
+            item2.fecha_comprometida = value;
+            _conFecha.push(item2);
+          }
+          break;
+        }
+      }
+    }
+
+    // Re-sort
+    _conFecha.sort(function(a, b) {
+      var aOver = a.fecha_comprometida < TODAY ? 0 : 1;
+      var bOver = b.fecha_comprometida < TODAY ? 0 : 1;
+      if (aOver !== bOver) return aOver - bOver;
+      return a.fecha_comprometida < b.fecha_comprometida ? -1 : a.fecha_comprometida > b.fecha_comprometida ? 1 : 0;
+    });
+
+    renderAll();
+  } catch (e) {
+    alert('Error al cambiar fecha: ' + e.message);
+    renderAll();
+  }
+}
+
+async function onApplyAll(proyecto_id) {
+  var dateInput = document.getElementById('sf-all-date-' + proyecto_id);
+  var value = dateInput ? dateInput.value : '';
+  if (!value) { alert('Selecciona una fecha primero.'); return; }
+  if (!confirm('Asignar fecha ' + value + ' a todos los muebles de este proyecto?')) return;
+
+  // Gather all items of this project in sinFecha
+  var entregas = [];
+  _sinFecha.forEach(function(m) {
+    if (m.proyecto_id === proyecto_id) {
+      entregas.push({ item_id: m.item_id, fecha_comprometida: value });
+    }
+  });
+  if (entregas.length === 0) return;
+
+  try {
+    var r = await fetch('/api/tiempos?action=set-entrega-comprometida', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_token: window.AUTH.getSessionToken(),
+        proyecto_id: proyecto_id,
+        entregas: entregas
+      })
+    });
+    var json = await r.json();
+    if (!json.ok) throw new Error(json.error || 'Error');
+
+    // Move items
+    var moved = [];
+    _sinFecha = _sinFecha.filter(function(m) {
+      if (m.proyecto_id === proyecto_id) {
+        m.fecha_comprometida = value;
+        moved.push(m);
+        return false;
+      }
+      return true;
+    });
+    _conFecha = _conFecha.concat(moved);
+    _conFecha.sort(function(a, b) {
+      var aOver = a.fecha_comprometida < TODAY ? 0 : 1;
+      var bOver = b.fecha_comprometida < TODAY ? 0 : 1;
+      if (aOver !== bOver) return aOver - bOver;
+      return a.fecha_comprometida < b.fecha_comprometida ? -1 : a.fecha_comprometida > b.fecha_comprometida ? 1 : 0;
+    });
+    renderAll();
+  } catch (e) {
+    alert('Error al aplicar fechas: ' + e.message);
+  }
+}
+
+async function onCompletar(proyecto_id, item_id, codigo, nombre) {
+  if (!confirm('Completar ' + codigo + ' — ' + nombre + '?')) return;
+  try {
+    var st = window.AUTH.getSessionToken();
+    var r = await fetch('/api/tiempos?action=marcar-item&st=' + encodeURIComponent(st), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proyecto_id: proyecto_id, item_id: item_id, evento: 'completado', st: st })
+    });
+    var json = await r.json();
+    if (!json.ok) throw new Error(json.error || 'Error');
+
+    // odf_terminada → congelar
+    if (json.odf_terminada) {
+      fetch('/api/informes?action=congelar-odf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + st },
+        body: JSON.stringify({ proyecto_id: proyecto_id })
+      }).catch(function(){});
+    }
+
+    // Remove from both arrays
+    _conFecha = _conFecha.filter(function(m) { return !(m.proyecto_id === proyecto_id && m.item_id === item_id); });
+    _sinFecha = _sinFecha.filter(function(m) { return !(m.proyecto_id === proyecto_id && m.item_id === item_id); });
+    renderAll();
+  } catch (e) {
+    alert('Error al completar: ' + e.message);
+  }
+}
+
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+</script>
+</body>
+</html>
