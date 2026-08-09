@@ -45,7 +45,7 @@ function parsearMedidas(name) {
   while ((match = regex.exec(name)) !== null) {
     const a = normalizarAMetros(match[1]);
     const b = normalizarAMetros(match[2]);
-    if (a !== null && b !== null && a >= 1.5 && a <= 3.2 && b >= 1.5 && b <= 3.2) {
+    if (a !== null && b !== null && a >= 1.5 && a <= 3.2 && b >= 1.5 && b <= 3.2 && a * b >= 3.5) {
       return [Math.round(a * 100) / 100, Math.round(b * 100) / 100];
     }
   }
@@ -82,6 +82,11 @@ export default async function handler(req, res) {
   try {
     if (action === 'sync-placas' && req.method === 'GET') {
       if (!requireInternal(req, res)) return;
+
+      // Guard: con so_placas bajo RLS sin policies, escribir con anon key falla fila a fila.
+      if (!process.env.SUPABASE_SERVICE_KEY) {
+        return err(res, 'SUPABASE_SERVICE_KEY no configurada — abortando barrido', 500);
+      }
 
       const limite = Math.min(Math.max(parseInt(req.query.limite) || 25, 1), 30);
       const soloConProyecto = req.query.solo_con_proyecto !== '0';
@@ -154,10 +159,18 @@ export default async function handler(req, res) {
             .filter(l => l.es_placa)
             .reduce((sum, l) => sum + (l.quantity || 0), 0);
 
-          // Extraer custom fields
-          const cfHash = soDetail.custom_field_hash || {};
-          const cfMueble = cfHash.cf_mueble || cfHash.cf_mueble_a_pedido || null;
-          const cfObra = cfHash.cf_obra || null;
+          // Extraer obra/mueble — mismo patrón que armados.js (detalle-so-zoho)
+          const cfObra = soDetail.reference_number ||
+            (soDetail.custom_fields || []).find(f =>
+              f.label?.toLowerCase() === 'obra' ||
+              f.api_name === 'cf_obra' ||
+              f.api_name === 'cf_obra1'
+            )?.value || null;
+          const cfMueble = soDetail.subject ||
+            (soDetail.custom_fields || []).find(f =>
+              f.label?.toLowerCase() === 'mueble' ||
+              f.api_name === 'cf_mueble'
+            )?.value || null;
 
           // 4. Upsert en so_placas
           const { error: uErr } = await supabase.from('so_placas').upsert({
