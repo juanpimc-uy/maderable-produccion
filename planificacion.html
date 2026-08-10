@@ -476,7 +476,7 @@ function renderGantt() {
       html += '<span class="counter" style="color:var(--muted);">' + dToEntrega + 'd P/ ENTREGA</span>';
     }
     html += '<input type="date" value="' + esc(m.fecha_comprometida) + '" onchange="onChangeDate(this,\'' + esc(m.proyecto_id) + '\',\'' + esc(m.item_id) + '\')">';
-    html += '<button class="btn-completar" onclick="onCompletar(\'' + esc(m.proyecto_id) + '\',\'' + esc(m.item_id) + '\',\'' + esc(m.codigo||m.item_id) + '\',\'' + esc((m.item_nombre||'').replace(/'/g,'')) + '\')">&#10003; COMPLETAR</button>';
+    html += '<button class="btn-completar" onclick="onCompletar(this,\'' + esc(m.proyecto_id) + '\',\'' + esc(m.item_id) + '\',\'' + esc(m.codigo||m.item_id) + '\',\'' + esc((m.item_nombre||'').replace(/'/g,'')) + '\')">&#10003; COMPLETAR</button>';
     html += '</div></td>';
 
     html += '</tr>';
@@ -546,7 +546,7 @@ function renderSinFecha() {
       html += '<span class="code">' + esc(m.codigo||m.item_id||'') + '</span>';
       html += '<span class="name" title="' + esc(m.item_nombre||'') + '">' + esc(m.item_nombre||'') + '</span>';
       html += '<input type="date" value="" onchange="onChangeDate(this,\'' + esc(m.proyecto_id) + '\',\'' + esc(m.item_id) + '\')">';
-      html += '<button class="btn-completar" onclick="onCompletar(\'' + esc(m.proyecto_id) + '\',\'' + esc(m.item_id) + '\',\'' + esc(m.codigo||m.item_id) + '\',\'' + esc((m.item_nombre||'').replace(/'/g,'')) + '\')">&#10003; COMPLETAR</button>';
+      html += '<button class="btn-completar" onclick="onCompletar(this,\'' + esc(m.proyecto_id) + '\',\'' + esc(m.item_id) + '\',\'' + esc(m.codigo||m.item_id) + '\',\'' + esc((m.item_nombre||'').replace(/'/g,'')) + '\')">&#10003; COMPLETAR</button>';
       html += '</div>';
     });
 
@@ -669,7 +669,11 @@ async function onApplyAll(proyecto_id) {
   }
 }
 
-async function onCompletar(proyecto_id, item_id, codigo, nombre) {
+async function onCompletar(btn, proyecto_id, item_id, codigo, nombre) {
+  // Óptimista y sin re-render global: la fila se oculta al instante, el POST
+  // corre atrás y el scroll no se mueve — permite completar en cadena.
+  var fila = btn && (btn.closest('tr') || btn.closest('.sf-row'));
+  if (fila) fila.style.display = 'none';
   try {
     var st = window.AUTH.getSessionToken();
     var r = await fetch('/api/tiempos?action=marcar-item&st=' + encodeURIComponent(st), {
@@ -689,12 +693,16 @@ async function onCompletar(proyecto_id, item_id, codigo, nombre) {
       }).catch(function(){});
     }
 
-    // Remove from both arrays
+    // Confirmado por el server: sacar de los arrays y actualizar contadores.
+    // NO renderAll(): la fila ya está oculta y re-renderizar resetea el scroll.
     _conFecha = _conFecha.filter(function(m) { return !(m.proyecto_id === proyecto_id && m.item_id === item_id); });
     _sinFecha = _sinFecha.filter(function(m) { return !(m.proyecto_id === proyecto_id && m.item_id === item_id); });
-    renderAll();
+    if (fila) fila.remove();
+    updateBadges();
   } catch (e) {
-    alert('Error al completar: ' + e.message);
+    // Falló el server: la fila vuelve tal cual estaba.
+    if (fila) fila.style.display = '';
+    alert('No se pudo completar ' + codigo + ' — ' + e.message);
   }
 }
 
