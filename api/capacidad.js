@@ -96,7 +96,10 @@ export default async function handler(req) {
       for (const p of pendientes) {
         const key = p.proyecto_id + '|' + p.item_id;
         const m = mMap[key];
-        const cant = Number(m?.cant) || 1;
+        // cant está sobrecargado: no entero o >10 suele ser una medida (m², ml),
+        // no una cantidad de unidades — en ese caso NO multiplica (regla del modelo de datos).
+        const cantRaw = Number(m?.cant) || 1;
+        const cant = (Number.isInteger(cantRaw) && cantRaw >= 1 && cantRaw <= 10) ? cantRaw : 1;
         const fich = fMap[key] || 0;
         const esEst = estimadoValido(m);
         const hTotal = esEst
