@@ -639,16 +639,22 @@ function filtrarProyCombo(soId) {
   renderProyList(soId, input.value, so?.cliente_nombre || '');
 }
 
+function proyDisponible(p) {
+  const ms = (Array.isArray(p.muebles) && p.muebles.length) ? p.muebles : (Array.isArray(p.items) ? p.items : []);
+  return !(ms.length && ms.every(m => m.completado));
+}
+
 function renderProyList(soId, query, clienteNombre) {
   const list = document.getElementById('proy-list-' + soId);
   const q = query.toLowerCase();
-  let filtered = proyectos;
+  const base = proyectos.filter(proyDisponible);
+  let filtered = base;
   if (!q && clienteNombre) {
-    const preFiltered = proyectos.filter(p => (p.cliente_nombre || '').toLowerCase().includes(clienteNombre.toLowerCase()));
+    const preFiltered = base.filter(p => (p.cliente_nombre || '').toLowerCase().includes(clienteNombre.toLowerCase()));
     if (preFiltered.length > 0) filtered = preFiltered;
   }
   if (q) {
-    filtered = proyectos.filter(p => proyLabel(p).toLowerCase().includes(q));
+    filtered = base.filter(p => proyLabel(p).toLowerCase().includes(q));
   }
   list.innerHTML = filtered.slice(0, 20).map(p =>
     `<div class="proy-combo-item" onclick="seleccionarProy('${soId}','${p.id}')">${esc(proyLabel(p))}</div>`
