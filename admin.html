@@ -1430,8 +1430,8 @@ const CENTROS = [
 // Retorna fallback object si el ID no está en CENTROS (y loguea warning).
 function getCentro(centroId) {
   if (!centroId && centroId !== 0) return null;
-  const key = String(centroId).toLowerCase().trim();
-  const found = CENTROS.find(c => c.id.toLowerCase().trim() === key);
+  const key = String(centroId).toLowerCase().trim().replace(/[\s_]+/g, '_');
+  const found = CENTROS.find(c => c.id.toLowerCase().trim().replace(/[\s_]+/g, '_') === key);
   if (found) return found;
   console.warn(`[CENTROS] centro desconocido: "${centroId}"`);
   return { id: centroId, label: String(centroId), icon: '○', color: 'var(--muted)', familia: 'desconocido' };
@@ -1621,9 +1621,11 @@ let currentView = 'dashboard';
 const VIEW_LABELS = {dashboard:'Dashboard',proyectos:'Proyectos',operarios:'Operarios',tiempos:'Tiempos',materiales:'Materiales',ajustes:'Ajustes','mi-cuenta':'Mi cuenta'};
 
 function navTo(v) {
+  const target = document.getElementById('v-' + v);
+  if (!target) { console.warn(`[NAV] vista desconocida: "${v}"`); return; }
   document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
-  document.getElementById('v-'+v).classList.add('active');
-  document.getElementById('topbar-title').textContent = VIEW_LABELS[v];
+  target.classList.add('active');
+  document.getElementById('topbar-title').textContent = VIEW_LABELS[v] || v;
   // Si el usuario sale de Ajustes con un input activo, guardar antes de navegar
   if (currentView === 'ajustes') {
     const active = document.activeElement;
@@ -8279,7 +8281,8 @@ let _appInitialized = false;
 function _initApp() {
   if (_appInitialized) return;
   _appInitialized = true;
-  navTo('proyectos');
+  const _h = (location.hash || '').replace('#', '');
+  navTo(document.getElementById('v-' + _h) ? _h : 'proyectos');
   cargarTodoDesdeSupabase().then(async () => {
     // Migración única: mover archivados de localStorage a BD
     const _localArch = JSON.parse(localStorage.getItem('proyectos_archivados') || '[]');

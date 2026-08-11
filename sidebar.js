@@ -16,7 +16,7 @@
         { id: 'planificacion', icon: '▤', label: 'Planificación', page: 'planificacion.html', roles: ['admin','oficina'] },
         { id: 'capacidad', icon: '▥', label: 'Capacidad', page: 'capacidad.html', roles: ['admin','oficina'] },
       ] },
-    { id: 'retrabajos', icon: 'ↄ', label: 'Retrabajos', page: 'admin.html', section: 'retrabajos', roles: ['admin','oficina'] },
+    { id: 'retrabajos', icon: 'ↄ', label: 'Retrabajos', page: 'retrabajos.html', roles: ['admin','oficina'] },
     { type: 'sep' },
     { id: 'operarios',  icon: '◎', label: 'Operarios',  page: 'admin.html', section: 'operarios',  roles: ['admin'] },
     { id: 'tiempos',    icon: '⏱', label: 'Tiempos',    page: 'tiempos.html',                       roles: ['admin','oficina'] },
@@ -28,9 +28,9 @@
       children: [
         { id: 'kitting',    icon: '⬗', label: 'Kitting SO',  page: 'armado-so.html',       roles: ['admin','oficina'] },
         { id: 'recepcion',  icon: '◫', label: 'Recepción',   page: 'recepciones-oc.html',  roles: ['admin','oficina'] },
-        { id: 'inventario', icon: '▤', label: 'Inventario',  page: 'admin.html', section: 'inventario', roles: ['admin','oficina'] },
+        { id: 'inventario', icon: '▤', label: 'Inventario',  page: 'inventario.html', roles: ['admin','oficina'] },
         { id: 'madera',     iconSvg: '<circle cx="7.5" cy="16" r="3.5"/><circle cx="7.5" cy="16" r="1"/><circle cx="16.5" cy="16" r="3.5"/><circle cx="16.5" cy="16" r="1"/><circle cx="12" cy="8.5" r="3.5"/><circle cx="12" cy="8.5" r="1"/>',
-          label: 'Madera', page: 'admin.html', section: 'madera', roles: ['admin','oficina'] },
+          label: 'Madera', page: 'madera.html', roles: ['admin','oficina'] },
       ]
     },
     { type: 'sep' },
@@ -56,9 +56,9 @@
       group: true, collapsible: true, defaultOpen: false,
       roles: ['admin','oficina'],
       children: [
-        { id: 'costos',   icon: '◉', label: 'Costos',   page: 'admin.html', section: 'costos',   roles: ['admin','oficina'] },
-        { id: 'facturas', icon: '◈', label: 'Facturas', page: 'admin.html', section: 'facturas', roles: ['admin','oficina'] },
-        { id: 'lean',     icon: '◆', label: 'Lean',     page: 'admin.html', section: 'lean',     roles: ['admin','oficina'] },
+        { id: 'costos',   icon: '◉', label: 'Costos',   page: 'informes.html',               roles: ['admin','oficina'] },
+        { id: 'facturas', icon: '◈', label: 'Facturas', page: 'informes.html?vista=facturas', roles: ['admin','oficina'] },
+        { id: 'lean',     icon: '◆', label: 'Lean',     page: 'informes.html?vista=lean',     roles: ['admin','oficina'] },
       ]
     },
     { type: 'sep' },
@@ -82,6 +82,7 @@
       'armado-so.html':       'kitting',
       'armado-so-planta.html':'kitting',
       'recepciones-oc.html':  'recepcion',
+      'inventario.html':      'inventario',
       'planificacion.html':   'planificacion',
       'capacidad.html':       'capacidad',
       'madera.html':          'madera',
