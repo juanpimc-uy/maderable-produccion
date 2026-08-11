@@ -250,7 +250,7 @@ async function cargarTodo() {
 
   const [sosRes, proysData] = await Promise.all([
     apiGet('listar-sos-zoho'),
-    window.sbFetch('proyectos_cache?activo=eq.true&order=nombre&select=id,nombre,numero,cliente_nombre,obra').catch(() => []),
+    fetch('/api/tiempos?action=proyectos-admin').then(r => r.json()).then(d => (d.proyectos || []).filter(p => p.activo)).catch(() => []),
   ]);
 
   if (sosRes.ok !== undefined && !sosRes.ok) {
