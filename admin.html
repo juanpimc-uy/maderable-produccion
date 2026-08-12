@@ -575,7 +575,6 @@
   .ds-mueble-row.ds-inact { color:#ff8888; }
   .ds-show-more { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted); padding:10px 14px; cursor:pointer; letter-spacing:1px; user-select:none; }
   .ds-show-more:hover { color:var(--text); }
-  .txp-caret.txp-open { transform:rotate(90deg); color:var(--amber) !important; }
 </style>
 </head>
 <body>
@@ -2163,7 +2162,7 @@ function muebleRowRico(prId, m, cncMap, entregasMap = {}) {
         return `<div style="background:#1a1a1a;border:1px solid var(--border);border-radius:6px;padding:10px 14px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;opacity:${m.completado?'0.45':'1'};">
           <div>
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-              <span style="font-family:'Space Mono',monospace;font-size:12px;color:var(--amber);white-space:nowrap;">${m.codigo||'—'}</span>
+              <input value="${(m.codigo||'').replace(/"/g,'&quot;')}" onchange="setCodigoInline('${prId}','${m.id}',this)" title="Código del mueble" style="font-family:'Space Mono',monospace;font-size:12px;color:var(--amber);background:transparent;border:none;border-bottom:1px dashed rgba(255,214,0,.27);outline:none;width:64px;padding:1px 0;transition:border-color .15s;" onfocus="this.style.borderBottom='1px solid var(--amber)'" onblur="this.style.borderBottom='1px dashed rgba(255,214,0,.27)'">
               <input value="${(m.nombre||'').replace(/"/g,'&quot;')}" onchange="setNombreInline('${prId}','${m.id}',this.value)" style="font-size:12px;font-weight:600;color:var(--text);background:transparent;border:none;border-bottom:1px solid transparent;outline:none;flex:1;font-family:'DM Sans',sans-serif;padding:1px 0;transition:border-color .15s;" onfocus="this.style.borderBottomColor='var(--amber)'" onblur="this.style.borderBottomColor='transparent'">
             </div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
@@ -2202,6 +2201,7 @@ function muebleRowRico(prId, m, cncMap, entregasMap = {}) {
             </div>
             <button onclick="abrirModalPartir('${prId}','${m.id}')" title="Partir en etapas" style="font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:3px;cursor:pointer;border:1px solid var(--amber);background:rgba(255,214,0,0.08);color:var(--amber);">⑂ PARTIR</button>
             <button onclick="toggleItemCompletado('${prId}','${m.id}')" style="font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:3px;cursor:pointer;border:1px solid ${m.completado?'var(--green)':'var(--border)'};background:${m.completado?'rgba(74,222,128,0.1)':'transparent'};color:${m.completado?'var(--green)':'var(--muted)'};">${m.completado?'✓ COMPLETADO':'COMPLETAR'}</button>
+            <button onclick="archivarMueble('${prId}','${m.id}')" title="Archivar: lo saca de planificación, planta y despachos sin completarlo" style="font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:3px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);display:inline-flex;align-items:center;gap:5px;" onmouseover="this.style.borderColor='var(--orange)';this.style.color='var(--orange)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"><svg viewBox="0 0 24 24" style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M3 5h18v4H3z"/><path d="M5 9v10h14V9"/><path d="M10 13h4"/></svg>ARCHIVAR</button>
           </div>
         </div>`;
 }
@@ -2541,7 +2541,7 @@ async function renderDetalleGrupo(grupoId, sub) {
       try { const re = await fetch(`/api/tiempos?action=entregas-proyecto&proyecto_id=${encodeURIComponent(mm.id)}`).then(r=>r.json()); if (re && re.ok) entregasByMember[mm.id] = re.entregas || {}; } catch(e){}
     }
     for (const m of miembros) {
-      const items = ordenarConEtapas(m.muebles || m.items || []);
+      const items = ordenarConEtapas((m.muebles || m.items || []).filter(it=>!it.archivado));
       html += `<div>
         <div style="cursor:pointer;padding:8px 12px;background:var(--panel);border:1px solid var(--border);border-radius:6px 6px 0 0;display:flex;align-items:center;gap:8px;" onclick="abrirDetallePr('${m.id}')">
           <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--amber);font-weight:700;">${m.numero}</span>
@@ -2997,139 +2997,6 @@ function _reRenderItems(pr) {
   }
 }
 
-// ── Detalle agrupado persona/centro (reemplaza "Detalle por sesión") ──
-let _txpMode = 'persona';
-let _txpLastPrId = null;
-let _txpLastSes = null;
-const _TXP_DIAS_ES = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
-
-function _txpRender(prId, allSes) {
-  _txpLastPrId = prId; _txpLastSes = allSes;
-  const panel = document.getElementById('txp-panel');
-  if (!panel) return;
-  const mode = _txpMode;
-  const totalH = allSes.reduce((a,s) => a + msH(s.fin - s.inicio), 0);
-
-  // Agrupar
-  const tree = {};
-  allSes.forEach(s => {
-    const op = OPERARIOS.find(o => o.id === s.operarioId);
-    const c = getCentro(s.centroId) || { id:'SIN CENTRO', label:'SIN CENTRO', icon:'○', color:'#6b6b6b' };
-    const h = msH(s.fin - s.inicio);
-    const dObj = new Date(s.inicio);
-    const dia = dObj.toLocaleDateString('en-CA', { timeZone: 'America/Montevideo' });
-    const k1 = mode === 'persona' ? (s.operarioId || '_') : (c.id || '_');
-    const k2 = mode === 'persona' ? (c.id || '_') : (s.operarioId || '_');
-    if (!tree[k1]) tree[k1] = { id: k1, op: mode === 'persona' ? op : null, centro: mode === 'persona' ? null : c, subs: {}, total: 0 };
-    tree[k1].total += h;
-    if (!tree[k1].subs[k2]) tree[k1].subs[k2] = { id: k2, op: mode === 'centro' ? op : null, centro: mode === 'centro' ? null : c, dias: {}, total: 0 };
-    tree[k1].subs[k2].total += h;
-    if (!tree[k1].subs[k2].dias[dia]) tree[k1].subs[k2].dias[dia] = { fecha: dia, horas: 0, sesiones: 0 };
-    tree[k1].subs[k2].dias[dia].horas += h;
-    tree[k1].subs[k2].dias[dia].sesiones += 1;
-  });
-
-  const lvl1 = Object.values(tree).sort((a,b) => b.total - a.total);
-  const maxL1 = lvl1.length ? lvl1[0].total : 1;
-
-  // Toggle buttons
-  const btnStyle = (active) => `padding:4px 10px;border-radius:5px;border:1px solid ${active?'#FFD600':'#2e2e2e'};background:${active?'#FFD600':'transparent'};color:${active?'#000':'#888'};cursor:pointer;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.5px;`;
-  let h = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">`;
-  h += `<div class="sec-title" style="margin:0;">DETALLE POR ${mode === 'persona' ? 'PERSONA' : 'CENTRO'}</div>`;
-  h += `<div style="display:flex;align-items:center;gap:8px;">`;
-  h += `<button style="${btnStyle(mode==='persona')}" onclick="_txpMode='persona';_txpRender(_txpLastPrId,_txpLastSes);">POR PERSONA</button>`;
-  h += `<button style="${btnStyle(mode==='centro')}" onclick="_txpMode='centro';_txpRender(_txpLastPrId,_txpLastSes);">POR CENTRO</button>`;
-  h += `<span class="mono" style="font-size:14px;font-weight:700;color:var(--amber);margin-left:6px;">${fmtH(totalH)}</span>`;
-  h += `</div></div>`;
-
-  // Rows
-  lvl1.forEach((l1, i1) => {
-    const l1Name = mode === 'persona' ? (l1.op?.nombre || '—') : (l1.centro?.label || l1.id);
-    const l1Color = mode === 'persona' ? 'var(--amber)' : (l1.centro?.color || '#6b6b6b');
-    const l1Icon = mode === 'persona' ? (l1.op?.icon || l1.op?.avatar || '?') : (l1.centro?.icon || '■');
-    const subs = Object.values(l1.subs).sort((a,b) => b.total - a.total);
-    const nSubs = subs.length;
-    const nDias = new Set(subs.flatMap(s2 => Object.keys(s2.dias))).size;
-    const pct1 = totalH > 0 ? Math.round(l1.total / totalH * 100) : 0;
-    const barW1 = maxL1 > 0 ? Math.round(l1.total / maxL1 * 100) : 0;
-    const open1 = i1 === 0;
-    const l1Id = 'txp1-' + i1;
-
-    // Avatar/icon
-    let avHtml;
-    if (mode === 'persona') {
-      const ini = (l1.op?.nombre || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-      avHtml = `<div class="av" style="width:30px;height:30px;font-size:11px;flex-shrink:0;">${ini}</div>`;
-    } else {
-      avHtml = `<div style="width:30px;height:30px;border-radius:6px;background:${l1Color}22;display:flex;align-items:center;justify-content:center;font-size:16px;color:${l1Color};flex-shrink:0;">${l1Icon}</div>`;
-    }
-
-    h += `<div style="border-bottom:1px solid rgba(255,255,255,.04);">`;
-    h += `<div onclick="var b=document.getElementById('${l1Id}');b.style.display=b.style.display==='none'?'':'none';var cr=this.querySelector('.txp-caret');if(cr)cr.classList.toggle('txp-open');" style="display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer;">`;
-    h += `<span class="txp-caret${open1?' txp-open':''}" style="font-size:10px;color:#555;transition:transform .15s;display:inline-block;width:12px;text-align:center;">\u25B6</span>`;
-    h += avHtml;
-    h += `<div style="flex:1;min-width:0;">`;
-    h += `<div style="font-size:13px;font-weight:600;color:${mode==='centro'?l1Color:'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${(l1Name||'').replace(/</g,'&lt;')}</div>`;
-    h += `<div class="mono" style="font-size:10px;color:#555;">${nSubs} ${mode==='persona'?'centros':'personas'} · ${nDias} días</div>`;
-    h += `</div>`;
-    h += `<div style="width:120px;flex-shrink:0;margin-right:8px;"><div style="height:4px;border-radius:2px;background:#1a1a1a;"><div style="height:100%;width:${barW1}%;border-radius:2px;background:${l1Color};"></div></div></div>`;
-    h += `<div style="text-align:right;flex-shrink:0;white-space:nowrap;">`;
-    h += `<span class="mono" style="font-size:15px;font-weight:700;color:var(--amber);">${fmtH(l1.total)}</span>`;
-    h += `<span class="mono" style="font-size:10px;color:#555;margin-left:4px;">${pct1}%</span>`;
-    h += `</div></div>`;
-
-    // Nivel 2
-    h += `<div id="${l1Id}" style="display:${open1?'':'none'};">`;
-    subs.forEach((l2, i2) => {
-      const l2Name = mode === 'persona' ? (l2.centro?.label || l2.id) : (l2.op?.nombre || '—');
-      const l2Color = mode === 'persona' ? (l2.centro?.color || '#6b6b6b') : 'var(--amber)';
-      const l2Icon = mode === 'persona' ? (l2.centro?.icon || '○') : null;
-      const pct2 = l1.total > 0 ? Math.round(l2.total / l1.total * 100) : 0;
-      const barW2 = l1.total > 0 ? Math.round(l2.total / l1.total * 100) : 0;
-      const dias = Object.values(l2.dias).sort((a,b) => b.fecha < a.fecha ? -1 : b.fecha > a.fecha ? 1 : 0);
-      const open2 = open1 && i2 === 0;
-      const l2Id = 'txp2-' + i1 + '-' + i2;
-
-      let l2Av;
-      if (mode === 'persona') {
-        l2Av = `<span style="display:inline-flex;align-items:center;gap:5px;"><span style="color:${l2Color};font-size:10px;">${l2Icon}</span><span class="mono" style="font-size:10px;color:${l2Color};text-transform:uppercase;letter-spacing:.5px;">${(l2Name||'').replace(/</g,'&lt;')}</span></span>`;
-      } else {
-        const ini2 = (l2.op?.nombre || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-        l2Av = `<span style="display:inline-flex;align-items:center;gap:6px;"><span class="av" style="width:22px;height:22px;font-size:9px;">${ini2}</span><span style="font-size:12px;">${(l2Name||'').replace(/</g,'&lt;')}</span></span>`;
-      }
-
-      h += `<div style="padding-left:62px;border-top:1px solid rgba(255,255,255,.02);">`;
-      h += `<div onclick="event.stopPropagation();var b=document.getElementById('${l2Id}');b.style.display=b.style.display==='none'?'':'none';var cr=this.querySelector('.txp-caret');if(cr)cr.classList.toggle('txp-open');" style="display:flex;align-items:center;gap:8px;padding:7px 0;cursor:pointer;">`;
-      h += `<span class="txp-caret${open2?' txp-open':''}" style="font-size:8px;color:#444;transition:transform .15s;display:inline-block;width:10px;text-align:center;">\u25B6</span>`;
-      h += l2Av;
-      h += `<div style="flex:1;"></div>`;
-      h += `<div style="width:80px;flex-shrink:0;margin-right:6px;"><div style="height:3px;border-radius:2px;background:#1a1a1a;"><div style="height:100%;width:${barW2}%;border-radius:2px;background:${l2Color};"></div></div></div>`;
-      h += `<span class="mono" style="font-size:12px;color:var(--text);">${fmtH(l2.total)}</span>`;
-      h += `<span class="mono" style="font-size:9px;color:#555;margin-left:3px;">${pct2}%</span>`;
-      h += `</div>`;
-
-      // Nivel 3 — días
-      h += `<div id="${l2Id}" style="display:${open2?'':'none'};padding-left:38px;">`;
-      dias.forEach(d => {
-        const dObj = new Date(d.fecha + 'T12:00:00');
-        const dow = _TXP_DIAS_ES[dObj.getDay()];
-        const ddm = String(dObj.getDate()).padStart(2,'0') + '/' + String(dObj.getMonth()+1);
-        const sesLabel = d.sesiones > 1 ? `<span class="mono" style="font-size:9px;color:#444;margin-left:4px;">${d.sesiones} sesiones</span>` : '';
-        h += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:11px;">`;
-        h += `<span class="mono" style="color:#555;font-size:10px;min-width:62px;">${dow} ${ddm}</span>`;
-        h += `<span style="flex:1;border-bottom:1px dotted #222;height:1px;"></span>`;
-        h += sesLabel;
-        h += `<span class="mono" style="font-size:11px;color:var(--text);">${fmtH(d.horas)}</span>`;
-        h += `</div>`;
-      });
-      h += `</div></div>`;
-    });
-    h += `</div></div>`;
-  });
-
-  panel.innerHTML = h;
-}
-
 async function renderDetallePr(pr, sub) {
   _vistaDetalle = 'pr';
   await _fetchRegistrosPr(pr.id);
@@ -3266,8 +3133,31 @@ async function renderDetallePr(pr, sub) {
       window._ENTREGAS_ITEM = ENTREGAS_ITEM;
       html += `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#1a1a1a;border:1px solid var(--border);border-radius:6px;padding:9px 12px;margin-bottom:10px;"><span style="font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--amber);">Entrega de todo el proyecto</span><input type="date" id="entrega-proj-date" style="background:var(--faint);border:1px solid var(--border);border-radius:4px;padding:4px 7px;color:var(--text);font-family:'Space Mono',monospace;font-size:11px;outline:none;color-scheme:dark;"><button onclick="aplicarEntregaProyecto('${pr.id}',false)" style="font-family:'Space Mono',monospace;font-size:10px;padding:5px 10px;border-radius:4px;border:0;background:var(--amber);color:#000;font-weight:700;cursor:pointer;">Aplicar a todos</button><button onclick="aplicarEntregaProyecto('${pr.id}',true)" style="font-family:'Space Mono',monospace;font-size:10px;padding:5px 10px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">Solo a los sin fecha</button></div>`;
       html+=`<div style="display:flex;flex-direction:column;gap:4px;">`;
-      ordenarConEtapas(pr.muebles).forEach((m,mIdx)=>{ html += muebleRowRico(pr.id, m, CNC_ITEM, ENTREGAS_ITEM); });
+      ordenarConEtapas((pr.muebles||[]).filter(m=>!m.archivado)).forEach((m,mIdx)=>{ html += muebleRowRico(pr.id, m, CNC_ITEM, ENTREGAS_ITEM); });
       html+=`</div>`;
+const _archMuebles=(pr.muebles||[]).filter(m=>m.archivado&&!m.etapa_de);
+if(_archMuebles.length){
+  html+=`<div onclick="const b=document.getElementById('arch-items-body');const c=document.getElementById('arch-items-caret');const open=b.style.display!=='none';b.style.display=open?'none':'block';c.textContent=open?'▸':'▾';" style="display:flex;align-items:center;gap:10px;margin:22px 0 8px;cursor:pointer;user-select:none;">
+    <span id="arch-items-caret" style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);">▸</span>
+    <span style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;">Archivados</span>
+    <span style="font-family:'Space Mono',monospace;font-size:10px;color:var(--orange);">(${_archMuebles.length})</span>
+    <span style="flex:1;height:1px;background:var(--border);"></span>
+  </div><div id="arch-items-body" style="display:none;">`;
+  _archMuebles.forEach(m=>{
+    const nEt=(pr.muebles||[]).filter(e=>e.etapa_de===m.id&&e.archivado).length;
+    html+=`<div style="background:#1a1a1a;border:1px dashed var(--border);border-radius:6px;padding:10px 14px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;opacity:.55;margin-bottom:8px;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-family:'Space Mono',monospace;font-size:12px;color:var(--amber);white-space:nowrap;">${m.codigo||'—'}</span>
+          <span style="font-size:12px;font-weight:600;color:var(--text);">${m.nombre||''}</span>
+        </div>
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin-top:4px;">Archivado el ${m.archivado_en?m.archivado_en.split('-').reverse().join('/'):'—'}${nEt?` · incluye ${nEt} etapa${nEt>1?'s':''}`:''} · las horas fichadas se conservan · no cuenta para el estado de la ODF</div>
+      </div>
+      <button onclick="desarchivarMueble('${pr.id}','${m.id}')" style="font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:3px;cursor:pointer;border:1px solid var(--green);background:rgba(61,214,140,.08);color:var(--green);">↩ DESARCHIVAR</button>
+    </div>`;
+  });
+  html+=`</div>`;
+}
     } else {
       html+=`<div style="display:flex;flex-direction:column;gap:12px;">`;
       pr.items.forEach(it=>{
@@ -3412,14 +3302,32 @@ async function renderDetallePr(pr, sub) {
         </tbody>
       </table>
     </div>`;
-    // detalle agrupado persona/centro
+    // historial de sesiones
     const allSes=[
       ...HISTORIAL.filter(s=>s.proyectoId===pr.id).map(s=>({...s,activa:false})),
       ...SESIONES.filter(s=>s.proyectoId===pr.id).map(s=>({...s,fin:Date.now(),activa:true})),
     ].sort((a,b)=>b.inicio-a.inicio);
     if(allSes.length){
-      html+=`<div class="card" id="txp-panel"></div>`;
-      setTimeout(()=>_txpRender(pr.id, allSes),0);
+      html+=`<div class="card"><div class="sec-title" style="margin-bottom:12px;">Detalle por sesión</div>`;
+      allSes.forEach(s=>{
+        const op=OPERARIOS.find(o=>o.id===s.operarioId);
+        const c=getCentro(s.centroId);
+        const row=(pr.muebles||[]).find(m=>m.id===s.itemId)||(pr.items||[]).find(i=>i.id===s.itemId);
+        const dur=msH(s.fin-s.inicio);
+        const ts=new Date(s.inicio).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+        html+=`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(37,40,54,.5);">
+          <div class="av ${s.activa?'active':'idle'}" style="width:26px;height:26px;font-size:10px;flex-shrink:0;">${op?.avatar||'?'}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:600;">${op?.nombre||'—'}</div>
+            <div style="font-size:11px;color:${c?.color||'var(--muted)'};">${c?.icon||''} ${c?.label||s.centroId} · <span style="color:var(--muted);">${row?.codigo||''} ${row?.nombre||row?.nombre||s.itemId}</span></div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div class="mono" style="font-size:13px;color:${s.activa?'var(--amber)':'var(--text)'};">${fmtH(dur)}${s.activa?' ▶':''}</div>
+            <div class="mono" style="font-size:10px;color:var(--muted);">${ts}</div>
+          </div>
+        </div>`;
+      });
+      html+=`</div>`;
     }
   }
 
@@ -4000,7 +3908,7 @@ function guardarProyecto(prId, sub) {
       if(d) m.dif = Number(d.value)||2;
     });
     // sincronizar items con muebles editados
-    pr.items = pr.muebles.map(m=>({
+    pr.items = pr.muebles.filter(mm=>!mm.archivado).map(m=>({
       id: m.id,
       nombre: [m.codigo, m.nombre].filter(Boolean).join(' – '),
       centros: [],
@@ -4150,7 +4058,7 @@ function setPlacasInline(prId,mId,val){
   guardarMueblesLS(prId,pr);
   syncProyectoSupabase(pr);
   // update items so hEstPr works correctly
-  pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
+  pr.items=pr.muebles.filter(mu=>!mu.archivado).map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
   _reRenderItems(pr);
 }
 
@@ -4189,6 +4097,49 @@ async function toggleItemCompletado(prId,itemId){
   }
 }
 
+function setCodigoInline(prId,mId,el){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  const m=pr?.muebles?.find(x=>x.id===mId);
+  if(!m)return;
+  const v=(el.value||'').trim().toUpperCase();
+  if(!v){ el.value=m.codigo||''; return; }
+  if((pr.muebles||[]).some(x=>x.id!==mId && (x.codigo||'').toUpperCase()===v)){
+    alert('Ya existe un mueble con código '+v+' en este proyecto');
+    el.value=m.codigo||''; return;
+  }
+  m.codigo=v;
+  pr.items=pr.muebles.filter(mu=>!mu.archivado).map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v2)=>a+Number(v2||0),0),nota:''}));
+  guardarMueblesLS(prId,pr);
+  syncProyectoSupabase(pr);
+  _reRenderItems(pr);
+}
+
+function archivarMueble(prId,mId){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  const m=pr?.muebles?.find(x=>x.id===mId);
+  if(!m)return;
+  if(!confirm('¿Archivar este mueble? Sale de planificación, planta y despachos sin marcarse completado. Las horas fichadas se conservan.'))return;
+  const hoy=new Date().toISOString().slice(0,10);
+  m.archivado=true; m.archivado_en=hoy;
+  (pr.muebles||[]).filter(e=>e.etapa_de===mId).forEach(e=>{ e.archivado=true; e.archivado_en=hoy; });
+  pr.items=pr.muebles.filter(mu=>!mu.archivado).map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v2)=>a+Number(v2||0),0),nota:''}));
+  guardarMueblesLS(prId,pr);
+  syncProyectoSupabase(pr);
+  _reRenderItems(pr);
+}
+
+function desarchivarMueble(prId,mId){
+  const pr=PROYECTOS.find(p=>p.id===prId);
+  const m=pr?.muebles?.find(x=>x.id===mId);
+  if(!m)return;
+  delete m.archivado; delete m.archivado_en;
+  (pr.muebles||[]).filter(e=>e.etapa_de===mId).forEach(e=>{ delete e.archivado; delete e.archivado_en; });
+  pr.items=pr.muebles.filter(mu=>!mu.archivado).map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v2)=>a+Number(v2||0),0),nota:''}));
+  guardarMueblesLS(prId,pr);
+  syncProyectoSupabase(pr);
+  _reRenderItems(pr);
+}
+
 function setNombreInline(prId,mId,valor){
   const pr=PROYECTOS.find(p=>p.id===prId);
   if(!pr)return;
@@ -4206,7 +4157,7 @@ function setDifInline(prId,mId,dif){
   m.horas=_calcHorasMueble(m);
   guardarMueblesLS(prId,pr);
   syncProyectoSupabase(pr);
-  pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
+  pr.items=pr.muebles.filter(mu=>!mu.archivado).map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
   _reRenderItems(pr);
 }
 
@@ -4229,7 +4180,7 @@ function setCantInline(prId,itemId,val){
   m.horas=_calcHorasMueble(m);
   guardarMueblesLS(prId,pr);
   syncProyectoSupabase(pr);
-  pr.items=pr.muebles.map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
+  pr.items=pr.muebles.filter(mu=>!mu.archivado).map(mu=>({id:mu.id,nombre:[mu.codigo,mu.nombre].filter(Boolean).join(' – '),centros:[],hEst:Object.values(mu.horas||{}).reduce((a,v)=>a+Number(v||0),0),nota:''}));
   _reRenderItems(pr);
 }
 
