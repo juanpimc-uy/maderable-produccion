@@ -575,6 +575,7 @@
   .ds-mueble-row.ds-inact { color:#ff8888; }
   .ds-show-more { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted); padding:10px 14px; cursor:pointer; letter-spacing:1px; user-select:none; }
   .ds-show-more:hover { color:var(--text); }
+  .txp-caret.txp-open { transform:rotate(90deg); color:var(--amber) !important; }
 </style>
 </head>
 <body>
@@ -2997,6 +2998,139 @@ function _reRenderItems(pr) {
   }
 }
 
+// ── Detalle agrupado persona/centro (reemplaza "Detalle por sesión") ──
+let _txpMode = 'persona';
+let _txpLastPrId = null;
+let _txpLastSes = null;
+const _TXP_DIAS_ES = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
+
+function _txpRender(prId, allSes) {
+  _txpLastPrId = prId; _txpLastSes = allSes;
+  const panel = document.getElementById('txp-panel');
+  if (!panel) return;
+  const mode = _txpMode;
+  const totalH = allSes.reduce((a,s) => a + msH(s.fin - s.inicio), 0);
+
+  // Agrupar
+  const tree = {};
+  allSes.forEach(s => {
+    const op = OPERARIOS.find(o => o.id === s.operarioId);
+    const c = getCentro(s.centroId) || { id:'SIN CENTRO', label:'SIN CENTRO', icon:'○', color:'#6b6b6b' };
+    const h = msH(s.fin - s.inicio);
+    const dObj = new Date(s.inicio);
+    const dia = dObj.toLocaleDateString('en-CA', { timeZone: 'America/Montevideo' });
+    const k1 = mode === 'persona' ? (s.operarioId || '_') : (c.id || '_');
+    const k2 = mode === 'persona' ? (c.id || '_') : (s.operarioId || '_');
+    if (!tree[k1]) tree[k1] = { id: k1, op: mode === 'persona' ? op : null, centro: mode === 'persona' ? null : c, subs: {}, total: 0 };
+    tree[k1].total += h;
+    if (!tree[k1].subs[k2]) tree[k1].subs[k2] = { id: k2, op: mode === 'centro' ? op : null, centro: mode === 'centro' ? null : c, dias: {}, total: 0 };
+    tree[k1].subs[k2].total += h;
+    if (!tree[k1].subs[k2].dias[dia]) tree[k1].subs[k2].dias[dia] = { fecha: dia, horas: 0, sesiones: 0 };
+    tree[k1].subs[k2].dias[dia].horas += h;
+    tree[k1].subs[k2].dias[dia].sesiones += 1;
+  });
+
+  const lvl1 = Object.values(tree).sort((a,b) => b.total - a.total);
+  const maxL1 = lvl1.length ? lvl1[0].total : 1;
+
+  // Toggle buttons
+  const btnStyle = (active) => `padding:4px 10px;border-radius:5px;border:1px solid ${active?'#FFD600':'#2e2e2e'};background:${active?'#FFD600':'transparent'};color:${active?'#000':'#888'};cursor:pointer;font-family:'Space Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.5px;`;
+  let h = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">`;
+  h += `<div class="sec-title" style="margin:0;">DETALLE POR ${mode === 'persona' ? 'PERSONA' : 'CENTRO'}</div>`;
+  h += `<div style="display:flex;align-items:center;gap:8px;">`;
+  h += `<button style="${btnStyle(mode==='persona')}" onclick="_txpMode='persona';_txpRender(_txpLastPrId,_txpLastSes);">POR PERSONA</button>`;
+  h += `<button style="${btnStyle(mode==='centro')}" onclick="_txpMode='centro';_txpRender(_txpLastPrId,_txpLastSes);">POR CENTRO</button>`;
+  h += `<span class="mono" style="font-size:14px;font-weight:700;color:var(--amber);margin-left:6px;">${fmtH(totalH)}</span>`;
+  h += `</div></div>`;
+
+  // Rows
+  lvl1.forEach((l1, i1) => {
+    const l1Name = mode === 'persona' ? (l1.op?.nombre || '—') : (l1.centro?.label || l1.id);
+    const l1Color = mode === 'persona' ? 'var(--amber)' : (l1.centro?.color || '#6b6b6b');
+    const l1Icon = mode === 'persona' ? (l1.op?.icon || l1.op?.avatar || '?') : (l1.centro?.icon || '■');
+    const subs = Object.values(l1.subs).sort((a,b) => b.total - a.total);
+    const nSubs = subs.length;
+    const nDias = new Set(subs.flatMap(s2 => Object.keys(s2.dias))).size;
+    const pct1 = totalH > 0 ? Math.round(l1.total / totalH * 100) : 0;
+    const barW1 = maxL1 > 0 ? Math.round(l1.total / maxL1 * 100) : 0;
+    const open1 = i1 === 0;
+    const l1Id = 'txp1-' + i1;
+
+    // Avatar/icon
+    let avHtml;
+    if (mode === 'persona') {
+      const ini = (l1.op?.nombre || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      avHtml = `<div class="av" style="width:30px;height:30px;font-size:11px;flex-shrink:0;">${ini}</div>`;
+    } else {
+      avHtml = `<div style="width:30px;height:30px;border-radius:6px;background:${l1Color}22;display:flex;align-items:center;justify-content:center;font-size:16px;color:${l1Color};flex-shrink:0;">${l1Icon}</div>`;
+    }
+
+    h += `<div style="border-bottom:1px solid rgba(255,255,255,.04);">`;
+    h += `<div onclick="var b=document.getElementById('${l1Id}');b.style.display=b.style.display==='none'?'':'none';var cr=this.querySelector('.txp-caret');if(cr)cr.classList.toggle('txp-open');" style="display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer;">`;
+    h += `<span class="txp-caret${open1?' txp-open':''}" style="font-size:10px;color:#555;transition:transform .15s;display:inline-block;width:12px;text-align:center;">\u25B6</span>`;
+    h += avHtml;
+    h += `<div style="flex:1;min-width:0;">`;
+    h += `<div style="font-size:13px;font-weight:600;color:${mode==='centro'?l1Color:'var(--text)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${(l1Name||'').replace(/</g,'&lt;')}</div>`;
+    h += `<div class="mono" style="font-size:10px;color:#555;">${nSubs} ${mode==='persona'?'centros':'personas'} · ${nDias} días</div>`;
+    h += `</div>`;
+    h += `<div style="width:120px;flex-shrink:0;margin-right:8px;"><div style="height:4px;border-radius:2px;background:#1a1a1a;"><div style="height:100%;width:${barW1}%;border-radius:2px;background:${l1Color};"></div></div></div>`;
+    h += `<div style="text-align:right;flex-shrink:0;white-space:nowrap;">`;
+    h += `<span class="mono" style="font-size:15px;font-weight:700;color:var(--amber);">${fmtH(l1.total)}</span>`;
+    h += `<span class="mono" style="font-size:10px;color:#555;margin-left:4px;">${pct1}%</span>`;
+    h += `</div></div>`;
+
+    // Nivel 2
+    h += `<div id="${l1Id}" style="display:${open1?'':'none'};">`;
+    subs.forEach((l2, i2) => {
+      const l2Name = mode === 'persona' ? (l2.centro?.label || l2.id) : (l2.op?.nombre || '—');
+      const l2Color = mode === 'persona' ? (l2.centro?.color || '#6b6b6b') : 'var(--amber)';
+      const l2Icon = mode === 'persona' ? (l2.centro?.icon || '○') : null;
+      const pct2 = l1.total > 0 ? Math.round(l2.total / l1.total * 100) : 0;
+      const barW2 = l1.total > 0 ? Math.round(l2.total / l1.total * 100) : 0;
+      const dias = Object.values(l2.dias).sort((a,b) => b.fecha < a.fecha ? -1 : b.fecha > a.fecha ? 1 : 0);
+      const open2 = open1 && i2 === 0;
+      const l2Id = 'txp2-' + i1 + '-' + i2;
+
+      let l2Av;
+      if (mode === 'persona') {
+        l2Av = `<span style="display:inline-flex;align-items:center;gap:5px;"><span style="color:${l2Color};font-size:10px;">${l2Icon}</span><span class="mono" style="font-size:10px;color:${l2Color};text-transform:uppercase;letter-spacing:.5px;">${(l2Name||'').replace(/</g,'&lt;')}</span></span>`;
+      } else {
+        const ini2 = (l2.op?.nombre || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+        l2Av = `<span style="display:inline-flex;align-items:center;gap:6px;"><span class="av" style="width:22px;height:22px;font-size:9px;">${ini2}</span><span style="font-size:12px;">${(l2Name||'').replace(/</g,'&lt;')}</span></span>`;
+      }
+
+      h += `<div style="padding-left:62px;border-top:1px solid rgba(255,255,255,.02);">`;
+      h += `<div onclick="event.stopPropagation();var b=document.getElementById('${l2Id}');b.style.display=b.style.display==='none'?'':'none';var cr=this.querySelector('.txp-caret');if(cr)cr.classList.toggle('txp-open');" style="display:flex;align-items:center;gap:8px;padding:7px 0;cursor:pointer;">`;
+      h += `<span class="txp-caret${open2?' txp-open':''}" style="font-size:8px;color:#444;transition:transform .15s;display:inline-block;width:10px;text-align:center;">\u25B6</span>`;
+      h += l2Av;
+      h += `<div style="flex:1;"></div>`;
+      h += `<div style="width:80px;flex-shrink:0;margin-right:6px;"><div style="height:3px;border-radius:2px;background:#1a1a1a;"><div style="height:100%;width:${barW2}%;border-radius:2px;background:${l2Color};"></div></div></div>`;
+      h += `<span class="mono" style="font-size:12px;color:var(--text);">${fmtH(l2.total)}</span>`;
+      h += `<span class="mono" style="font-size:9px;color:#555;margin-left:3px;">${pct2}%</span>`;
+      h += `</div>`;
+
+      // Nivel 3 — días
+      h += `<div id="${l2Id}" style="display:${open2?'':'none'};padding-left:38px;">`;
+      dias.forEach(d => {
+        const dObj = new Date(d.fecha + 'T12:00:00');
+        const dow = _TXP_DIAS_ES[dObj.getDay()];
+        const ddm = String(dObj.getDate()).padStart(2,'0') + '/' + String(dObj.getMonth()+1);
+        const sesLabel = d.sesiones > 1 ? `<span class="mono" style="font-size:9px;color:#444;margin-left:4px;">${d.sesiones} sesiones</span>` : '';
+        h += `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:11px;">`;
+        h += `<span class="mono" style="color:#555;font-size:10px;min-width:62px;">${dow} ${ddm}</span>`;
+        h += `<span style="flex:1;border-bottom:1px dotted #222;height:1px;"></span>`;
+        h += sesLabel;
+        h += `<span class="mono" style="font-size:11px;color:var(--text);">${fmtH(d.horas)}</span>`;
+        h += `</div>`;
+      });
+      h += `</div></div>`;
+    });
+    h += `</div></div>`;
+  });
+
+  panel.innerHTML = h;
+}
+
 async function renderDetallePr(pr, sub) {
   _vistaDetalle = 'pr';
   await _fetchRegistrosPr(pr.id);
@@ -3302,32 +3436,14 @@ if(_archMuebles.length){
         </tbody>
       </table>
     </div>`;
-    // historial de sesiones
+    // detalle agrupado persona/centro
     const allSes=[
       ...HISTORIAL.filter(s=>s.proyectoId===pr.id).map(s=>({...s,activa:false})),
       ...SESIONES.filter(s=>s.proyectoId===pr.id).map(s=>({...s,fin:Date.now(),activa:true})),
     ].sort((a,b)=>b.inicio-a.inicio);
     if(allSes.length){
-      html+=`<div class="card"><div class="sec-title" style="margin-bottom:12px;">Detalle por sesión</div>`;
-      allSes.forEach(s=>{
-        const op=OPERARIOS.find(o=>o.id===s.operarioId);
-        const c=getCentro(s.centroId);
-        const row=(pr.muebles||[]).find(m=>m.id===s.itemId)||(pr.items||[]).find(i=>i.id===s.itemId);
-        const dur=msH(s.fin-s.inicio);
-        const ts=new Date(s.inicio).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-        html+=`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(37,40,54,.5);">
-          <div class="av ${s.activa?'active':'idle'}" style="width:26px;height:26px;font-size:10px;flex-shrink:0;">${op?.avatar||'?'}</div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:12px;font-weight:600;">${op?.nombre||'—'}</div>
-            <div style="font-size:11px;color:${c?.color||'var(--muted)'};">${c?.icon||''} ${c?.label||s.centroId} · <span style="color:var(--muted);">${row?.codigo||''} ${row?.nombre||row?.nombre||s.itemId}</span></div>
-          </div>
-          <div style="text-align:right;flex-shrink:0;">
-            <div class="mono" style="font-size:13px;color:${s.activa?'var(--amber)':'var(--text)'};">${fmtH(dur)}${s.activa?' ▶':''}</div>
-            <div class="mono" style="font-size:10px;color:var(--muted);">${ts}</div>
-          </div>
-        </div>`;
-      });
-      html+=`</div>`;
+      html+=`<div class="card" id="txp-panel"></div>`;
+      setTimeout(()=>_txpRender(pr.id, allSes),0);
     }
   }
 
