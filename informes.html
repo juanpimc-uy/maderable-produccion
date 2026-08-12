@@ -76,6 +76,23 @@
   .export-btn{background:transparent;border:1px solid var(--border);border-radius:5px;padding:5px 12px;color:var(--muted);font-family:'Space Mono',monospace;font-size:10px;cursor:pointer;transition:all .15s;letter-spacing:.5px;}
   .export-btn:hover{border-color:var(--amber);color:var(--amber);}
 
+  /* ── COSTOS TOTALES STRIP ────────────────────────────────── */
+  .ct-strip{display:flex;align-items:center;gap:26px;padding:12px 24px;background:#191919;border-bottom:1px solid #262626;flex-wrap:wrap;}
+  .ct-strip.hidden{display:none;}
+  .ct-item{display:flex;flex-direction:column;gap:2px;}
+  .ct-label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1.5px;color:#777;text-transform:uppercase;}
+  .ct-num{font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:#e8e8e8;}
+  .ct-num.ct-venta{color:#FFD600;}
+  .ct-num.ct-pos{color:#4ade80;}
+  .ct-num.ct-neg{color:#f87171;}
+  .ct-num.ct-saldo{color:#ff9d2e;}
+  .ct-sub{font-family:'Space Mono',monospace;font-size:10px;color:#777;}
+  .ct-sep{width:1px;align-self:stretch;background:rgba(255,255,255,.1);min-height:32px;}
+  .ct-spacer{flex:1;}
+  .ct-warn{display:flex;align-items:center;gap:7px;background:rgba(255,214,0,.08);border:1px solid rgba(255,214,0,.35);border-radius:6px;padding:6px 12px;font-family:'Space Mono',monospace;font-size:10px;color:#FFD600;letter-spacing:.5px;}
+  .ct-info{font-family:'Space Mono',monospace;font-size:9.5px;color:#666;letter-spacing:.5px;}
+  .ct-flag{font-family:'Space Mono',monospace;font-size:8.5px;color:#FFD600;border:1px solid rgba(255,214,0,.4);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle;letter-spacing:.5px;}
+
   /* ── TABLE ──────────────────────────────────────────────── */
   .table-wrap{flex:1;overflow:auto;padding:0 24px 24px;}
   table{width:100%;border-collapse:collapse;font-size:13px;}
@@ -332,6 +349,9 @@
     <button class="export-btn" onclick="window.print()">PDF</button>
   </span>
 </div>
+
+<!-- ══ COSTOS TOTALES STRIP ══════════════════════════════════════════════ -->
+<div class="ct-strip hidden" id="ctStrip"></div>
 
 <!-- ══ TABLE ═════════════════════════════════════════════════════════════ -->
 <div class="table-wrap">
@@ -673,6 +693,9 @@ function renderTabla(data) {
 
     const _factUsd = p._isGrupo ? (p._factUsdGrupo || 0) : (facturacionMap[p.id] || 0);
     const _factPct = p.precio_venta_usd > 0 ? Math.round(_factUsd / p.precio_venta_usd * 100) : null;
+    const _esInterno = !(p.precio_venta_usd > 0);
+    const _sinCostos = !_esInterno && (p.total_invertido_usd || 0) === 0 && p.precio_venta_usd > 0;
+    const sinCostosBadge = _sinCostos ? '<span class="ct-flag">SIN COSTOS</span>' : '';
     const archivedBadge = p.activo === false ? '<span class="archived-badge">ARCHIVADO</span>' : '';
     const rowOpacity = p.activo === false ? 'opacity:.6;' : '';
     const grpStyle = p._isGrupo ? 'border-left:3px solid #FFD600;' : '';
@@ -682,13 +705,13 @@ function renderTabla(data) {
         <div style="display:flex;align-items:center;">
           <span class="status-dot ${statusDotClass(p)}"></span>
           <div>
-            <div class="proj-name">${p._isGrupo ? '⛓ ' : ''}${p.nombre || p.numero || '-'}${archivedBadge}${zombieHtml}</div>
+            <div class="proj-name">${p._isGrupo ? '⛓ ' : ''}${p.nombre || p.numero || '-'}${sinCostosBadge}${archivedBadge}${zombieHtml}</div>
             <div class="proj-sub">${p.numero || ''}${p.cliente_nombre ? ' · ' + p.cliente_nombre : ''}</div>
             ${p.obra && p.obra !== p.nombre ? '<div class="proj-obra">' + p.obra + '</div>' : ''}
           </div>
         </div>
       </td>
-      <td><span class="num">${p.horas_reales_hs} hs${progressHtml}</span></td>
+      <td><span class="num">${(p.horas_reales_hs || 0).toFixed(1)} hs${progressHtml}</span></td>
       <td><span class="num num-muted">${p.horas_estimadas_hs != null ? p.horas_estimadas_hs + ' hs' : '-'}</span></td>
       <td><span class="num">${fmt(p.total_materiales_usd)}</span></td>
       <td><span class="num">${fmt(p.total_tercerizados_usd)}</span></td>
@@ -738,6 +761,56 @@ function renderTotales(data) {
     <span>${n} proy</span>
     <span>${tHoras.toFixed(0)} hs</span>
     <span>U$S ${fmt(tInv)} inv.</span>`;
+
+  // ── Tira de costos totales ──
+  let ctProy = 0, ctHoras = 0, ctVenta = 0, ctCosto = 0, ctSaldo = 0, ctSinCostos = 0;
+  let ctIntNombres = [], ctIntHoras = 0;
+  for (const p of list) {
+    const esInterno = !(p.precio_venta_usd > 0);
+    if (esInterno) {
+      ctIntNombres.push(p.nombre || p.numero || '?');
+      ctIntHoras += (p.horas_reales_hs || 0);
+      continue;
+    }
+    ctProy++;
+    ctHoras += (p.horas_reales_hs || 0);
+    ctVenta += (p.precio_venta_usd || 0);
+    ctCosto += (p.total_invertido_usd || 0);
+    if (p.saldo_cobranza_usd != null && p.saldo_cobranza_usd !== 0) {
+      ctSaldo += p.saldo_cobranza_usd;
+    }
+    if ((p.total_invertido_usd || 0) === 0 && p.precio_venta_usd > 0) ctSinCostos++;
+  }
+  const ctMargen = ctVenta - ctCosto;
+  const ctMargenPct = ctVenta > 0 ? (ctMargen / ctVenta * 100).toFixed(1) + '%' : '—';
+  const ctMargenPos = ctMargen >= 0;
+  const ctMargenSign = ctMargenPos ? '+' : '\u2212';
+  const ctMargenCls = ctMargenPos ? 'ct-pos' : 'ct-neg';
+  const ctPctColor = ctMargenPos ? '#4ade80' : '#f87171';
+
+  let warnHtml = '';
+  if (ctSinCostos > 0) {
+    warnHtml += `<div class="ct-warn">\u26A0 ${ctSinCostos} PROY SIN COSTOS CARGADOS \u2014 INCLUIDOS EN EL TOTAL</div>`;
+  }
+  if (ctIntNombres.length > 0) {
+    const intLabel = ctIntNombres.length <= 2
+      ? ctIntNombres.join(' \u00B7 ')
+      : ctIntNombres.length + ' internos';
+    warnHtml += `<div class="ct-info">SIN PRECIO DE VENTA (${intLabel} \u00B7 ${fmt(Math.round(ctIntHoras))} hs) \u2014 FUERA DEL MARGEN</div>`;
+  }
+
+  document.getElementById('ctStrip').innerHTML = `
+    <div class="ct-item"><div class="ct-label">Proyectos</div><div class="ct-num">${ctProy}</div><div class="ct-sub">${fmt(Math.round(ctHoras))} hs</div></div>
+    <div class="ct-sep"></div>
+    <div class="ct-item"><div class="ct-label">Venta</div><div class="ct-num ct-venta">U$S ${fmt(ctVenta)}</div></div>
+    <div class="ct-item"><div class="ct-label">Costo</div><div class="ct-num">U$S ${fmt(ctCosto)}</div></div>
+    <div class="ct-sep"></div>
+    <div class="ct-item"><div class="ct-label">Margen</div><div class="ct-num ${ctMargenCls}">${ctMargenSign}U$S ${fmt(Math.abs(ctMargen))}</div><div class="ct-sub" style="color:${ctPctColor}">${ctMargenPct}</div></div>
+    <div class="ct-sep"></div>
+    <div class="ct-item"><div class="ct-label">Saldo a cobrar</div><div class="ct-num ct-saldo">U$S ${fmt(ctSaldo)}</div></div>
+    <div class="ct-spacer"></div>
+    ${warnHtml ? '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;">' + warnHtml + '</div>' : ''}`;
+  document.getElementById('ctStrip').classList.toggle('hidden', viewMode !== 'costos');
 }
 
 // ── DETAIL PANEL ────────────────────────────────────────────────────────
@@ -1577,6 +1650,7 @@ async function _leanDrillEtapa(etapa) {
 function setViewMode(mode) {
   viewMode = mode;
   document.getElementById('costosControls').style.display = mode === 'costos' ? 'contents' : 'none';
+  document.getElementById('ctStrip').classList.toggle('hidden', mode !== 'costos');
   document.querySelector('.table-wrap').style.display = mode === 'costos' ? '' : 'none';
   document.getElementById('facturasView').style.display = mode === 'facturas' ? '' : 'none';
   document.getElementById('leanView').style.display = mode === 'lean' ? '' : 'none';
