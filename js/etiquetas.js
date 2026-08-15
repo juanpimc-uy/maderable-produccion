@@ -168,7 +168,26 @@
       .catch(function () { return _configCache || {}; });
   }
 
-  // Merge: config guardada pisa defaults
+  // Merge: config guardada pisa defaults, pero campos nuevos de la spec se agregan
+  function _mergeCamposConSpec(savedCampos, spec, fmt) {
+    if (!savedCampos || !savedCampos.length) return null;
+    var savedIds = {};
+    savedCampos.forEach(function (c) { savedIds[c.id] = true; });
+    var defaults = spec.defaults[fmt] || [];
+    var defaultsById = {};
+    defaults.forEach(function (c) { defaultsById[c.id] = c; });
+    var added = false;
+    spec.campos.forEach(function (sc) {
+      if (!savedIds[sc.id]) {
+        // Campo nuevo en la spec, no está en la config guardada — agregarlo
+        var defPos = defaultsById[sc.id] ? defaultsById[sc.id].pos : 'S';
+        savedCampos.push({ id: sc.id, pos: defPos });
+        added = true;
+      }
+    });
+    return added ? savedCampos : savedCampos;
+  }
+
   function resolverCampos(funcion, tamano, cfgOverride) {
     var spec = FUNCIONES[funcion];
     if (!spec) return [];
@@ -177,11 +196,11 @@
     // Si hay override directo (desde configurador), usarlo
     if (cfgOverride && cfgOverride[fmt]) return cfgOverride[fmt];
 
-    // Si hay config del servidor
+    // Si hay config del servidor — merge con spec para campos nuevos
     if (_configCache && _configCache[funcion]) {
       var row = _configCache[funcion];
       var saved = row.campos || {};
-      if (saved[fmt]) return saved[fmt];
+      if (saved[fmt]) return _mergeCamposConSpec(saved[fmt].slice(), spec, fmt);
     }
 
     // Defaults
@@ -344,17 +363,24 @@
     body.appendChild(col);
     et.appendChild(body);
 
-    // ── PIE (solo 100×50) ──
+    // ── PIE (solo 100×50) — auto-shrink + wrap, NUNCA cortar ──
     if (med.pie && pieCampos.length > 0) {
       var pie = document.createElement('div');
-      pie.style.cssText = 'border-top:.2mm solid #000;padding:' + med.piePad + ';display:flex;justify-content:space-between;flex-shrink:0;';
+      pie.style.cssText = 'border-top:.2mm solid #000;padding:' + med.piePad + ';display:flex;justify-content:space-between;flex-shrink:0;gap:2mm;';
+
+      var basePt = parseFloat(med.pieSize) || 11;
+      var minPt = 5;
 
       pieCampos.forEach(function (c) {
         var specCampo = spec.campos.find(function (sc) { return sc.id === c.id; });
         if (!specCampo) return;
         var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
         var span = document.createElement('span');
-        span.style.cssText = 'font-size:' + med.pieSize + ';font-weight:' + (med.Pw || 600) + ';text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        // Scale font down based on text length — longer text gets smaller font
+        var len = val.length;
+        var pt = basePt;
+        if (len > 12) pt = Math.max(minPt, basePt * 12 / len);
+        span.style.cssText = 'font-size:' + pt.toFixed(1) + 'pt;font-weight:' + (med.Pw || 600) + ';text-transform:uppercase;line-height:1.2;word-break:break-word;';
         span.appendChild(document.createTextNode(val));
         pie.appendChild(span);
       });
