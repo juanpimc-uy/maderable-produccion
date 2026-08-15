@@ -66,6 +66,22 @@ async function accionListarItems(req, res) {
     offset += PAGE;
   }
 
+  // Resolver stock total de todos los ítems en una sola query
+  if (todos.length) {
+    const ids = todos.map(it => it.id);
+    const stockByItem = {};
+    // Chunkear si > 500 ids
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i + 500);
+      const { data: stockRows } = await supabase.from('inv_stock')
+        .select('item_id, cantidad').in('item_id', chunk);
+      (stockRows || []).forEach(r => {
+        stockByItem[r.item_id] = (stockByItem[r.item_id] || 0) + Number(r.cantidad || 0);
+      });
+    }
+    todos.forEach(it => { it.stock_total = stockByItem[it.id] || 0; });
+  }
+
   return ok(res, { items: todos });
 }
 
@@ -1483,6 +1499,64 @@ async function accionListarUnidades(req, res) {
   return ok(res, { unidades: data || [] });
 }
 
+// ── GET detalle-item ── INV-8a: inventario real de un ítem (oficina)
+async function accionDetalleItem(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const sesion = await verificarSesionAdminOficina(req);
+  if (!sesion) return err(res, 'No autorizado', 401);
+
+  const itemId = req.query.item_id;
+  if (!itemId) return err(res, 'item_id requerido');
+
+  const { data: item, error: itemErr } = await supabase.from('inv_items')
+    .select('id, codigo, descripcion, familia, costo_promedio_usd, costo_ultimo_usd, stock_min, stock_max, unidad, inventariable')
+    .eq('id', itemId).maybeSingle();
+  if (itemErr || !item) return err(res, 'Ítem no encontrado', 404);
+
+  // Stock por ubicación
+  const { data: stockRows } = await supabase.from('inv_stock')
+    .select('ubicacion_id, cantidad, inv_ubicaciones(id, codigo, nombre)')
+    .eq('item_id', itemId).neq('cantidad', 0);
+  const porUbicacion = (stockRows || []).map(r => ({
+    ubicacion_id: r.ubicacion_id,
+    codigo: (r.inv_ubicaciones || {}).codigo || '',
+    nombre: (r.inv_ubicaciones || {}).nombre || '',
+    cantidad: Number(r.cantidad || 0),
+  }));
+  const stockTotal = porUbicacion.reduce((s, r) => s + r.cantidad, 0);
+
+  // Unidades (solo placa/madera)
+  let unidades = [];
+  if (item.familia === 'placa' || item.familia === 'madera') {
+    const { data: uRows } = await supabase.from('inv_unidades')
+      .select('id, codigo, estado, ubicacion_id, costo_usd, atributos, inv_ubicaciones:ubicacion_id(codigo, nombre)')
+      .eq('item_id', itemId)
+      .order('estado').order('codigo')
+      .limit(200);
+    unidades = (uRows || []).map(u => ({
+      id: u.id, codigo: u.codigo, estado: u.estado,
+      ubicacion: u.inv_ubicaciones || null,
+      costo_usd: u.costo_usd, atributos: u.atributos,
+    }));
+  }
+
+  // Movimientos (últimos 20)
+  const { data: movRows } = await supabase.from('inv_movimientos')
+    .select('id, tipo, cantidad, motivo, origen, creado_en, nota, ubicacion_id, ubicacion_destino_id, empleado_id, inv_ubicaciones:ubicacion_id(codigo), inv_ubi_dest:ubicacion_destino_id(codigo)')
+    .eq('item_id', itemId)
+    .order('creado_en', { ascending: false })
+    .limit(20);
+  const movimientos = (movRows || []).map(m => ({
+    id: m.id, tipo: m.tipo, cantidad: m.cantidad, motivo: m.motivo,
+    origen: m.origen, creado_en: m.creado_en, nota: m.nota,
+    ubicacion: m.inv_ubicaciones || null,
+    ubicacion_destino: m.inv_ubi_dest || null,
+    empleado_id: m.empleado_id,
+  }));
+
+  return ok(res, { item, stock_total: stockTotal, por_ubicacion: porUbicacion, unidades, movimientos });
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const action = req.query.action;
@@ -1497,6 +1571,7 @@ export default async function handler(req, res) {
     if (action === 'editar-ubicacion')    return await accionEditarUbicacion(req, res);
     if (action === 'stock-item')          return await accionStockItem(req, res);
     if (action === 'stock-ubicacion')     return await accionStockUbicacion(req, res);
+    if (action === 'detalle-item')        return await accionDetalleItem(req, res);
     // Kiosco
     if (action === 'resolver-codigo')     return await accionResolverCodigo(req, res);
     if (action === 'buscar-items-kiosco') return await accionBuscarItemsKiosco(req, res);

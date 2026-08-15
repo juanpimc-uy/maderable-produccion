@@ -174,24 +174,31 @@
       <label class="chk"><input type="checkbox" id="f-inactivos" onchange="_cargarItems()"> Incluir inactivos</label>
     </div>
 
-    <div style="flex:1;overflow-y:auto;" id="tbl-wrap">
-      <table class="tbl">
-        <thead>
-          <tr>
-            <th style="width:30px;"><input type="checkbox" id="chk-all" onchange="_toggleAll(this.checked)"></th>
-            <th>Código</th>
-            <th>Descripción</th>
-            <th>Familia</th>
-            <th>Zoho</th>
-            <th>Inv.</th>
-            <th>Stock</th>
-          </tr>
-        </thead>
-        <tbody id="tbl-body"></tbody>
-      </table>
-    </div>
+    <div style="display:flex;flex:1;overflow:hidden;gap:0;">
+      <!-- Tabla -->
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;">
+        <div style="flex:1;overflow-y:auto;" id="tbl-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th style="width:30px;"><input type="checkbox" id="chk-all" onchange="_toggleAll(this.checked)"></th>
+                <th>Código</th>
+                <th>Descripción</th>
+                <th>Familia</th>
+                <th>Zoho</th>
+                <th>Inv.</th>
+                <th style="text-align:right;">Stock</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-body"></tbody>
+          </table>
+        </div>
+        <div class="pag" id="pag-items"></div>
+      </div>
 
-    <div class="pag" id="pag-items"></div>
+      <!-- Panel lateral de detalle -->
+      <div id="item-panel" style="display:none;width:420px;flex-shrink:0;border-left:1px solid var(--border);overflow-y:auto;background:var(--card2);"></div>
+    </div>
 
     <div class="bulk-bar" id="bulk-bar">
       <span class="bulk-count" id="bulk-count">0 seleccionados</span>
@@ -477,6 +484,10 @@ function _renderTable() {
     const famBadge = '<span class="badge badge-' + (it.familia || 'otro') + '">' + (it.familia || 'otro') + '</span>';
     const zoho = it.zoho_item_id ? '<span class="zoho-ok">✓</span>' : '<span class="badge badge-huerfano">HUÉRFANO</span>';
     const inv = it.inventariable !== false ? '✓' : '<span class="inv-no">NO</span>';
+    const st = it.stock_total || 0;
+    const stockCell = st > 0
+      ? '<span class="mono" style="font-weight:700;">' + st + '</span>'
+      : (it.inventariable !== false ? '<span style="color:var(--red);font-size:10px;">SIN STOCK</span>' : '<span style="color:var(--muted);">—</span>');
     return '<tr class="' + sel + '" data-id="' + it.id + '">'
       + '<td><input type="checkbox"' + chk + ' onchange="_toggleSel(\'' + it.id + '\', this.checked)" onclick="event.stopPropagation()"></td>'
       + '<td class="cod">' + esc(it.codigo) + '</td>'
@@ -484,16 +495,16 @@ function _renderTable() {
       + '<td>' + famBadge + '</td>'
       + '<td>' + zoho + '</td>'
       + '<td>' + inv + '</td>'
-      + '<td style="color:var(--muted);">—</td>'
+      + '<td style="text-align:right;">' + stockCell + '</td>'
       + '</tr>';
   }).join('');
 
-  // click on row (not checkbox) opens edit
+  // click on row (not checkbox) opens detail panel
   document.querySelectorAll('#tbl-body tr').forEach(tr => {
     tr.addEventListener('click', function(e) {
       if (e.target.tagName === 'INPUT') return;
       const id = this.dataset.id;
-      _openEditItem(id);
+      _openItemPanel(id);
     });
   });
 
@@ -1113,6 +1124,119 @@ async function _cargarReposicion() {
 
   html += '</tbody></table></div>';
   el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PANEL LATERAL DE DETALLE (INV-8a)
+// ═══════════════════════════════════════════════════════════════════
+let _panelItemId = null;
+
+function _closeItemPanel() {
+  document.getElementById('item-panel').style.display = 'none';
+  _panelItemId = null;
+}
+
+async function _openItemPanel(id) {
+  const panel = document.getElementById('item-panel');
+  panel.style.display = '';
+  _panelItemId = id;
+  panel.innerHTML = '<div style="padding:20px;text-align:center;"><span class="spin"></span><div style="margin-top:8px;font-size:12px;color:var(--muted);">Cargando...</div></div>';
+
+  const r = await _get('detalle-item', { item_id: id });
+  if (!r.ok) { panel.innerHTML = '<div style="padding:20px;color:var(--red);">' + (r.msg || 'Error') + '</div>'; return; }
+  if (_panelItemId !== id) return; // user clicked another
+
+  const it = r.item;
+  const esc = s => (s == null ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'));
+  const fmtUsd = v => v != null ? 'USD ' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+
+  let html = '<div style="padding:16px;">';
+
+  // Close + edit buttons
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
+    + '<button class="btn" style="font-size:10px;" onclick="_openEditItem(\'' + id + '\')">✏ Editar</button>'
+    + '<button class="btn" style="font-size:10px;" onclick="_closeItemPanel()">✕ Cerrar</button></div>';
+
+  // Cabecera
+  html += '<div class="mono" style="font-size:16px;font-weight:700;color:var(--amber);letter-spacing:1px;">' + esc(it.codigo) + '</div>'
+    + '<div style="font-size:13px;margin-top:4px;line-height:1.4;">' + esc(it.descripcion) + '</div>'
+    + '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;">'
+    + '<span class="badge badge-' + (it.familia || 'otro') + '">' + (it.familia || 'otro') + '</span>'
+    + (it.inventariable === false ? '<span class="inv-no">NO INV.</span>' : '')
+    + '</div>';
+
+  // Costos
+  html += '<div style="margin-top:12px;display:flex;gap:12px;">'
+    + '<div style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:8px;">'
+    + '<div class="mono" style="font-size:8px;color:var(--muted);letter-spacing:1px;">COSTO PROMEDIO</div>'
+    + '<div class="mono" style="font-size:12px;font-weight:700;margin-top:2px;">' + fmtUsd(it.costo_promedio_usd) + '</div></div>'
+    + '<div style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:8px;">'
+    + '<div class="mono" style="font-size:8px;color:var(--muted);letter-spacing:1px;">COSTO ÚLTIMO</div>'
+    + '<div class="mono" style="font-size:12px;font-weight:700;margin-top:2px;">' + fmtUsd(it.costo_ultimo_usd) + '</div></div>'
+    + '</div>';
+
+  // Stock total
+  html += '<div style="margin-top:16px;text-align:center;">'
+    + '<div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;">STOCK TOTAL</div>'
+    + '<div class="mono" style="font-size:28px;font-weight:700;color:' + (r.stock_total > 0 ? 'var(--green)' : 'var(--red)') + ';">' + r.stock_total + '</div>'
+    + (it.stock_min != null ? '<div class="mono" style="font-size:10px;color:var(--muted);">Mín: ' + it.stock_min + (it.stock_max != null ? ' · Máx: ' + it.stock_max : '') + '</div>' : '')
+    + '</div>';
+
+  // Desglose por ubicación
+  if (r.por_ubicacion.length) {
+    html += '<div style="margin-top:16px;"><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;">POR UBICACIÓN</div>';
+    r.por_ubicacion.forEach(function(u) {
+      html += '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;">'
+        + '<span class="mono" style="color:var(--amber);font-size:11px;">' + esc(u.codigo) + '</span>'
+        + '<span class="mono" style="font-weight:700;">' + u.cantidad + '</span></div>';
+    });
+    html += '</div>';
+  }
+
+  // Unidades (placa/madera)
+  if (r.unidades.length) {
+    html += '<div style="margin-top:16px;"><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;">UNIDADES (' + r.unidades.length + ')</div>'
+      + '<div style="max-height:200px;overflow-y:auto;">';
+    r.unidades.forEach(function(u) {
+      var ubi = u.ubicacion || {};
+      var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
+      var estadoColor = u.estado === 'activa' ? 'var(--green)' : 'var(--muted)';
+      html += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;">'
+        + '<span class="mono" style="font-weight:700;color:var(--amber);">' + esc(u.codigo) + '</span>'
+        + '<span style="color:' + estadoColor + ';font-size:9px;">' + esc(u.estado) + '</span>'
+        + '<span style="color:var(--muted);font-size:10px;">' + esc(ubi.codigo || '') + '</span>'
+        + '<span style="margin-left:auto;cursor:pointer;font-size:13px;" onclick="_printUnit(\'' + esc(u.codigo) + '\',\'' + esc(it.descripcion).replace(/'/g, "\\'") + '\',\'' + esc(attrs.espesor ? attrs.espesor + 'mm' : '') + '\',\'' + esc(attrs.medida || '') + '\')" title="Imprimir etiqueta">⎙</span>'
+        + '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // Movimientos
+  if (r.movimientos.length) {
+    var tipoColor = { entrada: 'var(--green)', salida: 'var(--red)', traslado: 'var(--amber)', ajuste: '#6d9ddf' };
+    html += '<div style="margin-top:16px;"><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;">MOVIMIENTOS (ÚLTIMOS 20)</div>'
+      + '<div style="max-height:240px;overflow-y:auto;">';
+    r.movimientos.forEach(function(m) {
+      var fecha = m.creado_en ? new Date(m.creado_en).toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+      var ubiTxt = (m.ubicacion || {}).codigo || '';
+      if (m.tipo === 'traslado' && m.ubicacion_destino) ubiTxt += ' → ' + m.ubicacion_destino.codigo;
+      html += '<div style="display:flex;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;align-items:baseline;">'
+        + '<span class="mono" style="font-weight:700;color:' + (tipoColor[m.tipo] || 'var(--muted)') + ';font-size:9px;text-transform:uppercase;min-width:50px;">' + esc(m.tipo) + '</span>'
+        + '<span class="mono" style="font-weight:700;min-width:24px;text-align:right;">' + (m.cantidad != null ? m.cantidad : '') + '</span>'
+        + '<span style="color:var(--muted);font-size:10px;">' + esc(ubiTxt) + '</span>'
+        + '<span style="color:var(--muted);font-size:9px;margin-left:auto;">' + esc(fecha) + '</span>'
+        + '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  html += '</div>';
+  panel.innerHTML = html;
+}
+
+function _printUnit(codigo, desc, espesor, medida) {
+  if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
+  Etiquetas.imprimir('inv-placa', [{ codigo: codigo, descripcion: desc, espesor: espesor, medida: medida, _qr: codigo }]);
 }
 
 // ── Init ──
