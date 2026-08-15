@@ -143,6 +143,7 @@
     <div class="tab" data-tab="ubicaciones" onclick="_switchTab('ubicaciones')">Ubicaciones</div>
     <div class="tab" data-tab="valuacion" onclick="_switchTab('valuacion')">Valuación</div>
     <div class="tab" data-tab="reposicion" onclick="_switchTab('reposicion')">Reposición</div>
+    <div class="tab" data-tab="carga" onclick="_switchTab('carga')">Carga stock</div>
   </div>
 
   <!-- ═══════ TAB: ÍTEMS ═══════ -->
@@ -250,6 +251,75 @@
       <div class="placeholder"><div><div style="font-size:14px;color:var(--muted);">Cargando...</div></div></div>
     </div>
   </div>
+
+  <!-- ═══════ TAB: CARGA STOCK PLACA ═══════ -->
+  <div id="tab-carga" class="tab-content">
+    <div style="display:flex;gap:24px;flex:1;overflow:hidden;">
+      <!-- Panel izquierdo: formulario -->
+      <div style="flex:1;overflow-y:auto;max-width:560px;">
+        <div class="hdr-row" style="margin-bottom:16px;">
+          <span class="hdr-title">Carga de stock inicial — Placas</span>
+        </div>
+
+        <!-- Buscador de ítem -->
+        <div style="margin-bottom:16px;">
+          <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block;">Buscar ítem (placa / madera)</label>
+          <div style="position:relative;">
+            <input class="inp" type="text" id="cs-item-input" placeholder="Código o descripción..." style="width:100%;">
+            <div id="cs-item-drop" class="bs-drop"></div>
+          </div>
+        </div>
+
+        <!-- Ficha del ítem seleccionado -->
+        <div id="cs-item-ficha" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;">
+            <span class="mono" style="font-size:13px;font-weight:700;color:var(--amber);" id="cs-ficha-codigo"></span>
+            <span class="badge" id="cs-ficha-familia"></span>
+          </div>
+          <div style="font-size:13px;margin-top:6px;" id="cs-ficha-desc"></div>
+          <div style="margin-top:12px;padding:10px;background:var(--card2);border-radius:6px;border:1px solid var(--border);">
+            <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:4px;">COSTO ÚLTIMO (USD)</div>
+            <div class="mono" style="font-size:20px;font-weight:700;" id="cs-ficha-costo"></div>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--amber);line-height:1.4;" id="cs-ficha-warn">
+            ⚠ Revisá que el costo tenga sentido antes de generar. Si es absurdo, corregilo en la ficha del ítem primero.
+          </div>
+        </div>
+
+        <!-- Cantidad + Estante -->
+        <div id="cs-form-campos" style="display:none;">
+          <div style="display:flex;gap:12px;margin-bottom:16px;">
+            <div style="flex:1;">
+              <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block;">Cantidad de placas</label>
+              <input class="inp" type="number" id="cs-cantidad" min="1" step="1" value="1" style="width:100%;">
+            </div>
+            <div style="flex:1;">
+              <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:block;">Estante destino</label>
+              <select class="inp" id="cs-ubicacion" style="width:100%;">
+                <option value="">Elegir ubicación...</option>
+              </select>
+            </div>
+          </div>
+
+          <button class="btn btn-accent" style="width:100%;padding:14px;font-size:14px;font-weight:700;" onclick="_csGenerar()" id="cs-btn-generar">
+            Generar placas + etiquetas
+          </button>
+          <div id="cs-error" class="err-msg" style="margin-top:8px;"></div>
+        </div>
+      </div>
+
+      <!-- Panel derecho: cargadas en esta sesión -->
+      <div style="flex:1;overflow-y:auto;border-left:1px solid var(--border);padding-left:24px;">
+        <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:16px;">
+          <span class="mono" style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Cargadas esta sesión</span>
+          <span class="mono" style="font-size:18px;font-weight:700;color:var(--green);" id="cs-total">0</span>
+        </div>
+        <div id="cs-log" style="font-size:12px;color:var(--muted);">
+          <div style="color:var(--muted);font-size:12px;">Todavía no se cargó nada</div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ MODAL: Crear/Editar Ítem ═══ -->
@@ -348,6 +418,7 @@
   </div>
 </div>
 
+<script src="/js/buscador.js"></script>
 <script src="/js/etiquetas.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════
@@ -378,6 +449,7 @@ function _switchTab(id) {
   if (id === 'ubicaciones' && !_ubisLoaded) _cargarUbicaciones();
   if (id === 'valuacion' && !_valLoaded) _cargarValuacion();
   if (id === 'reposicion' && !_repoLoaded) _cargarReposicion();
+  if (id === 'carga' && !_csCargaLoaded) _csInit();
 }
 
 // ── Modals ──
@@ -1112,6 +1184,140 @@ async function _cargarReposicion() {
 
   html += '</tbody></table></div>';
   el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TAB CARGA STOCK PLACA (INV-5)
+// ═══════════════════════════════════════════════════════════════════
+let _csItemSel = null;
+let _csItems = [];
+let _csUbis = [];
+let _csSesionTotal = 0;
+let _csSesionLog = [];
+let _csBuscador = null;
+let _csCargaLoaded = false;
+
+async function _csInit() {
+  if (_csCargaLoaded) return;
+  _csCargaLoaded = true;
+
+  // Cargar ítems placa/madera
+  const r = await _get('listar-items', { activo: 'true' });
+  if (r.ok) {
+    _csItems = (r.items || []).filter(function(it) { return it.familia === 'placa' || it.familia === 'madera'; });
+  }
+
+  // Cargar ubicaciones
+  if (!_ubicaciones.length) {
+    const r2 = await _get('listar-ubicaciones', { todas: '1' });
+    if (r2.ok) _ubicaciones = r2.ubicaciones || [];
+  }
+  _csUbis = _ubicaciones.filter(function(u) { return u.activo !== false; });
+
+  // Poblar select de ubicación
+  var sel = document.getElementById('cs-ubicacion');
+  sel.innerHTML = '<option value="">Elegir ubicación...</option>' + _csUbis.map(function(u) {
+    return '<option value="' + u.id + '">' + u.codigo + ' — ' + (u.nombre || '') + '</option>';
+  }).join('');
+
+  // Montar buscador
+  _csBuscador = montarBuscador(
+    document.getElementById('cs-item-input'),
+    document.getElementById('cs-item-drop'),
+    _csItems,
+    {
+      codigo: function(x) { return x.codigo || ''; },
+      texto: function(x) { return x.descripcion || ''; },
+      sub: function(x) { return x.familia + (x.costo_ultimo_usd != null ? ' · USD ' + Number(x.costo_ultimo_usd).toFixed(2) : ' · sin costo'); },
+      limite: 10,
+      onSelect: function(item) { _csSeleccionarItem(item); }
+    }
+  );
+}
+
+function _csSeleccionarItem(item) {
+  _csItemSel = item;
+  var ficha = document.getElementById('cs-item-ficha');
+  ficha.style.display = '';
+  document.getElementById('cs-ficha-codigo').textContent = item.codigo;
+  document.getElementById('cs-ficha-familia').textContent = item.familia;
+  document.getElementById('cs-ficha-familia').className = 'badge badge-' + item.familia;
+  document.getElementById('cs-ficha-desc').textContent = item.descripcion || '';
+  var costoEl = document.getElementById('cs-ficha-costo');
+  if (item.costo_ultimo_usd != null) {
+    costoEl.textContent = 'USD ' + Number(item.costo_ultimo_usd).toFixed(2);
+    costoEl.style.color = 'var(--amber)';
+  } else {
+    costoEl.textContent = 'SIN COSTO';
+    costoEl.style.color = 'var(--red)';
+  }
+  document.getElementById('cs-form-campos').style.display = '';
+  document.getElementById('cs-error').textContent = '';
+}
+
+async function _csGenerar() {
+  if (!_csItemSel) return;
+  var errEl = document.getElementById('cs-error');
+  errEl.textContent = '';
+  var cant = parseInt(document.getElementById('cs-cantidad').value, 10);
+  if (!cant || cant <= 0) { errEl.textContent = 'Cantidad debe ser mayor a 0'; return; }
+  var ubiId = document.getElementById('cs-ubicacion').value;
+  if (!ubiId) { errEl.textContent = 'Elegí un estante destino'; return; }
+
+  var btn = document.getElementById('cs-btn-generar');
+  btn.disabled = true;
+  btn.textContent = 'Generando...';
+
+  var r = await _post('cargar-stock-placa', {
+    inv_item_id: _csItemSel.id,
+    cantidad: cant,
+    ubicacion_id: ubiId
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'Generar placas + etiquetas';
+
+  if (!r.ok) { errEl.textContent = r.msg || 'Error'; return; }
+
+  // Imprimir etiquetas
+  if (window.Etiquetas && r.codigos && r.codigos.length) {
+    var etiquetas = r.codigos.map(function(cod) {
+      return {
+        codigo: cod,
+        descripcion: r.item.descripcion || '',
+        medida: r.item.medida || '',
+        _qr: cod
+      };
+    });
+    Etiquetas.imprimir('inv-placa', etiquetas);
+  }
+
+  // Actualizar panel derecho
+  _csSesionTotal += r.codigos.length;
+  var ubiSel = _csUbis.find(function(u) { return String(u.id) === String(ubiId); });
+  _csSesionLog.unshift({
+    item: _csItemSel.codigo,
+    cantidad: r.codigos.length,
+    estante: ubiSel ? ubiSel.codigo : '?',
+    costo: r.costo_usd
+  });
+  _csRenderLog();
+
+  // Reset para siguiente grupo
+  document.getElementById('cs-cantidad').value = '1';
+}
+
+function _csRenderLog() {
+  document.getElementById('cs-total').textContent = _csSesionTotal;
+  var html = _csSesionLog.map(function(e) {
+    return '<div style="padding:8px 0;border-bottom:1px solid var(--border);">'
+      + '<span class="mono" style="color:var(--amber);font-size:11px;font-weight:700;">' + e.item + '</span>'
+      + ' × <b>' + e.cantidad + '</b>'
+      + ' → <span class="mono" style="font-size:11px;">' + e.estante + '</span>'
+      + (e.costo != null ? ' <span style="color:var(--muted);font-size:10px;">USD ' + Number(e.costo).toFixed(2) + ' c/u</span>' : '')
+      + '</div>';
+  }).join('');
+  document.getElementById('cs-log').innerHTML = html || '<div style="color:var(--muted);font-size:12px;">Todavía no se cargó nada</div>';
 }
 
 // ── Init ──

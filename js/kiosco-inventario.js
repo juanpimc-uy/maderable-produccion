@@ -540,6 +540,7 @@
         + '<button class="inv-btn inv-btn-accent inv-btn-lg" onclick="_invPlacaConsumir()">CONSUMIR EN PROYECTO</button>'
         + '<button class="inv-btn inv-btn-lg" onclick="_invPlacaTrasladar()">TRASLADAR</button>'
         + '<button class="inv-btn inv-btn-lg" onclick="_invPlacaDescartar()">DESCARTAR</button>'
+        + '<button class="inv-btn inv-btn-lg" onclick="_invPlacaImprimir()">⎙ REIMPRIMIR ETIQUETA</button>'
         + '</div>';
       if (u.reserva_proyecto_id) {
         html += '<div style="margin-top:12px;text-align:center;">'

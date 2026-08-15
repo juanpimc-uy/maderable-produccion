@@ -1387,6 +1387,74 @@ async function accionRecepcionarInventario(req, res) {
   return ok(res, { placas_creadas: placasCreadas, lineas_cantidad: lineasCantidad, errores });
 }
 
+// ── POST cargar-stock-placa ── INV-5: carga de stock inicial de placas existentes
+async function accionCargarStockPlaca(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const sesion = await verificarSesionAdminOficina(req);
+  if (!sesion) return err(res, 'No autorizado', 401);
+
+  const b = req.body || {};
+  const { inv_item_id, cantidad, ubicacion_id } = b;
+  if (!inv_item_id) return err(res, 'inv_item_id requerido');
+  if (!cantidad || !Number.isInteger(cantidad) || cantidad <= 0) return err(res, 'cantidad debe ser entero > 0');
+  if (!ubicacion_id) return err(res, 'ubicacion_id requerido');
+
+  // Validar ítem existe y familia es placa/madera
+  const { data: item, error: itemErr } = await supabase
+    .from('inv_items').select('id, codigo, descripcion, familia, costo_ultimo_usd, unidad')
+    .eq('id', inv_item_id).maybeSingle();
+  if (itemErr || !item) return err(res, 'Ítem no encontrado');
+  if (item.familia !== 'placa' && item.familia !== 'madera') return err(res, 'Solo ítems de familia placa o madera');
+
+  // Validar ubicación existe
+  const { data: ubi, error: ubiErr } = await supabase
+    .from('inv_ubicaciones').select('id').eq('id', ubicacion_id).maybeSingle();
+  if (ubiErr || !ubi) return err(res, 'Ubicación no encontrada');
+
+  // Costo del ítem (puede ser null — se carga igual sin costo)
+  const costoUsd = (item.costo_ultimo_usd != null) ? Number(item.costo_ultimo_usd) : null;
+
+  // Atributos para etiqueta: tomar lo que haya del ítem
+  const atributos = {};
+  if (item.descripcion) atributos.material = item.descripcion;
+
+  // Llamar RPC (crea N unidades serializadas + movimientos + stock)
+  const { data: codigos, error: rpcErr } = await supabase.rpc('inv_recibir_serializado', {
+    p_item_id: inv_item_id,
+    p_cantidad: cantidad,
+    p_ubicacion_id: ubicacion_id,
+    p_costo_usd: costoUsd,
+    p_atributos: Object.keys(atributos).length ? atributos : null,
+    p_empleado_id: sesion.id,
+    p_reserva_proyecto_id: null,
+    p_oc_numero: 'CARGA-INICIAL',
+  });
+  if (rpcErr) return err(res, rpcErr.message, 500);
+
+  // La RPC marca costo_verificado=true (viene de recepción OC). Para carga inicial
+  // NO es verificado — corregir los movimientos recién creados.
+  // Los identificamos por nota='OC CARGA-INICIAL' + las unidades devueltas.
+  if (codigos && codigos.length) {
+    // Buscar unidades por código para obtener sus IDs
+    const { data: unidades } = await supabase
+      .from('inv_unidades').select('id').in('codigo', codigos);
+    if (unidades && unidades.length) {
+      const unidadIds = unidades.map(u => u.id);
+      await supabase.from('inv_movimientos')
+        .update({ costo_verificado: false })
+        .in('unidad_id', unidadIds)
+        .eq('motivo', 'recepcion_oc');
+    }
+  }
+
+  return ok(res, {
+    codigos: codigos || [],
+    item: { codigo: item.codigo, descripcion: item.descripcion, medida: item.unidad || '' },
+    cantidad,
+    costo_usd: costoUsd,
+  });
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const action = req.query.action;
@@ -1418,6 +1486,8 @@ export default async function handler(req, res) {
     // Recepción OC → inventario
     if (action === 'oc-para-inventario')      return await accionOcParaInventario(req, res);
     if (action === 'recepcionar-inventario')  return await accionRecepcionarInventario(req, res);
+    // Carga de stock inicial
+    if (action === 'cargar-stock-placa')      return await accionCargarStockPlaca(req, res);
     return err(res, 'Acción no reconocida');
   } catch (e) {
     console.error('[inventario]', action, e);
