@@ -100,11 +100,12 @@
       campos: [
         { id: 'codigo',      label: 'Código',      ej: 'PL-000481',              fijo: true },
         { id: 'descripcion', label: 'Descripción', ej: 'MDF 18mm Blanco',        fijo: false },
-        { id: 'medida',      label: 'Medida',      ej: '1.83×2.60',              fijo: false },
+        { id: 'espesor',     label: 'Espesor',     ej: '18mm',                   fijo: false },
+        { id: 'medida',      label: 'Medida',      ej: '260x183',                fijo: false },
       ],
       defaults: {
-        '60x30':  [{ id: 'codigo', pos: 'XL' }, { id: 'descripcion', pos: 'M' }, { id: 'medida', pos: 'S' }],
-        '100x50': [{ id: 'codigo', pos: 'XL' }, { id: 'descripcion', pos: 'L' }, { id: 'medida', pos: 'M' }],
+        '60x30':  [{ id: 'codigo', pos: 'XL' }, { id: 'descripcion', pos: 'M' }, { id: 'espesor', pos: 'S' }, { id: 'medida', pos: 'S' }],
+        '100x50': [{ id: 'codigo', pos: 'XL' }, { id: 'descripcion', pos: 'L' }, { id: 'espesor', pos: 'M' }, { id: 'medida', pos: 'M' }],
       }
     },
     'inv-bin': {

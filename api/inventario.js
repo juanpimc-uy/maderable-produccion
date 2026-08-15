@@ -1415,9 +1415,13 @@ async function accionCargarStockPlaca(req, res) {
   // Costo del ítem (puede ser null — se carga igual sin costo)
   const costoUsd = (item.costo_ultimo_usd != null) ? Number(item.costo_ultimo_usd) : null;
 
-  // Atributos para etiqueta: tomar lo que haya del ítem
-  const atributos = {};
-  if (item.descripcion) atributos.material = item.descripcion;
+  // Atributos: usar los del body si vienen (front puede mandar espesor/medida/material),
+  // sino armar defaults del ítem
+  let atributos = b.atributos;
+  if (!atributos || typeof atributos !== 'object') {
+    atributos = {};
+    if (item.descripcion) atributos.material = item.descripcion;
+  }
 
   // Llamar RPC (crea N unidades serializadas + movimientos + stock)
   const { data: codigos, error: rpcErr } = await supabase.rpc('inv_recibir_serializado', {
@@ -1456,6 +1460,29 @@ async function accionCargarStockPlaca(req, res) {
   });
 }
 
+// ── GET listar-unidades ── INV-7: lista unidades serializadas activas por ubicación o ítem
+async function accionListarUnidades(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const emp = await verificarOperario(req.query.empleado_id);
+  if (!emp) return err(res, 'No autorizado', 401);
+
+  const ubicacionId = req.query.ubicacion_id;
+  const itemId = req.query.item_id;
+  if (!ubicacionId && !itemId) return err(res, 'ubicacion_id o item_id requerido');
+
+  let query = supabase.from('inv_unidades')
+    .select('id, codigo, atributos, ubicacion_id, item_id, inv_items:item_id(id, codigo, descripcion, familia), inv_ubicaciones:ubicacion_id(id, codigo, nombre)')
+    .eq('estado', 'activa')
+    .order('codigo')
+    .limit(200);
+  if (ubicacionId) query = query.eq('ubicacion_id', ubicacionId);
+  if (itemId) query = query.eq('item_id', itemId);
+
+  const { data, error: qErr } = await query;
+  if (qErr) return err(res, qErr.message, 500);
+  return ok(res, { unidades: data || [] });
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const action = req.query.action;
@@ -1489,6 +1516,7 @@ export default async function handler(req, res) {
     if (action === 'recepcionar-inventario')  return await accionRecepcionarInventario(req, res);
     // Carga de stock inicial
     if (action === 'cargar-stock-placa')      return await accionCargarStockPlaca(req, res);
+    if (action === 'listar-unidades')         return await accionListarUnidades(req, res);
     return err(res, 'Acción no reconocida');
   } catch (e) {
     console.error('[inventario]', action, e);

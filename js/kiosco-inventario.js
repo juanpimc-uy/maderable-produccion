@@ -8,7 +8,7 @@
   var _stock = [];
   var _total = 0;
   var _container = null;
-  var _screen = 'home'; // home | ficha | salida-motivo | salida-proyecto | salida-mueble | keypad | alta | alta-ok | contenido-ubi | ficha-placa | placa-consumo-proy | placa-consumo-mueble | placa-consumo-reserva | placa-consumo-ok | placa-traslado | placa-descarte | carga-placa | carga-placa-ok | traslado-masivo-ubi | traslado-masivo-scan
+  var _screen = 'home'; // home | ficha | salida-motivo | salida-proyecto | salida-mueble | keypad | alta | alta-ok | contenido-ubi | ficha-placa | placa-consumo-proy | placa-consumo-mueble | placa-consumo-reserva | placa-consumo-ok | placa-traslado | placa-descarte | carga-placa | carga-placa-ok | traslado-masivo-ubi | traslado-masivo-scan | reimp-modo | reimp-list
   var _action = null; // entrada | salida | traslado | ajuste | a_picking | alta
   var _unidad = null; // ficha placa actual
   var _unidadItem = null;
@@ -29,6 +29,9 @@
   var _tmDestinoUbi = null; // ubicación destino del traslado masivo {id, codigo, nombre}
   var _tmMovidos = []; // [{codigo, ok, msg}]
   var _tmTotal = 0;
+  var _ultimoLoteEtiquetas = null; // para reimprimir último lote
+  var _cargaEspesor = null; // parsed/edited espesor
+  var _cargaMedida = null; // parsed/edited medida
 
   // ═══ CSS ═══
   if (!document.getElementById('inv-kiosco-css')) {
@@ -180,6 +183,8 @@
     else if (_screen === 'carga-placa-ok') _renderCargaPlacaOk();
     else if (_screen === 'traslado-masivo-ubi') _renderTrasladoMasivoUbi();
     else if (_screen === 'traslado-masivo-scan') _renderTrasladoMasivoScan();
+    else if (_screen === 'reimp-modo') _renderReimpModo();
+    else if (_screen === 'reimp-list') _renderReimpList();
   }
 
   // ── HOME ──
@@ -193,6 +198,7 @@
       + '<button class="inv-btn inv-btn-lg" onclick="_invRecepcion()">📥 Recepción OC</button>'
       + '<button class="inv-btn inv-btn-lg" onclick="_invCargaPlaca()">▤ Cargar stock de placa</button>'
       + '<button class="inv-btn inv-btn-lg" onclick="_invTrasladoMasivo()">⇄ Trasladar placas a estante</button>'
+      + '<button class="inv-btn inv-btn-lg" onclick="_invReimprimirPlaca()">⎙ Reimprimir etiqueta de placa</button>'
       + '</div></div>';
     var inp = document.getElementById('inv-scan');
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') _invScan(inp.value); });
@@ -578,6 +584,7 @@
     Etiquetas.imprimir('inv-placa', [{
       codigo: _unidad.codigo,
       descripcion: _unidadItem.descripcion || '',
+      espesor: attrs.espesor ? attrs.espesor + 'mm' : '',
       medida: attrs.medida || '',
       _qr: _unidad.codigo
     }]);
@@ -880,10 +887,30 @@
       + '</div></div>';
   }
 
-  // ── CARGA STOCK DE PLACA (INV-5b / INV-6) ──
+  // ── PARSER de espesor/medida desde descripción ──
+  function _parsePlacaAttrs(desc) {
+    var d = (desc || '').toString();
+    var espesor = null, medida = null;
+    // Espesor: "18mm", "18 mm", "18MM", "15 mm."
+    var mE = d.match(/(\d+(?:[.,]\d+)?)\s*mm\b/i);
+    if (mE) espesor = Number(String(mE[1]).replace(',', '.'));
+    // Medida: "260x183", "260 X 183", "2.60 x 1.83", "275X185"
+    var mM = d.match(/(\d+(?:[.,]\d+)?)\s*[xX]\s*(\d+(?:[.,]\d+)?)/);
+    if (mM) {
+      var a = Number(String(mM[1]).replace(',', '.'));
+      var b = Number(String(mM[2]).replace(',', '.'));
+      if (a < 10) a = Math.round(a * 100);
+      if (b < 10) b = Math.round(b * 100);
+      medida = Math.round(a) + 'x' + Math.round(b);
+    }
+    return { espesor: espesor, medida: medida };
+  }
+
+  // ── CARGA STOCK DE PLACA (INV-5b / INV-6 / INV-7) ──
   window._invCargaPlaca = function () {
     _cargaItem = null;
-    // Resolver SIN-UBICAR una sola vez
+    _cargaEspesor = null;
+    _cargaMedida = null;
     if (!_sinUbicarId) {
       _get('resolver-codigo', { codigo: 'SIN-UBICAR' }).then(function (r) {
         if (!r.ok || r.tipo !== 'ubicacion') { _fail('Falta crear la ubicación SIN-UBICAR — ejecutá inv6-sin-ubicar.sql'); return; }
@@ -928,13 +955,21 @@
         + '<div style="margin-top:4px;font-size:11px;color:#666;">Revisá que el costo tenga sentido antes de generar.</div>'
         + '</div>';
 
+      // Espesor + medida (editables, precargados del parser)
+      html += '<div style="display:flex;gap:12px;margin-bottom:16px;">'
+        + '<div style="flex:1;"><div class="inv-label">Espesor (mm)</div>'
+        + '<input id="inv-carga-espesor" type="number" min="1" step="1" value="' + (_cargaEspesor != null ? _cargaEspesor : '') + '" placeholder="18" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
+        + '<div style="flex:1;"><div class="inv-label">Medida (cm)</div>'
+        + '<input id="inv-carga-medida" type="text" value="' + _esc(_cargaMedida || '') + '" placeholder="260x183" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
+        + '</div>'
+        + '<div style="font-size:10px;color:#666;margin-bottom:16px;">Detectado de la descripción — corregí si está mal.</div>';
+
       // Cantidad
       html += '<div style="margin-bottom:16px;">'
         + '<div class="inv-label">Cantidad de placas</div>'
         + '<input id="inv-carga-cant" type="number" min="1" step="1" value="1" style="width:100%;font-family:\'Space Mono\',monospace;font-size:18px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:12px;color:#e8e8e8;text-align:center;">'
         + '</div>';
 
-      // Botón generar directo (sin estante)
       html += '<button class="inv-btn inv-btn-accent inv-btn-lg" style="width:100%;padding:16px;font-size:14px;" id="inv-carga-btn" onclick="_invCargaPlacaGenerar()">GENERAR PLACAS + ETIQUETAS</button>'
         + '<div style="margin-top:8px;text-align:center;"><button class="inv-btn" style="font-size:10px;" onclick="_invCargaPlacaCambiarItem()">Cambiar ítem</button></div>';
     }
@@ -979,30 +1014,52 @@
     _get('resolver-codigo', { codigo: codigo }).then(function (r) {
       if (!r.ok || r.tipo !== 'item') { _fail('No se pudo obtener el ítem'); return; }
       _cargaItem = r.item;
+      var parsed = _parsePlacaAttrs(r.item.descripcion);
+      _cargaEspesor = parsed.espesor;
+      _cargaMedida = parsed.medida;
       _show('carga-placa');
     }).catch(function () { _fail('Error de conexión'); });
   };
 
-  window._invCargaPlacaCambiarItem = function () { _cargaItem = null; _show('carga-placa'); };
+  window._invCargaPlacaCambiarItem = function () { _cargaItem = null; _cargaEspesor = null; _cargaMedida = null; _show('carga-placa'); };
 
   window._invCargaPlacaGenerar = function () {
     var cantEl = document.getElementById('inv-carga-cant');
     var cant = parseInt((cantEl || {}).value, 10);
     if (!cant || cant <= 0) { _fail('Cantidad debe ser mayor a 0'); return; }
     if (!_sinUbicarId) { _fail('Falta crear la ubicación SIN-UBICAR'); return; }
+
+    // Read espesor/medida from inputs (user may have edited)
+    var espVal = document.getElementById('inv-carga-espesor');
+    var medVal = document.getElementById('inv-carga-medida');
+    var espesor = espVal && espVal.value ? Number(espVal.value) : null;
+    var medida = medVal && medVal.value ? medVal.value.trim() : null;
+
+    var atributos = { material: _cargaItem.descripcion || '' };
+    if (espesor) atributos.espesor = espesor;
+    if (medida) atributos.medida = medida;
+
     var btn = document.getElementById('inv-carga-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Generando...'; }
     _post('cargar-stock-placa', {
       inv_item_id: _cargaItem.id,
       cantidad: cant,
-      ubicacion_id: _sinUbicarId
+      ubicacion_id: _sinUbicarId,
+      atributos: atributos
     }).then(function (r) {
       if (btn) { btn.disabled = false; btn.textContent = 'GENERAR PLACAS + ETIQUETAS'; }
       if (!r.ok) { _fail(r.msg || 'Error'); return; }
-      if (window.Etiquetas && r.codigos && r.codigos.length) {
-        var etiquetas = r.codigos.map(function (cod) {
-          return { codigo: cod, descripcion: r.item.descripcion || '', medida: r.item.medida || '', _qr: cod };
-        });
+      var etiquetas = (r.codigos || []).map(function (cod) {
+        return {
+          codigo: cod,
+          descripcion: r.item.descripcion || '',
+          espesor: espesor ? espesor + 'mm' : '',
+          medida: medida || '',
+          _qr: cod
+        };
+      });
+      _ultimoLoteEtiquetas = etiquetas;
+      if (window.Etiquetas && etiquetas.length) {
         Etiquetas.imprimir('inv-placa', etiquetas);
       }
       _cargaSesionTotal += r.codigos.length;
@@ -1030,9 +1087,110 @@
       + '<div style="margin-top:6px;font-family:\'Space Mono\',monospace;font-size:11px;color:#888;">Sesión: ' + _cargaSesionTotal + ' placas total</div>'
       + '<div class="inv-actions" style="margin-top:24px;flex-direction:column;gap:12px;">'
       + '<button class="inv-btn inv-btn-accent inv-btn-lg" onclick="_invCargaPlaca()">CARGAR MÁS</button>'
+      + '<button class="inv-btn inv-btn-lg" onclick="_invReimprimirUltimoLote()">⎙ REIMPRIMIR ESTAS ETIQUETAS</button>'
       + '<button class="inv-btn inv-btn-lg" onclick="_invHome()">VOLVER AL INICIO</button>'
       + '</div></div>';
   }
+
+  window._invReimprimirUltimoLote = function () {
+    if (!_ultimoLoteEtiquetas || !_ultimoLoteEtiquetas.length) { _fail('No hay lote para reimprimir'); return; }
+    if (!window.Etiquetas) { _fail('Sistema de etiquetas no disponible'); return; }
+    Etiquetas.imprimir('inv-placa', _ultimoLoteEtiquetas);
+    _ok('Reimprimiendo ' + _ultimoLoteEtiquetas.length + ' etiqueta' + (_ultimoLoteEtiquetas.length > 1 ? 's' : ''));
+  };
+
+  // ── REIMPRIMIR ETIQUETA DE PLACA (INV-7) ──
+  var _reimpUnidades = [];
+
+  window._invReimprimirPlaca = function () { _reimpUnidades = []; _show('reimp-modo'); };
+
+  function _renderReimpModo() {
+    _container.innerHTML = '<div class="inv-wrap" style="padding:24px;">'
+      + '<div class="inv-back" onclick="_invHome()">← Volver</div>'
+      + '<div class="inv-label">Reimprimir etiqueta de placa</div>'
+      + '<div style="margin-top:16px;"><div class="inv-label">Buscar por...</div></div>'
+      + '<input id="inv-reimp-q" class="inv-home-input" placeholder="Escanear estante o código de ítem..." autofocus>'
+      + '<div style="margin-top:8px;font-size:11px;color:#666;">Escaneá un estante para ver sus placas, o escribí el código de un ítem.</div>'
+      + '</div>';
+    var inp = document.getElementById('inv-reimp-q');
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        var q = (inp.value || '').trim().toUpperCase();
+        if (!q) return;
+        inp.disabled = true;
+        _get('resolver-codigo', { codigo: q }).then(function (r) {
+          if (!r.ok) { _fail('No encontrado: ' + q); inp.disabled = false; return; }
+          if (r.tipo === 'ubicacion') {
+            _get('listar-unidades', { ubicacion_id: r.ubicacion.id }).then(function (r2) {
+              if (!r2.ok) { _fail(r2.msg || 'Error'); inp.disabled = false; return; }
+              _reimpUnidades = r2.unidades || [];
+              _show('reimp-list');
+            });
+          } else if (r.tipo === 'item') {
+            _get('listar-unidades', { item_id: r.item.id }).then(function (r2) {
+              if (!r2.ok) { _fail(r2.msg || 'Error'); inp.disabled = false; return; }
+              _reimpUnidades = r2.unidades || [];
+              _show('reimp-list');
+            });
+          } else if (r.tipo === 'unidad') {
+            // Scan directo de placa → reimprimir directo
+            var u = r.unidad;
+            var it = r.item || {};
+            var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
+            if (window.Etiquetas) {
+              Etiquetas.imprimir('inv-placa', [{
+                codigo: u.codigo, descripcion: it.descripcion || '',
+                espesor: attrs.espesor ? attrs.espesor + 'mm' : '', medida: attrs.medida || '', _qr: u.codigo
+              }]);
+              _ok('Etiqueta enviada ✓');
+            }
+            inp.disabled = false; inp.value = '';
+          } else {
+            _fail('No es estante, ítem ni placa'); inp.disabled = false;
+          }
+        }).catch(function () { _fail('Error de conexión'); inp.disabled = false; });
+      }
+    });
+    inp.focus();
+  }
+
+  function _renderReimpList() {
+    var html = '<div class="inv-wrap" style="padding:24px;">'
+      + '<div class="inv-back" onclick="_invShow(\'reimp-modo\')">← Volver</div>'
+      + '<div class="inv-label">' + _reimpUnidades.length + ' placa' + (_reimpUnidades.length !== 1 ? 's' : '') + ' encontrada' + (_reimpUnidades.length !== 1 ? 's' : '') + '</div>';
+    if (!_reimpUnidades.length) {
+      html += '<div style="color:#888;padding:12px;">Sin placas activas</div>';
+    } else {
+      _reimpUnidades.forEach(function (u, i) {
+        var it = u.inv_items || {};
+        var ubi = u.inv_ubicaciones || {};
+        var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
+        html += '<div class="inv-list-item" onclick="_invReimprimirUna(' + i + ')">'
+          + '<div style="flex:1;">'
+          + '<div class="li-code">' + _esc(u.codigo) + '</div>'
+          + '<div class="li-desc">' + _esc(it.descripcion || '') + '</div>'
+          + '<div style="font-size:10px;color:#888;margin-top:2px;">'
+          + (attrs.espesor ? attrs.espesor + 'mm' : '') + (attrs.espesor && attrs.medida ? ' · ' : '') + (attrs.medida || '')
+          + (ubi.codigo ? ' · ' + _esc(ubi.codigo) : '')
+          + '</div></div>'
+          + '<span style="font-size:16px;">⎙</span></div>';
+      });
+    }
+    html += '</div>';
+    _container.innerHTML = html;
+  }
+
+  window._invReimprimirUna = function (i) {
+    var u = _reimpUnidades[i]; if (!u) return;
+    if (!window.Etiquetas) { _fail('Sistema de etiquetas no disponible'); return; }
+    var it = u.inv_items || {};
+    var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
+    Etiquetas.imprimir('inv-placa', [{
+      codigo: u.codigo, descripcion: it.descripcion || '',
+      espesor: attrs.espesor ? attrs.espesor + 'mm' : '', medida: attrs.medida || '', _qr: u.codigo
+    }]);
+    _ok('Etiqueta ' + u.codigo + ' enviada ✓');
+  };
 
   // ── TRASLADO MASIVO DE PLACAS (INV-6) ──
   window._invTrasladoMasivo = function () { _tmDestinoUbi = null; _tmMovidos = []; _tmTotal = 0; _show('traslado-masivo-ubi'); };
