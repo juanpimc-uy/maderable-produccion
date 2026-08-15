@@ -1049,7 +1049,7 @@
     _container = document.getElementById('inventario-content');
     if (!_container) return;
     try {
-      var sess = JSON.parse(sessionStorage.getItem('kiosco_session') || '{}');
+      var sess = JSON.parse(sessionStorage.getItem('kiosco_sesion') || '{}');
       _empId = sess.empleado_id || null;
     } catch (e) { _empId = null; }
     _show('home');
