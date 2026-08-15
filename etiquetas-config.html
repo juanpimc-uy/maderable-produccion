@@ -86,6 +86,8 @@ html, body { background: var(--bg); color: var(--text); font-family: 'DM Sans', 
   border-radius: 3px; margin-left: 6px; letter-spacing: 0.5px;
 }
 .campo-check { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.pie-check { width: 16px; height: 16px; accent-color: #f97316; cursor: pointer; }
+.pie-na { font-family: 'Space Mono', monospace; font-size: 8px; color: #555; letter-spacing: .5px; }
 
 /* ── BOTONES POS ── */
 .pos-group { display: flex; gap: 4px; }
@@ -185,7 +187,11 @@ window.addEventListener('DOMContentLoaded', async function () {
       if (savedCampos) {
         campos[fmt] = savedCampos;
       } else {
-        campos[fmt] = spec.defaults[fmt].map(function (c) { return { id: c.id, pos: c.pos }; });
+        campos[fmt] = spec.defaults[fmt].map(function (c) {
+          var o = { id: c.id, pos: c.pos };
+          if (c.pie) o.pie = true;
+          return o;
+        });
       }
     });
 
@@ -319,12 +325,13 @@ function buildCard(fn) {
   // ── Tabla de campos
   var activeCampos = st.campos[fmt] || [];
   var activeIds = {};
-  activeCampos.forEach(function (c) { activeIds[c.id] = c.pos; });
+  var activePie = {};
+  activeCampos.forEach(function (c) { activeIds[c.id] = c.pos; activePie[c.id] = !!c.pie; });
 
   var table = document.createElement('table');
   table.className = 'campos-table';
   var thead = document.createElement('thead');
-  thead.innerHTML = '<tr><th></th><th>Campo</th><th>Posición</th></tr>';
+  thead.innerHTML = '<tr><th></th><th>Campo</th><th>Posición</th>' + (is100 ? '<th>Repetir en pie</th>' : '') + '</tr>';
   table.appendChild(thead);
 
   var tbody = document.createElement('tbody');
@@ -386,6 +393,28 @@ function buildCard(fn) {
     }
     tr.appendChild(tdPos);
 
+    // Repetir en pie (sólo 100×50)
+    if (is100) {
+      var tdPie = document.createElement('td');
+      if (isOn && pos !== 'P') {
+        var chkPie = document.createElement('input');
+        chkPie.type = 'checkbox';
+        chkPie.className = 'pie-check';
+        chkPie.checked = !!activePie[campo.id];
+        chkPie.onchange = function () {
+          setCampoPie(fn, campo.id, chkPie.checked);
+          rebuildCard(fn);
+        };
+        tdPie.appendChild(chkPie);
+      } else if (isOn) {
+        var naSpan = document.createElement('span');
+        naSpan.className = 'pie-na';
+        naSpan.textContent = '— YA ESTÁ EN EL PIE';
+        tdPie.appendChild(naSpan);
+      }
+      tr.appendChild(tdPie);
+    }
+
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
@@ -445,8 +474,11 @@ function updateLimites(fn, el) {
 
   var cuerpo = 0, xl = 0, l = 0, pie = 0;
   campos.forEach(function (c) {
-    if (c.pos === 'P') { pie++; }
-    else { cuerpo++; if (c.pos === 'XL') xl++; if (c.pos === 'L') l++; }
+    if (c.pos === 'P') { pie++; return; }
+    cuerpo++;
+    if (c.pos === 'XL') xl++;
+    if (c.pos === 'L') l++;
+    if (c.pie) pie++;
   });
 
   function cls(v, max) { return v > max ? 'over' : ''; }
@@ -479,6 +511,15 @@ function setCampoPos(fn, id, pos) {
   var arr = st.campos[fmt] || [];
   var c = arr.find(function (c) { return c.id === id; });
   if (c) c.pos = pos;
+  if (c && pos === 'P') delete c.pie;   // 'P' ya es sólo-pie: el flag no aplica
+}
+
+function setCampoPie(fn, id, val) {
+  var st = _states[fn];
+  var arr = st.campos[st.tamano] || [];
+  var c = arr.find(function (c) { return c.id === id; });
+  if (!c) return;
+  if (val) c.pie = true; else delete c.pie;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

@@ -220,7 +220,7 @@
       microLabel: '6.5pt',
       XL: '26pt', L: '16pt', M: '11.5pt', S: '8pt',
       XLw: 800, Lw: 800, Mw: 700, Sw: 600,
-      pie: true, piePad: '1mm 4mm', pieSize: '7pt', Pw: 600,
+      pie: true, piePad: '3mm 4mm', pieSize: '11pt', Pw: 600,
     }
   };
 
@@ -255,8 +255,9 @@
     var cuerpoCampos = [];
     var pieCampos = [];
     camposCfg.forEach(function (c) {
-      if (c.pos === 'P' && med.pie) pieCampos.push(c);
-      else cuerpoCampos.push(c);
+      if (c.pos === 'P' && med.pie) { pieCampos.push(c); return; }
+      cuerpoCampos.push(c);
+      if (c.pie && med.pie) pieCampos.push(c);
     });
 
     // Buscar datos de ejemplo si no hay datos
@@ -353,10 +354,6 @@
         var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
         var span = document.createElement('span');
         span.style.cssText = 'font-size:' + med.pieSize + ';font-weight:' + (med.Pw || 600) + ';text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-        var lblSpan = document.createElement('span');
-        lblSpan.style.cssText = 'color:#000;';
-        lblSpan.textContent = specCampo.label + ': ';
-        span.appendChild(lblSpan);
         span.appendChild(document.createTextNode(val));
         pie.appendChild(span);
       });
@@ -403,8 +400,9 @@
     var cuerpoCampos = [];
     var pieCampos = [];
     camposCfg.forEach(function (c) {
-      if (c.pos === 'P' && med.pie) pieCampos.push(c);
-      else cuerpoCampos.push(c);
+      if (c.pos === 'P' && med.pie) { pieCampos.push(c); return; }
+      cuerpoCampos.push(c);
+      if (c.pie && med.pie) pieCampos.push(c);
     });
 
     // Cargar dependencias y rasterizar
@@ -680,7 +678,7 @@
         var sc = spec.campos.find(function (x) { return x.id === c.id; });
         if (!sc) return;
         var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
-        var txt = sc.label + ': ' + val;
+        var txt = val;
         var tw = ctx.measureText(txt).width;
         var x;
         if (idx === 0) x = pPad[1];
