@@ -1502,7 +1502,7 @@ async function accionListarUnidades(req, res) {
 // ── GET detalle-item ── INV-8a: inventario real de un ítem (oficina)
 async function accionDetalleItem(req, res) {
   if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
-  const sesion = await verificarSesionAdminOficina(req);
+  const sesion = await verificarSesionAdminOficina(req) || await verificarOperario(req.query.empleado_id);
   if (!sesion) return err(res, 'No autorizado', 401);
 
   const itemId = req.query.item_id;

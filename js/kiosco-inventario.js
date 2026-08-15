@@ -8,7 +8,7 @@
   var _stock = [];
   var _total = 0;
   var _container = null;
-  var _screen = 'home'; // home | ficha | salida-motivo | salida-proyecto | salida-mueble | keypad | alta | alta-ok | contenido-ubi | ficha-placa | placa-consumo-proy | placa-consumo-mueble | placa-consumo-reserva | placa-consumo-ok | placa-traslado | placa-descarte | carga-placa | carga-placa-ok | traslado-masivo-ubi | traslado-masivo-scan | reimp-modo | reimp-list
+  var _screen = 'home'; // home | ficha | detalle-item | salida-motivo | salida-proyecto | salida-mueble | keypad | alta | alta-ok | contenido-ubi | ficha-placa | placa-consumo-proy | placa-consumo-mueble | placa-consumo-reserva | placa-consumo-ok | placa-traslado | placa-descarte | carga-placa | carga-placa-ok | traslado-masivo-ubi | traslado-masivo-scan | reimp-modo | reimp-list
   var _action = null; // entrada | salida | traslado | ajuste | a_picking | alta
   var _unidad = null; // ficha placa actual
   var _unidadItem = null;
@@ -32,13 +32,14 @@
   var _ultimoLoteEtiquetas = null; // para reimprimir último lote
   var _cargaEspesor = null; // parsed/edited espesor
   var _cargaMedida = null; // parsed/edited medida
+  var _detalleData = null; // datos de detalle-item para la vista completa
 
   // ═══ CSS ═══
   if (!document.getElementById('inv-kiosco-css')) {
     var st = document.createElement('style');
     st.id = 'inv-kiosco-css';
     st.textContent = ''
-      + '.inv-wrap{font-family:"DM Sans",sans-serif;color:#e8e8e8;min-height:100%;}'
+      + '.inv-wrap{font-family:"DM Sans",sans-serif;color:#e8e8e8;min-height:100%;max-width:720px;margin:0 auto;}'
       + '.inv-home-input{width:100%;font-family:"Space Mono",monospace;font-size:18px;background:#252525;border:2px solid #2a2a2a;border-radius:10px;padding:16px 20px;color:#FFD600;text-align:center;outline:none;letter-spacing:2px;text-transform:uppercase;}'
       + '.inv-home-input:focus{border-color:#FFD600;}'
       + '.inv-home-input::placeholder{color:#555;text-transform:none;letter-spacing:0;}'
@@ -162,6 +163,7 @@
     if (!_container) return;
     if (_screen === 'home') _renderHome();
     else if (_screen === 'ficha') _renderFicha();
+    else if (_screen === 'detalle-item') _renderDetalleItem();
     else if (_screen === 'salida-motivo') _renderSalidaMotivo();
     else if (_screen === 'salida-proyecto') _renderSalidaProyecto();
     else if (_screen === 'salida-mueble') _renderSalidaMueble();
@@ -215,7 +217,7 @@
       if (!r.ok) { _fail(r.msg || 'No encontrado'); return; }
       if (r.tipo === 'item') {
         _item = r.item; _stock = r.stock || []; _total = r.total || 0;
-        _show('ficha');
+        _invLoadDetalle(r.item.id);
       } else if (r.tipo === 'ubicacion') {
         _contenidoUbi = { ubicacion: r.ubicacion, contenido: r.contenido || [] };
         _show('contenido-ubi');
@@ -294,6 +296,112 @@
       + '</div></div>';
     _container.innerHTML = html;
   }
+
+  // ── DETALLE COMPLETO DEL ÍTEM (INV-8b) ──
+  function _invLoadDetalle(itemId) {
+    _detalleData = null;
+    _show('detalle-item'); // muestra spinner
+    _get('detalle-item', { item_id: itemId }).then(function (r) {
+      if (!r.ok) { _fail(r.msg || 'Error cargando detalle'); _show('ficha'); return; }
+      _detalleData = r;
+      _show('detalle-item');
+    }).catch(function () { _fail('Error de conexión'); _show('ficha'); });
+  }
+
+  function _renderDetalleItem() {
+    if (!_detalleData) {
+      _container.innerHTML = '<div class="inv-wrap" style="padding:24px;text-align:center;"><div class="inv-label">Cargando detalle...</div></div>';
+      return;
+    }
+    var r = _detalleData;
+    var it = r.item;
+    var html = '<div class="inv-wrap" style="padding:24px;">'
+      + '<div class="inv-back" onclick="_invHome()">← Volver</div>';
+
+    // Cabecera
+    html += '<div class="inv-code">' + _esc(it.codigo) + '</div>'
+      + '<div class="inv-desc" style="line-height:1.4;">' + _esc(it.descripcion) + '</div>'
+      + '<div style="margin-top:8px;">'
+      + '<span class="inv-badge inv-badge-' + _esc(it.familia || 'otro') + '">' + _esc(it.familia || 'otro') + '</span>'
+      + '</div>';
+
+    // Stock total
+    html += '<div style="margin-top:16px;text-align:center;">'
+      + '<div class="inv-label">STOCK TOTAL</div>'
+      + '<div style="font-family:\'Space Mono\',monospace;font-size:36px;font-weight:700;color:' + (r.stock_total > 0 ? '#3DD68C' : '#F05C5C') + ';">' + r.stock_total + '</div>'
+      + '</div>';
+
+    // Por ubicación
+    if (r.por_ubicacion && r.por_ubicacion.length) {
+      html += '<div style="margin-top:16px;"><div class="inv-label">POR UBICACIÓN</div>';
+      r.por_ubicacion.forEach(function (u) {
+        html += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #2a2a2a;font-size:13px;">'
+          + '<span style="font-family:\'Space Mono\',monospace;color:#FFD600;font-size:12px;font-weight:700;">' + _esc(u.codigo) + '</span>'
+          + '<span style="font-family:\'Space Mono\',monospace;font-weight:700;">' + u.cantidad + '</span></div>';
+      });
+      html += '</div>';
+    }
+
+    // Unidades (placa/madera) — sin costos
+    if (r.unidades && r.unidades.length) {
+      html += '<div style="margin-top:16px;"><div class="inv-label">UNIDADES (' + r.unidades.length + ')</div>'
+        + '<div style="max-height:250px;overflow-y:auto;">';
+      r.unidades.forEach(function (u, i) {
+        var ubi = u.ubicacion || {};
+        var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
+        var estadoColor = u.estado === 'activa' ? '#3DD68C' : '#888';
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #1a1a1a;font-size:12px;">'
+          + '<span style="font-family:\'Space Mono\',monospace;font-weight:700;color:#FFD600;font-size:11px;">' + _esc(u.codigo) + '</span>'
+          + '<span style="color:' + estadoColor + ';font-size:9px;">' + _esc(u.estado) + '</span>'
+          + '<span style="color:#888;font-size:10px;">' + _esc(ubi.codigo || '') + '</span>'
+          + '<span style="margin-left:auto;cursor:pointer;font-size:16px;" onclick="_invDetalleImprimirUnidad(' + i + ')" title="Imprimir etiqueta">⎙</span>'
+          + '</div>';
+      });
+      html += '</div></div>';
+    }
+
+    // Movimientos — sin costos
+    if (r.movimientos && r.movimientos.length) {
+      var tipoColor = { entrada: '#3DD68C', salida: '#F05C5C', traslado: '#FFD600', ajuste: '#6d9ddf' };
+      html += '<div style="margin-top:16px;"><div class="inv-label">MOVIMIENTOS (ÚLTIMOS 20)</div>'
+        + '<div style="max-height:250px;overflow-y:auto;">';
+      r.movimientos.forEach(function (m) {
+        var fecha = m.creado_en ? new Date(m.creado_en).toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+        var ubiTxt = (m.ubicacion || {}).codigo || '';
+        if (m.tipo === 'traslado' && m.ubicacion_destino) ubiTxt += ' → ' + (m.ubicacion_destino.codigo || '');
+        html += '<div style="display:flex;gap:6px;padding:4px 0;border-bottom:1px solid #1a1a1a;font-size:11px;align-items:baseline;">'
+          + '<span style="font-family:\'Space Mono\',monospace;font-weight:700;color:' + (tipoColor[m.tipo] || '#888') + ';font-size:9px;text-transform:uppercase;min-width:50px;">' + _esc(m.tipo) + '</span>'
+          + '<span style="font-family:\'Space Mono\',monospace;font-weight:700;min-width:24px;text-align:right;">' + (m.cantidad != null ? m.cantidad : '') + '</span>'
+          + '<span style="color:#888;font-size:10px;">' + _esc(ubiTxt) + '</span>'
+          + '<span style="color:#888;font-size:9px;margin-left:auto;">' + _esc(fecha) + '</span>'
+          + '</div>';
+      });
+      html += '</div></div>';
+    }
+
+    // Actions (same as ficha)
+    html += '<div class="inv-actions" style="margin-top:20px;">';
+    if (_item && _item.ubicacion_picking_id) html += '<button class="inv-btn inv-btn-accent inv-btn-lg" onclick="_invAPicking()">→ A PICKING</button>';
+    html += '<button class="inv-btn inv-btn-lg" onclick="_invSalida()">SALIDA</button>'
+      + '<button class="inv-btn inv-btn-lg" onclick="_invEntrada()">ENTRADA</button>'
+      + '<button class="inv-btn inv-btn-lg" onclick="_invTraslado()">TRASLADO</button>'
+      + '<button class="inv-btn inv-btn-lg" onclick="_invAjuste()">AJUSTE</button>'
+      + '</div></div>';
+    _container.innerHTML = html;
+  }
+
+  window._invDetalleImprimirUnidad = function (i) {
+    if (!_detalleData || !_detalleData.unidades || !_detalleData.unidades[i]) return;
+    if (!window.Etiquetas) { _fail('Sistema de etiquetas no disponible'); return; }
+    var u = _detalleData.unidades[i];
+    var it = _detalleData.item || {};
+    var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
+    Etiquetas.imprimir('inv-placa', [{
+      codigo: u.codigo, descripcion: it.descripcion || '',
+      espesor: attrs.espesor ? attrs.espesor + 'mm' : '', medida: attrs.medida || '', _qr: u.codigo
+    }]);
+    _ok('Etiqueta ' + u.codigo + ' enviada ✓');
+  };
 
   // ── ACTIONS ──
   window._invShow = _show;
