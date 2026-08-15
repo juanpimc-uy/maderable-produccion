@@ -149,15 +149,21 @@
   // ═══════════════════════════════════════════════════════════════════════
   var _configCache = null;
   var _configTs = 0;
+  var _configPromise = null; // promesa en vuelo para dedup
+  var _configFailed = false;
   var CONFIG_TTL = 5 * 60 * 1000; // 5 min
 
   function cargarConfig() {
     if (_configCache && Date.now() - _configTs < CONFIG_TTL) {
       return Promise.resolve(_configCache);
     }
-    return fetch('/api/etiquetas?action=config')
+    // Si ya hay un fetch en vuelo, reusar esa promesa
+    if (_configPromise) return _configPromise;
+    _configPromise = fetch('/api/etiquetas?action=config')
       .then(function (r) { return r.json(); })
       .then(function (j) {
+        _configPromise = null;
+        _configFailed = false;
         if (j.ok) {
           _configCache = {};
           (j.config || []).forEach(function (row) { _configCache[row.funcion] = row; });
@@ -165,7 +171,13 @@
         }
         return _configCache || {};
       })
-      .catch(function () { return _configCache || {}; });
+      .catch(function (e) {
+        _configPromise = null;
+        _configFailed = true;
+        console.warn('[Etiquetas] config fetch failed:', e);
+        return _configCache || {};
+      });
+    return _configPromise;
   }
 
   // Merge: config guardada pisa defaults, pero campos nuevos de la spec se agregan
@@ -398,10 +410,11 @@
     var spec = FUNCIONES[funcion];
     if (!spec) { console.error('[Etiquetas] Función desconocida:', funcion); return; }
 
-    // cargarConfig → luego imprimir
+    // SIEMPRE esperar config antes de imprimir
     cargarConfig().then(function () {
-      _doImprimir(funcion, items, opts);
-    }).catch(function () {
+      if (_configFailed && !_configCache) {
+        alert('⚠ No se pudo cargar la configuración de etiquetas. Se va a imprimir con el layout por defecto — verificá antes de imprimir un lote grande.');
+      }
       _doImprimir(funcion, items, opts);
     });
   }
@@ -759,4 +772,7 @@
     cargarConfig: cargarConfig,
     FUNCIONES: FUNCIONES
   };
+
+  // Pre-cargar config al inicializar para que esté lista antes del primer imprimir()
+  cargarConfig();
 })();
