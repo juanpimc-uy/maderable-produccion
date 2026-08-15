@@ -1426,7 +1426,7 @@ async function accionCargarStockPlaca(req, res) {
     p_ubicacion_id: ubicacion_id,
     p_costo_usd: costoUsd,
     p_atributos: Object.keys(atributos).length ? atributos : null,
-    p_empleado_id: sesion.id,
+    p_empleado_id: b.empleado_id || (sesion && sesion.id) || null,
     p_reserva_proyecto_id: null,
     p_oc_numero: 'CARGA-INICIAL',
   });
