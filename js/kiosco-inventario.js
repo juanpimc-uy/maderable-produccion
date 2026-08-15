@@ -8,7 +8,7 @@
   var _stock = [];
   var _total = 0;
   var _container = null;
-  var _screen = 'home'; // home | ficha | salida-motivo | salida-proyecto | salida-mueble | keypad | alta | alta-ok | contenido-ubi | ficha-placa | placa-consumo-proy | placa-consumo-mueble | placa-consumo-reserva | placa-consumo-ok | placa-traslado | placa-descarte
+  var _screen = 'home'; // home | ficha | salida-motivo | salida-proyecto | salida-mueble | keypad | alta | alta-ok | contenido-ubi | ficha-placa | placa-consumo-proy | placa-consumo-mueble | placa-consumo-reserva | placa-consumo-ok | placa-traslado | placa-descarte | carga-placa | carga-placa-ubi | carga-placa-ok
   var _action = null; // entrada | salida | traslado | ajuste | a_picking | alta
   var _unidad = null; // ficha placa actual
   var _unidadItem = null;
@@ -22,6 +22,9 @@
   var _ubiElegida = null;
   var _ajusteAnterior = 0;
   var _contenidoUbi = null; // para pantalla CONTENIDO-UBI
+  var _cargaItem = null; // ítem seleccionado para carga de placa
+  var _cargaSesionTotal = 0;
+  var _cargaSesionLog = [];
 
   // ═══ CSS ═══
   if (!document.getElementById('inv-kiosco-css')) {
@@ -169,6 +172,9 @@
     else if (_screen === 'placa-consumo-ok') _renderPlacaConsumoOk();
     else if (_screen === 'placa-traslado') _renderPlacaTraslado();
     else if (_screen === 'placa-descarte') _renderPlacaDescarte();
+    else if (_screen === 'carga-placa') _renderCargaPlaca();
+    else if (_screen === 'carga-placa-ubi') _renderCargaPlacaUbi();
+    else if (_screen === 'carga-placa-ok') _renderCargaPlacaOk();
   }
 
   // ── HOME ──
@@ -180,6 +186,7 @@
       + '<button class="inv-btn inv-btn-lg" onclick="_invAlta()">+ Alta rápida</button>'
       + '<button class="inv-btn inv-btn-lg" onclick="_invBuscar()">🔍 Buscar sin etiqueta</button>'
       + '<button class="inv-btn inv-btn-lg" onclick="_invRecepcion()">📥 Recepción OC</button>'
+      + '<button class="inv-btn inv-btn-lg" onclick="_invCargaPlaca()">▤ Cargar stock de placa</button>'
       + '</div></div>';
     var inp = document.getElementById('inv-scan');
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') _invScan(inp.value); });
@@ -864,6 +871,176 @@
       + '</div>'
       + '<div class="inv-actions" style="margin-top:24px;">'
       + '<button class="inv-btn inv-btn-accent inv-btn-lg" onclick="_invHome()">VOLVER AL INICIO</button>'
+      + '</div></div>';
+  }
+
+  // ── CARGA STOCK DE PLACA (INV-5b) ──
+  window._invCargaPlaca = function () { _cargaItem = null; _show('carga-placa'); };
+
+  function _renderCargaPlaca() {
+    var logHtml = _cargaSesionLog.length
+      ? _cargaSesionLog.map(function (e) {
+          return '<div style="padding:6px 0;border-bottom:1px solid #2a2a2a;font-size:12px;">'
+            + '<span style="font-family:\'Space Mono\',monospace;color:#FFD600;font-size:11px;font-weight:700;">' + _esc(e.item) + '</span>'
+            + ' × <b>' + e.cantidad + '</b> → <span style="font-family:\'Space Mono\',monospace;font-size:11px;">' + _esc(e.estante) + '</span>'
+            + (e.costo != null ? ' <span style="color:#888;font-size:10px;">USD ' + Number(e.costo).toFixed(2) + ' c/u</span>' : '')
+            + '</div>';
+        }).join('')
+      : '<div style="color:#888;font-size:12px;">Todavía no se cargó nada</div>';
+
+    var html = '<div class="inv-wrap" style="padding:24px;">'
+      + '<div class="inv-back" onclick="_invHome()">← Volver</div>'
+      + '<div class="inv-label">Cargar stock de placa</div>';
+
+    if (!_cargaItem) {
+      // Buscador
+      html += '<input id="inv-carga-q" class="inv-search-input" placeholder="Buscar placa por código o descripción..." autofocus>'
+        + '<div id="inv-carga-list" style="margin-top:12px;max-height:300px;overflow-y:auto;"></div>';
+    } else {
+      // Ficha del ítem seleccionado
+      var costoTxt = _cargaItem.costo_ultimo_usd != null
+        ? 'USD ' + Number(_cargaItem.costo_ultimo_usd).toFixed(2)
+        : 'SIN COSTO';
+      var costoColor = _cargaItem.costo_ultimo_usd != null ? '#FFD600' : '#F05C5C';
+      html += '<div style="background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:16px;margin-bottom:16px;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:baseline;">'
+        + '<span style="font-family:\'Space Mono\',monospace;font-size:14px;font-weight:700;color:#FFD600;">' + _esc(_cargaItem.codigo) + '</span>'
+        + '<span class="inv-badge inv-badge-' + _esc(_cargaItem.familia) + '">' + _esc(_cargaItem.familia) + '</span></div>'
+        + '<div style="font-size:13px;margin-top:6px;">' + _esc(_cargaItem.descripcion) + '</div>'
+        + '<div style="margin-top:12px;padding:10px;background:#1a1a1a;border-radius:6px;border:1px solid #2a2a2a;">'
+        + '<div style="font-family:\'Space Mono\',monospace;font-size:9px;color:#888;letter-spacing:1px;margin-bottom:4px;">COSTO ÚLTIMO (USD)</div>'
+        + '<div style="font-family:\'Space Mono\',monospace;font-size:20px;font-weight:700;color:' + costoColor + ';">' + costoTxt + '</div></div>'
+        + '<div style="margin-top:8px;font-size:11px;color:#FFD600;line-height:1.4;">⚠ Revisá que el costo tenga sentido antes de generar.</div>'
+        + '</div>';
+
+      // Cantidad
+      html += '<div style="margin-bottom:16px;">'
+        + '<div class="inv-label">Cantidad de placas</div>'
+        + '<input id="inv-carga-cant" type="number" min="1" step="1" value="1" style="width:100%;font-family:\'Space Mono\',monospace;font-size:18px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:12px;color:#e8e8e8;text-align:center;">'
+        + '</div>';
+
+      // Botón escanear estante
+      html += '<button class="inv-btn inv-btn-accent inv-btn-lg" style="width:100%;padding:16px;font-size:14px;" onclick="_invCargaPlacaEscanearUbi()">ESCANEAR ESTANTE →</button>'
+        + '<div style="margin-top:8px;text-align:center;"><button class="inv-btn" style="font-size:10px;" onclick="_invCargaPlacaCambiarItem()">Cambiar ítem</button></div>';
+    }
+
+    // Sesión counter
+    html += '<div style="margin-top:24px;border-top:1px solid #2a2a2a;padding-top:16px;">'
+      + '<div style="display:flex;align-items:baseline;gap:12px;margin-bottom:8px;">'
+      + '<span style="font-family:\'Space Mono\',monospace;font-size:9px;color:#888;letter-spacing:1px;text-transform:uppercase;">Cargadas esta sesión</span>'
+      + '<span style="font-family:\'Space Mono\',monospace;font-size:18px;font-weight:700;color:#3DD68C;">' + _cargaSesionTotal + '</span></div>'
+      + logHtml + '</div>';
+
+    html += '</div>';
+    _container.innerHTML = html;
+
+    if (!_cargaItem) {
+      var inp = document.getElementById('inv-carga-q');
+      var timer = null;
+      inp.addEventListener('input', function () {
+        clearTimeout(timer);
+        timer = setTimeout(function () { _doBuscarCargaPlaca(inp.value); }, 300);
+      });
+      inp.focus();
+    }
+  }
+
+  function _doBuscarCargaPlaca(q) {
+    if (!(q || '').trim()) { var el = document.getElementById('inv-carga-list'); if (el) el.innerHTML = ''; return; }
+    _get('buscar-items-kiosco', { q: q }).then(function (r) {
+      var el = document.getElementById('inv-carga-list');
+      if (!el) return;
+      var items = (r.items || []).filter(function (it) { return it.familia === 'placa' || it.familia === 'madera'; });
+      el.innerHTML = items.map(function (it) {
+        return '<div class="inv-list-item" onclick="_invCargaPlacaPick(\'' + _esc(it.codigo) + '\')">'
+          + '<div style="flex:1;"><div class="li-code">' + _esc(it.codigo) + '</div>'
+          + '<div class="li-desc">' + _esc(it.descripcion) + '</div></div>'
+          + '<span class="inv-badge inv-badge-' + _esc(it.familia) + '">' + _esc(it.familia) + '</span></div>';
+      }).join('') || '<div style="color:#888;padding:12px;">Sin resultados de placa/madera</div>';
+    });
+  }
+
+  window._invCargaPlacaPick = function (codigo) {
+    // resolver-codigo devuelve item completo con costo_ultimo_usd
+    _get('resolver-codigo', { codigo: codigo }).then(function (r) {
+      if (!r.ok || r.tipo !== 'item') { _fail('No se pudo obtener el ítem'); return; }
+      _cargaItem = r.item;
+      _show('carga-placa');
+    }).catch(function () { _fail('Error de conexión'); });
+  };
+
+  window._invCargaPlacaCambiarItem = function () { _cargaItem = null; _show('carga-placa'); };
+
+  var _cargaCantPendiente = 0;
+
+  window._invCargaPlacaEscanearUbi = function () {
+    var cantEl = document.getElementById('inv-carga-cant');
+    var cant = parseInt((cantEl || {}).value, 10);
+    if (!cant || cant <= 0) { _fail('Cantidad debe ser mayor a 0'); return; }
+    _cargaCantPendiente = cant;
+    _show('carga-placa-ubi');
+  };
+
+  function _renderCargaPlacaUbi() {
+    _container.innerHTML = '<div class="inv-wrap" style="padding:24px;">'
+      + '<div class="inv-back" onclick="_invShow(\'carga-placa\')">← Volver</div>'
+      + '<div class="inv-label">Escanear estante DESTINO</div>'
+      + '<div style="font-size:12px;color:#888;margin-bottom:12px;">' + _esc(_cargaItem.codigo) + ' × ' + _cargaCantPendiente + ' placas</div>'
+      + '<input id="inv-carga-ubi-scan" class="inv-home-input" placeholder="Escanear ubicación..." autofocus>'
+      + '</div>';
+    var inp = document.getElementById('inv-carga-ubi-scan');
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        var cod = (inp.value || '').trim().toUpperCase();
+        if (!cod) return;
+        inp.disabled = true;
+        _get('resolver-codigo', { codigo: cod }).then(function (r) {
+          if (!r.ok || r.tipo !== 'ubicacion') { _fail('Ubicación no encontrada: ' + cod); inp.disabled = false; return; }
+          _doCargaPlacaSubmit(r.ubicacion.id, cod);
+        }).catch(function () { _fail('Error de conexión'); inp.disabled = false; });
+      }
+    });
+    inp.focus();
+  }
+
+  function _doCargaPlacaSubmit(ubicacionId, ubicacionCodigo) {
+    var cant = _cargaCantPendiente;
+    if (!cant || cant <= 0) { _fail('Cantidad inválida'); return; }
+    _post('cargar-stock-placa', {
+      inv_item_id: _cargaItem.id,
+      cantidad: cant,
+      ubicacion_id: ubicacionId
+    }).then(function (r) {
+      if (!r.ok) { _fail(r.msg || 'Error'); _show('carga-placa'); return; }
+      if (window.Etiquetas && r.codigos && r.codigos.length) {
+        var etiquetas = r.codigos.map(function (cod) {
+          return { codigo: cod, descripcion: r.item.descripcion || '', medida: r.item.medida || '', _qr: cod };
+        });
+        Etiquetas.imprimir('inv-placa', etiquetas);
+      }
+      _cargaSesionTotal += r.codigos.length;
+      _cargaSesionLog.unshift({
+        item: _cargaItem.codigo,
+        cantidad: r.codigos.length,
+        estante: ubicacionCodigo,
+        costo: r.costo_usd
+      });
+      _ok(r.codigos.length + ' placa' + (r.codigos.length > 1 ? 's' : '') + ' cargada' + (r.codigos.length > 1 ? 's' : '') + ' ✓');
+      _show('carga-placa-ok');
+    }).catch(function () { _fail('Error de conexión'); _show('carga-placa'); });
+  }
+
+  function _renderCargaPlacaOk() {
+    var last = _cargaSesionLog[0] || {};
+    _container.innerHTML = '<div class="inv-wrap" style="padding:24px;text-align:center;">'
+      + '<div style="font-size:48px;margin-bottom:16px;">✓</div>'
+      + '<div style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:#3DD68C;">'
+      + last.cantidad + ' placa' + (last.cantidad > 1 ? 's' : '') + ' cargada' + (last.cantidad > 1 ? 's' : '') + '</div>'
+      + '<div style="margin-top:8px;font-size:13px;color:#888;">' + _esc(last.item) + ' → ' + _esc(last.estante) + '</div>'
+      + '<div style="margin-top:6px;font-family:\'Space Mono\',monospace;font-size:11px;color:#888;">Sesión: ' + _cargaSesionTotal + ' placas total</div>'
+      + '<div class="inv-actions" style="margin-top:24px;flex-direction:column;gap:12px;">'
+      + '<button class="inv-btn inv-btn-accent inv-btn-lg" onclick="_invCargaPlaca()">CARGAR MÁS</button>'
+      + '<button class="inv-btn inv-btn-lg" onclick="_invHome()">VOLVER AL INICIO</button>'
       + '</div></div>';
   }
 

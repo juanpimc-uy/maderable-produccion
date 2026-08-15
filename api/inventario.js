@@ -1388,12 +1388,13 @@ async function accionRecepcionarInventario(req, res) {
 }
 
 // ── POST cargar-stock-placa ── INV-5: carga de stock inicial de placas existentes
+// Auth: acepta sesión admin/oficina (inventario.html) O operario (kiosco)
 async function accionCargarStockPlaca(req, res) {
   if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
-  const sesion = await verificarSesionAdminOficina(req);
+  const b = req.body || {};
+  const sesion = await verificarSesionAdminOficina(req) || await verificarOperario(b.empleado_id);
   if (!sesion) return err(res, 'No autorizado', 401);
 
-  const b = req.body || {};
   const { inv_item_id, cantidad, ubicacion_id } = b;
   if (!inv_item_id) return err(res, 'inv_item_id requerido');
   if (!cantidad || !Number.isInteger(cantidad) || cantidad <= 0) return err(res, 'cantidad debe ser entero > 0');
