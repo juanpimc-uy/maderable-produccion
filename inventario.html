@@ -499,10 +499,11 @@ function _renderTable() {
       + '</tr>';
   }).join('');
 
-  // click on row (not checkbox) opens detail panel
+  // click on row (not checkbox column) opens detail panel
   document.querySelectorAll('#tbl-body tr').forEach(tr => {
     tr.addEventListener('click', function(e) {
       if (e.target.tagName === 'INPUT') return;
+      if (e.target.closest('td') === this.cells[0]) return; // checkbox column
       const id = this.dataset.id;
       _openItemPanel(id);
     });
@@ -1130,31 +1131,35 @@ async function _cargarReposicion() {
 // PANEL LATERAL DE DETALLE (INV-8a)
 // ═══════════════════════════════════════════════════════════════════
 let _panelItemId = null;
+let _panelData = null;
 
 function _closeItemPanel() {
   document.getElementById('item-panel').style.display = 'none';
   _panelItemId = null;
+  _panelData = null;
 }
 
 async function _openItemPanel(id) {
   const panel = document.getElementById('item-panel');
   panel.style.display = '';
   _panelItemId = id;
+  _panelData = null;
   panel.innerHTML = '<div style="padding:20px;text-align:center;"><span class="spin"></span><div style="margin-top:8px;font-size:12px;color:var(--muted);">Cargando...</div></div>';
 
   const r = await _get('detalle-item', { item_id: id });
   if (!r.ok) { panel.innerHTML = '<div style="padding:20px;color:var(--red);">' + (r.msg || 'Error') + '</div>'; return; }
-  if (_panelItemId !== id) return; // user clicked another
+  if (_panelItemId !== id) return;
 
+  _panelData = r;
   const it = r.item;
   const esc = s => (s == null ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'));
   const fmtUsd = v => v != null ? 'USD ' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
 
   let html = '<div style="padding:16px;">';
 
-  // Close + edit buttons
+  // Close + edit buttons — IDs pelados, sin interpolación de strings
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
-    + '<button class="btn" style="font-size:10px;" onclick="_openEditItem(\'' + id + '\')">✏ Editar</button>'
+    + '<button class="btn" style="font-size:10px;" onclick="_panelEditItem()">✏ Editar</button>'
     + '<button class="btn" style="font-size:10px;" onclick="_closeItemPanel()">✕ Cerrar</button></div>';
 
   // Cabecera
@@ -1193,11 +1198,11 @@ async function _openItemPanel(id) {
     html += '</div>';
   }
 
-  // Unidades (placa/madera)
+  // Unidades (placa/madera) — onclick con índice numérico, sin interpolación de strings
   if (r.unidades.length) {
     html += '<div style="margin-top:16px;"><div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px;">UNIDADES (' + r.unidades.length + ')</div>'
       + '<div style="max-height:200px;overflow-y:auto;">';
-    r.unidades.forEach(function(u) {
+    r.unidades.forEach(function(u, i) {
       var ubi = u.ubicacion || {};
       var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
       var estadoColor = u.estado === 'activa' ? 'var(--green)' : 'var(--muted)';
@@ -1205,7 +1210,7 @@ async function _openItemPanel(id) {
         + '<span class="mono" style="font-weight:700;color:var(--amber);">' + esc(u.codigo) + '</span>'
         + '<span style="color:' + estadoColor + ';font-size:9px;">' + esc(u.estado) + '</span>'
         + '<span style="color:var(--muted);font-size:10px;">' + esc(ubi.codigo || '') + '</span>'
-        + '<span style="margin-left:auto;cursor:pointer;font-size:13px;" onclick="_printUnit(\'' + esc(u.codigo) + '\',\'' + esc(it.descripcion).replace(/'/g, "\\'") + '\',\'' + esc(attrs.espesor ? attrs.espesor + 'mm' : '') + '\',\'' + esc(attrs.medida || '') + '\')" title="Imprimir etiqueta">⎙</span>'
+        + '<span style="margin-left:auto;cursor:pointer;font-size:13px;" onclick="_panelPrintUnit(' + i + ')" title="Imprimir etiqueta">⎙</span>'
         + '</div>';
     });
     html += '</div></div>';
@@ -1234,9 +1239,20 @@ async function _openItemPanel(id) {
   panel.innerHTML = html;
 }
 
-function _printUnit(codigo, desc, espesor, medida) {
+function _panelEditItem() {
+  if (_panelData && _panelData.item) _openEditItem(_panelData.item.id);
+}
+
+function _panelPrintUnit(idx) {
+  if (!_panelData || !_panelData.unidades || !_panelData.unidades[idx]) return;
   if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
-  Etiquetas.imprimir('inv-placa', [{ codigo: codigo, descripcion: desc, espesor: espesor, medida: medida, _qr: codigo }]);
+  var u = _panelData.unidades[idx];
+  var it = _panelData.item || {};
+  var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
+  Etiquetas.imprimir('inv-placa', [{
+    codigo: u.codigo, descripcion: it.descripcion || '',
+    espesor: attrs.espesor ? attrs.espesor + 'mm' : '', medida: attrs.medida || '', _qr: u.codigo
+  }]);
 }
 
 // ── Init ──

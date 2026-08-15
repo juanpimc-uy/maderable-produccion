@@ -166,7 +166,22 @@
         _configFailed = false;
         if (j.ok) {
           _configCache = {};
-          (j.config || []).forEach(function (row) { _configCache[row.funcion] = row; });
+          (j.config || []).forEach(function (row) {
+            var fn = row.funcion;
+            if (!_configCache[fn]) _configCache[fn] = { funcion: fn, titulo: row.titulo };
+            // Normalizar campos: puede venir como objeto {fmt: [...]} o como array directo
+            var c = row.campos;
+            if (!_configCache[fn].campos) _configCache[fn].campos = {};
+            if (Array.isArray(c)) {
+              // Array directo → asociar al tamaño de esta fila
+              _configCache[fn].campos[row.tamano || '60x30'] = c;
+            } else if (c && typeof c === 'object') {
+              // Objeto por tamaño → copiar cada clave
+              for (var k in c) { if (c.hasOwnProperty(k)) _configCache[fn].campos[k] = c[k]; }
+            }
+            // Tomar el tamaño de la fila (si hay varias, la última gana — por eso preferir la del guardado más reciente)
+            if (row.tamano) _configCache[fn].tamano = row.tamano;
+          });
           _configTs = Date.now();
         }
         return _configCache || {};

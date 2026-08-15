@@ -39,7 +39,7 @@
     var st = document.createElement('style');
     st.id = 'inv-kiosco-css';
     st.textContent = ''
-      + '.inv-wrap{font-family:"DM Sans",sans-serif;color:#e8e8e8;min-height:100%;max-width:720px;margin:0 auto;}'
+      + '.inv-wrap{font-family:"DM Sans",sans-serif;color:#e8e8e8;min-height:100%;max-width:720px;margin:0 auto;width:100%;}'
       + '.inv-home-input{width:100%;font-family:"Space Mono",monospace;font-size:18px;background:#252525;border:2px solid #2a2a2a;border-radius:10px;padding:16px 20px;color:#FFD600;text-align:center;outline:none;letter-spacing:2px;text-transform:uppercase;}'
       + '.inv-home-input:focus{border-color:#FFD600;}'
       + '.inv-home-input::placeholder{color:#555;text-transform:none;letter-spacing:0;}'
@@ -77,8 +77,9 @@
       + '.inv-list-item .li-code{font-family:"Space Mono",monospace;font-weight:700;color:#FFD600;font-size:11px;}'
       + '.inv-list-item .li-desc{font-size:12px;color:#e8e8e8;}'
       + '.inv-list-item .li-foto{width:40px;height:40px;object-fit:cover;border-radius:4px;}'
-      + '.inv-search-input{width:100%;font-family:"Space Mono",monospace;font-size:13px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:12px 16px;color:#e8e8e8;outline:none;}'
+      + '.inv-search-input{width:100%;font-family:"Space Mono",monospace;font-size:18px;background:#252525;border:2px solid #2a2a2a;border-radius:10px;padding:16px 20px;color:#e8e8e8;outline:none;letter-spacing:1px;}'
       + '.inv-search-input:focus{border-color:#FFD600;}'
+      + '.inv-search-input::placeholder{color:#555;}'
       + '.inv-motivo-btn{flex:1;min-width:120px;}'
       + '.inv-toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);font-family:"Space Mono",monospace;font-size:12px;font-weight:700;padding:12px 24px;border-radius:8px;z-index:9999;pointer-events:none;opacity:0;transition:opacity .3s;}'
       + '.inv-toast.show{opacity:1;}'
