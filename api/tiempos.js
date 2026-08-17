@@ -2489,6 +2489,26 @@ export default async function handler(req) {
         }
         salida = salidaDate.toISOString();
       }
+      // Cerrar también el/los segmentos abiertos de la jornada con la misma
+      // salida. Este handler escribía solo jornadas.salida y dejaba el
+      // segmento abierto → HORAS no contaba el tramo.
+      const { data: segsAbH, error: segsAbHErr } = await supabase
+        .from('jornada_segmentos')
+        .select('id, entrada')
+        .eq('jornada_id', jornada_id)
+        .is('salida', null);
+      if (segsAbHErr) throw segsAbHErr;
+      if ((segsAbH || []).some(s => new Date(s.entrada) > new Date(salida))) {
+        return err('La salida elegida es anterior a un tramo abierto de la jornada. Usá modo manual con una hora posterior.', 400);
+      }
+      if (segsAbH && segsAbH.length > 0) {
+        const { error: cerrSegHErr } = await supabase
+          .from('jornada_segmentos')
+          .update({ salida })
+          .eq('jornada_id', jornada_id)
+          .is('salida', null);
+        if (cerrSegHErr) throw cerrSegHErr;
+      }
       // Cerrar registros activos con la misma hora de salida (consistencia)
       await _cerrarTareasActivasDe(supabase, j.empleado_id, salida);
       const { data, error: uErr } = await supabase.from('jornadas')
