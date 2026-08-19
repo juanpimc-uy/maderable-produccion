@@ -164,25 +164,25 @@
       .then(function (j) {
         _configPromise = null;
         _configFailed = false;
+        console.log('[Etiquetas] API response raw:', JSON.stringify(j).substring(0, 500));
         if (j.ok) {
           _configCache = {};
           (j.config || []).forEach(function (row) {
             var fn = row.funcion;
             if (!_configCache[fn]) _configCache[fn] = { funcion: fn, titulo: row.titulo };
-            // Normalizar campos: puede venir como objeto {fmt: [...]} o como array directo
             var c = row.campos;
             if (!_configCache[fn].campos) _configCache[fn].campos = {};
             if (Array.isArray(c)) {
-              // Array directo → asociar al tamaño de esta fila
               _configCache[fn].campos[row.tamano || '60x30'] = c;
             } else if (c && typeof c === 'object') {
-              // Objeto por tamaño → copiar cada clave
               for (var k in c) { if (c.hasOwnProperty(k)) _configCache[fn].campos[k] = c[k]; }
             }
-            // Tomar el tamaño de la fila (si hay varias, la última gana — por eso preferir la del guardado más reciente)
             if (row.tamano) _configCache[fn].tamano = row.tamano;
           });
           _configTs = Date.now();
+          console.log('[Etiquetas] _configCache final:', JSON.stringify(_configCache).substring(0, 1000));
+        } else {
+          console.warn('[Etiquetas] response not ok:', j);
         }
         return _configCache || {};
       })
@@ -221,16 +221,23 @@
     var fmt = tamano || '60x30';
 
     // Si hay override directo (desde configurador), usarlo
-    if (cfgOverride && cfgOverride[fmt]) return cfgOverride[fmt];
+    if (cfgOverride && cfgOverride[fmt]) {
+      console.log('[Etiquetas] resolverCampos → override', funcion, fmt);
+      return cfgOverride[fmt];
+    }
 
     // Si hay config del servidor — merge con spec para campos nuevos
     if (_configCache && _configCache[funcion]) {
       var row = _configCache[funcion];
       var saved = row.campos || {};
+      console.log('[Etiquetas] resolverCampos → server config found', funcion, 'fmt:', fmt, 'saved keys:', Object.keys(saved), 'has fmt?', !!saved[fmt]);
       if (saved[fmt]) return _mergeCamposConSpec(saved[fmt].slice(), spec, fmt);
+    } else {
+      console.log('[Etiquetas] resolverCampos → NO server config', funcion, 'cache keys:', _configCache ? Object.keys(_configCache) : 'null');
     }
 
     // Defaults
+    console.log('[Etiquetas] resolverCampos → DEFAULTS', funcion, fmt);
     return spec.defaults[fmt] || [];
   }
 
@@ -440,6 +447,7 @@
     var fmt = opts.tamano || (cfgOverride && cfgOverride._tamano) || '60x30';
     if (_configCache && _configCache[funcion] && !opts.tamano && !(cfgOverride && cfgOverride._tamano))
       fmt = _configCache[funcion].tamano || fmt;
+    console.log('[Etiquetas] _doImprimir', funcion, 'fmt:', fmt, 'opts.tamano:', opts.tamano, 'cache.tamano:', _configCache && _configCache[funcion] ? _configCache[funcion].tamano : 'N/A');
     var med = MEDIDAS[fmt];
     var camposCfg = resolverCampos(funcion, fmt, cfgOverride);
     var tituloRaw = resolverTitulo(funcion, cfgOverride ? cfgOverride._titulo : undefined);
