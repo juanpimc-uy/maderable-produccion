@@ -478,6 +478,7 @@
 
     // Cargar dependencias y rasterizar
     console.log('[Etiquetas] _doImprimir cuerpo:', JSON.stringify(cuerpoCampos), 'pie:', JSON.stringify(pieCampos));
+    console.log('[Etiquetas] _doImprimir RENDER CHECK — fmt:', fmt, 'pageW:', med.pageW, 'pageH:', med.pageH, 'pie_enabled:', med.pie, 'XL:', med.XL, 'L:', med.L, 'M:', med.M, 'S:', med.S);
     var deps = [_ensureFont()];
     if (spec.qr) deps.push(_ensureQRLib());
     Promise.all(deps)
