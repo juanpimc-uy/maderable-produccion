@@ -115,6 +115,17 @@
   .ubi-preview .big-name{font-size:14px;color:var(--text);margin-top:8px;}
   .ubi-preview .big-path{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:4px;}
 
+  /* ── Ubi bulk bar (checkboxes en árbol) ── */
+  .ubi-bulk-bar{display:none;background:var(--panel);border-top:1px solid var(--border);padding:8px 12px;gap:8px;align-items:center;flex-shrink:0;margin-top:auto;}
+  .ubi-bulk-bar.visible{display:flex;}
+  .tree-node .tn-chk{flex-shrink:0;cursor:pointer;width:14px;height:14px;accent-color:var(--amber);}
+
+  /* ── Sticky panel actions ── */
+  .panel-actions-sticky{position:sticky;bottom:0;background:var(--card2);border-top:1px solid var(--border);padding:10px 16px;display:flex;gap:8px;justify-content:center;flex-shrink:0;z-index:2;}
+
+  /* ── Item panel (flex for sticky actions) ── */
+  .item-panel-box{width:420px;flex-shrink:0;border-left:1px solid var(--border);overflow:hidden;background:var(--card2);flex-direction:column;}
+
   /* ── Placeholder ── */
   .placeholder{flex:1;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:13px;color:var(--muted);text-align:center;line-height:1.8;}
 
@@ -197,7 +208,7 @@
       </div>
 
       <!-- Panel lateral de detalle -->
-      <div id="item-panel" style="display:none;width:420px;flex-shrink:0;border-left:1px solid var(--border);overflow-y:auto;background:var(--card2);"></div>
+      <div id="item-panel" class="item-panel-box" style="display:none;"></div>
     </div>
 
     <div class="bulk-bar" id="bulk-bar">
@@ -221,8 +232,14 @@
       <button class="btn btn-accent" onclick="_openCrearUbi()">+ Ubicación</button>
     </div>
     <div class="ubi-layout">
-      <div class="ubi-tree" id="ubi-tree"></div>
-      <div class="ubi-panel" id="ubi-panel">
+      <div style="display:flex;flex-direction:column;overflow:hidden;">
+        <div class="ubi-tree" id="ubi-tree" style="flex:1;"></div>
+        <div class="ubi-bulk-bar" id="ubi-bulk-bar">
+          <span class="bulk-count" id="ubi-bulk-count">0 seleccionadas</span>
+          <button class="btn btn-sm" onclick="_printSelectedUbis()">⎙ Imprimir seleccionadas</button>
+        </div>
+      </div>
+      <div class="ubi-panel" id="ubi-panel" style="display:flex;flex-direction:column;overflow:hidden;">
         <div class="placeholder">Seleccioná una ubicación del árbol</div>
       </div>
     </div>
@@ -773,6 +790,62 @@ function _ubiFormato(tipo, depth) {
   return spec.formatos[depth] || 'libre';
 }
 
+// ── Checkboxes de ubicaciones ──
+const _selectedUbis = new Set();
+
+function _getHojasDescendientes(ubiId) {
+  const hijos = _ubiData.filter(x => x.parent_id === ubiId);
+  if (hijos.length === 0) return [ubiId];
+  let hojas = [];
+  for (const h of hijos) hojas = hojas.concat(_getHojasDescendientes(h.id));
+  return hojas;
+}
+
+function _toggleUbiSel(id, checked) {
+  if (checked) _selectedUbis.add(id); else _selectedUbis.delete(id);
+  _updateUbiBulk();
+}
+
+function _updateUbiBulk() {
+  const bar = document.getElementById('ubi-bulk-bar');
+  const n = _selectedUbis.size;
+  if (n > 0) {
+    bar.classList.add('visible');
+    document.getElementById('ubi-bulk-count').textContent = n + ' seleccionadas';
+  } else {
+    bar.classList.remove('visible');
+  }
+}
+
+function _printSelectedUbis() {
+  if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
+  const items = [];
+  for (const id of _selectedUbis) {
+    const u = _ubiData.find(x => String(x.id) === String(id));
+    if (!u) continue;
+    const p = u.parent_id ? _ubiData.find(x => String(x.id) === String(u.parent_id)) : null;
+    items.push({ codigo: u.codigo, nombre: u.nombre || '', padre: p ? (p.nombre || p.codigo) : '', _qr: u.codigo });
+  }
+  if (!items.length) { alert('No hay ubicaciones seleccionadas'); return; }
+  if (!confirm('Se van a imprimir ' + items.length + ' etiquetas. ¿Seguir?')) return;
+  Etiquetas.imprimir('inv-bin', items);
+}
+
+function _printBinsBulk(parentId) {
+  if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
+  const hojaIds = _getHojasDescendientes(parentId);
+  const items = [];
+  for (const id of hojaIds) {
+    const u = _ubiData.find(x => String(x.id) === String(id));
+    if (!u) continue;
+    const p = u.parent_id ? _ubiData.find(x => String(x.id) === String(u.parent_id)) : null;
+    items.push({ codigo: u.codigo, nombre: u.nombre || '', padre: p ? (p.nombre || p.codigo) : '', _qr: u.codigo });
+  }
+  if (!items.length) { alert('Este nodo no tiene hojas descendientes'); return; }
+  if (!confirm('Se van a imprimir ' + items.length + ' etiquetas. ¿Seguir?')) return;
+  Etiquetas.imprimir('inv-bin', items);
+}
+
 function _renderTree() {
   const byParent = {};
   for (const u of _ubiData) {
@@ -788,7 +861,9 @@ function _renderTree() {
       const cls = 'tree-node' + (_selectedUbi === u.id ? ' selected' : '');
       const inactive = u.activo === false ? ' style="opacity:.4;"' : '';
       const tipoTag = depth === 0 && u.tipo ? ' <span style="font-family:\'Space Mono\',monospace;font-size:8px;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin-left:4px;text-transform:uppercase;">' + u.tipo + '</span>' : '';
+      const chk = _selectedUbis.has(u.id) ? ' checked' : '';
       let html = '<div class="' + cls + '" style="padding-left:' + (10 + indent) + 'px;"' + inactive + ' onclick="_selectUbi(\'' + u.id + '\')">'
+        + '<input type="checkbox" class="tn-chk"' + chk + ' onchange="_toggleUbiSel(\'' + u.id + '\', this.checked)" onclick="event.stopPropagation()">'
         + '<span class="tn-code">' + u.codigo + '</span>'
         + '<span class="tn-name">' + (u.nombre || '') + tipoTag + '</span>'
         + '<span class="tn-edit" onclick="event.stopPropagation();_openEditUbi(\'' + u.id + '\')">✏</span>'
@@ -819,15 +894,22 @@ function _selectUbi(id) {
   const depth = _ubiDepth(u);
   const lvlLabel = _ubiNivelLabel(tipo, depth);
   const esHoja = _ubiEsHoja(u);
+  var nHojas = esHoja ? 0 : _getHojasDescendientes(u.id).length;
   document.getElementById('ubi-panel').innerHTML =
-    '<div class="ubi-preview">'
+    '<div class="ubi-preview" style="flex:1;overflow-y:auto;">'
     + '<div style="font-family:\'Space Mono\',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">' + lvlLabel + (tipo ? ' · ' + tipo : '') + '</div>'
     + '<div class="big-code">' + u.codigo + '</div>'
     + '<div class="big-name">' + (u.nombre || '') + '</div>'
     + '<div class="big-path">' + path + '</div>'
+    + (!esHoja
+      ? '<div style="margin-top:16px;font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);">Contiene ' + nHojas + ' estante' + (nHojas !== 1 ? 's' : '') + ' (hojas)</div>'
+      : '')
+    + '</div>'
+    + '<div class="panel-actions-sticky">'
     + (esHoja
-      ? '<div style="margin-top:24px;"><button class="btn" onclick="_imprimirEtiquetaUbi(\'' + u.id + '\')">⎙ Imprimir etiqueta</button></div>'
-      : '<div style="margin-top:24px;font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);">Los puntos de guardado son las ubicaciones finales (hojas)</div>')
+      ? '<button class="btn" onclick="_imprimirEtiquetaUbi(\'' + u.id + '\')">⎙ Imprimir etiqueta</button>'
+      : (nHojas > 0 ? '<button class="btn" onclick="_printBinsBulk(\'' + u.id + '\')">⎙ Imprimir etiquetas de sus ' + nHojas + ' estantes</button>' : ''))
+    + '<button class="btn" onclick="_openEditUbi(\'' + u.id + '\')">✏ Editar</button>'
     + '</div>';
 }
 
@@ -1143,7 +1225,7 @@ function _closeItemPanel() {
 
 async function _openItemPanel(id) {
   const panel = document.getElementById('item-panel');
-  panel.style.display = '';
+  panel.style.display = 'flex';
   _panelItemId = id;
   _panelData = null;
   panel.innerHTML = '<div style="padding:20px;text-align:center;"><span class="spin"></span><div style="margin-top:8px;font-size:12px;color:var(--muted);">Cargando...</div></div>';
@@ -1157,11 +1239,10 @@ async function _openItemPanel(id) {
   const esc = s => (s == null ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'));
   const fmtUsd = v => v != null ? 'USD ' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
 
-  let html = '<div style="padding:16px;">';
+  let html = '<div style="padding:16px;flex:1;overflow-y:auto;">';
 
-  // Close + edit buttons — IDs pelados, sin interpolación de strings
-  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">'
-    + '<button class="btn" style="font-size:10px;" onclick="_panelEditItem()">✏ Editar</button>'
+  // Close button at top right (lightweight)
+  html += '<div style="display:flex;justify-content:flex-end;margin-bottom:8px;">'
     + '<button class="btn" style="font-size:10px;" onclick="_closeItemPanel()">✕ Cerrar</button></div>';
 
   // Cabecera
@@ -1238,6 +1319,10 @@ async function _openItemPanel(id) {
   }
 
   html += '</div>';
+  // Sticky actions bar at bottom
+  html += '<div class="panel-actions-sticky">'
+    + '<button class="btn" style="font-size:10px;" onclick="_panelEditItem()">✏ Editar</button>'
+    + '</div>';
   panel.innerHTML = html;
 }
 
