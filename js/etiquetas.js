@@ -197,22 +197,25 @@
 
   // Merge: config guardada pisa defaults, pero campos nuevos de la spec se agregan
   function _mergeCamposConSpec(savedCampos, spec, fmt) {
-    if (!savedCampos || !savedCampos.length) return null;
+    // Nunca devolver null si hay config guardada — usar los defaults solo como fallback
+    // para campos nuevos que la config no conoce
+    if (!Array.isArray(savedCampos) || !savedCampos.length) {
+      // Config guardada vacía o inválida: devolver los defaults tal cual
+      return (spec.defaults[fmt] || []).slice();
+    }
     var savedIds = {};
     savedCampos.forEach(function (c) { savedIds[c.id] = true; });
     var defaults = spec.defaults[fmt] || [];
     var defaultsById = {};
     defaults.forEach(function (c) { defaultsById[c.id] = c; });
-    var added = false;
     spec.campos.forEach(function (sc) {
       if (!savedIds[sc.id]) {
         // Campo nuevo en la spec, no está en la config guardada — agregarlo
         var defPos = defaultsById[sc.id] ? defaultsById[sc.id].pos : 'S';
         savedCampos.push({ id: sc.id, pos: defPos });
-        added = true;
       }
     });
-    return added ? savedCampos : savedCampos;
+    return savedCampos;
   }
 
   function resolverCampos(funcion, tamano, cfgOverride) {
@@ -231,7 +234,12 @@
       var row = _configCache[funcion];
       var saved = row.campos || {};
       console.log('[Etiquetas] resolverCampos → server config found', funcion, 'fmt:', fmt, 'saved keys:', Object.keys(saved), 'has fmt?', !!saved[fmt]);
-      if (saved[fmt]) return _mergeCamposConSpec(saved[fmt].slice(), spec, fmt);
+      if (saved[fmt]) {
+        var merged = _mergeCamposConSpec(saved[fmt].slice(), spec, fmt);
+        console.log('[Etiquetas] resolverCampos → merge result:', merged, 'input was:', JSON.stringify(saved[fmt]));
+        if (merged) return merged;
+        console.warn('[Etiquetas] resolverCampos → merge returned null/falsy despite saved config existing! Falling through to defaults.');
+      }
     } else {
       console.log('[Etiquetas] resolverCampos → NO server config', funcion, 'cache keys:', _configCache ? Object.keys(_configCache) : 'null');
     }
