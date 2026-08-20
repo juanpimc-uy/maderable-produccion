@@ -469,6 +469,7 @@
     });
 
     // Cargar dependencias y rasterizar
+    console.log('[Etiquetas] _doImprimir cuerpo:', JSON.stringify(cuerpoCampos), 'pie:', JSON.stringify(pieCampos));
     var deps = [_ensureFont()];
     if (spec.qr) deps.push(_ensureQRLib());
     Promise.all(deps)
