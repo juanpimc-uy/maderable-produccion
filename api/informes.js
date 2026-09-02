@@ -1274,7 +1274,7 @@ async function accionSincronizarPreciosMuebles(req, res) {
     // Write (only if not dry and modified)
     if (!dry && proyModificado) {
       await supabase.from('proyectos_cache')
-        .update({ muebles, items: muebles })
+        .update({ muebles, items: muebles.filter(mm => !mm.archivado) })
         .eq('id', proy.id);
     }
   }
@@ -1481,6 +1481,7 @@ async function accionLeanCargaEtapa(req, res) {
   for (const p of (proys || [])) {
     const mubs = Array.isArray(p.muebles) ? p.muebles : [];
     for (const m of mubs) {
+      if (m.archivado) continue; // muebles archivados fuera del lean
       const placas = Number(m.placas) || 0;
       if (placas >= 999) continue; // skip placeholder muebles (MANTENIMIENTO, CAMION, etc.)
       let horas = 0;
@@ -1540,6 +1541,7 @@ async function accionLeanCargaEtapaDetalle(req, res) {
   for (const p of (proys || [])) {
     const mubs = Array.isArray(p.muebles) ? p.muebles : [];
     for (const m of mubs) {
+      if (m.archivado) continue; // muebles archivados fuera del lean
       const placasD = Number(m.placas) || 0;
       if (placasD >= 999) continue;
       let horasD = 0;

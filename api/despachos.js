@@ -53,6 +53,7 @@ async function accionListaOdfMuebles(req, res) {
   const fullSet = new Set((desp || []).filter(d => d.despachado_full).map(d => d.mf_n));
 
   const muebles = (Array.isArray(p.muebles) ? p.muebles : [])
+    .filter(m => !m.archivado)
     .filter(m => (Number(m.placas) || 0) < 999)
     .map(m => ({
       id: m.id,
