@@ -1580,7 +1580,7 @@ export default async function handler(req) {
           referencia: referencia || null,
           fecha_inicio: fechaInicio, fecha_entrega: fechaEntrega,
           notas, estado: estado || 'en_produccion',
-          muebles: _muebles, items: _muebles,
+          muebles: _muebles, items: _muebles.filter(m => !m.archivado),
           materiales: materiales || [],
           sos_cargadas: sosCargadas || [],
           modulos: modulos || [],
@@ -2885,7 +2885,7 @@ export default async function handler(req) {
           referencia: referencia || null,
           fecha_inicio: fechaInicio, fecha_entrega: fechaEntrega,
           notas, estado: estado || 'en_produccion',
-          muebles: _muebles, items: _muebles,
+          muebles: _muebles, items: _muebles.filter(m => !m.archivado),
           materiales: materiales || [],
           sos_cargadas: sosCargadas || [],
           modulos: modulos || [],
@@ -2965,7 +2965,7 @@ export default async function handler(req) {
       // ── Recalcular estado de la ODF según items completos ──────────────
       const { data: proyEstado } = await supabase
         .from('proyectos_cache').select('muebles, estado, numero').eq('id', proyecto_id).maybeSingle();
-      const mueblesAll = Array.isArray(proyEstado?.muebles) ? proyEstado.muebles : [];
+      const mueblesAll = (Array.isArray(proyEstado?.muebles) ? proyEstado.muebles : []).filter(m => !m.archivado);
       const totalItems = mueblesAll.length;
       const idsMuebles = new Set(mueblesAll.map(m => String(m.id)));
 
@@ -3762,7 +3762,7 @@ export default async function handler(req) {
       };
       muebles.push(etapa);
       const { error: uErr } = await supabase
-        .from('proyectos_cache').update({ muebles, items: muebles }).eq('id', proyecto_id);
+        .from('proyectos_cache').update({ muebles, items: muebles.filter(m => !m.archivado) }).eq('id', proyecto_id);
       if (uErr) throw uErr;
 
       // Si la ODF estaba terminada, agregar trabajo nuevo la reabre
@@ -3820,7 +3820,7 @@ export default async function handler(req) {
       }
       const nuevos = muebles.filter(m => String(m.id) !== String(item_id));
       const { error: uErr } = await supabase
-        .from('proyectos_cache').update({ muebles: nuevos, items: nuevos }).eq('id', proyecto_id);
+        .from('proyectos_cache').update({ muebles: nuevos, items: nuevos.filter(m => !m.archivado) }).eq('id', proyecto_id);
       if (uErr) throw uErr;
       return ok({ ok: true, eliminado: item_id });
     }
