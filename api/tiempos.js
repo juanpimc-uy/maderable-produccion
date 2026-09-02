@@ -382,7 +382,11 @@ function netoJornadaMin(jornada, jsegs, modalidad) {
     if (min > SEG_MAX_MIN) { pendiente = true; continue; }    // implausible → no cuenta
     total += Math.max(0, min);
   }
-  let deduccion = jornada.descanso_minutos || 0;
+  // paga_30: los primeros 30 min son PAGOS → solo se descuenta el excedente.
+  // resto de modalidades: se descuenta el descanso acumulado.
+  let deduccion = (modalidad === 'paga_30')
+    ? (jornada.descanso_excedido_minutos || 0)
+    : (jornada.descanso_minutos || 0);
   if (modalidad === 'no_paga_60' && jornada.tomo_descanso !== false) {
     deduccion = Math.max(deduccion, _overlapAlmuerzoSegMin(jsegs));
   }
@@ -700,11 +704,19 @@ async function _finalizarTareaImpl(sb, {
   if (r.estado !== 'activo') throw new ApiError('El registro ya está cerrado', 400);
 
   // 3. Determinar si el centro es descanso
+  // registros_trabajo.centro guarda el CODIGO (ej. 'descanso'), no el nombre.
+  // Se busca por codigo con fallback a nombre por registros legacy.
   let es_descanso = false;
   if (r.centro) {
     const { data: cv } = await sb.from('centros_virtuales')
-      .select('es_descanso').eq('nombre', r.centro).maybeSingle();
-    es_descanso = cv?.es_descanso || false;
+      .select('es_descanso').eq('codigo', r.centro).maybeSingle();
+    if (cv) {
+      es_descanso = cv.es_descanso || false;
+    } else {
+      const { data: cvN } = await sb.from('centros_virtuales')
+        .select('es_descanso').eq('nombre', r.centro).maybeSingle();
+      es_descanso = cvN?.es_descanso || false;
+    }
   }
 
   const fin = new Date().toISOString();
@@ -3479,7 +3491,10 @@ export default async function handler(req) {
         if (m > SEG_MAX_MIN) continue; // implausible → no cuenta (igual que planilla)
         presenciaBrutaMin += Math.max(0, m);
       }
-      let deduccionMD = jornada.descanso_minutos || 0;
+      // misma regla que netoJornadaMin: en paga_30 solo se descuenta el excedente
+      let deduccionMD = (descanso_modalidad === 'paga_30')
+        ? (jornada.descanso_excedido_minutos || 0)
+        : (jornada.descanso_minutos || 0);
       if (descanso_modalidad === 'no_paga_60' && tomo_descanso !== false) {
         deduccionMD = Math.max(deduccionMD, _overlapAlmuerzoSegMin(segsNormMD));
       }
@@ -4799,7 +4814,7 @@ export default async function handler(req) {
 
       let jornadasQSD = supabase
         .from('jornadas')
-        .select('id, empleado_id, fecha, entrada, salida, descanso_minutos')
+        .select('id, empleado_id, fecha, entrada, salida, descanso_minutos, descanso_excedido_minutos, tomo_descanso')
         .eq('fecha', fecha);
       if (callerSD.rol_app !== 'admin' && !callerSD.acceso_tiempos) jornadasQSD = jornadasQSD.eq('empleado_id', caller_id);
       const { data: jornadasSD, error: jSDErr } = await jornadasQSD;
@@ -4917,7 +4932,7 @@ export default async function handler(req) {
 
       let jornadasQSE = supabase
         .from('jornadas')
-        .select('id, empleado_id, fecha, entrada, salida, descanso_minutos')
+        .select('id, empleado_id, fecha, entrada, salida, descanso_minutos, descanso_excedido_minutos, tomo_descanso')
         .eq('empleado_id', empleado_id)
         .order('fecha', { ascending: true });
       if (desde) jornadasQSE = jornadasQSE.gte('fecha', desde);
@@ -5040,7 +5055,7 @@ export default async function handler(req) {
       // Fetch jornadas + empleados (no registros_trabajo — jornadas son fuente de verdad)
       const [{ data: jornadasRH, error: jRHErr }, { data: empsFullRH, error: efRHErr }] = await Promise.all([
         supabase.from('jornadas')
-          .select('id, empleado_id, fecha, entrada, salida, descanso_minutos, tomo_descanso')
+          .select('id, empleado_id, fecha, entrada, salida, descanso_minutos, descanso_excedido_minutos, tomo_descanso')
           .in('empleado_id', empleadoIdsRH)
           .gte('fecha', desde)
           .lte('fecha', hasta)
