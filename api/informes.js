@@ -1300,7 +1300,22 @@ async function accionThroughputMensual(req, res) {
   if (!seccion) return err(res, 'Token de sección inválido o expirado', 401);
 
   const mesesParam = parseInt(req.query.meses) || 12;
-  const OE = 55000;
+
+  // OE por mes desde oe_mensual (con arrastre: si un mes no tiene, usa el último anterior)
+  const { data: oeRows } = await supabase
+    .from('oe_mensual')
+    .select('periodo, oe_total_usd')
+    .order('periodo', { ascending: true })
+    .limit(500);
+  function oeParaMes(mes) {
+    let found = 0;
+    for (const r of (oeRows || [])) {
+      const m = r.periodo.slice(0, 7);
+      if (m <= mes) found = r.oe_total_usd || 0;
+      else break;
+    }
+    return found;
+  }
 
   // Proyectos terminados con precio
   const { data: proys, error: pErr } = await supabase
@@ -1310,7 +1325,7 @@ async function accionThroughputMensual(req, res) {
     .eq('estado', 'terminado')
     .gt('precio_venta_usd', 0);
   if (pErr) throw pErr;
-  if (!proys || !proys.length) return ok(res, { oe_mensual_usd: OE, datos: [] });
+  if (!proys || !proys.length) return ok(res, { datos: [] });
 
   // Max(fin) por proyecto de registros_trabajo
   const proyIds = proys.map(p => p.id);
@@ -1380,13 +1395,13 @@ async function accionThroughputMensual(req, res) {
     return {
       mes,
       throughput_usd,
-      oe_usd: OE,
-      gano_mes: throughput_usd > OE,
+      oe_usd: oeParaMes(mes),
+      gano_mes: throughput_usd > oeParaMes(mes),
       proyectos_contribuyendo: b ? b.proyectos.size : 0,
     };
   });
 
-  return ok(res, { oe_mensual_usd: OE, datos });
+  return ok(res, { datos });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
