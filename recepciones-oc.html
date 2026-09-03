@@ -12,6 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="Recepciones">
 <link rel="apple-touch-icon" href="/icons/icon-recepciones-192.png">
 <script src="/js/kiosco-modo.js"></script>
+<script src="/js/etiquetas.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -639,6 +640,30 @@ async function _abrirEtiquetasOc(ocNumero, ocIdZoho) {
 // ── Inventario desde OC ─────────────────────────────────────────────────
 let _invLineas = [];
 let _invData = null;
+let _loteRecepcion = [];
+
+function _parsePlacaAttrs(desc) {
+  var d = (desc || '').toString();
+  var espesor = null, medida = null;
+  var mE = d.match(/(\d+(?:[.,]\d+)?)\s*mm\b/i);
+  if (mE) espesor = Number(String(mE[1]).replace(',', '.'));
+  var mM = d.match(/(\d+(?:[.,]\d+)?)\s*[xX]\s*(\d+(?:[.,]\d+)?)/);
+  if (mM) {
+    var a = Number(String(mM[1]).replace(',', '.'));
+    var b = Number(String(mM[2]).replace(',', '.'));
+    if (a < 10) a = Math.round(a * 100);
+    if (b < 10) b = Math.round(b * 100);
+    medida = Math.round(a) + 'x' + Math.round(b);
+  }
+  return { espesor: espesor, medida: medida };
+}
+
+function _abrirInventarioDeOc(ocNumero) {
+  const oc = _ocs.find(o => o.oc_numero === ocNumero);
+  if (!oc) return;
+  if (!oc.oc_id_zoho) { alert('Esta OC no tiene id de Zoho, no se puede inventariar'); return; }
+  _abrirInventario(oc);
+}
 
 async function _abrirInventario(oc) {
   const panel = document.getElementById('modal-inventario');
@@ -711,6 +736,12 @@ function _cerrarInventario() {
   document.getElementById('modal-inventario').classList.remove('open');
 }
 
+function _imprimirEtiquetasRecepcion() {
+  if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
+  if (!_loteRecepcion.length) { alert('No hay etiquetas para imprimir'); return; }
+  Etiquetas.imprimir('inv-placa', _loteRecepcion);
+}
+
 async function _confirmarInventario() {
   const btn = document.getElementById('inv-btn');
   const errEl = document.getElementById('inv-error');
@@ -721,14 +752,23 @@ async function _confirmarInventario() {
   btn.textContent = '...';
   errEl.textContent = '';
 
-  const lineasBody = _invLineas.filter(l => !l.sin_item).map(l => ({
-    inv_item_id: l.inv_item_id,
-    familia: l.familia,
-    cantidad: l.quantity,
-    rate: l.rate,
-    atributos: null,
-    reserva_proyecto_id: null,
-  }));
+  const lineasBody = _invLineas.filter(l => !l.sin_item).map(l => {
+    let atributos = null;
+    if (l.familia === 'placa' || l.familia === 'madera') {
+      const p = _parsePlacaAttrs(l.name);
+      atributos = { material: l.name || '' };
+      if (p.espesor) atributos.espesor = p.espesor;
+      if (p.medida) atributos.medida = p.medida;
+    }
+    return {
+      inv_item_id: l.inv_item_id,
+      familia: l.familia,
+      cantidad: l.quantity,
+      rate: l.rate,
+      atributos: atributos,
+      reserva_proyecto_id: null,
+    };
+  });
 
   try {
     const r = await fetch('/api/inventario?action=recepcionar-inventario', {
@@ -755,11 +795,22 @@ async function _confirmarInventario() {
     html += '<div class="mono" style="font-size:10px;color:var(--green);letter-spacing:1px;margin-bottom:8px;">✓ INVENTARIO GENERADO</div>';
 
     if (r.placas_creadas && r.placas_creadas.length) {
+      _loteRecepcion = [];
       for (const p of r.placas_creadas) {
+        const li = _invLineas.find(x => x.inv_item_id === p.inv_item_id);
+        const at = _parsePlacaAttrs(li ? li.name : '');
+        for (const cod of (p.codigos || [])) {
+          _loteRecepcion.push({
+            codigo: cod,
+            descripcion: li ? li.name : '',
+            espesor: at.espesor ? at.espesor + 'mm' : '',
+            medida: at.medida || '',
+            _qr: cod,
+          });
+        }
         html += `<div class="inv-codigos">Placas: ${p.codigos.join(', ')}</div>`;
       }
-      // TODO: inv-placa — botón de etiquetas deshabilitado hasta INV-3c
-      html += '<button class="modal-btn" style="margin-top:8px;background:var(--border);color:var(--muted);cursor:not-allowed;" disabled>IMPRIMIR ETIQUETAS (próximamente)</button>';
+      html += `<button class="modal-btn" style="margin-top:8px;" onclick="_imprimirEtiquetasRecepcion()">⎙ IMPRIMIR ETIQUETAS (${_loteRecepcion.length})</button>`;
     }
 
     if (r.lineas_cantidad && r.lineas_cantidad.length) {
@@ -803,7 +854,7 @@ function _abrirDetalleOc(ocNumero) {
   const ocNum = oc.oc_numero.replace(/'/g, "\\'");
   const pieBtn = oc.estado !== 'recibida'
     ? `<button class="login-btn" style="margin-top:12px;" onclick="event.stopPropagation();_cerrarDetalleOc();_abrirRecibir('${ocNum}')">RECIBIR →</button>`
-    : '';
+    : `<button class="login-btn" style="margin-top:12px;" onclick="event.stopPropagation();_cerrarDetalleOc();_abrirInventarioDeOc('${ocNum}')">GENERAR INVENTARIO →</button>`;
   const html = `<div id="modal-detalle-oc" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;display:flex;align-items:center;justify-content:center;" onclick="_cerrarDetalleOc()">
     <div onclick="event.stopPropagation()" style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;width:90%;max-width:560px;max-height:85vh;overflow-y:auto;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">

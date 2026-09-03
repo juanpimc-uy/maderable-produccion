@@ -382,7 +382,7 @@ async function accionStockUbicacion(req, res) {
   if (!sesion) return err(res, 'No autorizado', 401);
 
   let ubicacionId = req.query.ubicacion_id;
-  const codigo = (req.query.codigo || '').trim().toUpperCase();
+  const codigo = normCod(req.query.codigo);
 
   if (!ubicacionId && !codigo) return err(res, 'ubicacion_id o codigo requerido');
 
@@ -426,10 +426,17 @@ async function verificarOperario(empleadoId) {
   return data || null;
 }
 
+// Normaliza un código escaneado. Algunos lectores con layout de teclado cruzado
+// tipean el guion como apóstrofo (PL275-A-04 → PL275'A'04). No se toca el guion
+// bajo: hay ítems reales con "_" en el código (LACA_BL, O_PAT, ...).
+function normCod(v) {
+  return String(v == null ? '' : v).trim().replace(/[´`'']/g, '-').toUpperCase();
+}
+
 async function resolverUbiPorCodigo(codigo) {
   if (!codigo) return null;
   const { data } = await supabase.from('inv_ubicaciones')
-    .select('id, codigo, nombre').eq('codigo', codigo.trim().toUpperCase()).eq('activo', true).maybeSingle();
+    .select('id, codigo, nombre').eq('codigo', normCod(codigo)).eq('activo', true).maybeSingle();
   return data || null;
 }
 
@@ -439,7 +446,7 @@ async function accionResolverCodigo(req, res) {
   const emp = await verificarOperario(req.query.empleado_id);
   if (!emp) return err(res, 'No autorizado', 401);
 
-  const codigo = (req.query.codigo || '').trim().toUpperCase();
+  const codigo = normCod(req.query.codigo);
   if (!codigo) return err(res, 'codigo requerido');
 
   // 1) Ubicación
@@ -673,14 +680,14 @@ async function accionAltaRapida(req, res) {
   const emp = await verificarOperario(b.empleado_id);
   if (!emp) return err(res, 'No autorizado', 401);
 
-  const codigo = (b.codigo || '').trim().toUpperCase();
+  const codigo = normCod(b.codigo);
   const descripcion = (b.descripcion || '').trim();
   const familia = (b.familia || '').trim();
   if (!codigo) return err(res, 'codigo requerido');
   if (!descripcion) return err(res, 'descripcion requerida');
   if (!familia || !FAMILIAS_VALIDAS.includes(familia)) return err(res, 'familia inválida');
 
-  const ubiCodigo = (b.ubicacion_codigo || '').trim().toUpperCase();
+  const ubiCodigo = normCod(b.ubicacion_codigo);
   if (!ubiCodigo) return err(res, 'ubicacion_codigo requerido');
   const ubi = await resolverUbiPorCodigo(ubiCodigo);
   if (!ubi) return err(res, 'Ubicación no encontrada: ' + ubiCodigo, 404);
@@ -884,7 +891,7 @@ async function accionConsumirUnidad(req, res) {
   const emp = await verificarOperario(b.empleado_id);
   if (!emp) return err(res, 'No autorizado', 401);
 
-  const codigo = (b.codigo || '').trim().toUpperCase();
+  const codigo = normCod(b.codigo);
   if (!codigo) return err(res, 'codigo requerido');
   if (!b.proyecto_id) return err(res, 'proyecto_id requerido');
 
@@ -935,9 +942,9 @@ async function accionTrasladarUnidad(req, res) {
   const emp = await verificarOperario(b.empleado_id);
   if (!emp) return err(res, 'No autorizado', 401);
 
-  const codigo = (b.codigo || '').trim().toUpperCase();
+  const codigo = normCod(b.codigo);
   if (!codigo) return err(res, 'codigo requerido');
-  const destCodigo = (b.ubicacion_destino_codigo || '').trim().toUpperCase();
+  const destCodigo = normCod(b.ubicacion_destino_codigo);
   if (!destCodigo) return err(res, 'ubicacion_destino_codigo requerido');
 
   const { data: unidad } = await supabase.from('inv_unidades')
@@ -971,7 +978,7 @@ async function accionDescartarUnidad(req, res) {
   const emp = await verificarOperario(b.empleado_id);
   if (!emp) return err(res, 'No autorizado', 401);
 
-  const codigo = (b.codigo || '').trim().toUpperCase();
+  const codigo = normCod(b.codigo);
   if (!codigo) return err(res, 'codigo requerido');
 
   const { data: unidad } = await supabase.from('inv_unidades')
@@ -1011,7 +1018,7 @@ async function accionSetearReservaUnidad(req, res) {
   const emp = await verificarOperario(b.empleado_id);
   if (!emp) return err(res, 'No autorizado', 401);
 
-  const codigo = (b.codigo || '').trim().toUpperCase();
+  const codigo = normCod(b.codigo);
   if (!codigo) return err(res, 'codigo requerido');
 
   const { data: unidad } = await supabase.from('inv_unidades')
@@ -1312,6 +1319,16 @@ async function accionRecepcionarInventario(req, res) {
   if (!oc_numero) return err(res, 'oc_numero requerido');
   if (!ubicacion_placa_id) return err(res, 'ubicacion_placa_id requerido');
   if (!Array.isArray(lineas) || !lineas.length) return err(res, 'lineas requeridas');
+
+  // Guarda de idempotencia: una OC no se inventaría dos veces salvo forzar explícito.
+  if (b.forzar !== true) {
+    const { data: yaMov } = await supabase.from('inv_movimientos')
+      .select('id, creado_en').eq('tipo', 'entrada').eq('nota', 'OC ' + oc_numero).limit(1);
+    if (yaMov && yaMov.length) {
+      const f = (yaMov[0].creado_en || '').toString().slice(0, 10);
+      return err(res, `La OC ${oc_numero} ya generó inventario${f ? ' el ' + f : ''}. No se generó nada.`, 409);
+    }
+  }
 
   const cc = (currency_code || 'USD').toUpperCase();
   const tc = await _fetchTcUsd(cc);
