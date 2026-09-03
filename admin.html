@@ -805,24 +805,21 @@
       </div>
       </div><!-- /panel tc -->
 
-      <!-- OE mensual (throughput) -->
+      <!-- OE mensual -->
       <div data-ajuste-panel="oe" style="display:none;">
       <div id="ajustes-oe-section">
         <div class="card">
-          <div class="sec-title" style="margin-bottom:4px;">GASTO OPERATIVO MENSUAL (OE)</div>
+          <div class="sec-title" style="margin-bottom:4px;">
+            COSTO MENSUAL BASE (OE)
+            <span id="oem-tarifa-ref" class="mono" style="font-size:10px;color:var(--muted);font-weight:400;"></span>
+          </div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
-            Número único por mes: mano de obra + fijos (alquiler, luz, máquinas). Se usa en el indicador de throughput vs OE.
+            Lo que cuesta tener la fábrica abierta cada mes. Se compara contra las horas realmente fichadas para saber cuánto overhead absorbió cada hora, y ese es el ajuste que corrige el margen.
           </div>
-          <div id="oe-wrapper">
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-              <span style="font-size:13px;color:var(--muted);font-family:'JetBrains Mono',monospace;">USD/mes</span>
-              <input type="number" step="1" min="0" id="oe-input" data-original=""
-                style="width:140px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:13px;color:var(--text);font-family:inherit;"
-                onblur="oeGuardar(this)" onkeydown="if(event.key==='Enter'){this.blur();}" />
-              <span id="oe-upd" style="font-size:10px;color:var(--muted);margin-left:4px;"></span>
-            </div>
+          <div id="oem-wrap" style="overflow-x:auto;">
+            <div style="font-size:12px;color:var(--muted);">Cargando…</div>
           </div>
-          <div id="oe-toast" style="font-size:11px;color:var(--green);margin-top:8px;min-height:16px;"></div>
+          <div id="oem-toast" style="font-size:11px;color:var(--green);margin-top:8px;min-height:16px;"></div>
         </div>
       </div>
       </div><!-- /panel oe -->
@@ -5895,7 +5892,7 @@ let _ajusteTabActual = 'formula';
 function _initAjustes() {
   const u = window.AUTH.usuarioActual();
   if (!u || u.rol_app !== 'admin') { navTo('dashboard'); return; }
-  fInit(); tarifasInit(); tcInit(); oeInit(); centrosAjustesInit(); lustreTiposInit(); renderMiCuenta();
+  fInit(); tarifasInit(); tcInit(); oemInit(); centrosAjustesInit(); lustreTiposInit(); renderMiCuenta();
   switchAjusteTab(_ajusteTabActual);
 }
 
@@ -6118,53 +6115,149 @@ function _relTime(isoStr) {
   return `Actualizado hace ${Math.floor(diff/86400)}d`;
 }
 
-async function oeInit(force = false) {
-  const wrapper = document.getElementById('oe-wrapper');
-  if (!wrapper) return;
-  if (!force && wrapper.dataset.loaded === '1') return;
-  const input = document.getElementById('oe-input');
-  const toast = document.getElementById('oe-toast');
-  if (input) { input.disabled = true; input.placeholder = 'Cargando…'; }
+// ── OE mensual — tabla por mes ──
+const _MESES_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+let _oemData = null;
+
+function _oemTarifaDirecto() {
+  const el = document.getElementById('tarifa-input-directo');
+  const v = parseFloat(el?.dataset.original || '0');
+  return (isFinite(v) && v > 0) ? v : 0;
+}
+
+function _oemFmtPeriodo(p) {
+  const [y, m] = (p || '').split('-').map(Number);
+  return (_MESES_ES[m - 1] || '???') + ' ' + y;
+}
+
+function _oemFmtUsd(v) {
+  if (v == null || isNaN(v)) return '';
+  return Number(v).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function _oemChip(r) {
+  if (r.heredado) return '<span class="pill" style="background:var(--faint);color:var(--muted);">HEREDADO</span>';
+  if (r.datos_completos === false) return '<span class="pill" style="background:rgba(240,92,92,.12);color:var(--red);">INCOMPLETO</span>';
+  if (r.cerrado) return '<span class="pill" style="background:rgba(61,214,140,.12);color:var(--green);">CERRADO</span>';
+  return '<span class="pill" style="background:rgba(255,214,0,.12);color:var(--amber);">EN CURSO</span>';
+}
+
+async function oemInit(force = false) {
+  const wrap = document.getElementById('oem-wrap');
+  if (!wrap) return;
+  if (!force && wrap.dataset.loaded === '1') return;
+  const toast = document.getElementById('oem-toast');
   if (toast) { toast.textContent = ''; toast.style.color = 'var(--green)'; }
+  wrap.innerHTML = '<div style="font-size:12px;color:var(--muted);">Cargando…</div>';
+
+  // Mostrar tarifa de referencia
+  const tarifa = _oemTarifaDirecto();
+  const refEl = document.getElementById('oem-tarifa-ref');
+  if (refEl) refEl.textContent = tarifa > 0 ? 'Tarifa directa: USD ' + tarifa.toFixed(2) + '/h' : '';
+
   try {
-    const r = await fetch('/api/tiempos?action=lean-indicadores');
+    const r = await fetch('/api/oe?action=listar-oe-mensual&session_token=' + encodeURIComponent(window.AUTH.getSessionToken()));
     const data = await r.json();
-    if (!data.ok) throw new Error('Error');
-    const oe = (data.throughput && data.throughput.oe_mensual != null) ? data.throughput.oe_mensual : 0;
-    if (input) { input.value = oe; input.dataset.original = oe; input.disabled = false; input.placeholder = ''; }
-    wrapper.dataset.loaded = '1';
+    if (!r.ok || !data.ok) throw new Error(data.error || 'Error al cargar');
+    _oemData = data.meses || [];
+    _oemRender();
+    wrap.dataset.loaded = '1';
   } catch (e) {
-    if (input) { input.disabled = false; input.placeholder = 'Error'; }
-    if (toast) { toast.style.color = 'var(--red)'; toast.textContent = `Error al cargar: ${e.message}`; }
+    wrap.innerHTML = '<div style="font-size:12px;color:var(--red);">Error: ' + (e.message || e) + '</div>';
   }
 }
 
-async function oeGuardar(input) {
-  const original = parseFloat(input.dataset.original ?? '');
-  const raw = input.value.trim();
-  const valor = parseFloat(raw);
-  const toast = document.getElementById('oe-toast');
-  if (raw === '' || isNaN(valor) || valor < 0) {
-    input.style.borderColor = 'var(--red)';
-    if (toast) { toast.style.color = 'var(--red)'; toast.textContent = 'Ingresá un número ≥ 0'; }
+function _oemRender() {
+  const wrap = document.getElementById('oem-wrap');
+  if (!wrap || !_oemData) return;
+  if (_oemData.length === 0) {
+    wrap.innerHTML = '<div style="font-size:12px;color:var(--muted);">Sin meses cargados</div>';
     return;
   }
-  if (valor === original) { input.style.borderColor = 'var(--border)'; return; }
+  const tarifa = _oemTarifaDirecto();
+
+  let html = '<table><thead><tr>'
+    + '<th>Período</th><th style="text-align:right;">Costo mensual (OE)</th>'
+    + '<th style="text-align:right;">Hs base</th><th style="text-align:right;">Hs fichadas</th>'
+    + '<th style="text-align:right;">OE / hora</th><th style="text-align:right;">Ajuste / h</th>'
+    + '<th>Estado</th><th>Nota</th>'
+    + '</tr></thead><tbody>';
+
+  for (let i = 0; i < _oemData.length; i++) {
+    const r = _oemData[i];
+    const rowOp = r.heredado ? ' style="opacity:.55;"' : '';
+    const oe = r.oe_total_usd != null ? Number(r.oe_total_usd) : null;
+    const hf = r.horas_fichadas || 0;
+    const oeH = (oe != null && hf > 0) ? oe / hf : null;
+    const ajH = (oeH != null && tarifa > 0) ? tarifa - oeH : null;
+
+    html += '<tr' + rowOp + '>'
+      + '<td class="mono" style="font-size:12px;white-space:nowrap;">' + _oemFmtPeriodo(r.periodo) + '</td>'
+      + '<td style="text-align:right;"><input type="number" step="1" min="0" class="mono oem-inp" data-idx="' + i + '" data-campo="oe_total_usd" data-original="' + (oe != null ? oe : '') + '" value="' + (oe != null ? oe : '') + '" placeholder="—" style="width:100px;text-align:right;background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:4px 6px;font-size:12px;color:var(--text);" onblur="_oemCellSave(this)" onkeydown="if(event.key===\'Enter\')this.blur()"></td>'
+      + '<td style="text-align:right;"><input type="number" step="1" min="0" class="mono oem-inp" data-idx="' + i + '" data-campo="horas_base" data-original="' + (r.horas_base != null ? r.horas_base : '') + '" value="' + (r.horas_base != null ? r.horas_base : '') + '" placeholder="—" style="width:70px;text-align:right;background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:4px 6px;font-size:12px;color:var(--text);" onblur="_oemCellSave(this)" onkeydown="if(event.key===\'Enter\')this.blur()"></td>'
+      + '<td class="mono" style="text-align:right;font-size:12px;color:var(--muted);">' + (hf > 0 ? hf.toFixed(1) : '—') + '</td>'
+      + '<td class="mono" style="text-align:right;font-size:12px;">' + (oeH != null ? oeH.toFixed(2) : '—') + '</td>'
+      + '<td class="mono" style="text-align:right;font-size:12px;color:' + (ajH != null ? (ajH >= 0 ? 'var(--green)' : 'var(--red)') : 'var(--muted)') + ';">' + (ajH != null ? (ajH >= 0 ? '+' : '') + ajH.toFixed(2) : '—') + '</td>'
+      + '<td>' + _oemChip(r) + '</td>'
+      + '<td><input type="text" class="oem-inp" data-idx="' + i + '" data-campo="nota" data-original="' + (r.nota || '').replace(/"/g, '&quot;') + '" value="' + (r.nota || '').replace(/"/g, '&quot;') + '" placeholder="—" style="width:120px;background:var(--faint);border:1px solid var(--border);border-radius:5px;padding:4px 6px;font-size:11px;color:var(--text);" onblur="_oemCellSave(this)" onkeydown="if(event.key===\'Enter\')this.blur()"></td>'
+      + '</tr>';
+  }
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+async function _oemCellSave(input) {
+  const idx = parseInt(input.dataset.idx);
+  const campo = input.dataset.campo;
+  const original = input.dataset.original;
+  const raw = input.value.trim();
+
+  // Sin cambio → nada
+  if (raw === original) { input.style.borderColor = 'var(--border)'; return; }
+
+  const r = _oemData[idx];
+  if (!r) return;
+
+  // Validar números
+  if (campo === 'oe_total_usd' || campo === 'horas_base') {
+    if (raw !== '' && (isNaN(Number(raw)) || Number(raw) < 0)) {
+      input.style.borderColor = 'var(--red)';
+      input.value = original;
+      setTimeout(() => { input.style.borderColor = 'var(--border)'; }, 2000);
+      return;
+    }
+  }
+
+  // En vuelo
+  input.style.borderColor = 'var(--amber)';
+  input.style.opacity = '0.6';
   input.disabled = true;
+  const toast = document.getElementById('oem-toast');
+
+  const payload = { session_token: window.AUTH.getSessionToken(), periodo: r.periodo };
+  if (campo === 'oe_total_usd') payload.oe_total_usd = raw !== '' ? Number(raw) : null;
+  else if (campo === 'horas_base') payload.horas_base = raw !== '' ? Number(raw) : null;
+  else if (campo === 'nota') payload.nota = raw;
+
   try {
-    const res = await fetch('/api/tiempos?action=set-oe-mensual', {
+    const res = await fetch('/api/oe?action=guardar-oe-mensual', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_token: window.AUTH.getSessionToken(), oe_mensual_usd: valor })
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
-    if (!data.ok) throw new Error(data.error || data.msg || 'Error');
-    input.dataset.original = valor;
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Error');
+    input.style.opacity = '1';
     input.style.borderColor = 'var(--green)';
-    if (toast) { toast.style.color = 'var(--green)'; toast.textContent = 'Guardado'; }
-    const updEl = document.getElementById('oe-upd'); if (updEl) updEl.textContent = 'recién';
+    if (toast) { toast.style.color = 'var(--green)'; toast.textContent = 'Guardado'; setTimeout(() => { toast.textContent = ''; }, 2000); }
+    setTimeout(() => { input.style.borderColor = 'var(--border)'; }, 1500);
+    // Recargar tabla (fila heredada se convierte en real, recalcular OE/h)
+    oemInit(true);
   } catch (e) {
+    input.style.opacity = '1';
     input.style.borderColor = 'var(--red)';
-    if (toast) { toast.style.color = 'var(--red)'; toast.textContent = `Error: ${e.message}`; }
+    input.value = original;
+    if (toast) { toast.style.color = 'var(--red)'; toast.textContent = 'Error: ' + e.message; setTimeout(() => { toast.textContent = ''; toast.style.color = 'var(--green)'; }, 4000); }
+    setTimeout(() => { input.style.borderColor = 'var(--border)'; }, 3000);
   } finally {
     input.disabled = false;
   }
