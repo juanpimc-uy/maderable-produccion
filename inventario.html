@@ -98,9 +98,9 @@
   .err-msg{color:var(--red);font-family:'Space Mono',monospace;font-size:11px;margin-top:8px;}
 
   /* ── Ubicaciones ── */
-  .ubi-layout{display:grid;grid-template-columns:1fr 1fr;gap:20px;flex:1;}
-  .ubi-tree{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:16px;overflow-y:auto;}
-  .ubi-panel{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:16px;}
+  .ubi-layout{display:grid;grid-template-columns:1fr 1fr;gap:20px;flex:1;min-height:0;}
+  .ubi-tree{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:16px;overflow-y:auto;min-height:0;}
+  .ubi-panel{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:16px;min-height:0;}
   .tree-node{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer;transition:background .15s;font-size:12px;}
   .tree-node:hover{background:var(--faint);}
   .tree-node.selected{background:rgba(255,214,0,.08);border:1px solid rgba(255,214,0,.2);}
@@ -232,7 +232,7 @@
       <button class="btn btn-accent" onclick="_openCrearUbi()">+ Ubicación</button>
     </div>
     <div class="ubi-layout">
-      <div style="display:flex;flex-direction:column;overflow:hidden;">
+      <div style="display:flex;flex-direction:column;overflow:hidden;min-height:0;">
         <div class="ubi-tree" id="ubi-tree" style="flex:1;"></div>
         <div class="ubi-bulk-bar" id="ubi-bulk-bar">
           <span class="bulk-count" id="ubi-bulk-count">0 seleccionadas</span>
@@ -760,7 +760,7 @@ function _ubiTipo(u) {
 }
 
 function _ubiHijos(u) {
-  return _ubiData.filter(x => x.parent_id === u.id);
+  return _ubiData.filter(x => String(x.parent_id) === String(u.id));
 }
 
 function _ubiEsHoja(u) {
@@ -794,15 +794,19 @@ function _ubiFormato(tipo, depth) {
 const _selectedUbis = new Set();
 
 function _getHojasDescendientes(ubiId) {
-  const hijos = _ubiData.filter(x => x.parent_id === ubiId);
-  if (hijos.length === 0) return [ubiId];
+  const hijos = _ubiData.filter(x => String(x.parent_id) === String(ubiId));
+  if (hijos.length === 0) return [String(ubiId)];
   let hojas = [];
   for (const h of hijos) hojas = hojas.concat(_getHojasDescendientes(h.id));
   return hojas;
 }
 
 function _toggleUbiSel(id, checked) {
-  if (checked) _selectedUbis.add(id); else _selectedUbis.delete(id);
+  const hojas = _getHojasDescendientes(id);
+  for (const h of hojas) {
+    if (checked) _selectedUbis.add(String(h)); else _selectedUbis.delete(String(h));
+  }
+  _renderTree();
   _updateUbiBulk();
 }
 
@@ -811,7 +815,7 @@ function _updateUbiBulk() {
   const n = _selectedUbis.size;
   if (n > 0) {
     bar.classList.add('visible');
-    document.getElementById('ubi-bulk-count').textContent = n + ' seleccionadas';
+    document.getElementById('ubi-bulk-count').textContent = n + ' etiqueta' + (n !== 1 ? 's' : '');
   } else {
     bar.classList.remove('visible');
   }
@@ -858,12 +862,15 @@ function _renderTree() {
     const children = byParent[parentId] || [];
     return children.map(u => {
       const indent = Math.min(depth, 4) * 24;
-      const cls = 'tree-node' + (_selectedUbi === u.id ? ' selected' : '');
+      const cls = 'tree-node' + (String(_selectedUbi) === String(u.id) ? ' selected' : '');
       const inactive = u.activo === false ? ' style="opacity:.4;"' : '';
       const tipoTag = depth === 0 && u.tipo ? ' <span style="font-family:\'Space Mono\',monospace;font-size:8px;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin-left:4px;text-transform:uppercase;">' + u.tipo + '</span>' : '';
-      const chk = _selectedUbis.has(u.id) ? ' checked' : '';
+      const _hojas = _getHojasDescendientes(u.id);
+      const _nSel = _hojas.filter(h => _selectedUbis.has(String(h))).length;
+      const chk = (_nSel > 0 && _nSel === _hojas.length) ? ' checked' : '';
+      const ind = (_nSel > 0 && _nSel < _hojas.length) ? ' data-ind="1"' : '';
       let html = '<div class="' + cls + '" style="padding-left:' + (10 + indent) + 'px;"' + inactive + ' onclick="_selectUbi(\'' + u.id + '\')">'
-        + '<input type="checkbox" class="tn-chk"' + chk + ' onchange="_toggleUbiSel(\'' + u.id + '\', this.checked)" onclick="event.stopPropagation()">'
+        + '<input type="checkbox" class="tn-chk"' + chk + ind + ' onchange="_toggleUbiSel(\'' + u.id + '\', this.checked)" onclick="event.stopPropagation()">'
         + '<span class="tn-code">' + u.codigo + '</span>'
         + '<span class="tn-name">' + (u.nombre || '') + tipoTag + '</span>'
         + '<span class="tn-edit" onclick="event.stopPropagation();_openEditUbi(\'' + u.id + '\')">✏</span>'
@@ -874,10 +881,11 @@ function _renderTree() {
   }
 
   document.getElementById('ubi-tree').innerHTML = renderLevel('root', 0) || '<div class="placeholder">Sin ubicaciones</div>';
+  document.querySelectorAll('#ubi-tree .tn-chk[data-ind="1"]').forEach(function (c) { c.indeterminate = true; });
 }
 
 function _selectUbi(id) {
-  _selectedUbi = id;
+  _selectedUbi = String(id);
   _renderTree();
   const u = _ubiData.find(x => String(x.id) === String(id));
   if (!u) return;
