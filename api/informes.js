@@ -1815,6 +1815,7 @@ async function accionLeanComprasSerie(req, res) {
 
 // ══════════════════════════════════════════════════════════════════════════
 // ENDPOINT 18 — POST importar-factura-lineas
+// NO cableado al frontend — endpoint sin uso, ver antes de exponerlo.
 // ══════════════════════════════════════════════════════════════════════════
 
 async function accionImportarFacturaLineas(req, res) {
@@ -1850,8 +1851,9 @@ async function accionImportarFacturaLineas(req, res) {
   }
 
   // 3. Fetch details in batches of 5
-  let procesadas = 0, lineas_upsert = 0, sinProyecto = 0;
+  let procesadas = 0, lineas_upsert = 0, lineas_error = 0, sinProyecto = 0;
   const conflictos = [];
+  const errores = [];
   const BATCH = 5;
 
   for (let i = 0; i < invoices.length; i += BATCH) {
@@ -1872,10 +1874,12 @@ async function accionImportarFacturaLineas(req, res) {
         if (matches.length > 1 && invNum) conflictos.push(invNum);
         else if (matches.length === 0 && invNum) sinProyecto++;
 
+        const descPct = Number(invoice.discount_percent) || 0;
         const rows = lineItems.map(li => {
           const cfs = li.item_custom_fields || [];
           const cfTipo = cfs.find(f => f.api_name === 'cf_tipo');
           const cf_tipo = cfTipo ? (String(cfTipo.value || '').trim() || null) : null;
+          const brutoLinea = (Number(li.bcy_rate) || 0) * (Number(li.quantity) || 0);
           return {
             id: String(li.line_item_id),
             invoice_id: inv.invoice_id,
@@ -1884,10 +1888,10 @@ async function accionImportarFacturaLineas(req, res) {
             cf_tipo,
             descripcion: li.description || null,
             cantidad: Number(li.quantity) || 0,
-            monto_usd: round2((Number(li.bcy_rate) || 0) * (Number(li.quantity) || 0)),
+            monto_usd: round2(brutoLinea * (1 - descPct / 100)),
             moneda: invoice.currency_code || null,
             tipo_cambio: Number(invoice.exchange_rate) || null,
-            descuento_factura_pct: Number(invoice.discount_percent) || null,
+            descuento_factura_pct: descPct || null,
             fecha: invoice.date || null,
             estado_factura: invoice.status || null,
             importado_en: new Date().toISOString(),
@@ -1896,11 +1900,15 @@ async function accionImportarFacturaLineas(req, res) {
 
         if (rows.length) {
           const { error: upErr } = await supabase.from('factura_lineas').upsert(rows, { onConflict: 'id' });
-          if (upErr) console.warn('[importar-factura-lineas] upsert error:', invNum, upErr.message);
-          else lineas_upsert += rows.length;
+          if (upErr) {
+            lineas_error += rows.length;
+            if (errores.length < 20) errores.push({ invoice_number: invNum, error: upErr.message });
+          } else {
+            lineas_upsert += rows.length;
+          }
         }
       } catch (e) {
-        console.warn('[importar-factura-lineas] invoice error:', inv.invoice_id, e.message);
+        if (errores.length < 20) errores.push({ invoice_number: inv.invoice_number || inv.invoice_id, error: e.message });
       }
     }));
     if (i + BATCH < invoices.length) await new Promise(r => setTimeout(r, 1000));
@@ -1911,6 +1919,8 @@ async function accionImportarFacturaLineas(req, res) {
     page,
     procesadas,
     lineas_upsert,
+    lineas_error,
+    errores,
     conflictos: [...new Set(conflictos)],
     sin_proyecto: sinProyecto,
     has_more,
