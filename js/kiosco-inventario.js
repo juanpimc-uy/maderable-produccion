@@ -145,11 +145,17 @@
   // ═══ API ═══
   function _get(action, params) {
     var qs = new URLSearchParams(params || {}); qs.set('empleado_id', _empId);
-    return fetch(API + '?action=' + action + '&' + qs.toString()).then(function (r) { return r.json(); });
+    return fetch(API + '?action=' + action + '&' + qs.toString()).then(function (r) {
+      if (r.status === 401) return { ok: false, msg: 'Se cerró la sesión — volvé a ingresar con tu PIN', _sesion: true };
+      return r.json();
+    });
   }
   function _post(action, body) {
     body = body || {}; body.empleado_id = _empId;
-    return fetch(API + '?action=' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json(); });
+    return fetch(API + '?action=' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) {
+      if (r.status === 401) return { ok: false, msg: 'Se cerró la sesión — volvé a ingresar con tu PIN', _sesion: true };
+      return r.json();
+    });
   }
 
   // ═══ RENDER ═══

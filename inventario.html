@@ -364,6 +364,12 @@
     <div id="mu-preview" style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--amber);padding:8px 0;letter-spacing:1px;"></div>
     <div class="field"><label>Nombre (opcional)</label><input class="inp" id="mu-nombre" placeholder="Ej: Depósito chico, Estante superior"></div>
     <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin:-6px 0 14px 0;letter-spacing:.5px;">El código se imprime en la etiqueta física — no se puede cambiar después</div>
+    <div class="field" style="display:flex;gap:12px;">
+      <div style="flex:1;"><label>Ancho útil (cm)</label><input class="inp" id="mu-ancho" type="number" min="0" step="1"></div>
+      <div style="flex:1;"><label>Alto libre (cm)</label><input class="inp" id="mu-alto" type="number" min="0" step="1"></div>
+      <div style="flex:1;"><label>Profundidad (cm)</label><input class="inp" id="mu-prof" type="number" min="0" step="1"></div>
+    </div>
+    <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin:-6px 0 14px 0;">Placas paradas de canto: ancho limita el largo de la placa, alto limita su ancho, profundidad define cuántas entran</div>
     <div id="mu-error" class="err-msg"></div>
     <div class="modal-actions">
       <button class="btn" onclick="_closeModal('modal-ubi')">Cancelar</button>
@@ -381,6 +387,12 @@
     <div class="field"><label>Código (no editable)</label><input class="inp" id="mue-codigo" disabled style="opacity:.5;"></div>
     <div class="field"><label>Nombre</label><input class="inp" id="mue-nombre"></div>
     <div class="field"><label class="chk" style="font-size:12px;"><input type="checkbox" id="mue-activo" checked> Activa</label></div>
+    <div class="field" style="display:flex;gap:12px;">
+      <div style="flex:1;"><label>Ancho útil (cm)</label><input class="inp" id="mue-ancho" type="number" min="0" step="1"></div>
+      <div style="flex:1;"><label>Alto libre (cm)</label><input class="inp" id="mue-alto" type="number" min="0" step="1"></div>
+      <div style="flex:1;"><label>Profundidad (cm)</label><input class="inp" id="mue-prof" type="number" min="0" step="1"></div>
+    </div>
+    <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin:-6px 0 14px 0;">Placas paradas de canto: ancho limita el largo de la placa, alto limita su ancho, profundidad define cuántas entran</div>
     <div id="mue-error" class="err-msg"></div>
     <div class="modal-actions">
       <button class="btn" onclick="_closeModal('modal-ubi-edit')">Cancelar</button>
@@ -969,6 +981,7 @@ function _renderTree() {
         + '<input type="checkbox" class="tn-chk"' + chk + ind + ' onchange="_toggleUbiSel(\'' + u.id + '\', this.checked)" onclick="event.stopPropagation()">'
         + '<span class="tn-code">' + u.codigo + '</span>'
         + '<span class="tn-name">' + (u.nombre || '') + tipoTag + '</span>'
+        + (u.ancho_cm && u.alto_cm && u.prof_cm ? '<span style="font-family:\'Space Mono\',monospace;font-size:8px;color:var(--muted);margin-left:auto;white-space:nowrap;">' + u.ancho_cm + '×' + u.alto_cm + '×' + u.prof_cm + '</span>' : '')
         + '<span class="tn-edit" onclick="event.stopPropagation();_openEditUbi(\'' + u.id + '\')">✏</span>'
         + '</div>';
       html += renderLevel(u.id, depth + 1);
@@ -1005,6 +1018,7 @@ function _selectUbi(id) {
     + '<div class="big-code">' + u.codigo + '</div>'
     + '<div class="big-name">' + (u.nombre || '') + '</div>'
     + '<div class="big-path">' + path + '</div>'
+    + (u.ancho_cm && u.alto_cm && u.prof_cm ? '<div style="font-family:\'Space Mono\',monospace;font-size:11px;color:var(--muted);margin-top:8px;">' + u.ancho_cm + ' × ' + u.alto_cm + ' × ' + u.prof_cm + ' cm</div>' : '')
     + (!esHoja
       ? '<div style="margin-top:16px;font-family:\'Space Mono\',monospace;font-size:10px;color:var(--muted);">Contiene ' + nHojas + ' estante' + (nHojas !== 1 ? 's' : '') + ' (hojas)</div>'
       : '')
@@ -1131,6 +1145,12 @@ async function _saveUbi() {
   const body = { codigo, nombre };
   if (parentId) body.parent_id = parentId;
   if (tipo) body.tipo = tipo;
+  const muAncho = document.getElementById('mu-ancho').value;
+  if (muAncho !== '') body.ancho_cm = Number(muAncho);
+  const muAlto = document.getElementById('mu-alto').value;
+  if (muAlto !== '') body.alto_cm = Number(muAlto);
+  const muProf = document.getElementById('mu-prof').value;
+  if (muProf !== '') body.prof_cm = Number(muProf);
   const r = await _post('crear-ubicacion', body);
   if (!r.ok) { errEl.textContent = r.msg || 'Error'; return; }
   _closeModal('modal-ubi');
@@ -1145,6 +1165,9 @@ function _openEditUbi(id) {
   document.getElementById('mue-codigo').value = u.codigo;
   document.getElementById('mue-nombre').value = u.nombre || '';
   document.getElementById('mue-activo').checked = u.activo !== false;
+  document.getElementById('mue-ancho').value = u.ancho_cm != null ? u.ancho_cm : '';
+  document.getElementById('mue-alto').value = u.alto_cm != null ? u.alto_cm : '';
+  document.getElementById('mue-prof').value = u.prof_cm != null ? u.prof_cm : '';
   document.getElementById('mue-error').textContent = '';
   _openModal('modal-ubi-edit');
 }
@@ -1160,6 +1183,15 @@ async function _saveUbiEdit() {
   if (nombre !== (u.nombre || '')) body.nombre = nombre;
   const activo = document.getElementById('mue-activo').checked;
   if (activo !== (u.activo !== false)) body.activo = activo;
+  const eAncho = document.getElementById('mue-ancho').value;
+  const eAnchoVal = eAncho !== '' ? Number(eAncho) : null;
+  if (eAnchoVal !== (u.ancho_cm != null ? u.ancho_cm : null)) body.ancho_cm = eAnchoVal;
+  const eAlto = document.getElementById('mue-alto').value;
+  const eAltoVal = eAlto !== '' ? Number(eAlto) : null;
+  if (eAltoVal !== (u.alto_cm != null ? u.alto_cm : null)) body.alto_cm = eAltoVal;
+  const eProf = document.getElementById('mue-prof').value;
+  const eProfVal = eProf !== '' ? Number(eProf) : null;
+  if (eProfVal !== (u.prof_cm != null ? u.prof_cm : null)) body.prof_cm = eProfVal;
   if (Object.keys(body).length <= 1) { _closeModal('modal-ubi-edit'); return; }
   const r = await _post('editar-ubicacion', body);
   if (!r.ok) { errEl.textContent = r.msg || 'Error'; return; }

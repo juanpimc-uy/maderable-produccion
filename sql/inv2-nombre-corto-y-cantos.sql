@@ -1,3 +1,5 @@
+-- Estado real aplicado en producción el 05-sep-2026. Resultado: 126 cantos, 221 placas.
+
 -- INV2 · Parte 1: columna nombre_corto
 ALTER TABLE inv_items ADD COLUMN IF NOT EXISTS nombre_corto text;
 
@@ -20,9 +22,26 @@ UPDATE inv_items SET nombre_corto = left(descripcion, 28) WHERE nombre_corto IS 
 -- Normalizar espacios dobles y recortar a 28.
 UPDATE inv_items SET nombre_corto = left(btrim(regexp_replace(nombre_corto, '\s+', ' ', 'g')), 28);
 
--- INV2 · Parte 3: separar cantos de placas.
+-- Limpieza de puntuación huérfana que dejó el regex de medidas.
+UPDATE inv_items SET nombre_corto = btrim(regexp_replace(
+  regexp_replace(nombre_corto, '\s+[Xx]\s*$|\s+[Xx]\s+[Xx]\s*', ' ', 'g'),
+  '[\s.,-]+$', '', 'g'));
+
+-- INV2 · Parte 2b: cambiar el CHECK de familia para admitir 'canto'.
+ALTER TABLE inv_items DROP CONSTRAINT inv_items_familia_check;
+ALTER TABLE inv_items ADD CONSTRAINT inv_items_familia_check
+CHECK (familia = ANY (ARRAY['placa'::text, 'madera'::text, 'herraje'::text, 'consumible'::text, 'canto'::text, 'otro'::text]));
+
+-- INV2 · Parte 3: separar cantos de placas (versión real, barre todas las familias).
 UPDATE inv_items SET familia = 'canto'
-WHERE familia = 'placa' AND (descripcion ILIKE 'CANTO%' OR descripcion ILIKE '%CANTO ABS%');
+WHERE familia <> 'canto'
+  AND (descripcion ILIKE 'CANTO %' OR descripcion ILIKE 'CANT ABS%' OR descripcion ILIKE 'CANTOFLEX%'
+       OR descripcion ILIKE 'CANTO%' OR descripcion ILIKE 'CANT %')
+  AND descripcion NOT ILIKE '%TIRADOR%'
+  AND descripcion NOT ILIKE '%PASADOR%'
+  AND descripcion NOT ILIKE '%BISAGRA%'
+  AND descripcion NOT ILIKE '%CANTONERA%'
+  AND descripcion NOT ILIKE '%CORTE DE PLACA%';
 
 -- Verificación (correr aparte y mirar el resultado):
 -- SELECT familia, count(*) FROM inv_items WHERE activo GROUP BY familia ORDER BY 2 DESC;

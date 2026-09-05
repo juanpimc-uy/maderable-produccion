@@ -312,6 +312,9 @@ async function accionCrearUbicacion(req, res) {
   const fila = { codigo, nombre };
   if (b.parent_id !== undefined) fila.parent_id = b.parent_id;
   if (b.tipo !== undefined) fila.tipo = b.tipo;
+  if (b.ancho_cm !== undefined) fila.ancho_cm = b.ancho_cm;
+  if (b.alto_cm !== undefined) fila.alto_cm = b.alto_cm;
+  if (b.prof_cm !== undefined) fila.prof_cm = b.prof_cm;
 
   const { data, error } = await supabase.from('inv_ubicaciones').insert(fila).select().single();
   if (error) {
@@ -336,6 +339,9 @@ async function accionEditarUbicacion(req, res) {
   if (b.parent_id !== undefined) campos.parent_id = b.parent_id;
   if (b.activo !== undefined) campos.activo = b.activo;
   if (b.tipo !== undefined) campos.tipo = b.tipo;
+  if (b.ancho_cm !== undefined) campos.ancho_cm = b.ancho_cm;
+  if (b.alto_cm !== undefined) campos.alto_cm = b.alto_cm;
+  if (b.prof_cm !== undefined) campos.prof_cm = b.prof_cm;
 
   if (Object.keys(campos).length === 0) return err(res, 'Nada que actualizar');
 

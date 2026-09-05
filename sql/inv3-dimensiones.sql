@@ -60,3 +60,6 @@ FROM n WHERE x.id = n.id;
 -- SELECT codigo, descripcion, espesor_mm, largo_cm, ancho_cm FROM inv_items
 --   WHERE familia='placa' AND largo_cm IS NOT NULL ORDER BY random() LIMIT 20;
 -- SELECT codigo, atributos FROM inv_unidades ORDER BY creado_en DESC LIMIT 10;
+
+-- Aplicado 05-sep-2026. Resultado: 95 de 221 placas con largo/ancho, 148 con espesor.
+-- El resto queda null a propósito (pulgadas, triple dimensión, o sin medida en la descripción).
