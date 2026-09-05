@@ -300,6 +300,11 @@
         <option value="otro">Otro</option>
       </select>
     </div>
+    <div class="field" style="display:flex;gap:12px;">
+      <div style="flex:1;"><label>Espesor (mm)</label><input class="inp" id="mi-espesor" type="number" step="0.5" min="0"></div>
+      <div style="flex:1;"><label>Largo (cm)</label><input class="inp" id="mi-largo" type="number" step="1" min="0"></div>
+      <div style="flex:1;"><label>Ancho (cm)</label><input class="inp" id="mi-ancho" type="number" step="1" min="0"></div>
+    </div>
     <div class="field"><label>Unidad</label><input class="inp" id="mi-unidad" placeholder="un / m / m2 / kg"></div>
     <div class="field" style="display:flex;gap:12px;">
       <div style="flex:1;"><label>Stock mín</label><input class="inp" id="mi-min" type="number"></div>
@@ -619,6 +624,9 @@ function _openCrearItem() {
   document.getElementById('mi-desc').value = '';
   document.getElementById('mi-nombre-corto').value = '';
   document.getElementById('mi-familia').value = '';
+  document.getElementById('mi-espesor').value = '';
+  document.getElementById('mi-largo').value = '';
+  document.getElementById('mi-ancho').value = '';
   document.getElementById('mi-unidad').value = '';
   document.getElementById('mi-min').value = '';
   document.getElementById('mi-max').value = '';
@@ -639,6 +647,9 @@ function _openEditItem(id) {
   document.getElementById('mi-desc').value = it.descripcion || '';
   document.getElementById('mi-nombre-corto').value = it.nombre_corto || '';
   document.getElementById('mi-familia').value = it.familia || '';
+  document.getElementById('mi-espesor').value = it.espesor_mm != null ? it.espesor_mm : '';
+  document.getElementById('mi-largo').value = it.largo_cm != null ? it.largo_cm : '';
+  document.getElementById('mi-ancho').value = it.ancho_cm != null ? it.ancho_cm : '';
   document.getElementById('mi-unidad').value = it.unidad || '';
   document.getElementById('mi-min').value = it.stock_min != null ? it.stock_min : '';
   document.getElementById('mi-max').value = it.stock_max != null ? it.stock_max : '';
@@ -679,6 +690,12 @@ async function _saveItem() {
     const nc = document.getElementById('mi-nombre-corto').value.trim();
     if (nc) body.nombre_corto = nc;
     body.familia = familia;
+    const esp = document.getElementById('mi-espesor').value;
+    if (esp !== '') body.espesor_mm = Number(esp);
+    const lar = document.getElementById('mi-largo').value;
+    if (lar !== '') body.largo_cm = Number(lar);
+    const anc = document.getElementById('mi-ancho').value;
+    if (anc !== '') body.ancho_cm = Number(anc);
     body.inventariable = document.getElementById('mi-inventariable').checked;
     const unidad = document.getElementById('mi-unidad').value.trim();
     if (unidad) body.unidad = unidad;
@@ -700,6 +717,15 @@ async function _saveItem() {
     const nc = document.getElementById('mi-nombre-corto').value.trim();
     if (nc !== (it.nombre_corto || '')) body.nombre_corto = nc || null;
     if (familia && familia !== it.familia) body.familia = familia;
+    const espV = document.getElementById('mi-espesor').value;
+    const espVal = espV !== '' ? Number(espV) : null;
+    if (espVal !== (it.espesor_mm != null ? Number(it.espesor_mm) : null)) body.espesor_mm = espVal;
+    const larV = document.getElementById('mi-largo').value;
+    const larVal = larV !== '' ? Number(larV) : null;
+    if (larVal !== it.largo_cm) body.largo_cm = larVal;
+    const ancV = document.getElementById('mi-ancho').value;
+    const ancVal = ancV !== '' ? Number(ancV) : null;
+    if (ancVal !== it.ancho_cm) body.ancho_cm = ancVal;
     const unidad = document.getElementById('mi-unidad').value.trim();
     if (unidad !== (it.unidad || '')) body.unidad = unidad;
     const inv = document.getElementById('mi-inventariable').checked;
@@ -1288,6 +1314,7 @@ async function _openItemPanel(id) {
   // Cabecera
   html += '<div class="mono" style="font-size:16px;font-weight:700;color:var(--amber);letter-spacing:1px;">' + esc(it.codigo) + '</div>'
     + '<div style="font-size:13px;margin-top:4px;line-height:1.4;">' + esc(it.descripcion) + '</div>'
+    + (it.espesor_mm != null || it.largo_cm != null ? '<div class="mono" style="font-size:11px;color:var(--muted);margin-top:4px;">' + (it.espesor_mm != null ? it.espesor_mm + ' mm' : '') + (it.espesor_mm != null && it.largo_cm != null ? ' · ' : '') + (it.largo_cm != null ? it.largo_cm + ' × ' + (it.ancho_cm || '?') + ' cm' : '') + '</div>' : '')
     + '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;">'
     + '<span class="badge badge-' + (it.familia || 'otro') + '">' + (it.familia || 'otro') + '</span>'
     + (it.inventariable === false ? '<span class="inv-no">NO INV.</span>' : '')

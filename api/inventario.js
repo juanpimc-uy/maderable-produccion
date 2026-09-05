@@ -107,6 +107,9 @@ async function accionCrearItem(req, res) {
     creado_por: sesion.id,
   };
   if (b.nombre_corto !== undefined) fila.nombre_corto = b.nombre_corto;
+  if (b.espesor_mm !== undefined) fila.espesor_mm = b.espesor_mm;
+  if (b.largo_cm !== undefined) fila.largo_cm = b.largo_cm;
+  if (b.ancho_cm !== undefined) fila.ancho_cm = b.ancho_cm;
   if (b.unidad !== undefined) fila.unidad = b.unidad;
   if (b.stock_min !== undefined) fila.stock_min = b.stock_min;
   if (b.stock_max !== undefined) fila.stock_max = b.stock_max;
@@ -139,6 +142,9 @@ async function accionEditarItem(req, res) {
     campos.familia = b.familia;
   }
   if (b.nombre_corto !== undefined) campos.nombre_corto = b.nombre_corto;
+  if (b.espesor_mm !== undefined) campos.espesor_mm = b.espesor_mm;
+  if (b.largo_cm !== undefined) campos.largo_cm = b.largo_cm;
+  if (b.ancho_cm !== undefined) campos.ancho_cm = b.ancho_cm;
   if (b.unidad !== undefined) campos.unidad = b.unidad;
   if (b.stock_min !== undefined) campos.stock_min = b.stock_min;
   if (b.stock_max !== undefined) campos.stock_max = b.stock_max;
@@ -511,7 +517,7 @@ async function accionBuscarItemsKiosco(req, res) {
   if (!q) return ok(res, { items: [] });
 
   const { data, error } = await supabase.from('inv_items')
-    .select('id, codigo, descripcion, nombre_corto, familia, foto_url, ubicacion_picking_id')
+    .select('id, codigo, descripcion, nombre_corto, familia, espesor_mm, largo_cm, ancho_cm, foto_url, ubicacion_picking_id')
     .eq('activo', true).eq('inventariable', true)
     .or(`codigo.ilike.%${q}%,descripcion.ilike.%${q}%`)
     .order('codigo').limit(20);
@@ -761,11 +767,12 @@ async function accionCrearItemPlaca(req, res) {
   if (!base) return err(res, 'descripcion requerida');
 
   const espesor = b.espesor != null && b.espesor !== '' ? Number(b.espesor) : null;
-  const medida = (b.medida || '').trim();
+  const largo = b.largo_cm != null && b.largo_cm !== '' ? Math.round(Number(b.largo_cm)) : null;
+  const ancho = b.ancho_cm != null && b.ancho_cm !== '' ? Math.round(Number(b.ancho_cm)) : null;
 
   let descripcion = base;
   if (espesor) descripcion += ' ' + espesor + 'mm';
-  if (medida) descripcion += ' ' + medida;
+  if (largo && ancho) descripcion += ' ' + Math.max(largo, ancho) + 'x' + Math.min(largo, ancho);
 
   // Código autogenerado LP-0001, LP-0002, ... (LP = local placa).
   // Se reintenta ante colisión por carga simultánea desde dos kioscos.
@@ -778,8 +785,9 @@ async function accionCrearItemPlaca(req, res) {
     const codigo = 'LP-' + String(ultimoNum + 1 + intento).padStart(4, '0');
 
     const { data: item, error: insErr } = await supabase.from('inv_items')
-      .insert({ codigo, descripcion, nombre_corto: base.slice(0, 28), familia: 'placa', creado_por: emp.id })
-      .select('id, codigo, descripcion, nombre_corto, familia, costo_ultimo_usd').single();
+      .insert({ codigo, descripcion, nombre_corto: base.slice(0, 28), familia: 'placa', creado_por: emp.id,
+                espesor_mm: espesor, largo_cm: largo && ancho ? Math.max(largo, ancho) : null, ancho_cm: largo && ancho ? Math.min(largo, ancho) : null })
+      .select('id, codigo, descripcion, nombre_corto, familia, espesor_mm, largo_cm, ancho_cm, costo_ultimo_usd').single();
 
     if (!insErr) return ok(res, { item });
     if (insErr.code !== '23505') return err(res, insErr.message, 500);
@@ -1088,7 +1096,7 @@ async function accionItemsReposicion(req, res) {
   let from = 0;
   while (true) {
     const { data } = await supabase.from('inv_items')
-      .select('id, codigo, descripcion, nombre_corto, familia, stock_min, costo_promedio_usd')
+      .select('id, codigo, descripcion, nombre_corto, familia, espesor_mm, largo_cm, ancho_cm, stock_min, costo_promedio_usd')
       .eq('inventariable', true).eq('activo', true)
       .not('familia', 'in', '("placa","madera")')
       .range(from, from + CHUNK - 1);
@@ -1477,14 +1485,15 @@ async function accionCargarStockPlaca(req, res) {
 
   // Validar ítem existe y familia es placa/madera
   const { data: item, error: itemErr } = await supabase
-    .from('inv_items').select('id, codigo, descripcion, nombre_corto, familia, costo_ultimo_usd, unidad')
+    .from('inv_items').select('id, codigo, descripcion, nombre_corto, familia, espesor_mm, largo_cm, ancho_cm, costo_ultimo_usd, unidad')
     .eq('id', inv_item_id).maybeSingle();
   if (itemErr || !item) return err(res, 'Ítem no encontrado');
   if (item.familia !== 'placa' && item.familia !== 'madera') return err(res, 'Solo ítems de familia placa o madera');
 
   const at = (b.atributos && typeof b.atributos === 'object') ? b.atributos : {};
   if (!at.espesor || Number(at.espesor) <= 0) return err(res, 'espesor requerido');
-  if (!at.medida) return err(res, 'medida requerida');
+  if (!at.largo_cm || Number(at.largo_cm) <= 0) return err(res, 'largo_cm requerido');
+  if (!at.ancho_cm || Number(at.ancho_cm) <= 0) return err(res, 'ancho_cm requerido');
 
   // Validar ubicación existe
   const { data: ubi, error: ubiErr } = await supabase
@@ -1572,7 +1581,7 @@ async function accionDetalleItem(req, res) {
   if (!itemId) return err(res, 'item_id requerido');
 
   const { data: item, error: itemErr } = await supabase.from('inv_items')
-    .select('id, codigo, descripcion, nombre_corto, familia, costo_promedio_usd, costo_ultimo_usd, stock_min, stock_max, unidad, inventariable')
+    .select('id, codigo, descripcion, nombre_corto, familia, espesor_mm, largo_cm, ancho_cm, costo_promedio_usd, costo_ultimo_usd, stock_min, stock_max, unidad, inventariable')
     .eq('id', itemId).maybeSingle();
   if (itemErr || !item) return err(res, 'Ítem no encontrado', 404);
 

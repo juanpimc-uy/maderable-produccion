@@ -31,7 +31,8 @@
   var _tmTotal = 0;
   var _ultimoLoteEtiquetas = null; // para reimprimir último lote
   var _cargaEspesor = null; // parsed/edited espesor
-  var _cargaMedida = null; // parsed/edited medida
+  var _cargaLargo = null; // largo en cm
+  var _cargaAncho = null; // ancho en cm
   var _nuevaPlacaDesc = '';
   var _detalleData = null; // datos de detalle-item para la vista completa
 
@@ -1021,7 +1022,8 @@
   window._invCargaPlaca = function () {
     _cargaItem = null;
     _cargaEspesor = null;
-    _cargaMedida = null;
+    _cargaLargo = null;
+    _cargaAncho = null;
     if (!_sinUbicarId) {
       _get('resolver-codigo', { codigo: 'SIN-UBICAR' }).then(function (r) {
         if (!r.ok || r.tipo !== 'ubicacion') { _fail('Falta crear la ubicación SIN-UBICAR — ejecutá inv6-sin-ubicar.sql'); return; }
@@ -1067,16 +1069,18 @@
         + '<div style="margin-top:4px;font-size:11px;color:#666;">Revisá que el costo tenga sentido antes de generar.</div>'
         + '</div>';
 
-      // Espesor + medida (editables, precargados del parser)
+      // Espesor + largo + ancho (editables, precargados del ítem o parser)
       html += '<div style="display:flex;gap:12px;margin-bottom:16px;">'
         + '<div style="flex:1;"><div class="inv-label">Espesor (mm) *</div>'
-        + '<input id="inv-carga-espesor" type="number" min="1" step="1" value="' + (_cargaEspesor != null ? _cargaEspesor : '') + '" placeholder="ej. 18" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
-        + '<div style="flex:1;"><div class="inv-label">Medida (cm) *</div>'
-        + '<input id="inv-carga-medida" type="text" value="' + _esc(_cargaMedida || '') + '" placeholder="ej. 260x183" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
+        + '<input id="inv-carga-espesor" type="number" min="1" step="0.5" value="' + (_cargaEspesor != null ? _cargaEspesor : '') + '" placeholder="ej. 18" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
+        + '<div style="flex:1;"><div class="inv-label">Largo (cm) *</div>'
+        + '<input id="inv-carga-largo" type="number" min="1" step="1" value="' + (_cargaLargo != null ? _cargaLargo : '') + '" placeholder="ej. 260" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
+        + '<div style="flex:1;"><div class="inv-label">Ancho (cm) *</div>'
+        + '<input id="inv-carga-ancho" type="number" min="1" step="1" value="' + (_cargaAncho != null ? _cargaAncho : '') + '" placeholder="ej. 183" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
         + '</div>'
-        + ((_cargaEspesor != null || _cargaMedida)
+        + ((_cargaEspesor != null || _cargaLargo != null)
             ? '<div style="font-size:10px;color:#666;margin-bottom:16px;">Detectado de la descripción — corregí si está mal.</div>'
-            : '<div style="font-size:10px;color:#F05C5C;margin-bottom:16px;">Completá espesor y medida: no se detectaron en la descripción.</div>');
+            : '<div style="font-size:10px;color:#F05C5C;margin-bottom:16px;">Completá espesor, largo y ancho: no se detectaron en la descripción.</div>');
 
       // Cantidad
       html += '<div style="margin-bottom:16px;">'
@@ -1136,14 +1140,22 @@
     _get('resolver-codigo', { codigo: codigo }).then(function (r) {
       if (!r.ok || r.tipo !== 'item') { _fail('No se pudo obtener el ítem'); return; }
       _cargaItem = r.item;
-      var parsed = _parsePlacaAttrs(r.item.descripcion);
-      _cargaEspesor = parsed.espesor;
-      _cargaMedida = parsed.medida;
+      var it = r.item;
+      if (it.espesor_mm != null || it.largo_cm != null) {
+        _cargaEspesor = it.espesor_mm != null ? it.espesor_mm : null;
+        _cargaLargo = it.largo_cm != null ? it.largo_cm : null;
+        _cargaAncho = it.ancho_cm != null ? it.ancho_cm : null;
+      } else {
+        var parsed = _parsePlacaAttrs(it.descripcion);
+        _cargaEspesor = parsed.espesor;
+        _cargaLargo = null;
+        _cargaAncho = null;
+      }
       _show('carga-placa');
     }).catch(function () { _fail('Error de conexión'); });
   };
 
-  window._invCargaPlacaCambiarItem = function () { _cargaItem = null; _cargaEspesor = null; _cargaMedida = null; _show('carga-placa'); };
+  window._invCargaPlacaCambiarItem = function () { _cargaItem = null; _cargaEspesor = null; _cargaLargo = null; _cargaAncho = null; _show('carga-placa'); };
 
   window._invCargaPlacaGenerar = function () {
     var cantEl = document.getElementById('inv-carga-cant');
@@ -1151,17 +1163,22 @@
     if (!cant || cant <= 0) { _fail('Cantidad debe ser mayor a 0'); return; }
     if (!_sinUbicarId) { _fail('Falta crear la ubicación SIN-UBICAR'); return; }
 
-    // Read espesor/medida from inputs (user may have edited)
+    // Read espesor/largo/ancho from inputs (user may have edited)
     var espVal = document.getElementById('inv-carga-espesor');
-    var medVal = document.getElementById('inv-carga-medida');
+    var larVal = document.getElementById('inv-carga-largo');
+    var ancVal = document.getElementById('inv-carga-ancho');
     var espesor = espVal && espVal.value ? Number(espVal.value) : null;
-    var medida = medVal && medVal.value ? medVal.value.trim() : null;
+    var largo = larVal && larVal.value ? Math.round(Number(larVal.value)) : null;
+    var ancho = ancVal && ancVal.value ? Math.round(Number(ancVal.value)) : null;
     if (!espesor || espesor <= 0) { _fail('Falta el espesor'); return; }
-    if (!medida) { _fail('Falta la medida'); return; }
+    if (!largo || largo <= 0) { _fail('Falta el largo'); return; }
+    if (!ancho || ancho <= 0) { _fail('Falta el ancho'); return; }
 
     var atributos = { material: _cargaItem.descripcion || '' };
-    if (espesor) atributos.espesor = espesor;
-    if (medida) atributos.medida = medida;
+    atributos.espesor = espesor;
+    atributos.largo_cm = largo;
+    atributos.ancho_cm = ancho;
+    atributos.medida = Math.max(largo, ancho) + 'x' + Math.min(largo, ancho);
 
     var btn = document.getElementById('inv-carga-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Generando...'; }
@@ -1212,11 +1229,13 @@
       + '<input id="inv-np-desc" class="inv-search-input" placeholder="Ej: TAPA FARDO MDF" autofocus>'
       + '<div style="display:flex;gap:12px;margin-top:16px;">'
       + '<div style="flex:1;"><div class="inv-label">Espesor (mm)</div>'
-      + '<input id="inv-np-espesor" type="number" min="1" step="1" placeholder="ej. 18" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
-      + '<div style="flex:1;"><div class="inv-label">Medida (cm)</div>'
-      + '<input id="inv-np-medida" type="text" placeholder="ej. 260x183" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
+      + '<input id="inv-np-espesor" type="number" min="1" step="0.5" placeholder="ej. 18" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
+      + '<div style="flex:1;"><div class="inv-label">Largo (cm)</div>'
+      + '<input id="inv-np-largo" type="number" min="1" step="1" placeholder="ej. 260" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
+      + '<div style="flex:1;"><div class="inv-label">Ancho (cm)</div>'
+      + '<input id="inv-np-ancho" type="number" min="1" step="1" placeholder="ej. 183" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
       + '</div>'
-      + '<div style="font-size:10px;color:#666;margin-top:8px;">La medida se puede cambiar en cada carga: no hace falta un ítem por tamaño.</div>'
+      + '<div style="font-size:10px;color:#666;margin-top:8px;">Las medidas se pueden cambiar en cada carga: no hace falta un ítem por tamaño.</div>'
       + '<button class="inv-btn inv-btn-accent inv-btn-lg" style="width:100%;padding:16px;font-size:14px;margin-top:20px;" id="inv-np-btn" onclick="_invNuevaPlacaCrear()">CREAR Y CONTINUAR →</button>'
       + '</div>';
     var d = document.getElementById('inv-np-desc');
@@ -1228,18 +1247,21 @@
     desc = desc.trim();
     if (!desc) { _fail('Escribí una descripción'); return; }
     var espEl = document.getElementById('inv-np-espesor');
-    var medEl = document.getElementById('inv-np-medida');
+    var larEl = document.getElementById('inv-np-largo');
+    var ancEl = document.getElementById('inv-np-ancho');
     var espesor = espEl && espEl.value ? Number(espEl.value) : null;
-    var medida = medEl && medEl.value ? medEl.value.trim() : null;
+    var largo = larEl && larEl.value ? Math.round(Number(larEl.value)) : null;
+    var ancho = ancEl && ancEl.value ? Math.round(Number(ancEl.value)) : null;
 
     var btn = document.getElementById('inv-np-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Creando...'; }
-    _post('crear-item-placa', { descripcion: desc, espesor: espesor, medida: medida }).then(function (r) {
+    _post('crear-item-placa', { descripcion: desc, espesor: espesor, largo_cm: largo, ancho_cm: ancho }).then(function (r) {
       if (btn) { btn.disabled = false; btn.textContent = 'CREAR Y CONTINUAR →'; }
       if (!r.ok || !r.item) { _fail(r.msg || r.error || 'No se pudo crear'); return; }
       _cargaItem = r.item;
       _cargaEspesor = espesor;
-      _cargaMedida = medida;
+      _cargaLargo = largo;
+      _cargaAncho = ancho;
       _ok('Ítem ' + r.item.codigo + ' creado ✓');
       _show('carga-placa');
     }).catch(function () {
