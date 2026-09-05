@@ -83,6 +83,56 @@ export default async function handler(req) {
       return ok({ ok: true });
     }
 
+    // ── GET codigo-mueble (admin/oficina) ──
+    if (action === 'codigo-mueble' && req.method === 'GET') {
+      const caller = await verificarSesion(url.searchParams.get('token'));
+      if (!caller || !['admin', 'oficina'].includes(caller.rol_app))
+        return err('Acceso denegado', 401);
+
+      const proyecto_id = url.searchParams.get('proyecto_id');
+      const mf_id = url.searchParams.get('mf_id');
+      if (!proyecto_id || !mf_id) return err('proyecto_id y mf_id requeridos');
+
+      const { data } = await supabase.from('mueble_codigos')
+        .select('codigo').eq('proyecto_id', proyecto_id).eq('mf_id', mf_id).maybeSingle();
+      return ok({ ok: true, codigo: data ? data.codigo : null });
+    }
+
+    // ── POST generar-codigo-mueble (admin/oficina) ──
+    if (action === 'generar-codigo-mueble' && req.method === 'POST') {
+      const caller = await verificarSesion(body.token);
+      if (!caller || !['admin', 'oficina'].includes(caller.rol_app))
+        return err('Acceso denegado', 401);
+
+      const { proyecto_id, mf_id } = body;
+      if (!proyecto_id || !mf_id) return err('proyecto_id y mf_id requeridos');
+
+      // Idempotente: si ya existe, se devuelve el mismo token. Nunca se regenera.
+      const { data: ya } = await supabase.from('mueble_codigos')
+        .select('codigo').eq('proyecto_id', proyecto_id).eq('mf_id', mf_id).maybeSingle();
+      if (ya) return ok({ ok: true, codigo: ya.codigo, creado: false });
+
+      // Correlativo MB-000001. Reintento ante colisión por impresión simultánea.
+      for (let intento = 0; intento < 3; intento++) {
+        const { data: ultimos } = await supabase.from('mueble_codigos')
+          .select('codigo').order('codigo', { ascending: false }).limit(1);
+        const ultimoNum = (ultimos && ultimos.length)
+          ? parseInt(String(ultimos[0].codigo).replace(/\D/g, ''), 10) || 0
+          : 0;
+        const codigo = 'MB-' + String(ultimoNum + 1 + intento).padStart(6, '0');
+        const { data: nuevo, error: insErr } = await supabase.from('mueble_codigos')
+          .insert({ codigo, proyecto_id, mf_id, creado_por: caller.id })
+          .select('codigo').single();
+        if (!insErr) return ok({ ok: true, codigo: nuevo.codigo, creado: true });
+        if (insErr.code !== '23505') return err(insErr.message, 500);
+        // Race condition: otro request lo creó en paralelo
+        const { data: carrera } = await supabase.from('mueble_codigos')
+          .select('codigo').eq('proyecto_id', proyecto_id).eq('mf_id', mf_id).maybeSingle();
+        if (carrera) return ok({ ok: true, codigo: carrera.codigo, creado: false });
+      }
+      return err('No se pudo generar un código libre, reintentá', 500);
+    }
+
     return err('action no reconocida', 404);
 
   } catch (e) {

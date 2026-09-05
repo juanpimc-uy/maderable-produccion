@@ -63,6 +63,23 @@
         '100x50': [{ id: 'pos', pos: 'XL' }, { id: 'sku', pos: 'L' }, { id: 'nombre', pos: 'M' }, { id: 'tamano', pos: 'S' }, { id: 'espesor', pos: 'S' }, { id: 'fecha', pos: 'P' }],
       }
     },
+    'mueble': {
+      tituloDefault: 'MUEBLE',
+      qr: true, chipEnvio: false,
+      qrEj: 'MB-000123',
+      campos: [
+        { id: 'token',   label: 'Token',    ej: 'MB-000123',        fijo: true },
+        { id: 'codigo',  label: 'Código',   ej: 'C10',              fijo: true },
+        { id: 'nombre',  label: 'Nombre',   ej: 'BANCO CORRIDO',    fijo: false },
+        { id: 'odf',     label: 'ODF',      ej: 'ODF-2384',         fijo: false },
+        { id: 'cliente', label: 'Cliente',  ej: 'ESTUDIO CINCO',    fijo: false },
+        { id: 'obra',    label: 'Obra',     ej: 'CARRASCO',         fijo: false },
+      ],
+      defaults: {
+        '60x30':  [{ id: 'codigo', pos: 'XL' }, { id: 'nombre', pos: 'S' }, { id: 'odf', pos: 'P' }],
+        '100x50': [{ id: 'codigo', pos: 'XL' }, { id: 'nombre', pos: 'M' }, { id: 'odf', pos: 'S' }, { id: 'cliente', pos: 'S' }, { id: 'obra', pos: 'P' }, { id: 'token', pos: 'P' }],
+      }
+    },
     'armado-so': {
       tituloDefault: 'KITTING',
       qr: false, chipEnvio: false,
