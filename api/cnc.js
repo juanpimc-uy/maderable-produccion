@@ -71,11 +71,11 @@ async function _resolverPlaca(codigo) {
   return { err: 'Código no reconocido', status: 404 };
 }
 
-async function _consumirUnidad(unidadId, proyectoId, muebleId, empleadoId, codigo) {
-  // Traer unidad para ubicación y costo
+async function _consumirUnidad(unidadId, proyectoId, muebleId, empleadoId) {
+  // Traer unidad solo si sigue activa (evita consumir dos veces)
   const { data: u } = await supabase.from('inv_unidades')
-    .select('id, item_id, ubicacion_id, costo_usd, reserva_proyecto_id')
-    .eq('id', unidadId).maybeSingle();
+    .select('id, codigo, item_id, ubicacion_id, costo_usd, reserva_proyecto_id')
+    .eq('id', unidadId).eq('estado', 'activa').maybeSingle();
   if (!u) return { consumida: false, costo_usd: null, aviso: null };
 
   let aviso = null;
@@ -92,13 +92,17 @@ async function _consumirUnidad(unidadId, proyectoId, muebleId, empleadoId, codig
     .eq('id', unidadId);
 
   // Movimiento de salida
-  const { data: movId } = await supabase.rpc('inv_registrar_movimiento', {
+  const { data: movId, error: movErr } = await supabase.rpc('inv_registrar_movimiento', {
     p_tipo: 'salida', p_item_id: u.item_id, p_ubicacion_id: u.ubicacion_id,
     p_ubicacion_destino_id: null, p_cantidad: 1,
     p_proyecto_id: proyectoId, p_mueble_id: muebleId || null,
     p_motivo: 'consumo_proyecto', p_origen: 'cnc', p_empleado_id: empleadoId,
-    p_nota: 'Placa ' + codigo,
+    p_nota: 'Placa ' + (u.codigo || ''),
   });
+  if (movErr) {
+    console.error('[cnc] movimiento falló', movErr);
+    return { consumida: true, costo_usd: u.costo_usd, aviso, movimiento_error: true };
+  }
 
   // Costo en el movimiento
   if (movId && u.costo_usd != null) {
@@ -181,7 +185,7 @@ async function accionAbrirPlaca(req, res) {
       // Resolver proyecto/mueble del registro de trabajo para el consumo
       const { data: reg } = await supabase.from('registros_trabajo')
         .select('proyecto_id, item_id').eq('id', ab.registro_trabajo_id).maybeSingle();
-      if (reg) await _consumirUnidad(ab.unidad_id, reg.proyecto_id, reg.item_id, b.empleado_id, codigo);
+      if (reg) await _consumirUnidad(ab.unidad_id, reg.proyecto_id, reg.item_id, b.empleado_id);
     }
   }
 
@@ -240,10 +244,13 @@ async function accionCerrarPlaca(req, res) {
     const { data: reg } = await supabase.from('registros_trabajo')
       .select('proyecto_id, item_id').eq('id', fila.registro_trabajo_id).maybeSingle();
     if (reg) {
-      const cr = await _consumirUnidad(fila.unidad_id, reg.proyecto_id, reg.item_id, b.empleado_id, '');
+      const cr = await _consumirUnidad(fila.unidad_id, reg.proyecto_id, reg.item_id, b.empleado_id);
       consumida = cr.consumida;
       costo_usd = cr.costo_usd;
       aviso = cr.aviso;
+      if (cr.movimiento_error) {
+        return ok(res, { consumida: true, costo_usd, aviso, msg: 'Placa descontada · avisar a oficina' });
+      }
     }
   }
 
