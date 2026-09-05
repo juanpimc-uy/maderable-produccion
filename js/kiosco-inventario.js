@@ -142,18 +142,31 @@
   function _ok(msg) { _beep(true); _flash(true); _toast(msg, true); }
   function _fail(msg) { _beep(false); _flash(false); _toast(msg, false); }
 
+  var _sesionYaVencida = false;
+  function _sesionVencida() {
+    if (!_sesionYaVencida) {
+      _sesionYaVencida = true;
+      _fail('Se cerró la sesión — volvé a ingresar con tu PIN');
+      setTimeout(function () {
+        if (typeof window.salir === 'function') window.salir();
+        else location.reload();
+      }, 2000);
+    }
+    return { ok: false, msg: 'Se cerró la sesión — volvé a ingresar con tu PIN', _sesion: true };
+  }
+
   // ═══ API ═══
   function _get(action, params) {
     var qs = new URLSearchParams(params || {}); qs.set('empleado_id', _empId);
     return fetch(API + '?action=' + action + '&' + qs.toString()).then(function (r) {
-      if (r.status === 401) return { ok: false, msg: 'Se cerró la sesión — volvé a ingresar con tu PIN', _sesion: true };
+      if (r.status === 401) return _sesionVencida();
       return r.json();
     });
   }
   function _post(action, body) {
     body = body || {}; body.empleado_id = _empId;
     return fetch(API + '?action=' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) {
-      if (r.status === 401) return { ok: false, msg: 'Se cerró la sesión — volvé a ingresar con tu PIN', _sesion: true };
+      if (r.status === 401) return _sesionVencida();
       return r.json();
     });
   }
@@ -1517,6 +1530,7 @@
       var sess = JSON.parse(sessionStorage.getItem('kiosco_sesion') || '{}');
       _empId = sess.empleado_id || null;
     } catch (e) { _empId = null; }
+    _sesionYaVencida = false;
     _show('home');
   }
 
