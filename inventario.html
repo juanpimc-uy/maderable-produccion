@@ -224,6 +224,9 @@
       <span style="width:1px;height:20px;background:var(--border);"></span>
       <button class="btn btn-sm" onclick="_bulkInv(false)">No inventariable</button>
       <button class="btn btn-sm" onclick="_bulkInv(true)">Inventariable</button>
+      <span style="width:1px;height:20px;background:var(--border);"></span>
+      <button class="btn btn-sm" onclick="_bulkActivo(false)">Archivar</button>
+      <button class="btn btn-sm" onclick="_bulkActivo(true)">Reactivar</button>
     </div>
   </div>
 
@@ -313,7 +316,10 @@
     <div class="field"><label>Ubicación picking</label>
       <select class="inp" id="mi-ubi-picking"><option value="">Sin asignar</option></select>
     </div>
-    <div class="field"><label class="chk" style="font-size:12px;"><input type="checkbox" id="mi-inventariable" checked> Inventariable</label></div>
+    <div class="field" style="display:flex;gap:16px;">
+      <label class="chk" style="font-size:12px;"><input type="checkbox" id="mi-inventariable" checked> Inventariable</label>
+      <label class="chk" style="font-size:12px;"><input type="checkbox" id="mi-activo" checked> Activo</label>
+    </div>
     <div id="mi-error" class="err-msg"></div>
     <div class="modal-actions">
       <button class="btn" onclick="_closeModal('modal-item')">Cancelar</button>
@@ -538,9 +544,11 @@ function _renderTable() {
     const stockCell = st > 0
       ? '<span class="mono" style="font-weight:700;">' + st + '</span>'
       : (it.inventariable !== false ? '<span style="color:var(--red);font-size:10px;">SIN STOCK</span>' : '<span style="color:var(--muted);">—</span>');
-    return '<tr class="' + sel + '" data-id="' + it.id + '">'
+    const rowStyle = it.activo === false ? ' style="opacity:.45;"' : '';
+    const archBadge = it.activo === false ? ' <span class="inv-no" style="font-size:9px;">ARCHIVADO</span>' : '';
+    return '<tr class="' + sel + '"' + rowStyle + ' data-id="' + it.id + '">'
       + '<td><input type="checkbox"' + chk + ' onchange="_toggleSel(\'' + it.id + '\', this.checked)" onclick="event.stopPropagation()"></td>'
-      + '<td class="cod">' + esc(it.codigo) + '</td>'
+      + '<td class="cod">' + esc(it.codigo) + archBadge + '</td>'
       + '<td>' + esc(it.descripcion) + (it.nombre_corto && it.nombre_corto !== it.descripcion ? '<div class="mono" style="font-size:9px;color:var(--muted);margin-top:2px;">' + esc(it.nombre_corto) + '</div>' : '') + '</td>'
       + '<td>' + famBadge + '</td>'
       + '<td>' + zoho + '</td>'
@@ -615,6 +623,30 @@ async function _bulkInv(val) {
   await _cargarItems();
 }
 
+async function _bulkActivo(val) {
+  const ids = [..._selectedIds];
+  if (!ids.length) return;
+  let msg;
+  if (val) {
+    msg = 'Reactivar ' + ids.length + ' ítems?';
+  } else {
+    const conStock = ids.filter(id => {
+      const it = _allItems.find(x => String(x.id) === String(id));
+      return it && (it.stock_total || 0) > 0;
+    });
+    msg = 'Archivar ' + ids.length + ' ítems?\n\nNo van a aparecer más en el buscador del kiosco ni en los listados.';
+    if (conStock.length) {
+      msg += '\n\nATENCIÓN: ' + conStock.length + ' de ellos tienen stock. Las placas ya etiquetadas van a quedar apuntando a un ítem archivado.';
+    }
+  }
+  if (!confirm(msg)) return;
+  for (let i = 0; i < ids.length; i++) {
+    document.getElementById('bulk-count').textContent = (i + 1) + '/' + ids.length + '...';
+    await _post('editar-item', { id: ids[i], activo: val });
+  }
+  await _cargarItems();
+}
+
 // ── Crear ítem ──
 function _openCrearItem() {
   document.getElementById('modal-item-title').textContent = 'Crear ítem';
@@ -631,6 +663,7 @@ function _openCrearItem() {
   document.getElementById('mi-min').value = '';
   document.getElementById('mi-max').value = '';
   document.getElementById('mi-inventariable').checked = true;
+  document.getElementById('mi-activo').checked = true;
   document.getElementById('mi-ubi-picking').value = '';
   document.getElementById('mi-error').textContent = '';
   _loadUbiPicking();
@@ -654,6 +687,7 @@ function _openEditItem(id) {
   document.getElementById('mi-min').value = it.stock_min != null ? it.stock_min : '';
   document.getElementById('mi-max').value = it.stock_max != null ? it.stock_max : '';
   document.getElementById('mi-inventariable').checked = it.inventariable !== false;
+  document.getElementById('mi-activo').checked = it.activo !== false;
   document.getElementById('mi-error').textContent = '';
   _loadUbiPicking(it.ubicacion_picking_id);
   _openModal('modal-item');
@@ -697,6 +731,8 @@ async function _saveItem() {
     const anc = document.getElementById('mi-ancho').value;
     if (anc !== '') body.ancho_cm = Number(anc);
     body.inventariable = document.getElementById('mi-inventariable').checked;
+    const actC = document.getElementById('mi-activo').checked;
+    if (!actC) body.activo = false;
     const unidad = document.getElementById('mi-unidad').value.trim();
     if (unidad) body.unidad = unidad;
     const min = document.getElementById('mi-min').value;
@@ -730,6 +766,8 @@ async function _saveItem() {
     if (unidad !== (it.unidad || '')) body.unidad = unidad;
     const inv = document.getElementById('mi-inventariable').checked;
     if (inv !== (it.inventariable !== false)) body.inventariable = inv;
+    const act = document.getElementById('mi-activo').checked;
+    if (act !== (it.activo !== false)) body.activo = act;
     const min = document.getElementById('mi-min').value;
     const minVal = min !== '' ? Number(min) : null;
     if (minVal !== it.stock_min) body.stock_min = minVal;
@@ -1318,6 +1356,7 @@ async function _openItemPanel(id) {
     + '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;">'
     + '<span class="badge badge-' + (it.familia || 'otro') + '">' + (it.familia || 'otro') + '</span>'
     + (it.inventariable === false ? '<span class="inv-no">NO INV.</span>' : '')
+    + (it.activo === false ? '<span class="inv-no" style="font-size:9px;">ARCHIVADO</span>' : '')
     + '</div>';
 
   // Costos
