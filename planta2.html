@@ -11,6 +11,8 @@
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <script src="/js/supabase-config.js"></script>
 <script src="/js/buscador.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script src="/js/escaner-qr.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Maderable · Planta v2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -501,6 +503,9 @@ textarea.campo {
       <button class="btn" onclick="abrirModalPedirPieza()" style="background:rgba(255,214,0,0.06);border:1.5px dashed var(--accent);color:var(--accent);">
         ↻&nbsp;&nbsp;PEDIR NUEVAS PIEZAS
       </button>
+      <button class="btn btn-outline" onclick="iniciarFlujoCnc()" style="min-height:70px;">
+        ◧&nbsp;&nbsp;ESCANEAR PARA CNC
+      </button>
       <button class="btn btn-ghost" onclick="ir('pantalla-salida');initSalida()" style="min-height:60px;font-size:11px;">
         ⬚&nbsp;&nbsp;SALIDA DEL DÍA
       </button>
@@ -941,6 +946,17 @@ textarea.campo {
   </div>
 </div>
 
+<!-- ═══ PANTALLA CNC2 (escaneo QR) ═══ -->
+<div id="pantalla-cnc2" class="pantalla">
+  <div class="header">
+    <button class="back-link" onclick="cnc2Salir()">← Salir</button>
+    <span class="header-logo" style="font-size:11px;" id="cnc2-header">CNC</span>
+    <div style="width:60px;font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--accent);text-align:right;" id="cnc2-crono">00:00:00</div>
+  </div>
+  <div id="cnc2-body" class="centrado" style="max-width:480px;margin:0 auto;width:100%;padding:16px;"></div>
+  <div id="cnc2-pie" style="position:fixed;bottom:0;left:0;right:0;background:var(--bg);border-top:1px solid var(--border);padding:10px 16px;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);display:flex;justify-content:center;gap:20px;"></div>
+</div>
+
 <!-- Toast -->
 <div id="toast"></div>
 
@@ -1148,6 +1164,20 @@ async function apiPost(action, body) {
   });
   if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || r.statusText); }
   return r.json();
+}
+async function cncGet(action, qs = '') {
+  const r = await fetch(`/api/cnc?action=${action}${qs ? '&' + qs : ''}`);
+  const j = await r.json().catch(() => ({}));
+  if (!j.ok) throw new Error(j.msg || 'Error');
+  return j;
+}
+async function cncPost(action, body) {
+  const r = await fetch(`/api/cnc?action=${action}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!j.ok) throw new Error(j.msg || 'Error');
+  return j;
 }
 
 function _ppEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -1531,31 +1561,28 @@ async function autenticar() {
     proyectos = pList || [];
     console.log('Total proyectos:', proyectos.length, proyectos);
 
-    // ====================================================
-    // FLUJO CNC (PLACA PICKER) — DESACTIVADO 2/5/2026
-    // Razón: JP decidió no trackear placas en CORTE en esta etapa.
-    // El detector original disparaba si el centro contenía "CNC"
-    // en el nombre. Como ya no hay ningún centro con "CNC" en el
-    // string (corte se llama "corte" a secas), esta rama nunca
-    // se ejecutaría — pero se comenta explícitamente para dejarlo
-    // claro y evitar confusión futura.
-    //
-    // Para reactivar: descomentar el if/else de abajo y cambiar la
-    // condición a la que corresponda al centro objetivo
-    // (ej: registroActivo.centro === 'corte').
-    //
-    // El código de soporte sigue intacto en planta2.html:
-    // - CSS placa picker (líneas 191-294)
-    // - HTML pantalla-cnc (líneas 456-754)
-    // - Variables globales y _initPicker (líneas 879-955)
-    // - Funciones initCNC, registrarPlaca, etc. (líneas 1508-1750)
-    //
-    // Endpoints backend siguen vivos:
-    // - api/tiempos.js?action=cnc-placa
-    // - api/tiempos.js?action=get-cnc-activo
-    // - api/tiempos.js?action=detalle-cnc
-    // Tabla registros_cnc en BD intacta.
-    // ====================================================
+    // Restaurar flujo CNC2 (escaneo QR) si la placa abierta tiene mueble_token
+    if (registroActivo && registroActivo.centro === 'corte' && registroActivo.maquina === 'cnc') {
+      try {
+        const _cnc2r = await cncGet('placa-abierta', 'registro_trabajo_id=' + registroActivo.id + '&empleado_id=' + empId);
+        if (_cnc2r.placa && _cnc2r.placa.mueble_token) {
+          cnc2RegistroTrabajoId = registroActivo.id;
+          cnc2Maquina = _cnc2r.placa.maquina_codigo || null;
+          cnc2Mueble = { token: _cnc2r.placa.mueble_token, proyecto_id: registroActivo.proyecto_id, proyecto_numero: '', proyecto_nombre: registroActivo.proyecto_nombre, mf_id: registroActivo.item_id, mueble_codigo: '', mueble_nombre: registroActivo.item_nombre };
+          cnc2Placa = { registro_cnc_id: _cnc2r.placa.id, codigo: '', material: _cnc2r.placa.material || '', medida: _cnc2r.placa.medida || '', costo_usd: null, tipo: 'unidad' };
+          cnc2T0 = new Date(_cnc2r.placa.inicio).getTime();
+          cnc2Estado = 'cortando';
+          cnc2Hist = [];
+          _iniciarHeartbeat(empleadoActual.id, registroActivo.id);
+          iniciarIntervalos();
+          renderCnc2();
+          ir('pantalla-cnc2');
+          toast('↺ Sesión CNC restaurada', 'var(--accent)');
+          return;  // no caer al flujo viejo
+        }
+      } catch (_e) { /* sin placa o error: seguir al flujo viejo */ }
+    }
+    // Restaurar pantalla de CNC viejo si la tarea activa es de corte en CNC.
     if (registroActivo && registroActivo.centro === 'corte' && registroActivo.maquina === 'cnc') {
       proyectoSel = { id: registroActivo.proyecto_id, nombre: registroActivo.proyecto_nombre };
       itemSel     = { id: registroActivo.item_id,     nombre: registroActivo.item_nombre };
@@ -2707,6 +2734,255 @@ function finalizarCNC() {
   _cncLimpiarPlaca();
   clearInterval(_intCNC);
   ir('pantalla-finalizar'); initFinalizar();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FLUJO CNC2 (escaneo QR)
+// ═══════════════════════════════════════════════════════════════════════════
+let cnc2Estado = null; // 'maquina'|'mueble'|'placa'|'cortando'|'cerrado'
+let cnc2Maquina = null;
+let cnc2Mueble = null;
+let cnc2Placa = null;
+let cnc2T0 = null;
+let cnc2Hist = [];
+let cnc2RegistroTrabajoId = null;
+let _intCnc2 = null;
+let _cnc2Err = '';
+
+function iniciarFlujoCnc() {
+  if (!empleadoActual) { toast('Se cerró la sesión — volvé a ingresar con tu PIN', 'var(--red)'); return; }
+  cnc2Estado = 'maquina';
+  cnc2Maquina = null;
+  cnc2Mueble = null;
+  cnc2Placa = null;
+  cnc2T0 = null;
+  cnc2Hist = [];
+  cnc2RegistroTrabajoId = null;
+  _cnc2Err = '';
+  renderCnc2();
+  ir('pantalla-cnc2');
+}
+
+function renderCnc2() {
+  clearInterval(_intCnc2); _intCnc2 = null;
+  const body = document.getElementById('cnc2-body');
+  const pie = document.getElementById('cnc2-pie');
+  const crono = document.getElementById('cnc2-crono');
+  const hdr = document.getElementById('cnc2-header');
+  if (!body) return;
+
+  hdr.textContent = cnc2Maquina ? 'CNC · ' + cnc2Maquina : 'CNC';
+  pie.innerHTML = cnc2Hist.length
+    ? '✓ ' + cnc2Hist.filter(h => h.resultado === 'ok').length + ' ok · ✗ ' + cnc2Hist.filter(h => h.resultado === 'error').length + ' err · Total ' + cnc2Hist.length
+    : '';
+
+  const errHtml = _cnc2Err ? `<div style="background:rgba(240,92,92,.12);border:1px solid rgba(240,92,92,.3);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--red);">${_cnc2Err}</div>` : '';
+  _cnc2Err = '';
+
+  if (cnc2Estado === 'maquina') {
+    crono.textContent = '00:00:00';
+    body.innerHTML = errHtml
+      + '<div style="text-align:center;margin:40px 0 20px;">'
+      + '<div style="font-size:48px;margin-bottom:16px;">◧</div>'
+      + '<div style="font-size:16px;font-weight:700;margin-bottom:8px;">Escaneá la etiqueta de la máquina</div>'
+      + '<div style="font-size:12px;color:var(--muted);margin-bottom:24px;">El sticker con MAQ-... pegado junto al puesto de carga</div>'
+      + '<button class="btn btn-primary" onclick="cnc2Escanear()" style="min-height:70px;width:100%;font-size:14px;">📷 ESCANEAR</button></div>';
+
+  } else if (cnc2Estado === 'mueble') {
+    body.innerHTML = errHtml
+      + '<div style="text-align:center;margin:30px 0 20px;">'
+      + '<div style="font-size:14px;font-weight:700;margin-bottom:8px;">Escaneá el código de la hoja del programa</div>'
+      + '<div style="font-size:12px;color:var(--muted);margin-bottom:24px;">La etiqueta MB-... que pegó Facundo en la primera hoja</div>'
+      + '<button class="btn btn-primary" onclick="cnc2Escanear()" style="min-height:70px;width:100%;font-size:14px;">📷 ESCANEAR MUEBLE</button></div>';
+
+  } else if (cnc2Estado === 'placa') {
+    const m = cnc2Mueble || {};
+    body.innerHTML = errHtml
+      + `<div class="card" style="margin-bottom:16px;text-align:center;">
+          <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);">${m.proyecto_numero || ''}</div>
+          <div style="font-size:16px;font-weight:700;color:var(--accent);">${m.mueble_codigo || ''}</div>
+          <div style="font-size:13px;">${m.mueble_nombre || ''}</div>
+        </div>`
+      + '<div style="text-align:center;">'
+      + '<div style="font-size:14px;font-weight:700;margin-bottom:8px;">Escaneá la placa</div>'
+      + '<div style="font-size:11px;color:var(--muted);margin-bottom:24px;">Si la placa no tiene etiqueta, escaneá el cartel del rack</div>'
+      + '<button class="btn btn-primary" onclick="cnc2Escanear()" style="min-height:70px;width:100%;font-size:14px;">📷 ESCANEAR PLACA</button></div>';
+
+  } else if (cnc2Estado === 'cortando') {
+    const m = cnc2Mueble || {};
+    const p = cnc2Placa || {};
+    const costoTxt = p.costo_usd != null ? 'US$ ' + Number(p.costo_usd).toFixed(2) : 'no descuenta stock';
+    body.innerHTML = errHtml
+      + `<div class="card" style="margin-bottom:12px;text-align:center;">
+          <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">${m.proyecto_numero || ''} · ${m.mueble_codigo || ''}</div>
+          <div style="font-size:13px;">${m.mueble_nombre || ''}</div>
+        </div>`
+      + `<div class="card" style="margin-bottom:16px;border-color:var(--accent);">
+          <div style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--accent);">${p.codigo || ''}</div>
+          <div style="font-size:13px;margin-top:4px;">${p.material || ''}</div>
+          <div style="font-size:12px;color:var(--muted);">${p.medida || ''}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">${costoTxt}</div>
+        </div>`
+      + `<div id="cnc2-timer" style="font-family:'Space Mono',monospace;font-size:32px;font-weight:700;text-align:center;margin:16px 0;color:var(--accent);">00:00:00</div>`
+      + '<div style="display:flex;gap:12px;">'
+      + '<button class="btn" onclick="cnc2Cerrar(\'ok\')" style="flex:1;min-height:70px;font-size:14px;background:var(--green);color:#0f0f0f;border:none;">✓ LISTA</button>'
+      + '<button class="btn" onclick="cnc2Cerrar(\'error\')" style="flex:1;min-height:70px;font-size:14px;background:var(--red);color:#fff;border:none;">✗ ERROR</button></div>'
+      + '<div style="text-align:center;margin-top:12px;">'
+      + '<button class="btn btn-ghost" onclick="cnc2Escanear()" style="font-size:10px;">📷 Escanear otra placa (cierra esta como OK)</button></div>';
+
+    _intCnc2 = setInterval(() => {
+      const el = document.getElementById('cnc2-timer');
+      if (el && cnc2T0) el.textContent = fmtHMS(Math.floor((Date.now() - cnc2T0) / 1000));
+    }, 1000);
+
+  } else if (cnc2Estado === 'cerrado') {
+    let listHtml = cnc2Hist.map(h => {
+      const col = h.resultado === 'ok' ? 'var(--green)' : 'var(--red)';
+      const icon = h.resultado === 'ok' ? '✓' : '✗';
+      return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
+        <span><span style="color:${col};">${icon}</span> ${h.codigo}</span>
+        <span class="mono" style="color:var(--muted);">${fmtHMS(h.segundos || 0)}</span></div>`;
+    }).join('');
+    body.innerHTML = '<div style="text-align:center;margin:20px 0;">'
+      + '<div style="font-size:48px;margin-bottom:12px;">✓</div>'
+      + '<div style="font-size:16px;font-weight:700;color:var(--green);margin-bottom:4px;">' + cnc2Hist.length + ' placa' + (cnc2Hist.length !== 1 ? 's' : '') + ' registrada' + (cnc2Hist.length !== 1 ? 's' : '') + '</div>'
+      + '<div style="font-size:12px;color:var(--muted);">Mueble cerrado</div></div>'
+      + '<div style="margin-bottom:20px;">' + listHtml + '</div>'
+      + '<button class="btn btn-primary" onclick="cnc2Estado=\'mueble\';renderCnc2();" style="width:100%;min-height:60px;font-size:13px;">ESCANEAR OTRO MUEBLE</button>'
+      + '<button class="btn btn-ghost" onclick="irAlMenu()" style="width:100%;margin-top:8px;">VOLVER AL MENÚ</button>';
+  }
+}
+
+function cnc2Escanear() {
+  cancelarTimeout30s();
+  const titulos = { maquina: 'Escaneá la máquina', mueble: 'Escaneá el mueble', placa: 'Escaneá la placa', cortando: 'Escaneá la placa' };
+  abrirEscaner({
+    titulo: titulos[cnc2Estado] || 'Escanear',
+    hint: cnc2Estado === 'maquina' ? 'El sticker MAQ-... junto al puesto de carga' : '',
+    onCodigo: function (cod) { _cnc2ProcesarCodigo(cod); },
+    onCancelar: function () {},
+  });
+}
+
+async function _cnc2ProcesarCodigo(cod) {
+  cod = cod.trim().toUpperCase();
+  try {
+    if (cnc2Estado === 'maquina') {
+      if (!cod.startsWith('MAQ-')) { _cnc2Err = 'Se esperaba un código MAQ-... de máquina, se leyó: ' + cod; renderCnc2(); return; }
+      cnc2Maquina = cod.replace('MAQ-', '');
+      cnc2Estado = 'mueble';
+      renderCnc2();
+
+    } else if (cnc2Estado === 'mueble') {
+      if (cod.startsWith('MAQ-')) { cnc2Maquina = cod.replace('MAQ-', ''); renderCnc2(); return; }
+      const r = await cncGet('resolver-mueble', 'codigo=' + encodeURIComponent(cod) + '&empleado_id=' + empleadoActual.id);
+      cnc2Mueble = {
+        token: r.token, proyecto_id: r.proyecto_id, proyecto_numero: r.proyecto_numero,
+        proyecto_nombre: r.proyecto_nombre, mf_id: r.mf_id,
+        mueble_codigo: r.mueble_codigo, mueble_nombre: r.mueble_nombre,
+      };
+      // Arrancar tarea
+      const { registro } = await apiPost('iniciar-tarea', {
+        empleado_id: empleadoActual.id,
+        jornada_id: jornada.id,
+        proyecto_id: cnc2Mueble.proyecto_id,
+        proyecto_nombre: cnc2Mueble.proyecto_nombre,
+        item_id: cnc2Mueble.mf_id,
+        item_nombre: cnc2Mueble.mueble_nombre,
+        centro: 'corte',
+        maquina: 'cnc',
+      });
+      registroActivo = registro;
+      if (registro) registrosHoy = [...registrosHoy.filter(r2 => r2.id !== registro.id), registro];
+      cnc2RegistroTrabajoId = registro.id;
+      _iniciarHeartbeat(empleadoActual.id, registro.id);
+      cnc2Estado = 'placa';
+      renderCnc2();
+
+    } else if (cnc2Estado === 'placa' || cnc2Estado === 'cortando') {
+      // FIN-... cierra la sesión
+      if (cod.startsWith('FIN-')) { await cnc2Fin(); return; }
+      // MB-... cambia de mueble
+      if (cod.startsWith('MB-')) {
+        if (cnc2Placa) await cnc2Cerrar('ok');
+        await cnc2Fin();
+        cnc2Estado = 'mueble';
+        renderCnc2();
+        await _cnc2ProcesarCodigo(cod);
+        return;
+      }
+      // Abrir placa
+      const r = await cncPost('abrir-placa', {
+        empleado_id: empleadoActual.id,
+        registro_trabajo_id: cnc2RegistroTrabajoId,
+        codigo: cod,
+        maquina_codigo: cnc2Maquina,
+        mueble_token: cnc2Mueble.token,
+      });
+      cnc2Placa = { registro_cnc_id: r.registro_cnc_id, codigo: r.codigo, material: r.material, medida: r.medida, costo_usd: r.costo_usd, tipo: r.tipo };
+      cnc2T0 = Date.now();
+      cnc2Estado = 'cortando';
+      renderCnc2();
+    }
+  } catch (e) {
+    _cnc2Err = e.message || 'Error';
+    renderCnc2();
+  }
+}
+
+async function cnc2Cerrar(resultado) {
+  if (!cnc2Placa) return;
+  try {
+    const r = await cncPost('cerrar-placa', {
+      empleado_id: empleadoActual.id,
+      registro_cnc_id: cnc2Placa.registro_cnc_id,
+      resultado,
+    });
+    const segs = cnc2T0 ? Math.floor((Date.now() - cnc2T0) / 1000) : 0;
+    cnc2Hist.push({ codigo: cnc2Placa.codigo, resultado, segundos: segs, consumida: r.consumida });
+    if (r.aviso) toast(r.aviso, 'var(--accent)');
+    toast(r.msg || 'OK', resultado === 'ok' ? 'var(--green)' : 'var(--red)');
+    cnc2Placa = null;
+    cnc2T0 = null;
+    cnc2Estado = 'placa';
+    renderCnc2();
+  } catch (e) {
+    _cnc2Err = e.message || 'Error al cerrar';
+    renderCnc2();
+  }
+}
+
+async function cnc2Fin() {
+  try {
+    if (cnc2Placa) await cnc2Cerrar('ok');
+    if (registroActivo) {
+      await apiPost('finalizar-tarea', {
+        registro_id: registroActivo.id,
+        empleado_id: empleadoActual.id,
+        respuestas_checklist: {},
+        es_retrabajo: false,
+      });
+      if (registroActivo) {
+        registrosHoy = [...registrosHoy.filter(r => r.id !== registroActivo.id),
+          { ...registroActivo, estado: 'finalizado' }];
+      }
+      _detenerHeartbeat();
+      registroActivo = null;
+    }
+    cnc2Estado = 'cerrado';
+    renderCnc2();
+  } catch (e) {
+    _cnc2Err = e.message || 'Error al finalizar';
+    renderCnc2();
+  }
+}
+
+function cnc2Salir() {
+  if (cnc2Estado === 'cortando' || cnc2Estado === 'placa') {
+    cnc2Fin().then(() => { if (cnc2Estado === 'cerrado') { renderMenuTarea(); ir('pantalla-menu'); } });
+  } else {
+    irAlMenu();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
