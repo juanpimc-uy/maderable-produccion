@@ -120,6 +120,14 @@
           <div class="st"><div class="st-n" style="color:#FFD600" id="cnt-rt-pro">0</div><div class="st-l">A cortar</div></div>
         </div>
       </div>
+      <div style="width:1px;align-self:stretch;background:rgba(255,255,255,.12);margin:0 4px;"></div>
+      <div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#22d3ee;letter-spacing:2px;text-transform:uppercase;">◧ CNC</div>
+        <div style="display:flex;gap:22px;">
+          <div class="st"><div class="st-n" style="color:#22d3ee" id="cnt-cnc-placas">0</div><div class="st-l">Placas hoy</div></div>
+          <div class="st"><div class="st-n" style="color:var(--tx3)" id="cnt-cnc-pct">—</div><div class="st-l">Con etiqueta</div></div>
+        </div>
+      </div>
     </div>
     <div><div class="clock" id="tv-clock">--:--:--</div><div class="date" id="tv-date">—</div></div>
   </header>
@@ -183,6 +191,8 @@ function mostrarDash() {
   setInterval(cargarSnapshot, 60000);
   cargarRetrabajosTV();
   setInterval(cargarRetrabajosTV, 60000);
+  cargarCncTV();
+  setInterval(cargarCncTV, 60000);
   mantenerPantallaActiva();
 }
 
@@ -209,6 +219,27 @@ async function cargarRetrabajosTV() {
     const elP = document.getElementById('cnt-rt-pro');
     if (elS) { elS.textContent = sol; elS.style.color = sol ? '#FFD600' : 'var(--tx3)'; }
     if (elP) { elP.textContent = pro; elP.style.color = pro ? '#FFD600' : 'var(--tx3)'; }
+  } catch(e) {}
+}
+
+async function cargarCncTV() {
+  try {
+    const r = await fetch('/api/cnc?action=metricas-tv').then(res => res.json());
+    const elP = document.getElementById('cnt-cnc-placas');
+    const elX = document.getElementById('cnt-cnc-pct');
+    if (elP) {
+      elP.textContent = r.placas_hoy || 0;
+      elP.style.color = r.placas_hoy ? '#22d3ee' : 'var(--tx3)';
+    }
+    if (elX) {
+      if (r.pct === null || r.pct === undefined) {
+        elX.textContent = '—';
+        elX.style.color = 'var(--tx3)';
+      } else {
+        elX.textContent = r.pct + '%';
+        elX.style.color = r.pct >= 85 ? 'var(--grn)' : (r.pct >= 50 ? 'var(--arm)' : 'var(--red)');
+      }
+    }
   } catch(e) {}
 }
 
