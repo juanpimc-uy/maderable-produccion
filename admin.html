@@ -5,6 +5,7 @@
 <link rel="icon" href="data:,">
 <script src="/js/supabase-config.js"></script>
 <script src="/js/auth.js"></script>
+<script src="/js/etiquetas.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="manifest" href="/manifest-admin.json">
 <meta name="theme-color" content="#FFD600">
@@ -2199,6 +2200,7 @@ function muebleRowRico(prId, m, cncMap, entregasMap = {}) {
             </div>
             <button onclick="abrirModalPartir('${prId}','${m.id}')" title="Partir en etapas" style="font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:3px;cursor:pointer;border:1px solid var(--amber);background:rgba(255,214,0,0.08);color:var(--amber);">⑂ PARTIR</button>
             <button onclick="toggleItemCompletado('${prId}','${m.id}')" style="font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:3px;cursor:pointer;border:1px solid ${m.completado?'var(--green)':'var(--border)'};background:${m.completado?'rgba(74,222,128,0.1)':'transparent'};color:${m.completado?'var(--green)':'var(--muted)'};">${m.completado?'✓ COMPLETADO':'COMPLETAR'}</button>
+            <button onclick="imprimirEtiquetaMueble('${prId}','${m.id}')" title="Imprimir etiqueta para pegar en la hoja del programa CNC" style="font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:3px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);">⎙ ETIQUETA</button>
             <button onclick="archivarMueble('${prId}','${m.id}')" title="Archivar: lo saca de planificación, planta y despachos sin completarlo" style="font-family:'Space Mono',monospace;font-size:8px;padding:3px 9px;border-radius:3px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);display:inline-flex;align-items:center;gap:5px;" onmouseover="this.style.borderColor='var(--orange)';this.style.color='var(--orange)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'"><svg viewBox="0 0 24 24" style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M3 5h18v4H3z"/><path d="M5 9v10h14V9"/><path d="M10 13h4"/></svg>ARCHIVAR</button>
           </div>
         </div>`;
@@ -4225,6 +4227,33 @@ function setCodigoInline(prId,mId,el){
   guardarMueblesLS(prId,pr);
   syncProyectoSupabase(pr);
   _reRenderItems(pr);
+}
+
+async function imprimirEtiquetaMueble(prId, mfId) {
+  if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
+  const pr = PROYECTOS.find(p => p.id === prId);
+  const m = pr && (pr.muebles || []).find(x => x.id === mfId);
+  if (!pr || !m) { alert('No se encontró el mueble'); return; }
+
+  let r;
+  try {
+    r = await fetch('/api/etiquetas?action=generar-codigo-mueble', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: window.AUTH.getSessionToken(), proyecto_id: prId, mf_id: mfId })
+    }).then(x => x.json());
+  } catch (e) { alert('Error de conexión'); return; }
+  if (!r.ok || !r.codigo) { alert(r.msg || r.error || 'No se pudo generar el código'); return; }
+
+  Etiquetas.imprimir('mueble', [{
+    token: r.codigo,
+    codigo: m.codigo || '',
+    nombre: m.nombre || '',
+    odf: pr.numero || '',
+    cliente: pr.clienteNombre || '',
+    obra: pr.obra || '',
+    _qr: r.codigo
+  }]);
 }
 
 function archivarMueble(prId,mId){
