@@ -697,6 +697,7 @@
         <button class="ajuste-tab active" data-tab="formula" onclick="switchAjusteTab('formula')">Fórmula</button>
         <button class="ajuste-tab" data-tab="tarifas" onclick="switchAjusteTab('tarifas')">Tarifas</button>
         <button class="ajuste-tab" data-tab="centros" onclick="switchAjusteTab('centros')">Centros</button>
+        <button class="ajuste-tab" data-tab="maquinas" onclick="switchAjusteTab('maquinas')">Máquinas</button>
         <button class="ajuste-tab" data-tab="tc" onclick="switchAjusteTab('tc')">Tipo de cambio</button>
         <button class="ajuste-tab" data-tab="oe" onclick="switchAjusteTab('oe')">OE</button>
         <button class="ajuste-tab" data-tab="lustre" onclick="switchAjusteTab('lustre')">Lustre</button>
@@ -778,6 +779,70 @@
         </div>
       </div>
       </div><!-- /panel centros -->
+
+      <!-- Máquinas -->
+      <div data-ajuste-panel="maquinas" style="display:none;">
+      <div id="ajustes-maquinas-section">
+        <div class="card">
+          <div class="sec-title">
+            MÁQUINAS
+            <button class="btn btn-primary btn-sm" onclick="_maqAbrirModal()">+ NUEVA MÁQUINA</button>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.5;">
+            Catálogo de máquinas. El <strong style="color:var(--text);">código</strong> es inmutable: es lo que queda impreso en los stickers pegados a la máquina.
+          </div>
+          <div id="maquinas-wrap">
+            <div style="font-size:12px;color:var(--muted);">Cargando…</div>
+          </div>
+        </div>
+      </div>
+      </div><!-- /panel maquinas -->
+
+      <!-- Modal máquina -->
+      <div class="overlay" id="modal-maquina">
+        <div class="modal">
+          <div class="modal-title" id="maq-modal-title">Nueva máquina</div>
+          <input type="hidden" id="maq-id">
+          <div class="field"><label>Código</label><input id="maq-codigo" style="text-transform:uppercase;"></div>
+          <div class="field"><label>Nombre</label><input id="maq-nombre"></div>
+          <div class="field"><label>Centro</label><select id="maq-centro"><option value="">Sin asignar</option></select></div>
+          <div class="field" style="display:flex;gap:12px;">
+            <div style="flex:1;"><label>Marca</label><input id="maq-marca"></div>
+            <div style="flex:1;"><label>Modelo</label><input id="maq-modelo"></div>
+          </div>
+          <div class="field"><label>Nro serie</label><input id="maq-serie"></div>
+          <div class="field"><label>Notas</label><textarea id="maq-notas"></textarea></div>
+          <div class="field"><label>Orden</label><input id="maq-orden" type="number" min="0" value="100" style="width:80px;"></div>
+          <div class="field" id="maq-activo-row" style="display:none;"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="maq-activo" checked> Activa</label></div>
+          <div id="maq-error" style="color:var(--red);font-size:12px;margin-top:8px;"></div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+            <button class="btn btn-ghost" onclick="document.getElementById('modal-maquina').classList.remove('open')">Cancelar</button>
+            <button class="btn btn-primary" id="maq-btn-guardar" onclick="_maqGuardar()">Guardar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal parte -->
+      <div class="overlay" id="modal-parte">
+        <div class="modal">
+          <div class="modal-title" id="parte-modal-title">Nueva parte</div>
+          <input type="hidden" id="parte-id">
+          <input type="hidden" id="parte-maquina-id">
+          <div class="field"><label>Nombre</label><input id="parte-nombre"></div>
+          <div class="field" style="display:flex;gap:12px;">
+            <div style="flex:1;"><label>Marca</label><input id="parte-marca"></div>
+            <div style="flex:1;"><label>Modelo</label><input id="parte-modelo"></div>
+          </div>
+          <div class="field"><label>Código fabricante</label><input id="parte-cod-fab"></div>
+          <div class="field"><label>Notas</label><textarea id="parte-notas"></textarea></div>
+          <div class="field" id="parte-activo-row" style="display:none;"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="parte-activo" checked> Activa</label></div>
+          <div id="parte-error" style="color:var(--red);font-size:12px;margin-top:8px;"></div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+            <button class="btn btn-ghost" onclick="document.getElementById('modal-parte').classList.remove('open')">Cancelar</button>
+            <button class="btn btn-primary" onclick="_parteGuardar()">Guardar</button>
+          </div>
+        </div>
+      </div>
 
       <!-- Tipo de cambio -->
       <div data-ajuste-panel="tc" style="display:none;">
@@ -5921,7 +5986,7 @@ let _ajusteTabActual = 'formula';
 function _initAjustes() {
   const u = window.AUTH.usuarioActual();
   if (!u || u.rol_app !== 'admin') { navTo('dashboard'); return; }
-  fInit(); tarifasInit(); tcInit(); oemInit(); centrosAjustesInit(); lustreTiposInit(); renderMiCuenta();
+  fInit(); tarifasInit(); tcInit(); oemInit(); centrosAjustesInit(); maquinasInit(); lustreTiposInit(); renderMiCuenta();
   switchAjusteTab(_ajusteTabActual);
 }
 
@@ -6142,6 +6207,305 @@ function _relTime(isoStr) {
   if (diff < 3600) return `Actualizado hace ${Math.floor(diff/60)}m`;
   if (diff < 86400) return `Actualizado hace ${Math.floor(diff/3600)}h`;
   return `Actualizado hace ${Math.floor(diff/86400)}d`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MÁQUINAS (Ajustes)
+// ═══════════════════════════════════════════════════════════════════════════
+let _maquinasCache = null;
+let _partesCache = {}; // maquina_id → [partes]
+let _maqExpandido = null; // id de la máquina expandida
+
+async function maquinasInit(force = false) {
+  const wrap = document.getElementById('maquinas-wrap');
+  if (!wrap) return;
+  if (!force && _maquinasCache) { _maqRenderTabla(); return; }
+  wrap.innerHTML = '<div style="font-size:12px;color:var(--muted);">Cargando…</div>';
+  // Asegurar centros cargados para el selector
+  if (!_centrosCache) await centrosAjustesInit();
+  try {
+    const u = window.AUTH.usuarioActual();
+    const r = await fetch('/api/maquinas?action=listar&incluir_inactivas=1&session_token=' + encodeURIComponent(u.session_token || window.AUTH.getSessionToken()));
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    _maquinasCache = data.maquinas || [];
+    _maqRenderTabla();
+  } catch (e) {
+    wrap.innerHTML = '<div style="font-size:12px;color:var(--red);">Error: ' + e.message + '</div>';
+  }
+}
+
+function _maqNombreCentro(codigo) {
+  if (!codigo) return '<span style="color:var(--muted);">—</span>';
+  const c = (_centrosCache || []).find(x => x.codigo === codigo);
+  return c ? c.nombre : codigo;
+}
+
+function _maqRenderTabla() {
+  const wrap = document.getElementById('maquinas-wrap');
+  if (!wrap || !_maquinasCache) return;
+  if (!_maquinasCache.length) { wrap.innerHTML = '<div style="font-size:12px;color:var(--muted);">Sin máquinas.</div>'; return; }
+  let html = '<table><thead><tr><th></th><th>Código</th><th>Nombre</th><th>Centro</th><th>Marca/Modelo</th><th>Activa</th><th>Acciones</th></tr></thead><tbody>';
+  _maquinasCache.forEach(m => {
+    const op = m.activo === false ? ' style="opacity:.45;"' : '';
+    const exp = String(_maqExpandido) === String(m.id);
+    const marca = [m.marca, m.modelo].filter(Boolean).join(' ') || '<span style="color:var(--muted);">—</span>';
+    html += '<tr' + op + '>'
+      + '<td style="cursor:pointer;font-size:14px;color:var(--muted);width:24px;" onclick="_maqTogglePartes(' + m.id + ')">' + (exp ? '▾' : '▸') + '</td>'
+      + '<td class="mono" style="font-size:11px;color:var(--amber);">' + m.codigo + '</td>'
+      + '<td>' + (m.nombre || '') + '</td>'
+      + '<td>' + _maqNombreCentro(m.centro_codigo) + '</td>'
+      + '<td style="font-size:11px;color:var(--muted);">' + marca + '</td>'
+      + '<td>' + (m.activo !== false ? '✓' : '<span style="color:var(--red);">✗</span>') + '</td>'
+      + '<td style="display:flex;gap:6px;">'
+      + '<button class="btn btn-ghost btn-sm" onclick="_maqAbrirModal(' + m.id + ')">✎</button>'
+      + '<button class="btn btn-ghost btn-sm" onclick="imprimirEtiquetasMaquina(\'' + m.codigo + '\',\'' + (m.nombre || '').replace(/'/g, "\\'") + '\')">⎙ ETIQUETAS</button>'
+      + '</td></tr>';
+    if (exp) {
+      html += '<tr><td colspan="7" style="padding:0 0 0 40px;background:var(--faint);"><div id="maq-partes-' + m.id + '" style="padding:12px 0;">'
+        + '<div style="font-size:12px;color:var(--muted);">Cargando partes…</div>'
+        + '</div></td></tr>';
+    }
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+  if (_maqExpandido) _maqCargarPartes(_maqExpandido);
+}
+
+async function _maqTogglePartes(id) {
+  _maqExpandido = String(_maqExpandido) === String(id) ? null : id;
+  _maqRenderTabla();
+}
+
+async function _maqCargarPartes(maqId) {
+  const el = document.getElementById('maq-partes-' + maqId);
+  if (!el) return;
+  if (_partesCache[maqId]) { _maqRenderPartes(maqId); return; }
+  try {
+    const r = await fetch('/api/maquinas?action=listar-partes&maquina_id=' + maqId + '&session_token=' + encodeURIComponent(window.AUTH.getSessionToken()));
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Error');
+    _partesCache[maqId] = data.partes || [];
+    _maqRenderPartes(maqId);
+  } catch (e) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--red);">Error: ' + e.message + '</div>';
+  }
+}
+
+function _maqRenderPartes(maqId) {
+  const el = document.getElementById('maq-partes-' + maqId);
+  if (!el) return;
+  const partes = _partesCache[maqId] || [];
+  const maq = (_maquinasCache || []).find(m => String(m.id) === String(maqId));
+  const maqNombre = maq ? maq.nombre : '';
+  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+    + '<span style="font-family:\'JetBrains Mono\',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">PARTES (' + partes.length + ')</span>'
+    + '<div style="display:flex;gap:6px;">';
+  if (partes.length > 1) {
+    html += '<button class="btn btn-ghost btn-sm" onclick="_maqImprimirTodasPartes(' + maqId + ')">⎙ IMPRIMIR TODAS</button>';
+  }
+  html += '<button class="btn btn-primary btn-sm" onclick="_parteAbrirModal(' + maqId + ')">+ AGREGAR PARTE</button>'
+    + '</div></div>';
+  if (!partes.length) {
+    html += '<div style="font-size:12px;color:var(--muted);">Sin partes registradas.</div>';
+  } else {
+    partes.forEach(p => {
+      const marca = [p.marca, p.modelo].filter(Boolean).join(' ');
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);">'
+        + '<span class="mono" style="font-size:10px;color:var(--amber);">' + p.codigo + '</span>'
+        + '<span style="flex:1;font-size:12px;">' + p.nombre + (marca ? ' <span style="color:var(--muted);font-size:10px;">' + marca + '</span>' : '') + '</span>'
+        + '<button class="btn btn-ghost btn-sm" onclick="_parteAbrirModal(' + maqId + ',' + p.id + ')">✎</button>'
+        + '<button class="btn btn-ghost btn-sm" onclick="imprimirEtiquetaParte(\'' + p.codigo + '\',\'' + p.nombre.replace(/'/g, "\\'") + '\',\'' + maqNombre.replace(/'/g, "\\'") + '\')">⎙</button>'
+        + '</div>';
+    });
+  }
+  el.innerHTML = html;
+}
+
+function imprimirEtiquetasMaquina(codigo, nombre) {
+  if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
+  Etiquetas.imprimir('maquina', [
+    { token: 'MAQ-' + codigo, nombre: nombre, accion: 'INICIO', _qr: 'MAQ-' + codigo },
+    { token: 'FIN-' + codigo, nombre: nombre, accion: 'FIN',    _qr: 'FIN-' + codigo }
+  ]);
+}
+
+function imprimirEtiquetaParte(token, nombreParte, nombreMaquina) {
+  if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
+  Etiquetas.imprimir('parte', [{
+    token: token, nombre: nombreParte, maquina: nombreMaquina, _qr: token
+  }]);
+}
+
+function _maqImprimirTodasPartes(maqId) {
+  if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
+  const partes = _partesCache[maqId] || [];
+  if (!partes.length) return;
+  const maq = (_maquinasCache || []).find(m => String(m.id) === String(maqId));
+  const maqNombre = maq ? maq.nombre : '';
+  if (!confirm('Se van a imprimir ' + partes.length + ' etiquetas. ¿Seguir?')) return;
+  Etiquetas.imprimir('parte', partes.map(p => ({
+    token: p.codigo, nombre: p.nombre, maquina: maqNombre, _qr: p.codigo
+  })));
+}
+
+function _maqPoblarCentros() {
+  const sel = document.getElementById('maq-centro');
+  if (!sel) return;
+  const centros = (_centrosCache || []).filter(c => c.activo && c.tipo === 'planta');
+  sel.innerHTML = '<option value="">Sin asignar</option>' + centros.map(c =>
+    '<option value="' + c.codigo + '">' + c.nombre + '</option>'
+  ).join('');
+}
+
+function _maqAbrirModal(id) {
+  _maqPoblarCentros();
+  const m = id ? (_maquinasCache || []).find(x => x.id === id) : null;
+  document.getElementById('maq-modal-title').textContent = m ? 'Editar máquina' : 'Nueva máquina';
+  document.getElementById('maq-id').value = m ? m.id : '';
+  document.getElementById('maq-codigo').value = m ? m.codigo : '';
+  document.getElementById('maq-codigo').disabled = !!m;
+  document.getElementById('maq-codigo').style.opacity = m ? '0.5' : '1';
+  document.getElementById('maq-nombre').value = m ? m.nombre : '';
+  document.getElementById('maq-centro').value = m ? (m.centro_codigo || '') : '';
+  document.getElementById('maq-marca').value = m ? (m.marca || '') : '';
+  document.getElementById('maq-modelo').value = m ? (m.modelo || '') : '';
+  document.getElementById('maq-serie').value = m ? (m.nro_serie || '') : '';
+  document.getElementById('maq-notas').value = m ? (m.notas || '') : '';
+  document.getElementById('maq-orden').value = m ? m.orden : 100;
+  document.getElementById('maq-activo-row').style.display = m ? '' : 'none';
+  if (m) document.getElementById('maq-activo').checked = m.activo !== false;
+  document.getElementById('maq-error').textContent = '';
+  document.getElementById('modal-maquina').classList.add('open');
+}
+
+async function _maqGuardar() {
+  const errEl = document.getElementById('maq-error');
+  errEl.textContent = '';
+  const id = document.getElementById('maq-id').value;
+  const st = window.AUTH.getSessionToken();
+
+  if (!id) {
+    // Crear
+    const codigo = document.getElementById('maq-codigo').value.trim();
+    const nombre = document.getElementById('maq-nombre').value.trim();
+    if (!codigo || !nombre) { errEl.textContent = 'Código y nombre son requeridos'; return; }
+    const body = { session_token: st, codigo, nombre };
+    const centro = document.getElementById('maq-centro').value;
+    if (centro) body.centro_codigo = centro;
+    const marca = document.getElementById('maq-marca').value.trim();
+    if (marca) body.marca = marca;
+    const modelo = document.getElementById('maq-modelo').value.trim();
+    if (modelo) body.modelo = modelo;
+    const serie = document.getElementById('maq-serie').value.trim();
+    if (serie) body.nro_serie = serie;
+    const notas = document.getElementById('maq-notas').value.trim();
+    if (notas) body.notas = notas;
+    const orden = document.getElementById('maq-orden').value;
+    if (orden !== '') body.orden = Number(orden);
+    try {
+      const r = await fetch('/api/maquinas?action=crear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await r.json();
+      if (!data.ok) { errEl.textContent = data.error || 'Error'; return; }
+    } catch (e) { errEl.textContent = 'Error de conexión'; return; }
+  } else {
+    // Editar
+    const body = { session_token: st, id: Number(id) };
+    const nombre = document.getElementById('maq-nombre').value.trim();
+    const m = (_maquinasCache || []).find(x => x.id === Number(id));
+    if (nombre !== (m?.nombre || '')) body.nombre = nombre;
+    const centro = document.getElementById('maq-centro').value || null;
+    if (centro !== (m?.centro_codigo || null)) body.centro_codigo = centro;
+    const marca = document.getElementById('maq-marca').value.trim() || null;
+    if (marca !== (m?.marca || null)) body.marca = marca;
+    const modelo = document.getElementById('maq-modelo').value.trim() || null;
+    if (modelo !== (m?.modelo || null)) body.modelo = modelo;
+    const serie = document.getElementById('maq-serie').value.trim() || null;
+    if (serie !== (m?.nro_serie || null)) body.nro_serie = serie;
+    const notas = document.getElementById('maq-notas').value.trim() || null;
+    if (notas !== (m?.notas || null)) body.notas = notas;
+    const orden = document.getElementById('maq-orden').value;
+    if (Number(orden) !== m?.orden) body.orden = Number(orden);
+    const activo = document.getElementById('maq-activo').checked;
+    if (activo !== (m?.activo !== false)) body.activo = activo;
+    if (Object.keys(body).length <= 2) { document.getElementById('modal-maquina').classList.remove('open'); return; }
+    try {
+      const r = await fetch('/api/maquinas?action=editar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await r.json();
+      if (!data.ok) { errEl.textContent = data.error || 'Error'; return; }
+    } catch (e) { errEl.textContent = 'Error de conexión'; return; }
+  }
+  document.getElementById('modal-maquina').classList.remove('open');
+  _maquinasCache = null;
+  _partesCache = {};
+  await maquinasInit(true);
+}
+
+function _parteAbrirModal(maqId, parteId) {
+  const p = parteId ? (_partesCache[maqId] || []).find(x => x.id === parteId) : null;
+  document.getElementById('parte-modal-title').textContent = p ? 'Editar parte' : 'Nueva parte';
+  document.getElementById('parte-id').value = p ? p.id : '';
+  document.getElementById('parte-maquina-id').value = maqId;
+  document.getElementById('parte-nombre').value = p ? p.nombre : '';
+  document.getElementById('parte-marca').value = p ? (p.marca || '') : '';
+  document.getElementById('parte-modelo').value = p ? (p.modelo || '') : '';
+  document.getElementById('parte-cod-fab').value = p ? (p.codigo_fabricante || '') : '';
+  document.getElementById('parte-notas').value = p ? (p.notas || '') : '';
+  document.getElementById('parte-activo-row').style.display = p ? '' : 'none';
+  if (p) document.getElementById('parte-activo').checked = p.activo !== false;
+  document.getElementById('parte-error').textContent = '';
+  document.getElementById('modal-parte').classList.add('open');
+}
+
+async function _parteGuardar() {
+  const errEl = document.getElementById('parte-error');
+  errEl.textContent = '';
+  const id = document.getElementById('parte-id').value;
+  const maqId = document.getElementById('parte-maquina-id').value;
+  const st = window.AUTH.getSessionToken();
+
+  if (!id) {
+    const nombre = document.getElementById('parte-nombre').value.trim();
+    if (!nombre) { errEl.textContent = 'Nombre requerido'; return; }
+    const body = { session_token: st, maquina_id: Number(maqId), nombre };
+    const marca = document.getElementById('parte-marca').value.trim();
+    if (marca) body.marca = marca;
+    const modelo = document.getElementById('parte-modelo').value.trim();
+    if (modelo) body.modelo = modelo;
+    const codFab = document.getElementById('parte-cod-fab').value.trim();
+    if (codFab) body.codigo_fabricante = codFab;
+    const notas = document.getElementById('parte-notas').value.trim();
+    if (notas) body.notas = notas;
+    try {
+      const r = await fetch('/api/maquinas?action=crear-parte', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await r.json();
+      if (!data.ok) { errEl.textContent = data.error || 'Error'; return; }
+    } catch (e) { errEl.textContent = 'Error de conexión'; return; }
+  } else {
+    const body = { session_token: st, id: Number(id) };
+    const p = (_partesCache[maqId] || []).find(x => x.id === Number(id));
+    const nombre = document.getElementById('parte-nombre').value.trim();
+    if (nombre !== (p?.nombre || '')) body.nombre = nombre;
+    const marca = document.getElementById('parte-marca').value.trim() || null;
+    if (marca !== (p?.marca || null)) body.marca = marca;
+    const modelo = document.getElementById('parte-modelo').value.trim() || null;
+    if (modelo !== (p?.modelo || null)) body.modelo = modelo;
+    const codFab = document.getElementById('parte-cod-fab').value.trim() || null;
+    if (codFab !== (p?.codigo_fabricante || null)) body.codigo_fabricante = codFab;
+    const notas = document.getElementById('parte-notas').value.trim() || null;
+    if (notas !== (p?.notas || null)) body.notas = notas;
+    const activo = document.getElementById('parte-activo').checked;
+    if (activo !== (p?.activo !== false)) body.activo = activo;
+    if (Object.keys(body).length <= 2) { document.getElementById('modal-parte').classList.remove('open'); return; }
+    try {
+      const r = await fetch('/api/maquinas?action=editar-parte', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await r.json();
+      if (!data.ok) { errEl.textContent = data.error || 'Error'; return; }
+    } catch (e) { errEl.textContent = 'Error de conexión'; return; }
+  }
+  document.getElementById('modal-parte').classList.remove('open');
+  delete _partesCache[maqId];
+  _maqCargarPartes(maqId);
 }
 
 // ── OE mensual — tabla por mes ──

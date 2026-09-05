@@ -80,6 +80,34 @@
         '100x50': [{ id: 'codigo', pos: 'XL' }, { id: 'nombre', pos: 'M' }, { id: 'odf', pos: 'S' }, { id: 'cliente', pos: 'S' }, { id: 'obra', pos: 'P' }, { id: 'token', pos: 'P' }],
       }
     },
+    'maquina': {
+      tituloDefault: '{accion}',
+      qr: true, chipEnvio: false,
+      qrEj: 'MAQ-CNC1',
+      campos: [
+        { id: 'token',  label: 'Token',  ej: 'MAQ-CNC1',   fijo: true },
+        { id: 'nombre', label: 'Máquina', ej: 'CNC 1',     fijo: true },
+        { id: 'accion', label: 'Acción', ej: 'INICIO',     fijo: false },
+      ],
+      defaults: {
+        '60x30':  [{ id: 'nombre', pos: 'XL' }, { id: 'token', pos: 'S' }],
+        '100x50': [{ id: 'nombre', pos: 'XL' }, { id: 'accion', pos: 'L' }, { id: 'token', pos: 'S' }],
+      }
+    },
+    'parte': {
+      tituloDefault: 'PARTE',
+      qr: true, chipEnvio: false,
+      qrEj: 'MP-000123',
+      campos: [
+        { id: 'token',   label: 'Token',   ej: 'MP-000123',        fijo: true },
+        { id: 'nombre',  label: 'Parte',   ej: 'BOMBA DE VACÍO 1', fijo: true },
+        { id: 'maquina', label: 'Máquina', ej: 'CNC 1',            fijo: false },
+      ],
+      defaults: {
+        '60x30':  [{ id: 'nombre', pos: 'L' }, { id: 'maquina', pos: 'S' }, { id: 'token', pos: 'P' }],
+        '100x50': [{ id: 'nombre', pos: 'XL' }, { id: 'maquina', pos: 'M' }, { id: 'token', pos: 'P' }],
+      }
+    },
     'armado-so': {
       tituloDefault: 'KITTING',
       qr: false, chipEnvio: false,
