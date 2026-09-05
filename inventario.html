@@ -382,19 +382,39 @@
 if (window.AUTH) window.fetch = window.AUTH.wrapFetch(window.fetch);
 
 const API = '/api/inventario';
-let _token = '';
-try { const s = JSON.parse(localStorage.getItem('mble_session') || sessionStorage.getItem('mble_session') || '{}'); _token = s.session_token || ''; } catch(e) {}
+function _leerToken() {
+  try {
+    const s = JSON.parse(localStorage.getItem('mble_session') || sessionStorage.getItem('mble_session') || '{}');
+    return s.session_token || '';
+  } catch (e) { return ''; }
+}
 
-function _headers() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _token }; }
+function _headers() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _leerToken() }; }
+
+let _avisoSesionMostrado = false;
+function _avisarSesionVencida() {
+  if (_avisoSesionMostrado) return;
+  _avisoSesionMostrado = true;
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#F05C5C;color:#0f0f0f;'
+    + "font-family:'Space Mono',monospace;font-size:12px;font-weight:700;padding:12px 16px;"
+    + 'display:flex;align-items:center;justify-content:center;gap:16px;';
+  d.innerHTML = 'TU SESIÓN VENCIÓ — NADA DE LO QUE GUARDES SE VA A REGISTRAR'
+    + '<button onclick="location.reload()" style="background:#0f0f0f;color:#FFD600;border:none;border-radius:6px;'
+    + "padding:8px 14px;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;cursor:pointer;\">RECARGAR</button>";
+  document.body.appendChild(d);
+}
 
 async function _get(action, params) {
   const qs = new URLSearchParams(params || {});
   const r = await fetch(API + '?action=' + action + '&' + qs.toString(), { headers: _headers() });
+  if (r.status === 401) { _avisarSesionVencida(); return { ok: false, msg: 'Tu sesión venció' }; }
   return r.json();
 }
 
 async function _post(action, body) {
   const r = await fetch(API + '?action=' + action, { method: 'POST', headers: _headers(), body: JSON.stringify(body || {}) });
+  if (r.status === 401) { _avisarSesionVencida(); return { ok: false, msg: 'Tu sesión venció' }; }
   return r.json();
 }
 
