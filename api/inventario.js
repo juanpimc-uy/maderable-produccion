@@ -694,6 +694,9 @@ async function accionAltaRapida(req, res) {
   if (!codigo) return err(res, 'codigo requerido');
   if (!descripcion) return err(res, 'descripcion requerida');
   if (!familia || !FAMILIAS_VALIDAS.includes(familia)) return err(res, 'familia inválida');
+  if (familia === 'placa' || familia === 'madera') {
+    return err(res, 'Las placas y la madera se cargan desde "Cargar stock de placa": ahí se generan las unidades con su etiqueta. El alta rápida solo sirve para herrajes, consumibles y cantos.');
+  }
 
   const ubiCodigo = normCod(b.ubicacion_codigo);
   if (!ubiCodigo) return err(res, 'ubicacion_codigo requerido');
@@ -1500,8 +1503,12 @@ async function accionCargarStockPlaca(req, res) {
     .from('inv_ubicaciones').select('id').eq('id', ubicacion_id).maybeSingle();
   if (ubiErr || !ubi) return err(res, 'Ubicación no encontrada');
 
-  // Costo del ítem (puede ser null — se carga igual sin costo)
-  const costoUsd = (item.costo_ultimo_usd != null) ? Number(item.costo_ultimo_usd) : null;
+  // El operario puede corregir el costo en la pantalla de carga. Si no manda
+  // nada, se usa el último costo conocido del ítem (puede ser null).
+  const costoOverride = (b.costo_usd != null && b.costo_usd !== '') ? Number(b.costo_usd) : null;
+  const costoUsd = (costoOverride != null && !isNaN(costoOverride) && costoOverride >= 0)
+    ? costoOverride
+    : ((item.costo_ultimo_usd != null) ? Number(item.costo_ultimo_usd) : null);
 
   // Atributos: usar los del body si vienen (front puede mandar espesor/medida/material),
   // sino armar defaults del ítem

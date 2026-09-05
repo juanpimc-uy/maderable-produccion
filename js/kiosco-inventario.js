@@ -913,10 +913,11 @@
       + '<div class="inv-field"><div class="inv-label">Descripción</div><input id="inv-alta-desc" placeholder="Ej: Bisagra cierre suave 35mm"></div>'
       + '<div class="inv-section"><div class="inv-label">Familia</div>'
       + '<div class="inv-alta-familia">'
-      + ['herraje','consumible','placa','otro'].map(function (f) {
+      + ['herraje','consumible','canto','otro'].map(function (f) {
           return '<button class="inv-btn" data-fam="' + f + '" onclick="_invAltaFam(\'' + f + '\')">' + f.toUpperCase() + '</button>';
         }).join('')
-      + '<button class="inv-btn" data-fam="madera" disabled title="Usá el flujo Madera / carga inicial">MADERA</button>'
+      + '<button class="inv-btn" data-fam="placa" disabled title="Usá Cargar stock de placa">PLACA</button>'
+      + '<button class="inv-btn" data-fam="madera" disabled title="Usá Cargar stock de placa">MADERA</button>'
       + '</div></div>'
       + '<div class="inv-field"><div class="inv-label">Código (autosugerido, editable)</div><input id="inv-alta-codigo" style="text-transform:uppercase;"></div>'
       + '<div class="inv-field"><div class="inv-label">Unidad</div><input id="inv-alta-unidad" placeholder="un / m / kg"></div>'
@@ -1082,6 +1083,16 @@
             ? '<div style="font-size:10px;color:#666;margin-bottom:16px;">Detectado de la descripción — corregí si está mal.</div>'
             : '<div style="font-size:10px;color:#F05C5C;margin-bottom:16px;">Completá espesor, largo y ancho: no se detectaron en la descripción.</div>');
 
+      // Costo por placa
+      html += '<div style="margin-bottom:16px;">'
+        + '<div class="inv-label">Costo por placa (USD)</div>'
+        + '<input id="inv-carga-costo" type="number" min="0" step="0.01" value="'
+        + (_cargaItem.costo_ultimo_usd != null ? _cargaItem.costo_ultimo_usd : '')
+        + '" placeholder="sin costo" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;">'
+        + '<div style="font-size:10px;color:#666;margin-top:4px;">'
+        + (_cargaItem.costo_ultimo_usd != null ? 'Último costo conocido del ítem — corregí si esta tanda salió otro precio.' : 'Sin costo previo. Dejalo vacío si es sobrante o retazo ya pagado.')
+        + '</div></div>';
+
       // Cantidad
       html += '<div style="margin-bottom:16px;">'
         + '<div class="inv-label">Cantidad de placas</div>'
@@ -1180,13 +1191,17 @@
     atributos.ancho_cm = ancho;
     atributos.medida = Math.max(largo, ancho) + 'x' + Math.min(largo, ancho);
 
+    var costoEl = document.getElementById('inv-carga-costo');
+    var costoUsd = costoEl && costoEl.value !== '' ? Number(costoEl.value) : null;
+
     var btn = document.getElementById('inv-carga-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Generando...'; }
     _post('cargar-stock-placa', {
       inv_item_id: _cargaItem.id,
       cantidad: cant,
       ubicacion_id: _sinUbicarId,
-      atributos: atributos
+      atributos: atributos,
+      costo_usd: costoUsd
     }).then(function (r) {
       if (btn) { btn.disabled = false; btn.textContent = 'GENERAR PLACAS + ETIQUETAS'; }
       if (!r.ok) { _fail(r.msg || 'Error'); return; }
@@ -1355,6 +1370,9 @@
     if (!_reimpUnidades.length) {
       html += '<div style="color:#888;padding:12px;">Sin placas activas</div>';
     } else {
+      if (_reimpUnidades.length > 1) {
+        html += '<button class="inv-btn inv-btn-accent inv-btn-lg" style="width:100%;margin-bottom:16px;" onclick="_invReimprimirTodas()">⎙ IMPRIMIR LAS ' + _reimpUnidades.length + '</button>';
+      }
       _reimpUnidades.forEach(function (u, i) {
         var it = u.inv_items || {};
         var ubi = u.inv_ubicaciones || {};
@@ -1384,6 +1402,25 @@
       espesor: attrs.espesor ? attrs.espesor + 'mm' : '', medida: attrs.medida || '', _qr: u.codigo
     }]);
     _ok('Etiqueta ' + u.codigo + ' enviada ✓');
+  };
+
+  window._invReimprimirTodas = function () {
+    if (!window.Etiquetas) { _fail('Sistema de etiquetas no disponible'); return; }
+    if (!_reimpUnidades.length) return;
+    if (!confirm('Se van a imprimir ' + _reimpUnidades.length + ' etiquetas. ¿Seguir?')) return;
+    var etiquetas = _reimpUnidades.map(function (u) {
+      var it = u.inv_items || {};
+      var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
+      return {
+        codigo: u.codigo,
+        descripcion: it.nombre_corto || it.descripcion || '',
+        espesor: attrs.espesor ? attrs.espesor + 'mm' : '',
+        medida: attrs.medida || '',
+        _qr: u.codigo
+      };
+    });
+    Etiquetas.imprimir('inv-placa', etiquetas);
+    _ok(etiquetas.length + ' etiquetas enviadas ✓');
   };
 
   // ── TRASLADO MASIVO DE PLACAS (INV-6) ──
