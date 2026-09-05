@@ -747,17 +747,22 @@
       ctx.textBaseline = 'middle';
       var pieY = pieTop + pieBorder + pPad[0] + pieSz / 2;
 
+      var pieGap = pPad[1];
+      var pieUsable = superW - pPad[1] * 2;
+      var celda = (pieUsable - pieGap * (pieCampos.length - 1)) / pieCampos.length;
+
       pieCampos.forEach(function (c, idx) {
         var sc = spec.campos.find(function (x) { return x.id === c.id; });
         if (!sc) return;
         var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
-        var txt = val;
+        var txt = _ellipsis(ctx, val, celda);
         var tw = ctx.measureText(txt).width;
+        var celdaX = pPad[1] + idx * (celda + pieGap);
         var x;
-        if (idx === 0) x = pPad[1];
-        else if (idx === pieCampos.length - 1) x = superW - pPad[1] - tw;
-        else x = (superW - tw) / 2;
-        ctx.fillText(_ellipsis(ctx, txt, superW - pPad[1] * 2), x, pieY);
+        if (idx === 0) x = celdaX;
+        else if (idx === pieCampos.length - 1) x = celdaX + celda - tw;
+        else x = celdaX + (celda - tw) / 2;
+        ctx.fillText(txt, x, pieY);
       });
     }
 

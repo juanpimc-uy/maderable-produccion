@@ -400,7 +400,7 @@
     var it = _detalleData.item || {};
     var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
     Etiquetas.imprimir('inv-placa', [{
-      codigo: u.codigo, descripcion: it.descripcion || '',
+      codigo: u.codigo, descripcion: it.nombre_corto || it.descripcion || '',
       espesor: attrs.espesor ? attrs.espesor + 'mm' : '', medida: attrs.medida || '', _qr: u.codigo
     }]);
     _ok('Etiqueta ' + u.codigo + ' enviada ✓');
@@ -694,7 +694,7 @@
     var attrs = (typeof _unidad.atributos === 'object' && _unidad.atributos) || {};
     Etiquetas.imprimir('inv-placa', [{
       codigo: _unidad.codigo,
-      descripcion: _unidadItem.descripcion || '',
+      descripcion: _unidadItem.nombre_corto || _unidadItem.descripcion || '',
       espesor: attrs.espesor ? attrs.espesor + 'mm' : '',
       medida: attrs.medida || '',
       _qr: _unidad.codigo
@@ -1176,7 +1176,7 @@
       var etiquetas = (r.codigos || []).map(function (cod) {
         return {
           codigo: cod,
-          descripcion: r.item.descripcion || '',
+          descripcion: r.item.nombre_corto || r.item.descripcion || '',
           espesor: espesor ? espesor + 'mm' : '',
           medida: medida || '',
           _qr: cod
@@ -1311,7 +1311,7 @@
             var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
             if (window.Etiquetas) {
               Etiquetas.imprimir('inv-placa', [{
-                codigo: u.codigo, descripcion: it.descripcion || '',
+                codigo: u.codigo, descripcion: it.nombre_corto || it.descripcion || '',
                 espesor: attrs.espesor ? attrs.espesor + 'mm' : '', medida: attrs.medida || '', _qr: u.codigo
               }]);
               _ok('Etiqueta enviada ✓');
@@ -1358,7 +1358,7 @@
     var it = u.inv_items || {};
     var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
     Etiquetas.imprimir('inv-placa', [{
-      codigo: u.codigo, descripcion: it.descripcion || '',
+      codigo: u.codigo, descripcion: it.nombre_corto || it.descripcion || '',
       espesor: attrs.espesor ? attrs.espesor + 'mm' : '', medida: attrs.medida || '', _qr: u.codigo
     }]);
     _ok('Etiqueta ' + u.codigo + ' enviada ✓');

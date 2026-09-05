@@ -24,7 +24,7 @@ async function verificarSesionAdminOficina(req) {
   return data;
 }
 
-const FAMILIAS_VALIDAS = ['placa', 'madera', 'herraje', 'consumible', 'otro'];
+const FAMILIAS_VALIDAS = ['placa', 'madera', 'herraje', 'consumible', 'canto', 'otro'];
 
 // Convierte un monto de una moneda a USD usando tipo_cambio. Devuelve number o null.
 // tipo_cambio: {moneda_origen, moneda_destino, valor}. Ej: UYU→USD valor 39 => 1 USD = 39 UYU.
@@ -106,6 +106,7 @@ async function accionCrearItem(req, res) {
     familia,
     creado_por: sesion.id,
   };
+  if (b.nombre_corto !== undefined) fila.nombre_corto = b.nombre_corto;
   if (b.unidad !== undefined) fila.unidad = b.unidad;
   if (b.stock_min !== undefined) fila.stock_min = b.stock_min;
   if (b.stock_max !== undefined) fila.stock_max = b.stock_max;
@@ -137,6 +138,7 @@ async function accionEditarItem(req, res) {
     if (!FAMILIAS_VALIDAS.includes(b.familia)) return err(res, `familia debe ser una de: ${FAMILIAS_VALIDAS.join(', ')}`);
     campos.familia = b.familia;
   }
+  if (b.nombre_corto !== undefined) campos.nombre_corto = b.nombre_corto;
   if (b.unidad !== undefined) campos.unidad = b.unidad;
   if (b.stock_min !== undefined) campos.stock_min = b.stock_min;
   if (b.stock_max !== undefined) campos.stock_max = b.stock_max;
@@ -509,7 +511,7 @@ async function accionBuscarItemsKiosco(req, res) {
   if (!q) return ok(res, { items: [] });
 
   const { data, error } = await supabase.from('inv_items')
-    .select('id, codigo, descripcion, familia, foto_url, ubicacion_picking_id')
+    .select('id, codigo, descripcion, nombre_corto, familia, foto_url, ubicacion_picking_id')
     .eq('activo', true).eq('inventariable', true)
     .or(`codigo.ilike.%${q}%,descripcion.ilike.%${q}%`)
     .order('codigo').limit(20);
@@ -776,8 +778,8 @@ async function accionCrearItemPlaca(req, res) {
     const codigo = 'LP-' + String(ultimoNum + 1 + intento).padStart(4, '0');
 
     const { data: item, error: insErr } = await supabase.from('inv_items')
-      .insert({ codigo, descripcion, familia: 'placa', creado_por: emp.id })
-      .select('id, codigo, descripcion, familia, costo_ultimo_usd').single();
+      .insert({ codigo, descripcion, nombre_corto: base.slice(0, 28), familia: 'placa', creado_por: emp.id })
+      .select('id, codigo, descripcion, nombre_corto, familia, costo_ultimo_usd').single();
 
     if (!insErr) return ok(res, { item });
     if (insErr.code !== '23505') return err(res, insErr.message, 500);
@@ -1086,7 +1088,7 @@ async function accionItemsReposicion(req, res) {
   let from = 0;
   while (true) {
     const { data } = await supabase.from('inv_items')
-      .select('id, codigo, descripcion, familia, stock_min, costo_promedio_usd')
+      .select('id, codigo, descripcion, nombre_corto, familia, stock_min, costo_promedio_usd')
       .eq('inventariable', true).eq('activo', true)
       .not('familia', 'in', '("placa","madera")')
       .range(from, from + CHUNK - 1);
@@ -1475,7 +1477,7 @@ async function accionCargarStockPlaca(req, res) {
 
   // Validar ítem existe y familia es placa/madera
   const { data: item, error: itemErr } = await supabase
-    .from('inv_items').select('id, codigo, descripcion, familia, costo_ultimo_usd, unidad')
+    .from('inv_items').select('id, codigo, descripcion, nombre_corto, familia, costo_ultimo_usd, unidad')
     .eq('id', inv_item_id).maybeSingle();
   if (itemErr || !item) return err(res, 'Ítem no encontrado');
   if (item.familia !== 'placa' && item.familia !== 'madera') return err(res, 'Solo ítems de familia placa o madera');
@@ -1570,7 +1572,7 @@ async function accionDetalleItem(req, res) {
   if (!itemId) return err(res, 'item_id requerido');
 
   const { data: item, error: itemErr } = await supabase.from('inv_items')
-    .select('id, codigo, descripcion, familia, costo_promedio_usd, costo_ultimo_usd, stock_min, stock_max, unidad, inventariable')
+    .select('id, codigo, descripcion, nombre_corto, familia, costo_promedio_usd, costo_ultimo_usd, stock_min, stock_max, unidad, inventariable')
     .eq('id', itemId).maybeSingle();
   if (itemErr || !item) return err(res, 'Ítem no encontrado', 404);
 

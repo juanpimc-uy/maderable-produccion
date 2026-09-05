@@ -68,6 +68,7 @@
   .badge-placa{background:#1a1a2a;color:#6d9ddf;border:1px solid #2a2a3a;}
   .badge-madera{background:#2a1f0a;color:#dfa86d;border:1px solid #3a2a0a;}
   .badge-consumible{background:#2a2a1a;color:#dfdf6d;border:1px solid #3a3a2a;}
+  .badge-canto{background:#1a2a2a;color:#6ddfdf;border:1px solid #2a3a3a;}
   .badge-otro{background:#2a1a1a;color:#df6d6d;border:1px solid #3a2020;}
   .badge-huerfano{background:#3a1a1a;color:var(--red);border:1px solid #5a2020;font-weight:700;}
   .zoho-ok{color:var(--green);}
@@ -175,6 +176,7 @@
         <option value="placa">Placa</option>
         <option value="madera">Madera</option>
         <option value="consumible">Consumible</option>
+        <option value="canto">Canto</option>
         <option value="otro">Otro</option>
       </select>
       <select class="inp" id="f-inv" onchange="_filtrar()">
@@ -217,6 +219,7 @@
       <button class="btn btn-sm" onclick="_bulkFamilia('placa')">Placa</button>
       <button class="btn btn-sm" onclick="_bulkFamilia('madera')">Madera</button>
       <button class="btn btn-sm" onclick="_bulkFamilia('consumible')">Consum.</button>
+      <button class="btn btn-sm" onclick="_bulkFamilia('canto')">Canto</button>
       <button class="btn btn-sm" onclick="_bulkFamilia('otro')">Otro</button>
       <span style="width:1px;height:20px;background:var(--border);"></span>
       <button class="btn btn-sm" onclick="_bulkInv(false)">No inventariable</button>
@@ -285,6 +288,7 @@
     <input type="hidden" id="mi-id">
     <div class="field"><label>Código</label><input class="inp" id="mi-codigo" placeholder="HERR-001" style="text-transform:uppercase;"></div>
     <div class="field"><label>Descripción</label><input class="inp" id="mi-desc"></div>
+    <div class="field"><label>Nombre corto <span style="color:var(--muted);font-weight:400;">(el que sale en la etiqueta)</span></label><input class="inp" id="mi-nombre-corto" maxlength="28" placeholder="Ej: ROBLE BARDOLINO GRIS"></div>
     <div class="field"><label>Familia</label>
       <select class="inp" id="mi-familia">
         <option value="">Seleccionar...</option>
@@ -292,6 +296,7 @@
         <option value="placa">Placa</option>
         <option value="madera">Madera</option>
         <option value="consumible">Consumible</option>
+        <option value="canto">Canto</option>
         <option value="otro">Otro</option>
       </select>
     </div>
@@ -457,7 +462,7 @@ async function _cargarItems() {
 function _renderStats() {
   const items = _allItems;
   const total = items.length;
-  const familias = { herraje: 0, placa: 0, madera: 0, consumible: 0, otro: 0 };
+  const familias = { herraje: 0, placa: 0, madera: 0, consumible: 0, canto: 0, otro: 0 };
   let huerfanos = 0;
   for (const it of items) {
     if (familias[it.familia] !== undefined) familias[it.familia]++;
@@ -469,6 +474,7 @@ function _renderStats() {
     { key: 'placa', label: 'Placa', count: familias.placa },
     { key: 'madera', label: 'Madera', count: familias.madera },
     { key: 'consumible', label: 'Consumible', count: familias.consumible },
+    { key: 'canto', label: 'Canto', count: familias.canto },
     { key: 'otro', label: 'Sin clasificar', count: familias.otro, warn: true },
     { key: 'sin_zoho', label: 'Huérfanos', count: huerfanos },
   ];
@@ -530,7 +536,7 @@ function _renderTable() {
     return '<tr class="' + sel + '" data-id="' + it.id + '">'
       + '<td><input type="checkbox"' + chk + ' onchange="_toggleSel(\'' + it.id + '\', this.checked)" onclick="event.stopPropagation()"></td>'
       + '<td class="cod">' + esc(it.codigo) + '</td>'
-      + '<td>' + esc(it.descripcion) + '</td>'
+      + '<td>' + esc(it.descripcion) + (it.nombre_corto && it.nombre_corto !== it.descripcion ? '<div class="mono" style="font-size:9px;color:var(--muted);margin-top:2px;">' + esc(it.nombre_corto) + '</div>' : '') + '</td>'
       + '<td>' + famBadge + '</td>'
       + '<td>' + zoho + '</td>'
       + '<td>' + inv + '</td>'
@@ -611,6 +617,7 @@ function _openCrearItem() {
   document.getElementById('mi-codigo').value = '';
   document.getElementById('mi-codigo').disabled = false;
   document.getElementById('mi-desc').value = '';
+  document.getElementById('mi-nombre-corto').value = '';
   document.getElementById('mi-familia').value = '';
   document.getElementById('mi-unidad').value = '';
   document.getElementById('mi-min').value = '';
@@ -630,6 +637,7 @@ function _openEditItem(id) {
   document.getElementById('mi-codigo').value = it.codigo || '';
   document.getElementById('mi-codigo').disabled = !!it.zoho_item_id;
   document.getElementById('mi-desc').value = it.descripcion || '';
+  document.getElementById('mi-nombre-corto').value = it.nombre_corto || '';
   document.getElementById('mi-familia').value = it.familia || '';
   document.getElementById('mi-unidad').value = it.unidad || '';
   document.getElementById('mi-min').value = it.stock_min != null ? it.stock_min : '';
@@ -668,6 +676,8 @@ async function _saveItem() {
     if (!codigo || !desc || !familia) { errEl.textContent = 'Código, descripción y familia son requeridos'; return; }
     body.codigo = codigo;
     body.descripcion = desc;
+    const nc = document.getElementById('mi-nombre-corto').value.trim();
+    if (nc) body.nombre_corto = nc;
     body.familia = familia;
     body.inventariable = document.getElementById('mi-inventariable').checked;
     const unidad = document.getElementById('mi-unidad').value.trim();
@@ -687,6 +697,8 @@ async function _saveItem() {
     if (!it) return;
     if (!document.getElementById('mi-codigo').disabled && codigo !== (it.codigo || '')) body.codigo = codigo;
     if (desc !== (it.descripcion || '')) body.descripcion = desc;
+    const nc = document.getElementById('mi-nombre-corto').value.trim();
+    if (nc !== (it.nombre_corto || '')) body.nombre_corto = nc || null;
     if (familia && familia !== it.familia) body.familia = familia;
     const unidad = document.getElementById('mi-unidad').value.trim();
     if (unidad !== (it.unidad || '')) body.unidad = unidad;
@@ -1365,7 +1377,7 @@ function _panelPrintUnit(idx) {
   var it = _panelData.item || {};
   var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
   Etiquetas.imprimir('inv-placa', [{
-    codigo: u.codigo, descripcion: it.descripcion || '',
+    codigo: u.codigo, descripcion: it.nombre_corto || it.descripcion || '',
     espesor: attrs.espesor ? attrs.espesor + 'mm' : '', medida: attrs.medida || '', _qr: u.codigo
   }]);
 }
