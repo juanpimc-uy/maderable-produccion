@@ -745,6 +745,46 @@ async function accionAltaRapida(req, res) {
   return ok(res, result);
 }
 
+// ── POST crear-item-placa ─────────────────────────────────────────────────
+// Crea un inv_item de familia placa desde el kiosco, para material que no
+// existe en el catálogo de Zoho (tapas de fardo, sobrantes, recortes).
+// NO carga stock: el front sigue con cargar-stock-placa.
+async function accionCrearItemPlaca(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const b = req.body || {};
+  const emp = await verificarOperario(b.empleado_id);
+  if (!emp) return err(res, 'No autorizado', 401);
+
+  const base = (b.descripcion || '').trim().toUpperCase();
+  if (!base) return err(res, 'descripcion requerida');
+
+  const espesor = b.espesor != null && b.espesor !== '' ? Number(b.espesor) : null;
+  const medida = (b.medida || '').trim();
+
+  let descripcion = base;
+  if (espesor) descripcion += ' ' + espesor + 'mm';
+  if (medida) descripcion += ' ' + medida;
+
+  // Código autogenerado LP-0001, LP-0002, ... (LP = local placa).
+  // Se reintenta ante colisión por carga simultánea desde dos kioscos.
+  for (let intento = 0; intento < 3; intento++) {
+    const { data: ultimos } = await supabase.from('inv_items')
+      .select('codigo').like('codigo', 'LP-%').order('codigo', { ascending: false }).limit(1);
+    const ultimoNum = (ultimos && ultimos.length)
+      ? parseInt(String(ultimos[0].codigo).replace(/\D/g, ''), 10) || 0
+      : 0;
+    const codigo = 'LP-' + String(ultimoNum + 1 + intento).padStart(4, '0');
+
+    const { data: item, error: insErr } = await supabase.from('inv_items')
+      .insert({ codigo, descripcion, familia: 'placa', creado_por: emp.id })
+      .select('id, codigo, descripcion, familia, costo_ultimo_usd').single();
+
+    if (!insErr) return ok(res, { item });
+    if (insErr.code !== '23505') return err(res, insErr.message, 500);
+  }
+  return err(res, 'No se pudo generar un código libre, reintentá', 500);
+}
+
 // ── GET valor-inventario (solo lectura) ──────────────────────────────────
 async function accionValorInventario(req, res) {
   if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
@@ -1440,6 +1480,10 @@ async function accionCargarStockPlaca(req, res) {
   if (itemErr || !item) return err(res, 'Ítem no encontrado');
   if (item.familia !== 'placa' && item.familia !== 'madera') return err(res, 'Solo ítems de familia placa o madera');
 
+  const at = (b.atributos && typeof b.atributos === 'object') ? b.atributos : {};
+  if (!at.espesor || Number(at.espesor) <= 0) return err(res, 'espesor requerido');
+  if (!at.medida) return err(res, 'medida requerida');
+
   // Validar ubicación existe
   const { data: ubi, error: ubiErr } = await supabase
     .from('inv_ubicaciones').select('id').eq('id', ubicacion_id).maybeSingle();
@@ -1594,6 +1638,7 @@ export default async function handler(req, res) {
     if (action === 'buscar-items-kiosco') return await accionBuscarItemsKiosco(req, res);
     if (action === 'movimiento')          return await accionMovimiento(req, res);
     if (action === 'alta-rapida')         return await accionAltaRapida(req, res);
+    if (action === 'crear-item-placa')   return await accionCrearItemPlaca(req, res);
     if (action === 'valor-inventario')       return await accionValorInventario(req, res);
     if (action === 'items-reposicion')       return await accionItemsReposicion(req, res);
     // Kitting (server-to-server)
