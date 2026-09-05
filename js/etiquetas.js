@@ -164,7 +164,6 @@
       .then(function (j) {
         _configPromise = null;
         _configFailed = false;
-        console.log('[Etiquetas] API response raw:', JSON.stringify(j).substring(0, 500));
         if (j.ok) {
           _configCache = {};
           (j.config || []).forEach(function (row) {
@@ -180,7 +179,6 @@
             if (row.tamano) _configCache[fn].tamano = row.tamano;
           });
           _configTs = Date.now();
-          console.log('[Etiquetas] _configCache final:', JSON.stringify(_configCache).substring(0, 1000));
         } else {
           console.warn('[Etiquetas] response not ok:', j);
         }
@@ -225,7 +223,6 @@
 
     // Si hay override directo (desde configurador), usarlo
     if (cfgOverride && cfgOverride[fmt]) {
-      console.log('[Etiquetas] resolverCampos → override', funcion, fmt);
       return cfgOverride[fmt];
     }
 
@@ -233,19 +230,14 @@
     if (_configCache && _configCache[funcion]) {
       var row = _configCache[funcion];
       var saved = row.campos || {};
-      console.log('[Etiquetas] resolverCampos → server config found', funcion, 'fmt:', fmt, 'saved keys:', Object.keys(saved), 'has fmt?', !!saved[fmt]);
       if (saved[fmt]) {
         var merged = _mergeCamposConSpec(saved[fmt].slice(), spec, fmt);
-        console.log('[Etiquetas] resolverCampos → merge result:', merged, 'input was:', JSON.stringify(saved[fmt]));
         if (merged) return merged;
         console.warn('[Etiquetas] resolverCampos → merge returned null/falsy despite saved config existing! Falling through to defaults.');
       }
-    } else {
-      console.log('[Etiquetas] resolverCampos → NO server config', funcion, 'cache keys:', _configCache ? Object.keys(_configCache) : 'null');
     }
 
     // Defaults
-    console.log('[Etiquetas] resolverCampos → DEFAULTS', funcion, fmt);
     return spec.defaults[fmt] || [];
   }
 
@@ -455,7 +447,6 @@
     var fmt = opts.tamano || (cfgOverride && cfgOverride._tamano) || '60x30';
     if (_configCache && _configCache[funcion] && !opts.tamano && !(cfgOverride && cfgOverride._tamano))
       fmt = _configCache[funcion].tamano || fmt;
-    console.log('[Etiquetas] _doImprimir', funcion, 'fmt:', fmt, 'opts.tamano:', opts.tamano, 'cache.tamano:', _configCache && _configCache[funcion] ? _configCache[funcion].tamano : 'N/A');
     var med = MEDIDAS[fmt];
     var camposCfg = resolverCampos(funcion, fmt, cfgOverride);
     var tituloRaw = resolverTitulo(funcion, cfgOverride ? cfgOverride._titulo : undefined);
@@ -477,8 +468,6 @@
     });
 
     // Cargar dependencias y rasterizar
-    console.log('[Etiquetas] _doImprimir cuerpo:', JSON.stringify(cuerpoCampos), 'pie:', JSON.stringify(pieCampos));
-    console.log('[Etiquetas] _doImprimir RENDER CHECK — fmt:', fmt, 'pageW:', med.pageW, 'pageH:', med.pageH, 'pie_enabled:', med.pie, 'XL:', med.XL, 'L:', med.L, 'M:', med.M, 'S:', med.S);
     var deps = [_ensureFont()];
     if (spec.qr) deps.push(_ensureQRLib());
     Promise.all(deps)
@@ -721,7 +710,7 @@
         var mls = _ptPx(med.microLabel);
         var ms = _ptPx(med.M);
         ctx.font = '700 ' + mls + 'px ' + FNT;
-        ctx.fillText(_ellipsis(ctx, sc.label, camposW), camposL, cy);
+        ctx.fillText(_ellipsis(ctx, String(sc.label).toUpperCase(), camposW), camposL, cy);
         cy += mls + 2;
         ctx.font = '700 ' + ms + 'px ' + FNT;
         ctx.fillText(_ellipsis(ctx, val, camposW), camposL, cy);
@@ -729,7 +718,7 @@
       } else if (c.pos === 'S') {
         var ss = _ptPx(med.S);
         ctx.font = '600 ' + ss + 'px ' + FNT;
-        var lbl = sc.label + ': ';
+        var lbl = String(sc.label).toUpperCase() + ': ';
         var lblW = ctx.measureText(lbl).width;
         ctx.fillText(lbl, camposL, cy);
         ctx.fillText(_ellipsis(ctx, val, camposW - lblW), camposL + lblW, cy);
