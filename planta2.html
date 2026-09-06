@@ -2848,12 +2848,13 @@ function renderCnc2() {
       + '<div style="font-size:16px;font-weight:700;color:var(--green);margin-bottom:4px;">' + cnc2Hist.length + ' placa' + (cnc2Hist.length !== 1 ? 's' : '') + ' registrada' + (cnc2Hist.length !== 1 ? 's' : '') + '</div>'
       + '<div style="font-size:12px;color:var(--muted);">Mueble cerrado</div></div>'
       + '<div style="margin-bottom:20px;">' + listHtml + '</div>'
-      + '<button class="btn btn-primary" onclick="cnc2Estado=\'mueble\';renderCnc2();" style="width:100%;min-height:60px;font-size:13px;">ESCANEAR OTRO MUEBLE</button>'
+      + '<button class="btn btn-primary" onclick="cnc2Hist=[];cnc2Estado=\'mueble\';renderCnc2();" style="width:100%;min-height:60px;font-size:13px;">ESCANEAR OTRO MUEBLE</button>'
       + '<button class="btn btn-ghost" onclick="irAlMenu()" style="width:100%;margin-top:8px;">VOLVER AL MENÚ</button>';
   }
 }
 
 function cnc2Escanear() {
+  if (!empleadoActual) { toast('Se cerró la sesión — volvé a ingresar con tu PIN', 'var(--red)'); irAlMenu(); return; }
   cancelarTimeout30s();
   const titulos = { maquina: 'Escaneá la máquina', mueble: 'Escaneá el mueble', placa: 'Escaneá la placa', cortando: 'Escaneá la placa' };
   abrirEscaner({
@@ -2865,6 +2866,7 @@ function cnc2Escanear() {
 }
 
 async function _cnc2ProcesarCodigo(cod) {
+  if (!empleadoActual) { toast('Se cerró la sesión — volvé a ingresar con tu PIN', 'var(--red)'); irAlMenu(); return; }
   cod = cod.trim().toUpperCase();
   try {
     if (cnc2Estado === 'maquina') {
@@ -2906,6 +2908,7 @@ async function _cnc2ProcesarCodigo(cod) {
       if (cod.startsWith('MB-')) {
         if (cnc2Placa) await cnc2Cerrar('ok');
         await cnc2Fin();
+        cnc2Hist = [];
         cnc2Estado = 'mueble';
         renderCnc2();
         await _cnc2ProcesarCodigo(cod);
@@ -2931,6 +2934,7 @@ async function _cnc2ProcesarCodigo(cod) {
 }
 
 async function cnc2Cerrar(resultado) {
+  if (!empleadoActual) { toast('Se cerró la sesión — volvé a ingresar con tu PIN', 'var(--red)'); irAlMenu(); return; }
   if (!cnc2Placa) return;
   try {
     const r = await cncPost('cerrar-placa', {
@@ -2953,6 +2957,7 @@ async function cnc2Cerrar(resultado) {
 }
 
 async function cnc2Fin() {
+  if (!empleadoActual) { toast('Se cerró la sesión — volvé a ingresar con tu PIN', 'var(--red)'); irAlMenu(); return; }
   try {
     if (cnc2Placa) await cnc2Cerrar('ok');
     if (registroActivo) {

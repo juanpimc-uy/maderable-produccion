@@ -36,6 +36,7 @@
 
   function _cerrar(invocaCancelar) {
     _pararStream();
+    document.removeEventListener('keydown', _escHandler);
     if (_overlay && _overlay.parentNode) _overlay.parentNode.removeChild(_overlay);
     _overlay = null;
     if (invocaCancelar && typeof _onCancelar === 'function') _onCancelar();
@@ -109,7 +110,7 @@
   };
 
   function _escHandler(e) {
-    if (e.key === 'Escape' && _overlay) { _cerrar(true); document.removeEventListener('keydown', _escHandler); }
+    if (e.key === 'Escape' && _overlay) { _cerrar(true); }
   }
 
   function _loopQR(video, canvas) {
