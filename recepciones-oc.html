@@ -702,26 +702,30 @@ async function _abrirInventario(oc) {
 
   // Reserva de proyecto
   _invReserva = null;
-  document.getElementById('inv-reserva-input').value = '';
+  if (_invBuscador) _invBuscador.limpiar();
   document.getElementById('inv-reserva-origen').textContent = '';
   try {
     const pRes = await fetch('/api/tiempos?action=proyectos-activos').then(r => r.json());
     const proys = pRes.proyectos || [];
-    _invBuscador = montarBuscador(
-      document.getElementById('inv-reserva-input'),
-      document.getElementById('inv-reserva-drop'),
-      proys,
-      {
-        codigo: p => p.numero,
-        texto:  p => p.nombre || p.obra || '',
-        sub:    p => [p.obra, p.cliente_nombre].filter(Boolean).join(' · '),
-        buscar: p => [p.numero, p.nombre, p.obra, p.cliente_nombre].filter(Boolean).join(' '),
-        onSelect: p => {
-          _invReserva = p || null;
-          document.getElementById('inv-reserva-origen').textContent = _invReserva ? 'Elegido a mano' : '';
-        },
-      }
-    );
+    if (!_invBuscador) {
+      _invBuscador = montarBuscador(
+        document.getElementById('inv-reserva-input'),
+        document.getElementById('inv-reserva-drop'),
+        proys,
+        {
+          codigo: p => p.numero,
+          texto:  p => p.nombre || p.obra || '',
+          sub:    p => [p.obra, p.cliente_nombre].filter(Boolean).join(' · '),
+          buscar: p => [p.numero, p.nombre, p.obra, p.cliente_nombre].filter(Boolean).join(' '),
+          onSelect: p => {
+            _invReserva = p || null;
+            document.getElementById('inv-reserva-origen').textContent = _invReserva ? 'Elegido a mano' : '';
+          },
+        }
+      );
+    } else {
+      _invBuscador.set(proys);
+    }
     // Sugerencia automática desde la referencia de la OC
     const ref = oc.reference_number || '';
     if (ref) {

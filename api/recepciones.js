@@ -304,7 +304,7 @@ export default async function handler(req) {
           .eq('activo', true);
 
         const candidatos = (proys || []).filter(p => {
-          const mubs = Array.isArray(p.muebles) ? p.muebles.filter(m => !m.archivado) : [];
+          const mubs = Array.isArray(p.muebles) ? p.muebles : [];
           if (mubs.length > 0 && mubs.every(m => m.completado)) return false;
           return true;
         }).map(p => {
