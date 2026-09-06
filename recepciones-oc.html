@@ -13,6 +13,7 @@
 <link rel="apple-touch-icon" href="/icons/icon-recepciones-192.png">
 <script src="/js/kiosco-modo.js"></script>
 <script src="/js/etiquetas.js"></script>
+<script src="/js/buscador.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -236,6 +237,13 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
     <select id="inv-ubicacion" style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-size:13px;outline:none;margin-bottom:14px;color-scheme:dark;">
       <option value="">Cargando ubicaciones...</option>
     </select>
+    <div class="modal-label">RESERVAR PARA PROYECTO (OPCIONAL)</div>
+    <div style="position:relative;margin-bottom:6px;">
+      <input id="inv-reserva-input" placeholder="Buscar proyecto…" autocomplete="off"
+        style="width:100%;background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:10px 12px;color:var(--text);font-size:13px;outline:none;">
+      <div id="inv-reserva-drop"></div>
+    </div>
+    <div id="inv-reserva-origen" class="mono" style="font-size:10px;color:var(--muted);margin-bottom:14px;min-height:14px;"></div>
     <div class="modal-error" id="inv-error"></div>
     <div class="modal-btns">
       <button class="modal-btn modal-btn-cancel" onclick="_cerrarInventario()">Omitir</button>
@@ -641,6 +649,8 @@ async function _abrirEtiquetasOc(ocNumero, ocIdZoho) {
 let _invLineas = [];
 let _invData = null;
 let _loteRecepcion = [];
+let _invReserva = null;
+let _invBuscador = null;
 
 function _parsePlacaAttrs(desc) {
   var d = (desc || '').toString();
@@ -686,6 +696,56 @@ async function _abrirInventario(oc) {
     if (uRes.ok && uRes.ubicaciones) {
       for (const u of uRes.ubicaciones) {
         sel.innerHTML += `<option value="${u.id}">${u.codigo} — ${u.nombre || ''}</option>`;
+      }
+    }
+  } catch {}
+
+  // Reserva de proyecto
+  _invReserva = null;
+  document.getElementById('inv-reserva-input').value = '';
+  document.getElementById('inv-reserva-origen').textContent = '';
+  try {
+    const pRes = await fetch('/api/tiempos?action=proyectos-activos').then(r => r.json());
+    const proys = pRes.proyectos || [];
+    _invBuscador = montarBuscador(
+      document.getElementById('inv-reserva-input'),
+      document.getElementById('inv-reserva-drop'),
+      proys,
+      {
+        codigo: p => p.numero,
+        texto:  p => p.nombre || p.obra || '',
+        sub:    p => [p.obra, p.cliente_nombre].filter(Boolean).join(' · '),
+        buscar: p => [p.numero, p.nombre, p.obra, p.cliente_nombre].filter(Boolean).join(' '),
+        onSelect: p => {
+          _invReserva = p || null;
+          document.getElementById('inv-reserva-origen').textContent = _invReserva ? 'Elegido a mano' : '';
+        },
+      }
+    );
+    // Sugerencia automática desde la referencia de la OC
+    const ref = oc.reference_number || '';
+    if (ref) {
+      const s = await fetch('/api/recepciones?action=sugerir-reserva&reference_number=' + encodeURIComponent(ref)).then(r => r.json()).catch(() => null);
+      if (s && s.sugerencias && s.sugerencias.length) {
+        if (s.origen === 'so' && s.sugerencias.length === 1) {
+          const sug = s.sugerencias[0];
+          const proy = proys.find(p => p.id === sug.proyecto_id);
+          if (proy) {
+            _invReserva = proy;
+            document.getElementById('inv-reserva-input').value = sug.label;
+            document.getElementById('inv-reserva-origen').innerHTML = '<span style="color:var(--green);">✓ de ' + (sug.so_numero || '') + (sug.mueble ? ' · ' + sug.mueble : '') + '</span>';
+          }
+        } else if (s.origen === 'texto' && s.sugerencias.length === 1) {
+          const sug = s.sugerencias[0];
+          const proy = proys.find(p => p.id === sug.proyecto_id);
+          if (proy) {
+            _invReserva = proy;
+            document.getElementById('inv-reserva-input').value = sug.label;
+            document.getElementById('inv-reserva-origen').innerHTML = '<span style="color:var(--accent);">sugerido por la referencia — verificar</span>';
+          }
+        } else if (s.origen === 'texto' && s.sugerencias.length > 1) {
+          document.getElementById('inv-reserva-origen').textContent = s.sugerencias.length + ' proyectos posibles por la referencia — elegí uno';
+        }
       }
     }
   } catch {}
@@ -766,7 +826,7 @@ async function _confirmarInventario() {
       cantidad: l.quantity,
       rate: l.rate,
       atributos: atributos,
-      reserva_proyecto_id: null,
+      reserva_proyecto_id: (_invReserva && _invReserva.id) || null,
     };
   });
 

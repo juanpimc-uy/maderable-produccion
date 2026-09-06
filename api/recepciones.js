@@ -275,6 +275,53 @@ export default async function handler(req) {
       });
     }
 
+    // ── GET sugerir-reserva ─────────────────────────────────────────────
+    if (action === 'sugerir-reserva' && req.method === 'GET') {
+      const ref = url.searchParams.get('reference_number') || '';
+      try {
+        // Paso 1: la referencia es un número de SO (certeza alta)
+        const digits = String(ref).replace(/\D/g, '');
+        if (digits.length >= 3) {
+          const { data: sos } = await supabase.from('so_estado')
+            .select('so_numero, mueble, proyecto_id').eq('oculta', false);
+          const match = (sos || []).find(s => String(s.so_numero).replace(/\D/g, '') === digits);
+          if (match && match.proyecto_id) {
+            const { data: pr } = await supabase.from('proyectos_cache')
+              .select('id, numero, nombre, obra').eq('id', match.proyecto_id).maybeSingle();
+            const label = pr ? (pr.numero + ' · ' + (pr.nombre || pr.obra || '')).trim() : match.proyecto_id;
+            return ok({ ok: true, origen: 'so', certeza: 'alta',
+              sugerencias: [{ proyecto_id: match.proyecto_id, label, so_numero: match.so_numero, mueble: match.mueble }] });
+          }
+        }
+
+        // Paso 2: texto libre (certeza baja)
+        const palabras = String(ref).toUpperCase().replace(/[^A-ZÁÉÍÓÚÑ ]/g, ' ')
+          .split(/\s+/).filter(w => w.length >= 4);
+        if (!palabras.length) return ok({ ok: true, origen: 'ninguno', sugerencias: [] });
+
+        const { data: proys } = await supabase.from('proyectos_cache')
+          .select('id, numero, nombre, obra, cliente_nombre, muebles')
+          .eq('activo', true);
+
+        const candidatos = (proys || []).filter(p => {
+          const mubs = Array.isArray(p.muebles) ? p.muebles.filter(m => !m.archivado) : [];
+          if (mubs.length > 0 && mubs.every(m => m.completado)) return false;
+          return true;
+        }).map(p => {
+          const haystack = [p.nombre, p.obra, p.cliente_nombre].filter(Boolean).join(' ').toUpperCase();
+          const puntaje = palabras.filter(w => haystack.includes(w)).length;
+          const label = (p.numero + ' · ' + (p.nombre || p.obra || '')).trim();
+          return { proyecto_id: p.id, label, puntaje };
+        }).filter(c => c.puntaje > 0)
+          .sort((a, b) => b.puntaje - a.puntaje)
+          .slice(0, 8);
+
+        return ok({ ok: true, origen: candidatos.length ? 'texto' : 'ninguno', certeza: 'baja', sugerencias: candidatos });
+      } catch (e) {
+        return ok({ ok: true, origen: 'ninguno', sugerencias: [] });
+      }
+    }
+
     // ── Acción no reconocida ──────────────────────────────────────────────
     return errRes('Acción no reconocida: ' + action, 400);
 
