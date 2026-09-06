@@ -2872,8 +2872,7 @@ async function _cnc2ProcesarCodigo(cod) {
     if (cnc2Estado === 'maquina') {
       if (!cod.startsWith('MAQ-')) { _cnc2Err = 'Se esperaba un código MAQ-... de máquina, se leyó: ' + cod; renderCnc2(); return; }
       cnc2Maquina = cod.replace('MAQ-', '');
-      cnc2Estado = 'mueble';
-      renderCnc2();
+      avisarRetrabajosPendientes(() => { cnc2Estado = 'mueble'; renderCnc2(); });
 
     } else if (cnc2Estado === 'mueble') {
       if (cod.startsWith('MAQ-')) { cnc2Maquina = cod.replace('MAQ-', ''); renderCnc2(); return; }
@@ -2898,8 +2897,7 @@ async function _cnc2ProcesarCodigo(cod) {
       if (registro) registrosHoy = [...registrosHoy.filter(r2 => r2.id !== registro.id), registro];
       cnc2RegistroTrabajoId = registro.id;
       _iniciarHeartbeat(empleadoActual.id, registro.id);
-      cnc2Estado = 'placa';
-      renderCnc2();
+      avisarRetrabajosPendientes(() => { cnc2Estado = 'placa'; renderCnc2(); });
 
     } else if (cnc2Estado === 'placa' || cnc2Estado === 'cortando') {
       // FIN-... cierra la sesión
