@@ -781,7 +781,6 @@ async function accionCrearItemPlaca(req, res) {
 
   let descripcion = base;
   if (espesor) descripcion += ' ' + espesor + 'mm';
-  if (largo && ancho) descripcion += ' ' + Math.max(largo, ancho) + 'x' + Math.min(largo, ancho);
 
   // Código autogenerado LP-0001, LP-0002, ... (LP = local placa).
   // Se reintenta ante colisión por carga simultánea desde dos kioscos.
