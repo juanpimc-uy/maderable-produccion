@@ -61,6 +61,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { getZohoToken } from './_zoho-token-cache.js';
+import { buscarJornadaNocturna } from '../lib/jornadas/nocturna.js';
 export const config = { runtime: 'edge' };
 
 const supabase = createClient(
@@ -400,6 +401,24 @@ async function _entradaImpl(sb, { empleado_id }) {
   const { data: emp } = await sb
     .from('empleados').select('horario_entrada, horario_salida').eq('id', empleado_id).single();
 
+  // Continuación nocturna: si es madrugada y hay jornada abierta de ayer
+  const noct = await buscarJornadaNocturna(sb, empleado_id, ahora);
+  if (noct) {
+    // Verificar si ya tiene segmento abierto
+    const { data: segAb } = await sb.from('jornada_segmentos')
+      .select('id').eq('jornada_id', noct.jornada.id).is('salida', null).maybeSingle();
+    if (!segAb) {
+      // Insertar segmento que cubre desde la apertura nocturna
+      await sb.from('jornada_segmentos')
+        .insert({ jornada_id: noct.jornada.id, entrada: noct.aperturaISO });
+      // Reabrir la jornada
+      await sb.from('jornadas').update({ salida: null }).eq('id', noct.jornada.id);
+    }
+    const { data: jornadaActualizada } = await sb.from('jornadas')
+      .select('*').eq('id', noct.jornada.id).single();
+    return { jornada: jornadaActualizada, nocturna: true };
+  }
+
   // Detectar sesiones huérfanas de días anteriores (fin IS NULL, inicio < hoy UY)
   const hoyUYstart = hoy + 'T00:00:00-03:00';
   const { data: huerfanas } = await sb.from('registros_trabajo')
@@ -473,6 +492,27 @@ async function _entradaImpl(sb, { empleado_id }) {
 async function _salidaImpl(sb, { empleado_id }) {
   const hoy = hoyUY();
   const ahora = new Date().toISOString();
+
+  // Salida nocturna: si es madrugada y hay jornada abierta de ayer
+  const noct = await buscarJornadaNocturna(sb, empleado_id, ahora);
+  if (noct) {
+    // Cerrar registros abiertos desde la apertura nocturna
+    await sb.from('registros_trabajo')
+      .update({ fin: ahora, estado: 'finalizado' })
+      .eq('empleado_id', empleado_id).is('fin', null)
+      .gte('inicio', noct.aperturaISO);
+    // Cerrar segmento abierto de la jornada nocturna
+    await sb.from('jornada_segmentos')
+      .update({ salida: ahora })
+      .eq('jornada_id', noct.jornada.id).is('salida', null);
+    // Cerrar la jornada nocturna
+    const { data: jornadaCerrada } = await sb.from('jornadas')
+      .update({ salida: ahora })
+      .eq('id', noct.jornada.id)
+      .select().single();
+    return { jornada: jornadaCerrada, nocturna: true };
+  }
+
   const hoyUYstart = hoy + 'T00:00:00-03:00';
   // Cerrar registros abiertos de HOY como 'finalizado' al marcar salida
   const { data: abiertos } = await sb.from('registros_trabajo')
@@ -541,13 +581,18 @@ async function _iniciarTareaImpl(sb, {
 
   // 2. Resolver jornada_id
   let jornada_id = _jornada_id;
+  let noct = null;
   if (!jornada_id) {
     const { data: jornada } = await sb.from('jornadas')
       .select('id')
       .eq('empleado_id', empleado_id).eq('fecha', hoy).is('salida', null)
       .maybeSingle();
     if (!jornada) {
-      if (_autoJornada) {
+      // Buscar jornada nocturna (madrugada, la jornada es del día anterior)
+      noct = await buscarJornadaNocturna(sb, empleado_id, ahora);
+      if (noct) {
+        jornada_id = noct.jornada.id;
+      } else if (_autoJornada) {
         const res = await _entradaImpl(sb, { empleado_id });
         jornada_id = res.jornada.id;
       } else {
@@ -633,7 +678,9 @@ async function _iniciarTareaImpl(sb, {
   if (activoPrev) {
     const inicioUYdate = new Date(activoPrev.inicio)
       .toLocaleDateString('en-CA', { timeZone: 'America/Montevideo' });
-    if (inicioUYdate < hoy) {
+    const esContinuacionNocturna =
+      noct && new Date(activoPrev.inicio) >= new Date(noct.aperturaISO);
+    if (inicioUYdate < hoy && !esContinuacionNocturna) {
       // Tarea previa de un día anterior: NO fabricar fin, marcar pendiente (igual que el cron)
       await sb.from('registros_trabajo')
         .update({ estado: 'pausado', anomalia: true, anomalia_aprobada: null })
@@ -1785,7 +1832,7 @@ export default async function handler(req) {
       const jornadaIds  = jornadasData.map(j => j.id);
       const empleadoIds = [...new Set(jornadasData.map(j => j.empleado_id))];
 
-      const [{ data: registrosR, error: rRErr }, { data: empleadosData, error: eRErr }] = await Promise.all([
+      const [{ data: registrosR, error: rRErr }, { data: empleadosData, error: eRErr }, { data: segmentosR, error: sRErr }] = await Promise.all([
         supabase.from('registros_trabajo')
           .select('id, jornada_id, inicio, fin, estado, centro, proyecto_id, proyecto_nombre, item_id, item_nombre, es_retrabajo, motivo_retrabajo')
           .in('jornada_id', jornadaIds)
@@ -1794,14 +1841,25 @@ export default async function handler(req) {
         supabase.from('empleados')
           .select('id, nombre, categoria, descanso_modalidad')
           .in('id', empleadoIds),
+        supabase.from('jornada_segmentos')
+          .select('id, jornada_id, entrada, salida')
+          .in('jornada_id', jornadaIds)
+          .order('entrada', { ascending: true }),
       ]);
       if (rRErr) throw rRErr;
       if (eRErr) throw eRErr;
+      if (sRErr) throw sRErr;
 
       const regsMapR = {};
       (registrosR || []).forEach(r => {
         if (!regsMapR[r.jornada_id]) regsMapR[r.jornada_id] = [];
         regsMapR[r.jornada_id].push(r);
+      });
+
+      const segsMapR = {};
+      (segmentosR || []).forEach(s => {
+        if (!segsMapR[s.jornada_id]) segsMapR[s.jornada_id] = [];
+        segsMapR[s.jornada_id].push(s);
       });
 
       return ok({
@@ -1816,6 +1874,7 @@ export default async function handler(req) {
           descanso_editado: j.descanso_editado, editado_por: j.editado_por,
           notas: j.notas, alerta_15h: j.alerta_15h, tarde: j.tarde, ausente: j.ausente,
           sesiones: regsMapR[j.id] || [],
+          segmentos: segsMapR[j.id] || [],
         })),
       });
     }
@@ -2636,7 +2695,7 @@ export default async function handler(req) {
 
       const { data: reg, error: rErr } = await supabase
         .from('registros_trabajo')
-        .select('id, empleado_id, estado')
+        .select('id, empleado_id, estado, fin, jornada_id, proyecto_id, proyecto_nombre, item_id, item_nombre, centro, maquina, es_retrabajo, motivo_retrabajo')
         .eq('id', registro_id).maybeSingle();
       if (rErr) throw rErr;
       if (!reg) return err('Registro no encontrado', 404);
@@ -2647,13 +2706,42 @@ export default async function handler(req) {
       if (modo === 'retomar') {
         // Cerrar cualquier activo existente
         await _cerrarTareasActivasDe(supabase, empleado_id, ahora);
-        const { data: updated, error: upErr } = await supabase
+        // Insertar registro nuevo que continúa la tarea; el pausado queda intacto
+        const { data: nuevo, error: insErr } = await supabase
           .from('registros_trabajo')
-          .update({ estado: 'activo', inicio: ahora, ultima_actividad: ahora })
-          .eq('id', registro_id)
+          .insert({
+            empleado_id,
+            jornada_id: reg.jornada_id,
+            proyecto_id: reg.proyecto_id,
+            proyecto_nombre: reg.proyecto_nombre,
+            item_id: reg.item_id,
+            item_nombre: reg.item_nombre,
+            centro: reg.centro,
+            maquina: reg.maquina,
+            es_retrabajo: reg.es_retrabajo || false,
+            motivo_retrabajo: reg.motivo_retrabajo || null,
+            inicio: ahora,
+            ultima_actividad: ahora,
+            estado: 'activo',
+          })
           .select().single();
-        if (upErr) throw upErr;
-        return ok({ ok: true, registro: updated });
+        if (insErr) {
+          if (insErr.code === '23505') {
+            const { data: activo } = await supabase.from('registros_trabajo')
+              .select().eq('empleado_id', empleado_id).eq('estado', 'activo').maybeSingle();
+            if (activo) return ok({ ok: true, registro: activo });
+          }
+          throw insErr;
+        }
+        // El tramo viejo ya está cerrado: sacarlo de la lista de pausadas.
+        // Solo si tiene fin: las pausadas sin fin (cierre por cambio de día)
+        // quedan como están, para no dejar un 'finalizado' sin fin.
+        if (reg.fin) {
+          await supabase.from('registros_trabajo')
+            .update({ estado: 'finalizado' })
+            .eq('id', registro_id);
+        }
+        return ok({ ok: true, registro: nuevo });
       } else {
         // modo=finalizar: marcar como finalizado
         const { data: updated, error: upErr } = await supabase

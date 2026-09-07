@@ -1906,9 +1906,19 @@ function _tRenderSemana(data, lunes) {
         return;
       }
 
-      // Calculate worked minutes from jornada entrada→salida minus descanso
+      // Calculate worked minutes from segmentos (accurate) or entrada→salida (fallback)
       let trabMin = 0;
-      if (j.entrada && j.salida) {
+      if (j.segmentos && j.segmentos.length) {
+        var segTotal = 0;
+        for (var si = 0; si < j.segmentos.length; si++) {
+          var seg = j.segmentos[si];
+          if (!seg.salida) continue;
+          var segMin = Math.round((new Date(seg.salida) - new Date(seg.entrada)) / 60000);
+          if (segMin > 15 * 60) continue; // > 15h → implausible
+          segTotal += Math.max(0, segMin);
+        }
+        trabMin = Math.max(0, segTotal - (j.descanso_minutos || 0));
+      } else if (j.entrada && j.salida) {
         trabMin = Math.round(
           (new Date(j.salida) - new Date(j.entrada)) / 60000
           - (j.descanso_minutos || 0)
