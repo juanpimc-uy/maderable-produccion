@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <link rel="icon" href="data:,">
 <script src="/js/supabase-config.js"></script>
+<script src="/js/listado-tercerizados.js"></script>
 <script src="/js/etiquetas.js"></script>
 <script src="/js/kiosco-modo.js"></script>
 <script src="/js/auth.js"></script>
@@ -105,6 +106,7 @@
     <span class="topbar-title" id="topbar-prov-title">TERCERIZADOS</span>
     <div style="display:flex;gap:6px;margin-left:16px;" id="prov-chips"></div>
     <button onclick="abrirConfigProvs()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:4px;" title="Configurar proveedores">⚙</button>
+    <button class="chip" id="btn-listado" style="margin-left:auto;" onclick="_LST.abrir()">▤ LISTADO GENERAL</button>
   </div>
 
   <!-- BOARD -->
@@ -1040,6 +1042,10 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(
 // BOOT
 // ══════════════════════════════════════════════════════════════════════════
 render();
+var _LST = montarListadoTercerizados({ partidas: function(){ return PARTIDAS; } });
+if (sessionStorage.getItem('kiosco_origen') === '1') {
+  var _bl = document.getElementById('btn-listado'); if (_bl) _bl.style.display = 'none';
+}
 
 // cargar datos frescos desde API en background
 (async () => {
