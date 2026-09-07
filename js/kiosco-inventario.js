@@ -1229,7 +1229,7 @@
           codigo: cod,
           descripcion: r.item.nombre_corto || r.item.descripcion || '',
           espesor: espesor ? espesor + 'mm' : '',
-          medida: medida || '',
+          medida: Math.max(largo, ancho) + 'x' + Math.min(largo, ancho),
           _qr: cod
         };
       });
