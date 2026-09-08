@@ -244,6 +244,7 @@ async function accionBoard(req, res) {
       creado_en: e.creado_en, envio: e.envio,
       bultos_total: bs.length, bultos_escaneados: escaneados,
       bultos: bs.map(b => ({ id: b.id, numero: b.numero, descripcion: b.descripcion, escaneado: b.escaneado, fecha_escaneo: b.fecha_escaneo })),
+      despacho_proyecto_id: e.proyecto_id,
       proyecto_id: dp.odf_proyecto_id || null,
       odf_numero: dp.odf_numero || erp.numero || '',
       obra: erp.obra || '',
@@ -276,13 +277,31 @@ async function accionCatalogo(req, res) {
     .order('nombre');
   if (pErr) return err(res, pErr.message, 500);
 
+  // Producción: último evento por (proyecto_id, item_id)
+  const proyIds = (proys || []).map(p => p.id);
+  const compLogMap = {};
+  if (proyIds.length) {
+    const { data: logs, error: logErr } = await supabase.from('items_completado_log')
+      .select('proyecto_id, item_id, evento, creado_at')
+      .in('proyecto_id', proyIds)
+      .order('creado_at', { ascending: false });
+    if (logErr) return err(res, logErr.message, 500);
+    (logs || []).forEach(l => {
+      const k = l.proyecto_id + '|' + l.item_id;
+      if (!compLogMap[k]) compLogMap[k] = { evento: l.evento, fecha: l.creado_at };
+    });
+  }
+
   const result = (proys || []).map(p => {
     const mubs = (Array.isArray(p.muebles) ? p.muebles : [])
       .filter(m => !m.archivado && (Number(m.placas) || 0) < 999);
     return {
       id: p.id, numero: p.numero, nombre: p.nombre, obra: p.obra,
       cliente: p.cliente_nombre || p.cliente || '',
-      muebles: mubs.map(m => ({ id: m.id, codigo: m.codigo || m.id, nombre: m.nombre || '', cant: (m.cant != null && !isNaN(Number(m.cant))) ? Math.trunc(Number(m.cant)) : null })),
+      muebles: mubs.map(m => {
+        const pk = p.id + '|' + m.id;
+        return { id: m.id, codigo: m.codigo || m.id, nombre: m.nombre || '', cant: (m.cant != null && !isNaN(Number(m.cant))) ? Math.trunc(Number(m.cant)) : null, produccion: compLogMap[pk] || null };
+      }),
     };
   });
 
