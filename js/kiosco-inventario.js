@@ -41,65 +41,91 @@
     var st = document.createElement('style');
     st.id = 'inv-kiosco-css';
     st.textContent = ''
-      + '.inv-wrap{font-family:"DM Sans",sans-serif;color:#e8e8e8;min-height:100%;max-width:720px;margin:0 auto;width:100%;}'
-      + '.inv-home-input{width:100%;font-family:"Space Mono",monospace;font-size:18px;background:#252525;border:2px solid #2a2a2a;border-radius:10px;padding:16px 20px;color:#FFD600;text-align:center;outline:none;letter-spacing:2px;text-transform:uppercase;}'
-      + '.inv-home-input:focus{border-color:#FFD600;}'
-      + '.inv-home-input::placeholder{color:#555;text-transform:none;letter-spacing:0;}'
+      // ── Tokens: tema claro alto contraste para galpón ──
+      + '.inv-wrap{font-family:"DM Sans",sans-serif;color:#0A0A0A;min-height:100%;max-width:720px;margin:0 auto;width:100%;background:#FFFFFF;}'
+      + '.inv-home-input{width:100%;font-family:"Space Mono",monospace;font-size:20px;background:#F2F0EA;border:3px solid #111;border-radius:10px;padding:16px 20px;color:#0A0A0A;text-align:center;outline:none;letter-spacing:2px;text-transform:uppercase;}'
+      + '.inv-home-input:focus{border-color:#0A0A0A;}'
+      + '.inv-home-input::placeholder{color:#3D3D3D;text-transform:none;letter-spacing:0;}'
       + '.inv-actions{display:flex;gap:10px;margin-top:16px;justify-content:center;flex-wrap:wrap;}'
-      + '.inv-btn{font-family:"Space Mono",monospace;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:1px solid #2a2a2a;border-radius:8px;padding:12px 20px;cursor:pointer;background:#252525;color:#e8e8e8;transition:all .15s;}'
-      + '.inv-btn:hover{border-color:#FFD600;color:#FFD600;}'
-      + '.inv-btn-accent{background:#FFD600;color:#000;border-color:#FFD600;}'
+      + '.inv-btn{font-family:"Space Mono",monospace;font-size:15px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:3px solid #111;border-radius:8px;padding:14px 20px;min-height:56px;cursor:pointer;background:#F2F0EA;color:#0A0A0A;transition:all .15s;}'
+      + '.inv-btn:hover{border-color:#0A0A0A;color:#000;}'
+      + '.inv-btn-accent{background:#FFD600;color:#000;border-color:#0A0A0A;}'
       + '.inv-btn-accent:hover{opacity:.85;color:#000;}'
       + '.inv-btn:disabled{opacity:.35;cursor:not-allowed;}'
-      + '.inv-btn-lg{padding:16px 28px;font-size:13px;}'
-      + '.inv-label{font-family:"Space Mono",monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#888;margin-bottom:4px;}'
-      + '.inv-code{font-family:"Space Mono",monospace;font-size:28px;font-weight:700;color:#FFD600;letter-spacing:2px;}'
-      + '.inv-desc{font-size:14px;color:#e8e8e8;margin-top:4px;}'
-      + '.inv-badge{font-family:"Space Mono",monospace;font-size:9px;padding:3px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px;display:inline-block;margin-right:6px;}'
-      + '.inv-badge-herraje{background:#1a2a1a;color:#6ddf6d;border:1px solid #2a3a2a;}'
-      + '.inv-badge-placa{background:#1a1a2a;color:#6d9ddf;border:1px solid #2a2a3a;}'
-      + '.inv-badge-madera{background:#2a1f0a;color:#dfa86d;border:1px solid #3a2a0a;}'
-      + '.inv-badge-consumible{background:#2a2a1a;color:#dfdf6d;border:1px solid #3a3a2a;}'
-      + '.inv-badge-otro{background:#2a1a1a;color:#df6d6d;border:1px solid #3a2020;}'
-      + '.inv-badge-huerfano{background:#3a1a1a;color:#F05C5C;border:1px solid #5a2020;font-weight:700;}'
-      + '.inv-stock-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid #1a1a1a;font-size:12px;}'
-      + '.inv-stock-row .ubi{font-family:"Space Mono",monospace;font-weight:700;color:#FFD600;font-size:11px;min-width:100px;}'
-      + '.inv-stock-row .qty{font-family:"Space Mono",monospace;font-weight:700;font-size:14px;}'
-      + '.inv-stock-row .pick{font-family:"Space Mono",monospace;font-size:8px;color:#3DD68C;border:1px solid #1f3a26;border-radius:3px;padding:1px 5px;margin-left:4px;}'
-      + '.inv-foto{width:120px;height:120px;object-fit:cover;border-radius:8px;border:1px solid #2a2a2a;}'
-      + '.inv-total{font-family:"Space Mono",monospace;font-size:20px;font-weight:700;color:#e8e8e8;}'
-      + '.inv-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:280px;margin:16px auto;}'
-      + '.inv-key{font-family:"Space Mono",monospace;font-size:20px;font-weight:700;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:16px;cursor:pointer;color:#e8e8e8;text-align:center;user-select:none;transition:background .1s;}'
-      + '.inv-key:active{background:#333;}'
-      + '.inv-key-accent{background:#FFD600;color:#000;border-color:#FFD600;}'
-      + '.inv-keypad-display{font-family:"Space Mono",monospace;font-size:36px;font-weight:700;color:#FFD600;text-align:center;padding:12px;background:#1e1e1e;border:1px solid #2a2a2a;border-radius:8px;margin-bottom:12px;min-height:60px;}'
-      + '.inv-list-item{display:flex;align-items:center;gap:12px;padding:12px;border-bottom:1px solid #1a1a1a;cursor:pointer;transition:background .1s;}'
-      + '.inv-list-item:hover{background:rgba(255,214,0,.05);}'
-      + '.inv-list-item:active{background:rgba(255,214,0,.1);}'
-      + '.inv-list-item .li-code{font-family:"Space Mono",monospace;font-weight:700;color:#FFD600;font-size:11px;}'
-      + '.inv-list-item .li-desc{font-size:12px;color:#e8e8e8;}'
-      + '.inv-list-item .li-foto{width:40px;height:40px;object-fit:cover;border-radius:4px;}'
-      + '.inv-search-input{width:100%;font-family:"Space Mono",monospace;font-size:18px;background:#252525;border:2px solid #2a2a2a;border-radius:10px;padding:16px 20px;color:#e8e8e8;outline:none;letter-spacing:1px;}'
-      + '.inv-search-input:focus{border-color:#FFD600;}'
-      + '.inv-search-input::placeholder{color:#555;}'
+      + '.inv-btn-lg{padding:18px 28px;font-size:16px;}'
+      + '.inv-label{font-family:"Space Mono",monospace;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:#3D3D3D;margin-bottom:6px;font-weight:700;}'
+      + '.inv-code{font-family:"Space Mono",monospace;font-size:34px;font-weight:700;color:#0A0A0A;letter-spacing:2px;}'
+      + '.inv-desc{font-size:19px;color:#0A0A0A;margin-top:6px;line-height:1.4;}'
+      + '.inv-badge{font-family:"Space Mono",monospace;font-size:13px;padding:4px 10px;border-radius:6px;text-transform:uppercase;letter-spacing:.5px;display:inline-block;margin-right:6px;font-weight:700;}'
+      + '.inv-badge-herraje{background:#d4edda;color:#155724;border:2px solid #155724;}'
+      + '.inv-badge-placa{background:#cce5ff;color:#004085;border:2px solid #004085;}'
+      + '.inv-badge-madera{background:#fff3cd;color:#856404;border:2px solid #856404;}'
+      + '.inv-badge-consumible{background:#fff3cd;color:#856404;border:2px solid #856404;}'
+      + '.inv-badge-canto{background:#d1ecf1;color:#0c5460;border:2px solid #0c5460;}'
+      + '.inv-badge-otro{background:#f8d7da;color:#721c24;border:2px solid #721c24;}'
+      + '.inv-badge-huerfano{background:#f8d7da;color:#721c24;border:2px solid #721c24;font-weight:700;}'
+      + '.inv-stock-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:2px solid #111;font-size:16px;}'
+      + '.inv-stock-row .ubi{font-family:"Space Mono",monospace;font-weight:700;color:#0A0A0A;font-size:15px;min-width:100px;}'
+      + '.inv-stock-row .qty{font-family:"Space Mono",monospace;font-weight:700;font-size:20px;}'
+      + '.inv-stock-row .pick{font-family:"Space Mono",monospace;font-size:13px;color:#0B8A3E;border:2px solid #0B8A3E;border-radius:4px;padding:2px 6px;margin-left:4px;font-weight:700;}'
+      + '.inv-foto{width:120px;height:120px;object-fit:cover;border-radius:8px;border:3px solid #111;}'
+      + '.inv-total{font-family:"Space Mono",monospace;font-size:28px;font-weight:700;color:#0A0A0A;}'
+      + '.inv-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:300px;margin:16px auto;}'
+      + '.inv-key{font-family:"Space Mono",monospace;font-size:24px;font-weight:700;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:18px;cursor:pointer;color:#0A0A0A;text-align:center;user-select:none;transition:background .1s;}'
+      + '.inv-key:active{background:#ddd;}'
+      + '.inv-key-accent{background:#FFD600;color:#000;border-color:#0A0A0A;}'
+      + '.inv-keypad-display{font-family:"Space Mono",monospace;font-size:42px;font-weight:700;color:#0A0A0A;text-align:center;padding:14px;background:#F2F0EA;border:3px solid #111;border-radius:8px;margin-bottom:12px;min-height:68px;}'
+      + '.inv-list-item{display:flex;align-items:center;gap:14px;padding:14px;border-bottom:2px solid #111;cursor:pointer;transition:background .1s;}'
+      + '.inv-list-item:hover{background:#F2F0EA;}'
+      + '.inv-list-item:active{background:#E8E4DA;}'
+      + '.inv-list-item .li-code{font-family:"Space Mono",monospace;font-weight:700;color:#0A0A0A;font-size:15px;}'
+      + '.inv-list-item .li-desc{font-size:16px;color:#0A0A0A;}'
+      + '.inv-list-item .li-foto{width:48px;height:48px;object-fit:cover;border-radius:6px;}'
+      + '.inv-search-input{width:100%;font-family:"Space Mono",monospace;font-size:20px;background:#F2F0EA;border:3px solid #111;border-radius:10px;padding:16px 20px;color:#0A0A0A;outline:none;letter-spacing:1px;}'
+      + '.inv-search-input:focus{border-color:#0A0A0A;}'
+      + '.inv-search-input::placeholder{color:#3D3D3D;}'
       + '.inv-motivo-btn{flex:1;min-width:120px;}'
-      + '.inv-toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);font-family:"Space Mono",monospace;font-size:12px;font-weight:700;padding:12px 24px;border-radius:8px;z-index:9999;pointer-events:none;opacity:0;transition:opacity .3s;}'
+      + '.inv-toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);font-family:"Space Mono",monospace;font-size:16px;font-weight:700;padding:14px 28px;border-radius:10px;z-index:9999;pointer-events:none;opacity:0;transition:opacity .3s;}'
       + '.inv-toast.show{opacity:1;}'
-      + '.inv-toast-ok{background:#0a2a0a;color:#3DD68C;border:1px solid #1f3a26;}'
-      + '.inv-toast-err{background:#2a0a0a;color:#F05C5C;border:1px solid #5a2020;}'
+      + '.inv-toast-ok{background:#0B8A3E;color:#FFFFFF;border:2px solid #065F28;}'
+      + '.inv-toast-err{background:#C41E0F;color:#FFFFFF;border:2px solid #8B1509;}'
       + '.inv-flash{transition:background .25s;}'
-      + '.inv-flash-ok{background:rgba(61,214,140,.15)!important;}'
-      + '.inv-flash-err{background:rgba(240,92,92,.15)!important;}'
-      + '.inv-back{font-family:"Space Mono",monospace;font-size:11px;color:#888;cursor:pointer;margin-bottom:16px;display:inline-block;}'
-      + '.inv-back:hover{color:#FFD600;}'
+      + '.inv-flash-ok{background:rgba(11,138,62,.12)!important;}'
+      + '.inv-flash-err{background:rgba(196,30,15,.12)!important;}'
+      + '.inv-back{font-family:"Space Mono",monospace;font-size:15px;color:#3D3D3D;cursor:pointer;margin-bottom:16px;display:inline-block;font-weight:700;}'
+      + '.inv-back:hover{color:#000;}'
       + '.inv-alta-familia{display:flex;gap:8px;flex-wrap:wrap;}'
-      + '.inv-alta-familia .inv-btn.selected{background:#FFD600;color:#000;border-color:#FFD600;}'
+      + '.inv-alta-familia .inv-btn.selected{background:#FFD600;color:#000;border-color:#0A0A0A;}'
       + '.inv-section{margin-bottom:20px;}'
-      + '.inv-field{margin-bottom:12px;}'
-      + '.inv-field input,.inv-field select{width:100%;font-family:"Space Mono",monospace;font-size:12px;background:#252525;border:1px solid #2a2a2a;border-radius:6px;padding:10px 12px;color:#e8e8e8;outline:none;}'
-      + '.inv-field input:focus{border-color:#FFD600;}';
+      + '.inv-field{margin-bottom:14px;}'
+      + '.inv-field input,.inv-field select{width:100%;font-family:"Space Mono",monospace;font-size:16px;background:#F2F0EA;border:3px solid #111;border-radius:6px;padding:12px 14px;color:#0A0A0A;outline:none;}'
+      + '.inv-field input:focus{border-color:#0A0A0A;}'
+      // ── Estado: chips e bandas ──
+      + '.inv-chip{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:9px;font-family:"Space Mono",monospace;font-size:15px;font-weight:700;letter-spacing:.5px;}'
+      + '.inv-chip svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none;}'
+      + '.inv-chip.ok{background:#0B8A3E;color:#FFF;}'
+      + '.inv-chip.err{background:#C41E0F;color:#FFF;}'
+      + '.inv-chip.warn{background:#B24700;color:#FFF;}'
+      + '.inv-chip.neutro{background:transparent;color:#3D3D3D;border:2px solid #111;}'
+      + '.inv-banda{display:flex;align-items:center;gap:14px;padding:18px;border-radius:12px;margin-bottom:16px;font-family:"Space Mono",monospace;font-weight:700;font-size:19px;line-height:1.25;}'
+      + '.inv-banda svg{width:34px;height:34px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;}'
+      + '.inv-banda.ok{background:#0B8A3E;color:#FFF;}'
+      + '.inv-banda.err{background:#C41E0F;color:#FFF;}'
+      + '.inv-banda small{display:block;font-family:"DM Sans",sans-serif;font-weight:500;font-size:19px;opacity:.85;margin-top:3px;}';
     document.head.appendChild(st);
   }
+
+  // ═══ SVG ICON CATALOG ═══
+  var ICO = {
+    ok:       '<svg viewBox="0 0 24 24"><path d="M4 12.5 9 17.5 20 6.5"/></svg>',
+    error:    '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+    atencion: '<svg viewBox="0 0 24 24"><path d="M12 3.5 22.5 20.5H1.5z"/><path d="M12 10v4.5"/><path d="M12 17.6v.1"/></svg>',
+    entrada:  '<svg viewBox="0 0 24 24"><path d="M12 3v11"/><path d="m7.5 9.5 4.5 4.5 4.5-4.5"/><path d="M4 18v3h16v-3"/></svg>',
+    salida:   '<svg viewBox="0 0 24 24"><path d="M12 14V3"/><path d="m7.5 7.5 4.5-4.5 4.5 4.5"/><path d="M4 18v3h16v-3"/></svg>',
+    traslado: '<svg viewBox="0 0 24 24"><path d="M3 12h13"/><path d="m11 7 5 5-5 5"/><path d="M20 4v16"/></svg>',
+    imprimir: '<svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>',
+    tacho:    '<svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M5 6l1 14h12l1-14"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>',
+  };
 
   // ═══ AUDIO FEEDBACK ═══
   var _audioCtx = null;
@@ -223,7 +249,7 @@
       + '<button class="inv-btn inv-btn-lg" onclick="_invRecepcion()">📥 Recepción OC</button>'
       + '<button class="inv-btn inv-btn-lg" onclick="_invCargaPlaca()">▤ Cargar stock de placa</button>'
       + '<button class="inv-btn inv-btn-lg" onclick="_invTrasladoMasivo()">⇄ Trasladar placas a estante</button>'
-      + '<button class="inv-btn inv-btn-lg" onclick="_invReimprimirPlaca()">⎙ Reimprimir etiqueta de placa</button>'
+      + '<button class="inv-btn inv-btn-lg" onclick="_invReimprimirPlaca()">' + ICO.imprimir + ' Reimprimir etiqueta de placa</button>'
       + '</div></div>';
     var inp = document.getElementById('inv-scan');
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') _invScan(inp.value); });
@@ -263,7 +289,7 @@
       + '<div class="inv-desc">' + _esc(u.nombre || '') + '</div>'
       + '<div class="inv-label" style="margin-top:16px;">Contenido (' + items.length + ' ítems)</div>';
     if (!items.length) {
-      html += '<div style="color:#888;padding:16px 0;">Ubicación vacía</div>';
+      html += '<div style="color:#3D3D3D;padding:16px 0;">Ubicación vacía</div>';
     } else {
       items.forEach(function (s) {
         var it = s.inv_items || {};
@@ -295,7 +321,7 @@
     html += '<div class="inv-section" style="margin-top:20px;">'
       + '<div class="inv-label">Stock por ubicación</div>';
     if (!_stock.length) {
-      html += '<div style="color:#888;padding:8px 0;">Sin stock</div>';
+      html += '<div style="color:#3D3D3D;padding:8px 0;">Sin stock</div>';
     } else {
       _stock.forEach(function (s) {
         var u = s.inv_ubicaciones || {};
@@ -307,7 +333,7 @@
           + '</div>';
       });
     }
-    html += '<div class="inv-stock-row" style="border-top:1px solid #2a2a2a;"><span class="ubi">TOTAL</span><span class="inv-total">' + _total + '</span></div>';
+    html += '<div class="inv-stock-row" style="border-top:2px solid #111;"><span class="ubi">TOTAL</span><span class="inv-total">' + _total + '</span></div>';
     html += '</div>';
     // Actions
     html += '<div class="inv-actions">';
@@ -351,15 +377,15 @@
     // Stock total
     html += '<div style="margin-top:16px;text-align:center;">'
       + '<div class="inv-label">STOCK TOTAL</div>'
-      + '<div style="font-family:\'Space Mono\',monospace;font-size:36px;font-weight:700;color:' + (r.stock_total > 0 ? '#3DD68C' : '#F05C5C') + ';">' + r.stock_total + '</div>'
+      + '<div style="font-family:\'Space Mono\',monospace;font-size:42px;font-weight:700;color:' + (r.stock_total > 0 ? '#0B8A3E' : '#C41E0F') + ';">' + r.stock_total + '</div>'
       + '</div>';
 
     // Por ubicación
     if (r.por_ubicacion && r.por_ubicacion.length) {
       html += '<div style="margin-top:16px;"><div class="inv-label">POR UBICACIÓN</div>';
       r.por_ubicacion.forEach(function (u) {
-        html += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #2a2a2a;font-size:13px;">'
-          + '<span style="font-family:\'Space Mono\',monospace;color:#FFD600;font-size:12px;font-weight:700;">' + _esc(u.codigo) + '</span>'
+        html += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:2px solid #111;font-size:13px;">'
+          + '<span style="font-family:\'Space Mono\',monospace;color:#0A0A0A;font-size:16px;font-weight:700;">' + _esc(u.codigo) + '</span>'
           + '<span style="font-family:\'Space Mono\',monospace;font-weight:700;">' + u.cantidad + '</span></div>';
       });
       html += '</div>';
@@ -372,12 +398,12 @@
       r.unidades.forEach(function (u, i) {
         var ubi = u.ubicacion || {};
         var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
-        var estadoColor = u.estado === 'activa' ? '#3DD68C' : '#888';
-        html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #1a1a1a;font-size:12px;">'
-          + '<span style="font-family:\'Space Mono\',monospace;font-weight:700;color:#FFD600;font-size:11px;">' + _esc(u.codigo) + '</span>'
-          + '<span style="color:' + estadoColor + ';font-size:9px;">' + _esc(u.estado) + '</span>'
-          + '<span style="color:#888;font-size:10px;">' + _esc(ubi.codigo || '') + '</span>'
-          + '<span style="margin-left:auto;cursor:pointer;font-size:16px;" onclick="_invDetalleImprimirUnidad(' + i + ')" title="Imprimir etiqueta">⎙</span>'
+        var estadoCls = u.estado === 'activa' ? 'ok' : 'err';
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:2px solid #111;font-size:16px;">'
+          + '<span style="font-family:\'Space Mono\',monospace;font-weight:700;color:#0A0A0A;font-size:15px;">' + _esc(u.codigo) + '</span>'
+          + '<span class="inv-chip ' + estadoCls + '">' + (u.estado === 'activa' ? ICO.ok : ICO.error) + ' ' + _esc(u.estado) + '</span>'
+          + '<span style="color:#3D3D3D;font-size:13px;">' + _esc(ubi.codigo || '') + '</span>'
+          + '<span style="margin-left:auto;cursor:pointer;width:24px;height:24px;" onclick="_invDetalleImprimirUnidad(' + i + ')" title="Imprimir etiqueta">' + ICO.imprimir + '</span>'
           + '</div>';
       });
       html += '</div></div>';
@@ -385,18 +411,19 @@
 
     // Movimientos — sin costos
     if (r.movimientos && r.movimientos.length) {
-      var tipoColor = { entrada: '#3DD68C', salida: '#F05C5C', traslado: '#FFD600', ajuste: '#6d9ddf' };
+      var tipoIco = { entrada: ICO.entrada, salida: ICO.salida, traslado: ICO.traslado, ajuste: ICO.atencion };
+      var tipoCls = { entrada: 'ok', salida: 'err', traslado: 'neutro', ajuste: 'neutro' };
       html += '<div style="margin-top:16px;"><div class="inv-label">MOVIMIENTOS (ÚLTIMOS 20)</div>'
         + '<div style="max-height:250px;overflow-y:auto;">';
       r.movimientos.forEach(function (m) {
         var fecha = m.creado_en ? new Date(m.creado_en).toLocaleDateString('es-UY', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
         var ubiTxt = (m.ubicacion || {}).codigo || '';
-        if (m.tipo === 'traslado' && m.ubicacion_destino) ubiTxt += ' → ' + (m.ubicacion_destino.codigo || '');
-        html += '<div style="display:flex;gap:6px;padding:4px 0;border-bottom:1px solid #1a1a1a;font-size:11px;align-items:baseline;">'
-          + '<span style="font-family:\'Space Mono\',monospace;font-weight:700;color:' + (tipoColor[m.tipo] || '#888') + ';font-size:9px;text-transform:uppercase;min-width:50px;">' + _esc(m.tipo) + '</span>'
+        if (m.tipo === 'traslado' && m.ubicacion_destino) ubiTxt += ' \u2192 ' + (m.ubicacion_destino.codigo || '');
+        html += '<div style="display:flex;gap:8px;padding:6px 0;border-bottom:2px solid #111;font-size:15px;align-items:center;">'
+          + '<span class="inv-chip ' + (tipoCls[m.tipo]||'neutro') + '" style="font-size:13px;padding:5px 8px;">' + (tipoIco[m.tipo]||'') + ' ' + _esc(m.tipo) + '</span>'
           + '<span style="font-family:\'Space Mono\',monospace;font-weight:700;min-width:24px;text-align:right;">' + (m.cantidad != null ? m.cantidad : '') + '</span>'
-          + '<span style="color:#888;font-size:10px;">' + _esc(ubiTxt) + '</span>'
-          + '<span style="color:#888;font-size:9px;margin-left:auto;">' + _esc(fecha) + '</span>'
+          + '<span style="color:#3D3D3D;font-size:13px;">' + _esc(ubiTxt) + '</span>'
+          + '<span style="color:#3D3D3D;font-size:13px;margin-left:auto;">' + _esc(fecha) + '</span>'
           + '</div>';
       });
       html += '</div></div>';
@@ -501,7 +528,7 @@
     el.innerHTML = list.map(function (p) {
       return '<div class="inv-list-item" onclick="_invPickProy(\'' + _esc(p.id) + '\')">'
         + '<div style="flex:1;"><div class="li-code">' + _esc(p.numero || '') + '</div><div class="li-desc">' + _esc(p.nombre || p.cliente_nombre || '') + '</div></div></div>';
-    }).join('') || '<div style="color:#888;padding:12px;">Sin resultados</div>';
+    }).join('') || '<div style="color:#3D3D3D;padding:12px;">Sin resultados</div>';
   }
   window._invPickProy = function (id) {
     _proyectoElegido = (_proyectos || []).find(function (p) { return p.id === id; }) || { id: id };
@@ -553,14 +580,14 @@
       + '<div class="inv-back" onclick="_invShow(\'ficha\')">← Volver a ficha</div>'
       + '<div class="inv-label">Elegir bin para ajuste</div>';
     if (!_stock.length) {
-      html += '<div style="color:#888;padding:12px;">Sin stock — escaneá un bin</div>'
+      html += '<div style="color:#3D3D3D;padding:12px;">Sin stock — escaneá un bin</div>'
         + '<input id="inv-ajuste-scan" class="inv-home-input" style="margin-top:12px;" placeholder="Escanear ubicación..." autofocus>';
     } else {
       _stock.forEach(function (s) {
         var u = s.inv_ubicaciones || {};
         html += '<div class="inv-list-item" onclick="_invPickAjusteBin(\'' + _esc(u.id || '') + '\',' + (s.cantidad || 0) + ')">'
           + '<div class="li-code">' + _esc(u.codigo) + '</div><div class="li-desc">' + _esc(u.nombre || '') + '</div>'
-          + '<div class="qty" style="font-family:\'Space Mono\',monospace;font-weight:700;font-size:14px;margin-left:auto;">' + (s.cantidad || 0) + '</div></div>';
+          + '<div class="qty" style="font-family:\'Space Mono\',monospace;font-weight:700;font-size:19px;margin-left:auto;">' + (s.cantidad || 0) + '</div></div>';
       });
       html += '<div style="margin-top:12px;"><div class="inv-label">O escanear otro bin</div>'
         + '<input id="inv-ajuste-scan" class="inv-home-input" placeholder="Escanear ubicación...">';
@@ -667,11 +694,11 @@
       + '<div class="inv-desc">' + _esc(it.descripcion || '') + '</div>'
       + '<div style="margin-top:8px;">'
       + '<span class="inv-badge inv-badge-' + _esc(it.familia || 'otro') + '">' + _esc(it.familia || 'otro') + '</span>'
-      + '<span class="inv-badge" style="background:#0a2a0a;color:#3DD68C;border:1px solid #1f3a26;">' + _esc(u.estado || 'activa') + '</span>'
+      + '<span class="inv-chip ' + (u.estado === 'activa' ? 'ok' : u.estado === 'consumida' || u.estado === 'descartada' ? 'err' : 'neutro') + '">' + (u.estado === 'activa' ? ICO.ok : ICO.error) + ' ' + _esc(u.estado || 'activa') + '</span>'
       + '</div>';
     if (ubi.codigo) {
       html += '<div style="margin-top:12px;"><div class="inv-label">Ubicación</div>'
-        + '<div style="font-size:13px;"><span style="font-family:\'Space Mono\',monospace;font-weight:700;color:#FFD600;">' + _esc(ubi.codigo) + '</span>'
+        + '<div style="font-size:13px;"><span style="font-family:\'Space Mono\',monospace;font-weight:700;color:#0A0A0A;">' + _esc(ubi.codigo) + '</span>'
         + (ubi.nombre ? ' · ' + _esc(ubi.nombre) : '') + '</div></div>';
     }
     if (u.atributos) {
@@ -681,7 +708,7 @@
       if (attrs.medida) attrParts.push(attrs.medida);
       if (attrs.material) attrParts.push(attrs.material);
       if (attrParts.length) {
-        html += '<div style="margin-top:8px;font-size:12px;color:#888;">' + _esc(attrParts.join(' · ')) + '</div>';
+        html += '<div style="margin-top:8px;font-size:16px;color:#3D3D3D;">' + _esc(attrParts.join(' · ')) + '</div>';
       }
     }
     // Actions
@@ -690,17 +717,17 @@
         + '<button class="inv-btn inv-btn-accent inv-btn-lg" onclick="_invPlacaConsumir()">CONSUMIR EN PROYECTO</button>'
         + '<button class="inv-btn inv-btn-lg" onclick="_invPlacaTrasladar()">TRASLADAR</button>'
         + '<button class="inv-btn inv-btn-lg" onclick="_invPlacaDescartar()">DESCARTAR</button>'
-        + '<button class="inv-btn inv-btn-lg" onclick="_invPlacaImprimir()">⎙ REIMPRIMIR ETIQUETA</button>'
+        + '<button class="inv-btn inv-btn-lg" onclick="_invPlacaImprimir()">' + ICO.imprimir + ' REIMPRIMIR ETIQUETA</button>'
         + '</div>';
       if (u.reserva_proyecto_id) {
         html += '<div style="margin-top:12px;text-align:center;">'
-          + '<button class="inv-btn" style="font-size:10px;" onclick="_invPlacaLiberarReserva()">Liberar reserva</button></div>';
+          + '<button class="inv-btn" style="font-size:13px;" onclick="_invPlacaLiberarReserva()">Liberar reserva</button></div>';
       }
     } else {
-      html += '<div style="margin-top:24px;color:#888;font-size:12px;">Esta placa no está activa (' + _esc(u.estado) + ')</div>';
+      html += '<div style="margin-top:24px;color:#3D3D3D;font-size:16px;">Esta placa no está activa (' + _esc(u.estado) + ')</div>';
     }
     html += '<div style="margin-top:20px;">'
-      + '<button class="inv-btn" style="font-size:10px;" onclick="_invPlacaImprimir()">⎙ Imprimir etiqueta</button></div>';
+      + '<button class="inv-btn" style="font-size:13px;" onclick="_invPlacaImprimir()">' + ICO.imprimir + ' Imprimir etiqueta</button></div>';
     html += '</div>';
     _container.innerHTML = html;
   }
@@ -758,7 +785,7 @@
     el.innerHTML = list.map(function (p) {
       return '<div class="inv-list-item" onclick="_invPlacaPickProy(\'' + _esc(p.id) + '\')">'
         + '<div style="flex:1;"><div class="li-code">' + _esc(p.numero || '') + '</div><div class="li-desc">' + _esc(p.nombre || p.cliente_nombre || '') + '</div></div></div>';
-    }).join('') || '<div style="color:#888;padding:12px;">Sin resultados</div>';
+    }).join('') || '<div style="color:#3D3D3D;padding:12px;">Sin resultados</div>';
   }
   window._invPlacaPickProy = function (id) {
     _placaProyElegido = (_proyectos || []).find(function (p) { return p.id === id; }) || { id: id };
@@ -812,7 +839,7 @@
       + '<div style="font-size:15px;font-weight:700;color:#FFA000;margin-top:6px;">' + _esc(_unidadReserva) + '</div></div>'
       + '<div class="inv-actions" style="flex-direction:column;gap:12px;">'
       + '<button class="inv-btn inv-btn-accent inv-btn-lg" style="width:100%;" onclick="_invShow(\'ficha-placa\')">CANCELAR — NO CONSUMIR</button>'
-      + '<button class="inv-btn" style="width:100%;font-size:10px;opacity:.7;" onclick="_invPlacaForzarConsumo()">Consumir igual →</button>'
+      + '<button class="inv-btn" style="width:100%;font-size:13px;opacity:.7;" onclick="_invPlacaForzarConsumo()">Consumir igual →</button>'
       + '</div></div>';
     _container.innerHTML = html;
   }
@@ -824,7 +851,7 @@
     var html = '<div class="inv-wrap" style="padding:24px;text-align:center;">'
       + '<div style="font-size:48px;margin-bottom:16px;">✓</div>'
       + '<div class="inv-code">' + _esc((_unidad || {}).codigo) + '</div>'
-      + '<div style="margin-top:8px;font-size:13px;color:#888;">Consumida en ' + _esc(proy.numero || proy.id || '') + '</div>'
+      + '<div style="margin-top:8px;font-size:13px;color:#3D3D3D;">Consumida en ' + _esc(proy.numero || proy.id || '') + '</div>'
       + '<div class="inv-actions" style="margin-top:24px;flex-direction:column;gap:12px;">'
       + '<button class="inv-btn inv-btn-accent inv-btn-lg" onclick="_invHome()">VOLVER AL INICIO</button>'
       + '<button class="inv-btn" onclick="_invPlacaAltaSobrante()">+ Alta sobrante de placa</button>'
@@ -866,7 +893,7 @@
   // ── PLACA: descarte ──
   function _renderPlacaDescarte() {
     _container.innerHTML = '<div class="inv-wrap" style="padding:24px;text-align:center;">'
-      + '<div style="font-size:32px;margin-bottom:12px;">🗑</div>'
+      + '<div style="width:48px;height:48px;margin:0 auto 12px;">' + ICO.tacho + '</div>'
       + '<div class="inv-label">¿Descartar placa ' + _esc((_unidad || {}).codigo) + '?</div>'
       + '<div style="margin-top:12px;">'
       + '<div class="inv-label">Motivo (opcional)</div>'
@@ -874,7 +901,7 @@
       + '</div>'
       + '<div class="inv-actions" style="margin-top:20px;">'
       + '<button class="inv-btn" onclick="_invShow(\'ficha-placa\')">Cancelar</button>'
-      + '<button class="inv-btn" style="background:rgba(240,92,92,.15);color:#F05C5C;border-color:rgba(240,92,92,.3);" onclick="_invPlacaDescartarConfirm()">DESCARTAR</button>'
+      + '<button class="inv-btn" style="background:rgba(240,92,92,.15);color:#C41E0F;border-color:rgba(240,92,92,.3);" onclick="_invPlacaDescartarConfirm()">DESCARTAR</button>'
       + '</div></div>';
     var inp = document.getElementById('inv-placa-desc-motivo');
     if (inp) inp.focus();
@@ -913,7 +940,7 @@
         var foto = it.foto_url ? '<img class="li-foto" src="' + _esc(it.foto_url) + '">' : '';
         return '<div class="inv-list-item" onclick="_invScan(\'' + _esc(it.codigo) + '\')">'
           + foto + '<div style="flex:1;"><div class="li-code">' + _esc(it.codigo) + '</div><div class="li-desc">' + _esc(it.descripcion) + '</div></div></div>';
-      }).join('') || '<div style="color:#888;padding:12px;">Sin resultados</div>';
+      }).join('') || '<div style="color:#3D3D3D;padding:12px;">Sin resultados</div>';
     });
   }
 
@@ -927,7 +954,7 @@
       + '<div class="inv-label">Alta rápida de ítem</div>'
       + '<div class="inv-section">'
       + '<div class="inv-label">Foto (opcional)</div>'
-      + '<input type="file" id="inv-alta-foto" accept="image/*" capture="environment" style="color:#888;">'
+      + '<input type="file" id="inv-alta-foto" accept="image/*" capture="environment" style="color:#3D3D3D;">'
       + '</div>'
       + '<div class="inv-field"><div class="inv-label">Descripción</div><input id="inv-alta-desc" placeholder="Ej: Bisagra cierre suave 35mm"></div>'
       + '<div class="inv-section"><div class="inv-label">Familia</div>'
@@ -940,7 +967,7 @@
       + '</div></div>'
       + '<div class="inv-field"><div class="inv-label">Código (autosugerido, editable)</div><input id="inv-alta-codigo" style="text-transform:uppercase;"></div>'
       + '<div class="inv-field"><div class="inv-label">Unidad</div><input id="inv-alta-unidad" placeholder="un / m / kg"></div>'
-      + '<div class="inv-field"><div class="inv-label">Ubicación (escanear bin)</div><input id="inv-alta-ubi" class="inv-home-input" style="font-size:14px;padding:12px;" placeholder="Escanear bin..."></div>'
+      + '<div class="inv-field"><div class="inv-label">Ubicación (escanear bin)</div><input id="inv-alta-ubi" class="inv-home-input" style="font-size:19px;padding:12px;" placeholder="Escanear bin..."></div>'
       + '<div class="inv-field"><div class="inv-label">Cantidad inicial</div><input id="inv-alta-cant" type="number" min="1" value="1"></div>'
       + '<div class="inv-actions"><button class="inv-btn inv-btn-accent inv-btn-lg" onclick="_invAltaSubmit()">CREAR ÍTEM</button></div>'
       + '</div>';
@@ -1012,7 +1039,7 @@
       + '<div class="inv-code">' + _esc(_item.codigo) + '</div>'
       + '<div class="inv-desc">' + _esc(_item.descripcion) + '</div>'
       + '<div style="margin-top:24px;">'
-      + '<button class="inv-btn" onclick="_invImprimirItem()">⎙ Imprimir etiqueta</button>'
+      + '<button class="inv-btn" onclick="_invImprimirItem()">' + ICO.imprimir + ' Imprimir etiqueta</button>'
       + '</div>'
       + '<div class="inv-actions" style="margin-top:24px;">'
       + '<button class="inv-btn inv-btn-accent inv-btn-lg" onclick="_invHome()">VOLVER AL INICIO</button>'
@@ -1058,13 +1085,13 @@
   function _renderCargaPlaca() {
     var logHtml = _cargaSesionLog.length
       ? _cargaSesionLog.map(function (e) {
-          return '<div style="padding:6px 0;border-bottom:1px solid #2a2a2a;font-size:12px;">'
-            + '<span style="font-family:\'Space Mono\',monospace;color:#FFD600;font-size:11px;font-weight:700;">' + _esc(e.item) + '</span>'
+          return '<div style="padding:6px 0;border-bottom:2px solid #111;font-size:16px;">'
+            + '<span style="font-family:\'Space Mono\',monospace;color:#0A0A0A;font-size:15px;font-weight:700;">' + _esc(e.item) + '</span>'
             + ' × <b>' + e.cantidad + '</b>'
-            + (e.costo != null ? ' <span style="color:#666;font-size:10px;">USD ' + Number(e.costo).toFixed(2) + ' c/u</span>' : '')
+            + (e.costo != null ? ' <span style="color:#3D3D3D;font-size:13px;">USD ' + Number(e.costo).toFixed(2) + ' c/u</span>' : '')
             + '</div>';
         }).join('')
-      : '<div style="color:#888;font-size:12px;">Todavía no se cargó nada</div>';
+      : '<div style="color:#3D3D3D;font-size:16px;">Todavía no se cargó nada</div>';
 
     var html = '<div class="inv-wrap" style="padding:24px;">'
       + '<div class="inv-back" onclick="_invHome()">← Volver</div>'
@@ -1079,54 +1106,54 @@
       var costoTxt = _cargaItem.costo_ultimo_usd != null
         ? 'USD ' + Number(_cargaItem.costo_ultimo_usd).toFixed(2)
         : 'sin costo';
-      var costoColor = _cargaItem.costo_ultimo_usd != null ? '#888' : '#F05C5C';
-      html += '<div style="background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:16px;margin-bottom:16px;">'
+      var costoColor = _cargaItem.costo_ultimo_usd != null ? '#3D3D3D' : '#C41E0F';
+      html += '<div style="background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:16px;margin-bottom:16px;">'
         + '<div style="display:flex;justify-content:space-between;align-items:baseline;">'
-        + '<span style="font-family:\'Space Mono\',monospace;font-size:14px;font-weight:700;color:#FFD600;">' + _esc(_cargaItem.codigo) + '</span>'
+        + '<span style="font-family:\'Space Mono\',monospace;font-size:19px;font-weight:700;color:#0A0A0A;">' + _esc(_cargaItem.codigo) + '</span>'
         + '<span class="inv-badge inv-badge-' + _esc(_cargaItem.familia) + '">' + _esc(_cargaItem.familia) + '</span></div>'
         + '<div style="font-size:13px;margin-top:6px;">' + _esc(_cargaItem.descripcion) + '</div>'
         + '<div style="margin-top:8px;font-size:13px;color:' + costoColor + ';">Costo: ' + costoTxt + '</div>'
-        + '<div style="margin-top:4px;font-size:11px;color:#666;">Revisá que el costo tenga sentido antes de generar.</div>'
+        + '<div style="margin-top:4px;font-size:15px;color:#3D3D3D;">Revisá que el costo tenga sentido antes de generar.</div>'
         + '</div>';
 
       // Espesor + largo + ancho (editables, precargados del ítem o parser)
       html += '<div style="display:flex;gap:12px;margin-bottom:16px;">'
         + '<div style="flex:1;"><div class="inv-label">Espesor (mm) *</div>'
-        + '<input id="inv-carga-espesor" type="number" min="1" step="0.5" value="' + (_cargaEspesor != null ? _cargaEspesor : '') + '" placeholder="ej. 18" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
+        + '<input id="inv-carga-espesor" type="number" min="1" step="0.5" value="' + (_cargaEspesor != null ? _cargaEspesor : '') + '" placeholder="ej. 18" style="width:100%;font-family:\'Space Mono\',monospace;font-size:19px;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:10px;color:#0A0A0A;text-align:center;"></div>'
         + '<div style="flex:1;"><div class="inv-label">Largo (cm) *</div>'
-        + '<input id="inv-carga-largo" type="number" min="1" step="1" value="' + (_cargaLargo != null ? _cargaLargo : '') + '" placeholder="ej. 260" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
+        + '<input id="inv-carga-largo" type="number" min="1" step="1" value="' + (_cargaLargo != null ? _cargaLargo : '') + '" placeholder="ej. 260" style="width:100%;font-family:\'Space Mono\',monospace;font-size:19px;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:10px;color:#0A0A0A;text-align:center;"></div>'
         + '<div style="flex:1;"><div class="inv-label">Ancho (cm) *</div>'
-        + '<input id="inv-carga-ancho" type="number" min="1" step="1" value="' + (_cargaAncho != null ? _cargaAncho : '') + '" placeholder="ej. 183" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
+        + '<input id="inv-carga-ancho" type="number" min="1" step="1" value="' + (_cargaAncho != null ? _cargaAncho : '') + '" placeholder="ej. 183" style="width:100%;font-family:\'Space Mono\',monospace;font-size:19px;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:10px;color:#0A0A0A;text-align:center;"></div>'
         + '</div>'
         + ((_cargaEspesor != null || _cargaLargo != null)
-            ? '<div style="font-size:10px;color:#666;margin-bottom:16px;">Detectado de la descripción — corregí si está mal.</div>'
-            : '<div style="font-size:10px;color:#F05C5C;margin-bottom:16px;">Completá espesor, largo y ancho: no se detectaron en la descripción.</div>');
+            ? '<div style="font-size:13px;color:#3D3D3D;margin-bottom:16px;">Detectado de la descripción — corregí si está mal.</div>'
+            : '<div style="font-size:13px;color:#C41E0F;margin-bottom:16px;">Completá espesor, largo y ancho: no se detectaron en la descripción.</div>');
 
       // Costo por placa
       html += '<div style="margin-bottom:16px;">'
         + '<div class="inv-label">Costo por placa (USD)</div>'
         + '<input id="inv-carga-costo" type="number" min="0" step="0.01" value="'
         + (_cargaItem.costo_ultimo_usd != null ? _cargaItem.costo_ultimo_usd : '')
-        + '" placeholder="sin costo" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;">'
-        + '<div style="font-size:10px;color:#666;margin-top:4px;">'
+        + '" placeholder="sin costo" style="width:100%;font-family:\'Space Mono\',monospace;font-size:19px;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:10px;color:#0A0A0A;text-align:center;">'
+        + '<div style="font-size:13px;color:#3D3D3D;margin-top:4px;">'
         + (_cargaItem.costo_ultimo_usd != null ? 'Último costo conocido del ítem — corregí si esta tanda salió otro precio.' : 'Sin costo previo. Dejalo vacío si es sobrante o retazo ya pagado.')
         + '</div></div>';
 
       // Cantidad
       html += '<div style="margin-bottom:16px;">'
         + '<div class="inv-label">Cantidad de placas</div>'
-        + '<input id="inv-carga-cant" type="number" min="1" step="1" value="1" style="width:100%;font-family:\'Space Mono\',monospace;font-size:18px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:12px;color:#e8e8e8;text-align:center;">'
+        + '<input id="inv-carga-cant" type="number" min="1" step="1" value="1" style="width:100%;font-family:\'Space Mono\',monospace;font-size:18px;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:12px;color:#0A0A0A;text-align:center;">'
         + '</div>';
 
-      html += '<button class="inv-btn inv-btn-accent inv-btn-lg" style="width:100%;padding:16px;font-size:14px;" id="inv-carga-btn" onclick="_invCargaPlacaGenerar()">GENERAR PLACAS + ETIQUETAS</button>'
-        + '<div style="margin-top:8px;text-align:center;"><button class="inv-btn" style="font-size:10px;" onclick="_invCargaPlacaCambiarItem()">Cambiar ítem</button></div>';
+      html += '<button class="inv-btn inv-btn-accent inv-btn-lg" style="width:100%;padding:16px;font-size:19px;" id="inv-carga-btn" onclick="_invCargaPlacaGenerar()">GENERAR PLACAS + ETIQUETAS</button>'
+        + '<div style="margin-top:8px;text-align:center;"><button class="inv-btn" style="font-size:13px;" onclick="_invCargaPlacaCambiarItem()">Cambiar ítem</button></div>';
     }
 
     // Sesión counter
-    html += '<div style="margin-top:24px;border-top:1px solid #2a2a2a;padding-top:16px;">'
+    html += '<div style="margin-top:24px;border-top:2px solid #111;padding-top:16px;">'
       + '<div style="display:flex;align-items:baseline;gap:12px;margin-bottom:8px;">'
-      + '<span style="font-family:\'Space Mono\',monospace;font-size:9px;color:#888;letter-spacing:1px;text-transform:uppercase;">Cargadas esta sesión</span>'
-      + '<span style="font-family:\'Space Mono\',monospace;font-size:18px;font-weight:700;color:#3DD68C;">' + _cargaSesionTotal + '</span></div>'
+      + '<span style="font-family:\'Space Mono\',monospace;font-size:13px;color:#3D3D3D;letter-spacing:1px;text-transform:uppercase;">Cargadas esta sesión</span>'
+      + '<span style="font-family:\'Space Mono\',monospace;font-size:18px;font-weight:700;color:#0B8A3E;">' + _cargaSesionTotal + '</span></div>'
       + logHtml + '</div>';
 
     html += '</div>';
@@ -1160,7 +1187,7 @@
           + '<div class="li-desc">' + _esc(it.descripcion) + '</div></div>'
           + '<span class="inv-badge inv-badge-' + _esc(it.familia) + '">' + _esc(it.familia) + '</span></div>';
       }).join('');
-      if (!listaHtml) listaHtml = '<div style="color:#888;padding:12px;">Sin resultados de placa/madera</div>';
+      if (!listaHtml) listaHtml = '<div style="color:#3D3D3D;padding:12px;">Sin resultados de placa/madera</div>';
       listaHtml += '<button class="inv-btn inv-btn-lg" style="width:100%;margin-top:12px;" onclick="_invNuevaPlaca()">+ CREAR PLACA NUEVA</button>';
       el.innerHTML = listaHtml;
     });
@@ -1258,19 +1285,19 @@
     _container.innerHTML = '<div class="inv-wrap" style="padding:24px;">'
       + '<div class="inv-back" onclick="_invShow(\'carga-placa\')">← Volver</div>'
       + '<div class="inv-label">Placa fuera de catálogo</div>'
-      + '<div style="font-size:11px;color:#666;margin:6px 0 16px;">Para material que no viene de una OC: tapas de fardo, sobrantes, recortes.</div>'
+      + '<div style="font-size:15px;color:#3D3D3D;margin:6px 0 16px;">Para material que no viene de una OC: tapas de fardo, sobrantes, recortes.</div>'
       + '<div class="inv-label">Descripción</div>'
       + '<input id="inv-np-desc" class="inv-search-input" placeholder="Ej: TAPA FARDO MDF" autofocus>'
       + '<div style="display:flex;gap:12px;margin-top:16px;">'
       + '<div style="flex:1;"><div class="inv-label">Espesor (mm)</div>'
-      + '<input id="inv-np-espesor" type="number" min="1" step="0.5" placeholder="ej. 18" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
+      + '<input id="inv-np-espesor" type="number" min="1" step="0.5" placeholder="ej. 18" style="width:100%;font-family:\'Space Mono\',monospace;font-size:19px;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:10px;color:#0A0A0A;text-align:center;"></div>'
       + '<div style="flex:1;"><div class="inv-label">Largo (cm)</div>'
-      + '<input id="inv-np-largo" type="number" min="1" step="1" placeholder="ej. 260" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
+      + '<input id="inv-np-largo" type="number" min="1" step="1" placeholder="ej. 260" style="width:100%;font-family:\'Space Mono\',monospace;font-size:19px;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:10px;color:#0A0A0A;text-align:center;"></div>'
       + '<div style="flex:1;"><div class="inv-label">Ancho (cm)</div>'
-      + '<input id="inv-np-ancho" type="number" min="1" step="1" placeholder="ej. 183" style="width:100%;font-family:\'Space Mono\',monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px;color:#e8e8e8;text-align:center;"></div>'
+      + '<input id="inv-np-ancho" type="number" min="1" step="1" placeholder="ej. 183" style="width:100%;font-family:\'Space Mono\',monospace;font-size:19px;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:10px;color:#0A0A0A;text-align:center;"></div>'
       + '</div>'
-      + '<div style="font-size:10px;color:#666;margin-top:8px;">Las medidas se pueden cambiar en cada carga: no hace falta un ítem por tamaño.</div>'
-      + '<button class="inv-btn inv-btn-accent inv-btn-lg" style="width:100%;padding:16px;font-size:14px;margin-top:20px;" id="inv-np-btn" onclick="_invNuevaPlacaCrear()">CREAR Y CONTINUAR →</button>'
+      + '<div style="font-size:13px;color:#3D3D3D;margin-top:8px;">Las medidas se pueden cambiar en cada carga: no hace falta un ítem por tamaño.</div>'
+      + '<button class="inv-btn inv-btn-accent inv-btn-lg" style="width:100%;padding:16px;font-size:19px;margin-top:20px;" id="inv-np-btn" onclick="_invNuevaPlacaCrear()">CREAR Y CONTINUAR →</button>'
       + '</div>';
     var d = document.getElementById('inv-np-desc');
     if (d) d.focus();
@@ -1308,14 +1335,14 @@
     var last = _cargaSesionLog[0] || {};
     _container.innerHTML = '<div class="inv-wrap" style="padding:24px;text-align:center;">'
       + '<div style="font-size:48px;margin-bottom:16px;">✓</div>'
-      + '<div style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:#3DD68C;">'
+      + '<div style="font-family:\'Space Mono\',monospace;font-size:16px;font-weight:700;color:#0B8A3E;">'
       + last.cantidad + ' placa' + (last.cantidad > 1 ? 's' : '') + ' cargada' + (last.cantidad > 1 ? 's' : '') + '</div>'
-      + '<div style="margin-top:8px;font-size:13px;color:#888;">' + _esc(last.item) + '</div>'
-      + '<div style="margin-top:6px;font-size:12px;color:#FFD600;">Quedaron SIN UBICAR — usá Trasladar placas cuando las ordenes.</div>'
-      + '<div style="margin-top:6px;font-family:\'Space Mono\',monospace;font-size:11px;color:#888;">Sesión: ' + _cargaSesionTotal + ' placas total</div>'
+      + '<div style="margin-top:8px;font-size:13px;color:#3D3D3D;">' + _esc(last.item) + '</div>'
+      + '<div style="margin-top:6px;font-size:16px;color:#0A0A0A;">Quedaron SIN UBICAR — usá Trasladar placas cuando las ordenes.</div>'
+      + '<div style="margin-top:6px;font-family:\'Space Mono\',monospace;font-size:15px;color:#3D3D3D;">Sesión: ' + _cargaSesionTotal + ' placas total</div>'
       + '<div class="inv-actions" style="margin-top:24px;flex-direction:column;gap:12px;">'
       + '<button class="inv-btn inv-btn-accent inv-btn-lg" onclick="_invCargaPlaca()">CARGAR MÁS</button>'
-      + '<button class="inv-btn inv-btn-lg" onclick="_invReimprimirUltimoLote()">⎙ REIMPRIMIR ESTAS ETIQUETAS</button>'
+      + '<button class="inv-btn inv-btn-lg" onclick="_invReimprimirUltimoLote()">' + ICO.imprimir + ' REIMPRIMIR ESTAS ETIQUETAS</button>'
       + '<button class="inv-btn inv-btn-lg" onclick="_invHome()">VOLVER AL INICIO</button>'
       + '</div></div>';
   }
@@ -1338,7 +1365,7 @@
       + '<div class="inv-label">Reimprimir etiqueta de placa</div>'
       + '<div style="margin-top:16px;"><div class="inv-label">Buscar por...</div></div>'
       + '<input id="inv-reimp-q" class="inv-home-input" placeholder="Escanear estante o código de ítem..." autofocus>'
-      + '<div style="margin-top:8px;font-size:11px;color:#666;">Escaneá un estante para ver sus placas, o escribí el código de un ítem.</div>'
+      + '<div style="margin-top:8px;font-size:15px;color:#3D3D3D;">Escaneá un estante para ver sus placas, o escribí el código de un ítem.</div>'
       + '</div>';
     var inp = document.getElementById('inv-reimp-q');
     inp.addEventListener('keydown', function (e) {
@@ -1387,10 +1414,10 @@
       + '<div class="inv-back" onclick="_invShow(\'reimp-modo\')">← Volver</div>'
       + '<div class="inv-label">' + _reimpUnidades.length + ' placa' + (_reimpUnidades.length !== 1 ? 's' : '') + ' encontrada' + (_reimpUnidades.length !== 1 ? 's' : '') + '</div>';
     if (!_reimpUnidades.length) {
-      html += '<div style="color:#888;padding:12px;">Sin placas activas</div>';
+      html += '<div style="color:#3D3D3D;padding:12px;">Sin placas activas</div>';
     } else {
       if (_reimpUnidades.length > 1) {
-        html += '<button class="inv-btn inv-btn-accent inv-btn-lg" style="width:100%;margin-bottom:16px;" onclick="_invReimprimirTodas()">⎙ IMPRIMIR LAS ' + _reimpUnidades.length + '</button>';
+        html += '<button class="inv-btn inv-btn-accent inv-btn-lg" style="width:100%;margin-bottom:16px;" onclick="_invReimprimirTodas()">' + ICO.imprimir + ' IMPRIMIR LAS' + _reimpUnidades.length + '</button>';
       }
       _reimpUnidades.forEach(function (u, i) {
         var it = u.inv_items || {};
@@ -1400,11 +1427,11 @@
           + '<div style="flex:1;">'
           + '<div class="li-code">' + _esc(u.codigo) + '</div>'
           + '<div class="li-desc">' + _esc(it.descripcion || '') + '</div>'
-          + '<div style="font-size:10px;color:#888;margin-top:2px;">'
+          + '<div style="font-size:13px;color:#3D3D3D;margin-top:2px;">'
           + (attrs.espesor ? attrs.espesor + 'mm' : '') + (attrs.espesor && attrs.medida ? ' · ' : '') + (attrs.medida || '')
           + (ubi.codigo ? ' · ' + _esc(ubi.codigo) : '')
           + '</div></div>'
-          + '<span style="font-size:16px;">⎙</span></div>';
+          + '<span style="width:24px;height:24px;display:inline-block;">' + ICO.imprimir + '</span></div>';
       });
     }
     html += '</div>';
@@ -1470,22 +1497,22 @@
   function _renderTrasladoMasivoScan() {
     var u = _tmDestinoUbi;
     var html = '<div class="inv-wrap" style="padding:24px;">'
-      + '<div style="background:#1a2a1a;border:1px solid #2a3a2a;border-radius:8px;padding:12px 16px;margin-bottom:16px;">'
-      + '<div style="font-family:\'Space Mono\',monospace;font-size:9px;color:#888;letter-spacing:1px;margin-bottom:4px;">DESTINO</div>'
-      + '<div style="font-family:\'Space Mono\',monospace;font-size:18px;font-weight:700;color:#3DD68C;">' + _esc(u.codigo) + '</div>'
-      + (u.nombre ? '<div style="font-size:12px;color:#888;margin-top:2px;">' + _esc(u.nombre) + '</div>' : '')
+      + '<div style="background:#d4edda;border:3px solid #0B8A3E;border-radius:8px;padding:12px 16px;margin-bottom:16px;">'
+      + '<div style="font-family:\'Space Mono\',monospace;font-size:13px;color:#3D3D3D;letter-spacing:1px;margin-bottom:4px;">DESTINO</div>'
+      + '<div style="font-family:\'Space Mono\',monospace;font-size:18px;font-weight:700;color:#0B8A3E;">' + _esc(u.codigo) + '</div>'
+      + (u.nombre ? '<div style="font-size:16px;color:#3D3D3D;margin-top:2px;">' + _esc(u.nombre) + '</div>' : '')
       + '</div>'
       + '<div class="inv-label">Escanear placa</div>'
       + '<input id="inv-tm-scan" class="inv-home-input" placeholder="Escanear placa..." autofocus>'
       + '<div style="margin-top:16px;display:flex;align-items:baseline;gap:12px;">'
-      + '<span style="font-family:\'Space Mono\',monospace;font-size:9px;color:#888;letter-spacing:1px;text-transform:uppercase;">Movidas a ' + _esc(u.codigo) + '</span>'
-      + '<span style="font-family:\'Space Mono\',monospace;font-size:24px;font-weight:700;color:#3DD68C;">' + _tmTotal + '</span></div>'
+      + '<span style="font-family:\'Space Mono\',monospace;font-size:13px;color:#3D3D3D;letter-spacing:1px;text-transform:uppercase;">Movidas a ' + _esc(u.codigo) + '</span>'
+      + '<span style="font-family:\'Space Mono\',monospace;font-size:24px;font-weight:700;color:#0B8A3E;">' + _tmTotal + '</span></div>'
       + '<div id="inv-tm-list" style="margin-top:8px;max-height:300px;overflow-y:auto;">';
     _tmMovidos.forEach(function (m) {
       if (m.ok) {
-        html += '<div style="padding:4px 0;font-size:12px;color:#3DD68C;font-family:\'Space Mono\',monospace;">✓ ' + _esc(m.codigo) + '</div>';
+        html += '<div style="padding:4px 0;font-size:16px;color:#0B8A3E;font-family:\'Space Mono\',monospace;">✓ ' + _esc(m.codigo) + '</div>';
       } else {
-        html += '<div style="padding:4px 0;font-size:12px;color:#F05C5C;font-family:\'Space Mono\',monospace;">✗ ' + _esc(m.codigo) + ' — ' + _esc(m.msg) + '</div>';
+        html += '<div style="padding:4px 0;font-size:16px;color:#C41E0F;font-family:\'Space Mono\',monospace;">✗ ' + _esc(m.codigo) + ' — ' + _esc(m.msg) + '</div>';
       }
     });
     html += '</div>'
