@@ -1178,10 +1178,10 @@
       return;
     }
     var nb = document.getElementById('inv-carga-nueva'); if (nb) nb.style.display = 'none';
-    _get('buscar-items-kiosco', { q: q }).then(function (r) {
+    _get('buscar-items-kiosco', { q: q, familias: 'placa,madera' }).then(function (r) {
       var el = document.getElementById('inv-carga-list');
       if (!el) return;
-      var items = (r.items || []).filter(function (it) { return it.familia === 'placa' || it.familia === 'madera'; });
+      var items = r.items || [];
       var listaHtml = items.map(function (it) {
         return '<div class="inv-list-item" onclick="_invCargaPlacaPick(\'' + _esc(it.codigo) + '\')">'
           + '<div style="flex:1;"><div class="li-code">' + _esc(it.codigo) + '</div>'

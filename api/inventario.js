@@ -249,6 +249,10 @@ async function accionSyncItemsZoho(req, res) {
         if (cta.includes('HERRAJE')) familia = 'herraje';
         else if (cta.includes('MADERA Y PLACA')) familia = 'placa';
         else if (cta.includes('INDIRECTO')) familia = 'consumible';
+        const esMaterialPlaca =
+          /(\bmdf\b|\bmdp\b|\bhdf\b|fibro ?facil|melamin|aglomer|multiplaca|plywood|\bosb\b|chapadur|terciad|fenolic|enchapad|superboard|compensad|bending)/i.test(descripcion)
+          && !/(placard|bisagra|tirador|perfil|manija|esquinero|contra ?marco|zocalo|zócalo|puerta|compensador)/i.test(descripcion);
+        if (esMaterialPlaca) familia = 'placa';
         const item = {
           codigo,
           descripcion,
@@ -521,12 +525,14 @@ async function accionBuscarItemsKiosco(req, res) {
 
   const q = (req.query.q || '').trim().toLowerCase();
   if (!q) return ok(res, { items: [] });
+  const familias = (req.query.familias || '').trim();
 
-  const { data, error } = await supabase.from('inv_items')
+  let qb = supabase.from('inv_items')
     .select('id, codigo, descripcion, nombre_corto, familia, espesor_mm, largo_cm, ancho_cm, foto_url, ubicacion_picking_id')
     .eq('activo', true).eq('inventariable', true)
-    .or(`codigo.ilike.%${q}%,descripcion.ilike.%${q}%`)
-    .order('codigo').limit(20);
+    .or(`codigo.ilike.%${q}%,descripcion.ilike.%${q}%`);
+  if (familias) qb = qb.in('familia', familias.split(',').map(s => s.trim()).filter(Boolean));
+  const { data, error } = await qb.order('codigo').limit(50);
   if (error) return err(res, error.message, 500);
   return ok(res, { items: data || [] });
 }
