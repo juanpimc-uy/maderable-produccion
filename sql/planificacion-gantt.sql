@@ -6,6 +6,7 @@
 -- y sin fila en despachos_muebles — mismo criterio completado_real del MCT).
 -- Strip de actividad limitado a p_dias_strip días hacia atrás (default 60).
 -- Validado read-only el 09-ago-2026: 198 pendientes / 35 con fecha / 163 sin fecha.
+-- 12-ago-2026: excluye muebles archivados (elem->>'archivado') — filtro en CTE cod.
 -- ═══════════════════════════════════════════════════════════════════════
 
 create or replace function public.planificacion_gantt(p_dias_strip int default 60)
@@ -28,6 +29,7 @@ cod as (
        jsonb_array_elements(case when jsonb_typeof(p.muebles)='array'
                                  then p.muebles else '[]'::jsonb end) elem
   where (elem->>'id') ~ '^mf_[0-9]+$'
+    and coalesce((elem->>'archivado')::boolean, false) = false   -- ← ARCHIVADO
 ),
 comp as (
   select distinct on (proyecto_id, item_id) proyecto_id, item_id, evento
