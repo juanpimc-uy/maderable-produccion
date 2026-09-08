@@ -142,6 +142,16 @@
       tituloDefault: 'PLACA',
       qr: true, chipEnvio: false,
       qrEj: 'PL-000481',
+      medidas: {
+        '100x50': {
+          qrSize: '23mm',
+          pieH: '15mm',
+          pieDosLineas: true,
+          pieL1Max: '20pt',
+          pieL1Min: '12pt',
+          pieL2Size: '11pt'
+        }
+      },
       campos: [
         { id: 'codigo',      label: 'Código',      ej: 'PL-000481',              fijo: true },
         { id: 'descripcion', label: 'Descripción', ej: 'MDF 18mm Blanco',        fijo: false },
@@ -323,6 +333,17 @@
     }
   };
 
+  // Medidas del formato con overrides opcionales por función (spec.medidas[fmt])
+  function _med(spec, fmt) {
+    var base = MEDIDAS[fmt];
+    var ov = spec && spec.medidas && spec.medidas[fmt];
+    if (!ov) return base;
+    var out = {};
+    for (var k in base) out[k] = base[k];
+    for (var k2 in ov) out[k2] = ov[k2];
+    return out;
+  }
+
   // ═══════════════════════════════════════════════════════════════════════
   // RENDER DE UNA ETIQUETA (DOM)
   // ═══════════════════════════════════════════════════════════════════════
@@ -338,7 +359,7 @@
     var spec = FUNCIONES[funcion];
     if (!spec) return document.createElement('div');
     var fmt = tamano || '60x30';
-    var med = MEDIDAS[fmt];
+    var med = _med(spec, fmt);
     var camposCfg = resolverCampos(funcion, fmt, cfgOverride);
     var tituloRaw = resolverTitulo(funcion, cfgOverride ? cfgOverride._titulo : undefined);
     var titulo = interpolarTitulo(tituloRaw, datos || {});
@@ -444,26 +465,60 @@
 
     // ── PIE (solo 100×50) — auto-shrink + wrap, NUNCA cortar ──
     if (med.pie && pieCampos.length > 0) {
-      var pie = document.createElement('div');
-      pie.style.cssText = 'border-top:.2mm solid #000;padding:' + med.piePad + ';display:flex;justify-content:space-between;flex-shrink:0;gap:2mm;';
+      var pieLat = (med.piePad || '3mm 4mm').split(/\s+/)[1] || '4mm';
 
-      var basePt = parseFloat(med.pieSize) || 11;
-      var minPt = 5;
+      if (med.pieDosLineas && pieCampos.length > 1) {
+        var pie2 = document.createElement('div');
+        pie2.style.cssText = 'border-top:.2mm solid #000;padding:2mm ' + pieLat + ' 0 ' + pieLat +
+          ';height:' + med.pieH + ';box-sizing:border-box;display:flex;flex-direction:column;gap:1mm;flex-shrink:0;';
 
-      pieCampos.forEach(function (c) {
-        var specCampo = spec.campos.find(function (sc) { return sc.id === c.id; });
-        if (!specCampo) return;
-        var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
-        var span = document.createElement('span');
-        // Scale font down based on text length — longer text gets smaller font
-        var len = val.length;
-        var pt = basePt;
-        if (len > 12) pt = Math.max(minPt, basePt * 12 / len);
-        span.style.cssText = 'font-size:' + pt.toFixed(1) + 'pt;font-weight:' + (med.Pw || 600) + ';text-transform:uppercase;line-height:1.2;word-break:break-word;';
-        span.appendChild(document.createTextNode(val));
-        pie.appendChild(span);
-      });
-      et.appendChild(pie);
+        var cp1 = pieCampos[0];
+        var vv1 = d[cp1.id] != null ? String(d[cp1.id]).toUpperCase() : '';
+        var maxPt = parseFloat(med.pieL1Max || '20');
+        var minPt = parseFloat(med.pieL1Min || '12');
+        var ptPrev = vv1.length <= 20 ? maxPt : Math.max(minPt, maxPt * 20 / vv1.length);
+        var l1 = document.createElement('div');
+        l1.style.cssText = 'font-size:' + ptPrev.toFixed(1) + 'pt;font-weight:700;text-transform:uppercase;' +
+          'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1;';
+        l1.textContent = vv1;
+        pie2.appendChild(l1);
+
+        var l2 = document.createElement('div');
+        l2.style.cssText = 'display:flex;justify-content:space-between;gap:2mm;font-size:' +
+          (med.pieL2Size || '11pt') + ';font-weight:' + (med.Pw || 600) +
+          ';text-transform:uppercase;line-height:1.2;';
+        pieCampos.slice(1).forEach(function (c) {
+          var sc = spec.campos.find(function (x) { return x.id === c.id; });
+          if (!sc) return;
+          var s = document.createElement('span');
+          s.style.cssText = 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+          s.textContent = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
+          l2.appendChild(s);
+        });
+        pie2.appendChild(l2);
+        et.appendChild(pie2);
+      } else {
+        var pie = document.createElement('div');
+        pie.style.cssText = 'border-top:.2mm solid #000;padding:' + med.piePad + ';display:flex;justify-content:space-between;flex-shrink:0;gap:2mm;';
+
+        var basePt = parseFloat(med.pieSize) || 11;
+        var minPt2 = 5;
+
+        pieCampos.forEach(function (c) {
+          var specCampo = spec.campos.find(function (sc) { return sc.id === c.id; });
+          if (!specCampo) return;
+          var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
+          var span = document.createElement('span');
+          // Scale font down based on text length — longer text gets smaller font
+          var len = val.length;
+          var pt = basePt;
+          if (len > 12) pt = Math.max(minPt2, basePt * 12 / len);
+          span.style.cssText = 'font-size:' + pt.toFixed(1) + 'pt;font-weight:' + (med.Pw || 600) + ';text-transform:uppercase;line-height:1.2;word-break:break-word;';
+          span.appendChild(document.createTextNode(val));
+          pie.appendChild(span);
+        });
+        et.appendChild(pie);
+      }
     }
 
     return et;
@@ -492,7 +547,7 @@
     var fmt = opts.tamano || (cfgOverride && cfgOverride._tamano) || '60x30';
     if (_configCache && _configCache[funcion] && !opts.tamano && !(cfgOverride && cfgOverride._tamano))
       fmt = _configCache[funcion].tamano || fmt;
-    var med = MEDIDAS[fmt];
+    var med = _med(spec, fmt);
     var camposCfg = resolverCampos(funcion, fmt, cfgOverride);
     var tituloRaw = resolverTitulo(funcion, cfgOverride ? cfgOverride._titulo : undefined);
 
@@ -704,7 +759,7 @@
     var pieBorder = 3;
     if (med.pie && pieCampos.length > 0) {
       pPad = _padPx(med.piePad);
-      pieH = pieBorder + pPad[0] * 2 + _ptPx(med.pieSize);
+      pieH = med.pieH ? _mmPx(med.pieH) : (pieBorder + pPad[0] * 2 + _ptPx(med.pieSize));
     }
 
     // ── CUERPO ──
@@ -776,28 +831,68 @@
       var pieTop = superH - pieH;
       ctx.fillStyle = '#000';
       ctx.fillRect(0, pieTop, superW, pieBorder);
-      var pieSz = _ptPx(med.pieSize);
-      ctx.font = '600 ' + pieSz + 'px ' + FNT;
-      ctx.textBaseline = 'middle';
-      var pieY = pieTop + pieBorder + pPad[0] + pieSz / 2;
-
       var pieGap = pPad[1];
       var pieUsable = superW - pPad[1] * 2;
-      var celda = (pieUsable - pieGap * (pieCampos.length - 1)) / pieCampos.length;
 
-      pieCampos.forEach(function (c, idx) {
-        var sc = spec.campos.find(function (x) { return x.id === c.id; });
-        if (!sc) return;
-        var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
-        var txt = _ellipsis(ctx, val, celda);
-        var tw = ctx.measureText(txt).width;
-        var celdaX = pPad[1] + idx * (celda + pieGap);
-        var x;
-        if (idx === 0) x = celdaX;
-        else if (idx === pieCampos.length - 1) x = celdaX + celda - tw;
-        else x = celdaX + (celda - tw) / 2;
-        ctx.fillText(txt, x, pieY);
-      });
+      if (med.pieDosLineas && pieCampos.length > 1) {
+        // ── Línea 1: el primer campo del pie, solo, con autoajuste de tamaño ──
+        var c1 = pieCampos[0];
+        var v1 = d[c1.id] != null ? String(d[c1.id]).toUpperCase() : '';
+        var ptMax = parseFloat(med.pieL1Max || '20');
+        var ptMin = parseFloat(med.pieL1Min || '12');
+        var pt1 = ptMax;
+        while (pt1 > ptMin) {
+          ctx.font = '700 ' + _ptPx(pt1) + 'px ' + FNT;
+          if (ctx.measureText(v1).width <= pieUsable) break;
+          pt1 -= 0.5;
+        }
+        var px1 = _ptPx(pt1);
+        ctx.font = '700 ' + px1 + 'px ' + FNT;
+        ctx.textBaseline = 'top';
+        var y1 = pieTop + pieBorder + _mmPx('2');
+        ctx.fillText(_ellipsis(ctx, v1, pieUsable), pPad[1], y1);
+
+        // ── Línea 2: el resto de los campos, de extremo a extremo ──
+        var resto = pieCampos.slice(1);
+        var px2 = _ptPx(med.pieL2Size || '11pt');
+        ctx.font = '600 ' + px2 + 'px ' + FNT;
+        var y2 = y1 + px1 + _mmPx('1');
+        var celda2 = (pieUsable - pieGap * (resto.length - 1)) / resto.length;
+        resto.forEach(function (c, idx) {
+          var sc = spec.campos.find(function (x) { return x.id === c.id; });
+          if (!sc) return;
+          var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
+          var txt = _ellipsis(ctx, val, celda2);
+          var tw = ctx.measureText(txt).width;
+          var cx = pPad[1] + idx * (celda2 + pieGap);
+          var x;
+          if (idx === 0) x = cx;
+          else if (idx === resto.length - 1) x = cx + celda2 - tw;
+          else x = cx + (celda2 - tw) / 2;
+          ctx.fillText(txt, x, y2);
+        });
+      } else {
+        var pieSz = _ptPx(med.pieSize);
+        ctx.font = '600 ' + pieSz + 'px ' + FNT;
+        ctx.textBaseline = 'middle';
+        var pieY = pieTop + pieBorder + pPad[0] + pieSz / 2;
+
+        var celda = (pieUsable - pieGap * (pieCampos.length - 1)) / pieCampos.length;
+
+        pieCampos.forEach(function (c, idx) {
+          var sc = spec.campos.find(function (x) { return x.id === c.id; });
+          if (!sc) return;
+          var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
+          var txt = _ellipsis(ctx, val, celda);
+          var tw = ctx.measureText(txt).width;
+          var celdaX = pPad[1] + idx * (celda + pieGap);
+          var x;
+          if (idx === 0) x = celdaX;
+          else if (idx === pieCampos.length - 1) x = celdaX + celda - tw;
+          else x = celdaX + (celda - tw) / 2;
+          ctx.fillText(txt, x, pieY);
+        });
+      }
     }
 
     // ── DOWNSCALE (32→16 px/mm, con smoothing para texto) ──
