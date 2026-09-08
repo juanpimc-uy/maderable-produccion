@@ -43,11 +43,12 @@
     st.textContent = ''
       // ── Tokens: tema claro alto contraste para galpón ──
       + '.inv-wrap{font-family:"DM Sans",sans-serif;color:#0A0A0A;min-height:100%;max-width:720px;margin:0 auto;width:100%;background:#FFFFFF;}'
+      + '.inv-wrap svg{width:1.1em;height:1.1em;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:-.15em;}'
       + '.inv-home-input{width:100%;font-family:"Space Mono",monospace;font-size:20px;background:#F2F0EA;border:3px solid #111;border-radius:10px;padding:16px 20px;color:#0A0A0A;text-align:center;outline:none;letter-spacing:2px;text-transform:uppercase;}'
       + '.inv-home-input:focus{border-color:#0A0A0A;}'
       + '.inv-home-input::placeholder{color:#3D3D3D;text-transform:none;letter-spacing:0;}'
       + '.inv-actions{display:flex;gap:10px;margin-top:16px;justify-content:center;flex-wrap:wrap;}'
-      + '.inv-btn{font-family:"Space Mono",monospace;font-size:15px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:3px solid #111;border-radius:8px;padding:14px 20px;min-height:56px;cursor:pointer;background:#F2F0EA;color:#0A0A0A;transition:all .15s;}'
+      + '.inv-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;font-family:"Space Mono",monospace;font-size:15px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:3px solid #111;border-radius:8px;padding:14px 20px;min-height:56px;cursor:pointer;background:#F2F0EA;color:#0A0A0A;transition:all .15s;}'
       + '.inv-btn:hover{border-color:#0A0A0A;color:#000;}'
       + '.inv-btn-accent{background:#FFD600;color:#000;border-color:#0A0A0A;}'
       + '.inv-btn-accent:hover{opacity:.85;color:#000;}'
@@ -403,7 +404,7 @@
           + '<span style="font-family:\'Space Mono\',monospace;font-weight:700;color:#0A0A0A;font-size:15px;">' + _esc(u.codigo) + '</span>'
           + '<span class="inv-chip ' + estadoCls + '">' + (u.estado === 'activa' ? ICO.ok : ICO.error) + ' ' + _esc(u.estado) + '</span>'
           + '<span style="color:#3D3D3D;font-size:13px;">' + _esc(ubi.codigo || '') + '</span>'
-          + '<span style="margin-left:auto;cursor:pointer;width:24px;height:24px;" onclick="_invDetalleImprimirUnidad(' + i + ')" title="Imprimir etiqueta">' + ICO.imprimir + '</span>'
+          + '<span style="margin-left:auto;cursor:pointer;display:inline-flex;font-size:20px;" onclick="_invDetalleImprimirUnidad(' + i + ')" title="Imprimir etiqueta">' + ICO.imprimir + '</span>'
           + '</div>';
       });
       html += '</div></div>';
@@ -893,7 +894,7 @@
   // ── PLACA: descarte ──
   function _renderPlacaDescarte() {
     _container.innerHTML = '<div class="inv-wrap" style="padding:24px;text-align:center;">'
-      + '<div style="width:48px;height:48px;margin:0 auto 12px;">' + ICO.tacho + '</div>'
+      + '<div style="font-size:48px;text-align:center;margin:0 auto 12px;">' + ICO.tacho + '</div>'
       + '<div class="inv-label">¿Descartar placa ' + _esc((_unidad || {}).codigo) + '?</div>'
       + '<div style="margin-top:12px;">'
       + '<div class="inv-label">Motivo (opcional)</div>'
@@ -1431,7 +1432,7 @@
           + (attrs.espesor ? attrs.espesor + 'mm' : '') + (attrs.espesor && attrs.medida ? ' · ' : '') + (attrs.medida || '')
           + (ubi.codigo ? ' · ' + _esc(ubi.codigo) : '')
           + '</div></div>'
-          + '<span style="width:24px;height:24px;display:inline-block;">' + ICO.imprimir + '</span></div>';
+          + '<span style="display:inline-flex;font-size:20px;">' + ICO.imprimir + '</span></div>';
       });
     }
     html += '</div>';
