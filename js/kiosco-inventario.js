@@ -8,7 +8,7 @@
   var _stock = [];
   var _total = 0;
   var _container = null;
-  var _screen = 'home'; // home | ficha | detalle-item | salida-motivo | salida-proyecto | salida-mueble | keypad | alta | alta-ok | contenido-ubi | ficha-placa | placa-consumo-proy | placa-consumo-mueble | placa-consumo-reserva | placa-consumo-ok | placa-traslado | placa-descarte | carga-placa | carga-placa-ok | traslado-masivo-ubi | traslado-masivo-scan | reimp-modo | reimp-list
+  var _screen = 'home'; // home | ficha | detalle-item | salida-motivo | salida-proyecto | salida-mueble | keypad | alta | alta-ok | contenido-ubi | ficha-placa | placa-consumo-proy | placa-consumo-mueble | placa-consumo-reserva | placa-consumo-ok | placa-traslado | placa-descarte | carga-placa | nueva-placa | nueva-placa-dup | carga-placa-ok | traslado-masivo-ubi | traslado-masivo-scan | reimp-modo | reimp-list
   var _action = null; // entrada | salida | traslado | ajuste | a_picking | alta
   var _unidad = null; // ficha placa actual
   var _unidadItem = null;
@@ -35,6 +35,8 @@
   var _cargaAncho = null; // ancho en cm
   var _nuevaPlacaDesc = '';
   var _detalleData = null; // datos de detalle-item para la vista completa
+  var _npSimilares = [];
+  var _npPendiente = null; // { descripcion, espesor, largo, ancho }
 
   // ═══ CSS ═══
   if (!document.getElementById('inv-kiosco-css')) {
@@ -232,6 +234,7 @@
     else if (_screen === 'placa-descarte') _renderPlacaDescarte();
     else if (_screen === 'carga-placa') _renderCargaPlaca();
     else if (_screen === 'nueva-placa') _renderNuevaPlaca();
+    else if (_screen === 'nueva-placa-dup') _renderNuevaPlacaDup();
     else if (_screen === 'carga-placa-ok') _renderCargaPlacaOk();
     else if (_screen === 'traslado-masivo-ubi') _renderTrasladoMasivoUbi();
     else if (_screen === 'traslado-masivo-scan') _renderTrasladoMasivoScan();
@@ -1280,22 +1283,23 @@
   };
 
   // ── NUEVA PLACA (fuera de catálogo) ──
-  window._invNuevaPlaca = function () { _show('nueva-placa'); };
+  window._invNuevaPlaca = function () { _npPendiente = null; _npSimilares = []; _show('nueva-placa'); };
 
   function _renderNuevaPlaca() {
+    var p = _npPendiente || {};
     _container.innerHTML = '<div class="inv-wrap" style="padding:24px;">'
       + '<div class="inv-back" onclick="_invShow(\'carga-placa\')">← Volver</div>'
       + '<div class="inv-label">Placa fuera de catálogo</div>'
       + '<div style="font-size:15px;color:#3D3D3D;margin:6px 0 16px;">Para material que no viene de una OC: tapas de fardo, sobrantes, recortes.</div>'
       + '<div class="inv-label">Descripción</div>'
-      + '<input id="inv-np-desc" class="inv-search-input" placeholder="Ej: TAPA FARDO MDF" autofocus>'
+      + '<input id="inv-np-desc" class="inv-search-input" placeholder="Ej: TAPA FARDO MDF" autofocus value="' + _esc(p.descripcion || '') + '">'
       + '<div style="display:flex;gap:12px;margin-top:16px;">'
       + '<div style="flex:1;"><div class="inv-label">Espesor (mm)</div>'
-      + '<input id="inv-np-espesor" type="number" min="1" step="0.5" placeholder="ej. 18" style="width:100%;font-family:\'Space Mono\',monospace;font-size:19px;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:10px;color:#0A0A0A;text-align:center;"></div>'
+      + '<input id="inv-np-espesor" type="number" min="1" step="0.5" placeholder="ej. 18" value="' + (p.espesor != null ? _esc(p.espesor) : '') + '" style="width:100%;font-family:\'Space Mono\',monospace;font-size:19px;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:10px;color:#0A0A0A;text-align:center;"></div>'
       + '<div style="flex:1;"><div class="inv-label">Largo (cm)</div>'
-      + '<input id="inv-np-largo" type="number" min="1" step="1" placeholder="ej. 260" style="width:100%;font-family:\'Space Mono\',monospace;font-size:19px;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:10px;color:#0A0A0A;text-align:center;"></div>'
+      + '<input id="inv-np-largo" type="number" min="1" step="1" placeholder="ej. 260" value="' + (p.largo != null ? _esc(p.largo) : '') + '" style="width:100%;font-family:\'Space Mono\',monospace;font-size:19px;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:10px;color:#0A0A0A;text-align:center;"></div>'
       + '<div style="flex:1;"><div class="inv-label">Ancho (cm)</div>'
-      + '<input id="inv-np-ancho" type="number" min="1" step="1" placeholder="ej. 183" style="width:100%;font-family:\'Space Mono\',monospace;font-size:19px;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:10px;color:#0A0A0A;text-align:center;"></div>'
+      + '<input id="inv-np-ancho" type="number" min="1" step="1" placeholder="ej. 183" value="' + (p.ancho != null ? _esc(p.ancho) : '') + '" style="width:100%;font-family:\'Space Mono\',monospace;font-size:19px;background:#F2F0EA;border:3px solid #111;border-radius:8px;padding:10px;color:#0A0A0A;text-align:center;"></div>'
       + '</div>'
       + '<div style="font-size:13px;color:#3D3D3D;margin-top:8px;">Las medidas se pueden cambiar en cada carga: no hace falta un ítem por tamaño.</div>'
       + '<button class="inv-btn inv-btn-accent inv-btn-lg" style="width:100%;padding:16px;font-size:19px;margin-top:20px;" id="inv-np-btn" onclick="_invNuevaPlacaCrear()">CREAR Y CONTINUAR →</button>'
@@ -1315,19 +1319,76 @@
     var largo = larEl && larEl.value ? Math.round(Number(larEl.value)) : null;
     var ancho = ancEl && ancEl.value ? Math.round(Number(ancEl.value)) : null;
 
+    _npPendiente = { descripcion: desc, espesor: espesor, largo: largo, ancho: ancho };
+
     var btn = document.getElementById('inv-np-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Creando...'; }
-    _post('crear-item-placa', { descripcion: desc, espesor: espesor, largo_cm: largo, ancho_cm: ancho }).then(function (r) {
+    _post('crear-item-placa', { descripcion: desc, espesor: espesor, largo_cm: largo, ancho_cm: ancho, confirmado: false }).then(function (r) {
       if (btn) { btn.disabled = false; btn.textContent = 'CREAR Y CONTINUAR →'; }
+      if (r.requiere_confirmacion) {
+        _npSimilares = r.similares || [];
+        _show('nueva-placa-dup');
+        return;
+      }
       if (!r.ok || !r.item) { _fail(r.msg || r.error || 'No se pudo crear'); return; }
       _cargaItem = r.item;
       _cargaEspesor = espesor;
       _cargaLargo = largo;
       _cargaAncho = ancho;
+      _npPendiente = null;
+      _npSimilares = [];
       _ok('Ítem ' + r.item.codigo + ' creado ✓');
       _show('carga-placa');
     }).catch(function () {
       if (btn) { btn.disabled = false; btn.textContent = 'CREAR Y CONTINUAR →'; }
+      _fail('Error de conexión');
+    });
+  };
+
+  // ── NUEVA PLACA — pantalla de duplicados ──
+  function _renderNuevaPlacaDup() {
+    var p = _npPendiente || {};
+    var listaHtml = _npSimilares.map(function (it) {
+      var costo = it.costo_ultimo_usd != null ? it.costo_ultimo_usd : it.costo_promedio_usd;
+      var costoTxt = costo != null ? 'USD ' + Number(costo).toFixed(2) : 'sin costo cargado';
+      return '<div class="inv-list-item" onclick="_invCargaPlacaPick(\'' + _esc(it.codigo) + '\')">'
+        + '<div style="flex:1;"><div class="li-code">' + _esc(it.codigo) + '</div>'
+        + '<div class="li-desc">' + _esc(it.descripcion) + '</div>'
+        + '<div style="font-size:13px;color:#3D3D3D;margin-top:2px;">' + _esc(costoTxt) + '</div></div>'
+        + '<span class="inv-badge inv-badge-' + _esc(it.familia || 'otro') + '">' + _esc(it.familia || 'otro') + '</span></div>';
+    }).join('');
+
+    _container.innerHTML = '<div class="inv-wrap" style="padding:24px;">'
+      + '<div class="inv-back" onclick="_invShow(\'nueva-placa\')">← Volver al formulario</div>'
+      + '<div style="border-left:10px solid #FFD600;background:#FFFBE6;padding:16px 18px;border-radius:8px;margin:16px 0;">'
+      + '<div style="font-weight:700;font-size:17px;margin-bottom:6px;">Puede que esta placa ya exista</div>'
+      + '<div style="font-size:15px;color:#3D3D3D;margin-bottom:8px;">Si es una de estas, tocala y segu\u00eds la carga con el \u00edtem de Zoho. Crear una nueva parte el stock y el costo en dos.</div>'
+      + '<div style="font-size:15px;color:#3D3D3D;">Vos escribiste: <strong>' + _esc(p.descripcion || '') + '</strong></div>'
+      + '</div>'
+      + '<div class="inv-label" style="margin-top:16px;">Seleccioná si alguna es la que buscás</div>'
+      + listaHtml
+      + '<button style="width:100%;padding:16px;font-size:17px;font-weight:700;margin-top:20px;background:#fff;border:3px dashed #111;border-radius:10px;color:#3D3D3D;cursor:pointer;" onclick="_invNuevaPlacaForzar()">NINGUNA DE ESTAS — CREAR IGUAL</button>'
+      + '</div>';
+  }
+
+  window._invNuevaPlacaForzar = function () {
+    var p = _npPendiente;
+    if (!p) { _fail('No hay datos pendientes'); return; }
+    var btn = document.querySelector('[onclick="_invNuevaPlacaForzar()"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Creando...'; }
+    _post('crear-item-placa', { descripcion: p.descripcion, espesor: p.espesor, largo_cm: p.largo, ancho_cm: p.ancho, confirmado: true }).then(function (r) {
+      if (btn) { btn.disabled = false; btn.textContent = 'NINGUNA DE ESTAS — CREAR IGUAL'; }
+      if (!r.ok || !r.item) { _fail(r.msg || r.error || 'No se pudo crear'); return; }
+      _cargaItem = r.item;
+      _cargaEspesor = p.espesor;
+      _cargaLargo = p.largo;
+      _cargaAncho = p.ancho;
+      _npPendiente = null;
+      _npSimilares = [];
+      _ok('Ítem ' + r.item.codigo + ' creado ✓');
+      _show('carga-placa');
+    }).catch(function () {
+      if (btn) { btn.disabled = false; btn.textContent = 'NINGUNA DE ESTAS — CREAR IGUAL'; }
       _fail('Error de conexión');
     });
   };

@@ -788,6 +788,27 @@ async function accionCrearItemPlaca(req, res) {
   let descripcion = base;
   if (espesor) descripcion += ' ' + espesor + 'mm';
 
+  // Guard anti-duplicado: buscar placas similares antes de crear
+  const confirmado = b.confirmado === true;
+  if (!confirmado) {
+    const tokens = base.split(/[^A-ZÁÉÍÓÚÑ]+/i).filter(t => t.length >= 4);
+    if (tokens.length) {
+      const { data: cand } = await supabase.from('inv_items')
+        .select('id, codigo, descripcion, familia, costo_ultimo_usd, costo_promedio_usd')
+        .eq('activo', true)
+        .or(tokens.map(t => `descripcion.ilike.%${t}%`).join(','))
+        .limit(60);
+      const minScore = tokens.length === 1 ? 1 : 2;
+      const similares = (cand || [])
+        .map(it => ({ it, score: tokens.filter(t => (it.descripcion || '').toUpperCase().includes(t)).length }))
+        .filter(x => x.score >= minScore)
+        .sort((a, b2) => b2.score - a.score)
+        .slice(0, 6)
+        .map(x => x.it);
+      if (similares.length) return ok(res, { requiere_confirmacion: true, similares });
+    }
+  }
+
   // Código autogenerado LP-0001, LP-0002, ... (LP = local placa).
   // Se reintenta ante colisión por carga simultánea desde dos kioscos.
   for (let intento = 0; intento < 3; intento++) {
