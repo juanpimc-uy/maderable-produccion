@@ -71,7 +71,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
 .overlay.open{display:flex;}
 .modal{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:24px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;}
 .modal-title{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--amber);letter-spacing:1px;text-transform:uppercase;margin-bottom:16px;}
-.field{margin-bottom:14px;}
+.field{margin-bottom:11px;}
 .field label{font-family:'Space Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:5px;}
 .field input,.field select{width:100%;font-family:'Space Mono',monospace;font-size:12px;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);outline:none;}
 .field input:focus{border-color:var(--amber);}
@@ -130,8 +130,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
 </div>
 
 <!-- Modal nuevo envío -->
-<div class="overlay" id="ov-nuevo" onclick="cerrarNuevo()">
-  <div class="modal" onclick="event.stopPropagation()">
+<div class="overlay" id="ov-nuevo">
+  <div class="modal" style="max-width:420px;padding:20px;">
     <div class="modal-title">NUEVO ENVÍO</div>
     <div class="field"><label>Proyecto</label>
       <div style="position:relative;">
@@ -161,15 +161,15 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
 </div>
 
 <!-- Modal detalle -->
-<div class="overlay" id="ov-detalle" onclick="cerrarDetalle()">
-  <div class="modal" style="max-width:640px;" onclick="event.stopPropagation()">
+<div class="overlay" id="ov-detalle">
+  <div class="modal" style="max-width:640px;">
     <div id="det-content"></div>
   </div>
 </div>
 
 <!-- Modal editar envío -->
-<div class="overlay" id="ov-editar" onclick="cerrarEditar()">
-  <div class="modal" style="max-width:400px;" onclick="event.stopPropagation()">
+<div class="overlay" id="ov-editar">
+  <div class="modal" style="max-width:400px;">
     <div class="modal-title">EDITAR ENVÍO</div>
     <input type="hidden" id="ed-envio-id">
     <div class="field"><label>Nombre de la etiqueta</label><input id="ed-nombre"></div>
@@ -613,6 +613,15 @@ async function cargarCatalogo() {
 }
 
 // ═══ BOOT ═══
+// Overlay close: only if click is on the overlay itself, not on a dropdown
+['ov-nuevo','ov-detalle','ov-editar'].forEach(function(id){
+  var fn = id === 'ov-nuevo' ? cerrarNuevo : id === 'ov-detalle' ? cerrarDetalle : cerrarEditar;
+  document.getElementById(id).addEventListener('click', function(e){
+    if (e.target !== this) return;
+    if (e.target.closest && e.target.closest('.bs-drop')) return;
+    fn();
+  });
+});
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { cerrarDetalle(); cerrarNuevo(); cerrarEditar(); } });
 (async () => {
   await Promise.all([cargarBoard(), cargarCatalogo()]);
