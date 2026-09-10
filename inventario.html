@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inventario · MBLE</title>
 <script src="/js/supabase-config.js"></script>
+<script src="/js/buscador.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{ --bg:#0f0f0f;--panel:#1e1e1e;--card:#252525;--card2:#1a1a1a;--border:#2a2a2a;
@@ -155,6 +156,7 @@
     <div class="tab" data-tab="ubicaciones" onclick="_switchTab('ubicaciones')">Ubicaciones</div>
     <div class="tab" data-tab="valuacion" onclick="_switchTab('valuacion')">Valuación</div>
     <div class="tab" data-tab="reposicion" onclick="_switchTab('reposicion')">Reposición</div>
+    <div class="tab" data-tab="reservas" onclick="_switchTab('reservas')">Reservas</div>
   </div>
 
   <!-- ═══════ TAB: ÍTEMS ═══════ -->
@@ -281,6 +283,54 @@
     </div>
   </div>
 
+  <!-- ═══════ TAB: RESERVAS ═══════ -->
+  <div id="tab-reservas" class="tab-content">
+    <div class="hdr-row">
+      <span class="hdr-title">Reservas</span>
+      <span id="res-count" class="mono" style="font-size:11px;color:var(--muted);margin-left:12px;"></span>
+      <span class="spacer"></span>
+      <button class="btn" onclick="_cargarReservas()">⟳ Actualizar</button>
+    </div>
+    <div id="res-stats" class="stats-row" style="margin-bottom:12px;"></div>
+    <div id="res-filters" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <input class="inp" id="res-filter-q" placeholder="Buscar proyecto, ítem o código…" style="flex:1;min-width:160px;font-size:12px;" oninput="_filtrarReservas()">
+      <select class="inp" id="res-filter-fam" style="width:120px;font-size:12px;" onchange="_filtrarReservas()">
+        <option value="">Todas</option>
+        <option value="placa">Placa</option>
+        <option value="madera">Madera</option>
+      </select>
+    </div>
+    <div id="res-content">
+      <div class="placeholder"><div><div style="font-size:14px;color:var(--muted);">Seleccioná el tab para cargar</div></div></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ MODAL: Reservar placas ═══ -->
+<div class="modal-bg" id="modal-reserva">
+  <div class="modal">
+    <button class="modal-x" onclick="_closeModal('modal-reserva')">✕</button>
+    <div class="modal-title">Reservar placas</div>
+    <div id="res-modal-sub" class="mono" style="font-size:10px;color:var(--muted);margin:-6px 0 14px;"></div>
+    <div class="field">
+      <label>Proyecto</label>
+      <div style="position:relative;">
+        <input class="inp" id="res-proy-input" placeholder="Buscar proyecto…" autocomplete="off">
+        <div id="res-proy-drop" class="bs-drop"></div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Cantidad</label>
+      <input class="inp" id="res-cant" type="number" min="1" value="1">
+      <div id="res-cant-hint" class="mono" style="font-size:10px;color:var(--muted);margin-top:2px;"></div>
+    </div>
+    <div id="res-modal-error" class="err-msg"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="_closeModal('modal-reserva')">Cancelar</button>
+      <button class="btn btn-accent" id="res-modal-btn" onclick="_confirmarReserva()">Reservar</button>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ MODAL: Crear/Editar Ítem ═══ -->
@@ -453,6 +503,7 @@ function _switchTab(id) {
   if (id === 'ubicaciones' && !_ubisLoaded) _cargarUbicaciones();
   if (id === 'valuacion' && !_valLoaded) _cargarValuacion();
   if (id === 'reposicion' && !_repoLoaded) _cargarReposicion();
+  if (id === 'reservas' && !_reservasLoaded) _cargarReservas();
 }
 
 // ── Modals ──
@@ -1406,6 +1457,7 @@ async function _openItemPanel(id) {
     + '<div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1px;">STOCK TOTAL</div>'
     + '<div class="mono" style="font-size:28px;font-weight:700;color:' + (r.stock_total > 0 ? 'var(--green)' : 'var(--red)') + ';">' + r.stock_total + '</div>'
     + (it.stock_min != null ? '<div class="mono" style="font-size:10px;color:var(--muted);">Mín: ' + it.stock_min + (it.stock_max != null ? ' · Máx: ' + it.stock_max : '') + '</div>' : '')
+    + (r.stock_reservadas > 0 ? '<div class="mono" style="font-size:11px;color:var(--amber);margin-top:2px;">' + r.stock_reservadas + ' reservadas · ' + (r.stock_total - r.stock_reservadas) + ' libres</div>' : '')
     + '</div>';
 
   // Desglose por ubicación
@@ -1427,10 +1479,34 @@ async function _openItemPanel(id) {
       var ubi = u.ubicacion || {};
       var attrs = (typeof u.atributos === 'object' && u.atributos) || {};
       var estadoColor = u.estado === 'activa' ? 'var(--green)' : 'var(--muted)';
-      html += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;">'
+      var esReservada = u.estado === 'activa' && u.reserva_proyecto_id;
+      var rowStyle = esReservada
+        ? 'display:flex;align-items:center;gap:6px;padding:4px 0 4px 7px;border-bottom:1px solid var(--border);border-left:2px solid var(--amber);background:rgba(255,214,0,.045);font-size:11px;'
+        : 'display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;';
+      // Medida desde atributos
+      var medTxt = '';
+      var medColor = 'var(--muted)';
+      if (attrs.largo_cm && attrs.ancho_cm) {
+        medTxt = attrs.largo_cm + '×' + attrs.ancho_cm + (attrs.espesor ? ' · ' + attrs.espesor + 'mm' : '');
+        if (it.largo_cm && it.ancho_cm && (Number(attrs.largo_cm) !== Number(it.largo_cm) || Number(attrs.ancho_cm) !== Number(it.ancho_cm))) medColor = 'var(--amber)';
+      } else if (attrs.medida) {
+        medTxt = attrs.medida + (attrs.espesor ? ' · ' + attrs.espesor + 'mm' : '');
+      }
+      // Ubicación o chip de reserva
+      var ubiOrRes = '';
+      if (esReservada) {
+        var rp = (r.reservas_proy || {})[u.reserva_proyecto_id] || {};
+        var rpLabel = rp.numero || u.reserva_proyecto_id;
+        var rpTitle = esc((rp.numero || '') + ' · ' + (rp.nombre || ''));
+        ubiOrRes = '<span class="mono" style="font-size:9px;color:var(--amber);border:1px solid rgba(255,214,0,.4);border-radius:3px;padding:1px 5px;cursor:pointer;" title="' + rpTitle + '" onclick="event.stopPropagation();_liberarUnidad(\'' + esc(u.codigo) + '\')">◆ ' + esc(rpLabel) + '</span>';
+      } else {
+        ubiOrRes = '<span style="color:var(--muted);font-size:10px;">' + esc(ubi.codigo || '') + '</span>';
+      }
+      html += '<div style="' + rowStyle + '">'
         + '<span class="mono" style="font-weight:700;color:var(--amber);">' + esc(u.codigo) + '</span>'
         + '<span style="color:' + estadoColor + ';font-size:9px;">' + esc(u.estado) + '</span>'
-        + '<span style="color:var(--muted);font-size:10px;">' + esc(ubi.codigo || '') + '</span>'
+        + (medTxt ? '<span class="mono" style="color:' + medColor + ';font-size:9px;">' + esc(medTxt) + '</span>' : '')
+        + ubiOrRes
         + '<span style="margin-left:auto;cursor:pointer;font-size:13px;" onclick="_panelPrintUnit(' + i + ')" title="Imprimir etiqueta">⎙</span>'
         + '</div>';
     });
@@ -1458,8 +1534,11 @@ async function _openItemPanel(id) {
 
   html += '</div>';
   // Sticky actions bar at bottom
-  html += '<div class="panel-actions-sticky">'
-    + '<button class="btn" style="font-size:10px;" onclick="_panelEditItem()">✏ Editar</button>'
+  html += '<div class="panel-actions-sticky">';
+  if (it.familia === 'placa' || it.familia === 'madera') {
+    html += '<button class="btn btn-accent" style="font-size:10px;" onclick="_openReservar()">◆ Reservar placas</button>';
+  }
+  html += '<button class="btn" style="font-size:10px;" onclick="_panelEditItem()">✏ Editar</button>'
     + '</div>';
   panel.innerHTML = html;
 }
@@ -1478,6 +1557,214 @@ function _panelPrintUnit(idx) {
     codigo: u.codigo, descripcion: it.nombre_corto || it.descripcion || '',
     espesor: attrs.espesor ? attrs.espesor + 'mm' : '', medida: attrs.medida || '', _qr: u.codigo
   }]);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RESERVAS
+// ═══════════════════════════════════════════════════════════════════
+let _reservasLoaded = false;
+let _reservasData = null;
+let _reservaProyCache = null; // proyectos-activos cacheados
+let _reservaBuscador = null;
+let _reservaSeleccion = null;
+
+async function _fetchProyectosActivos() {
+  if (_reservaProyCache) return _reservaProyCache;
+  const r = await fetch('/api/tiempos?action=proyectos-activos').then(r => r.json());
+  _reservaProyCache = r.proyectos || [];
+  return _reservaProyCache;
+}
+
+function _liberarUnidad(codigo) {
+  if (!confirm('¿Liberar la reserva de ' + codigo + '?')) return;
+  _post('liberar-reserva', { codigo: codigo }).then(function(r) {
+    if (r.ok) _openItemPanel(_panelData.item.id);
+  });
+}
+
+function _openReservar() {
+  if (!_panelData || !_panelData.item) return;
+  var it = _panelData.item;
+  var activas = (_panelData.unidades || []).filter(function(u) { return u.estado === 'activa'; });
+  var libres = activas.filter(function(u) { return !u.reserva_proyecto_id; });
+  document.getElementById('res-modal-sub').textContent = it.codigo + ' · ' + libres.length + ' libres de ' + activas.length;
+  document.getElementById('res-cant').value = 1;
+  document.getElementById('res-cant').max = libres.length;
+  document.getElementById('res-cant-hint').textContent = 'de ' + libres.length + ' libres';
+  document.getElementById('res-modal-error').textContent = '';
+  document.getElementById('res-proy-input').value = '';
+  _reservaSeleccion = null;
+  _fetchProyectosActivos().then(function(proys) {
+    if (!_reservaBuscador) {
+      _reservaBuscador = montarBuscador(
+        document.getElementById('res-proy-input'),
+        document.getElementById('res-proy-drop'),
+        proys,
+        {
+          codigo: function(p) { return p.numero; },
+          texto: function(p) { return p.nombre || p.obra || ''; },
+          sub: function(p) { return [p.obra, p.cliente_nombre].filter(Boolean).join(' · '); },
+          buscar: function(p) { return [p.numero, p.nombre, p.obra, p.cliente_nombre].filter(Boolean).join(' '); },
+          onSelect: function(p) { _reservaSeleccion = p || null; },
+        }
+      );
+    } else {
+      _reservaBuscador.set(proys);
+    }
+  });
+  _openModal('modal-reserva');
+}
+
+async function _confirmarReserva() {
+  var errEl = document.getElementById('res-modal-error');
+  errEl.textContent = '';
+  if (!_reservaSeleccion) { errEl.textContent = 'Seleccioná un proyecto'; return; }
+  var cant = Math.floor(Number(document.getElementById('res-cant').value));
+  if (!cant || cant <= 0) { errEl.textContent = 'La cantidad debe ser mayor a 0'; return; }
+  var btn = document.getElementById('res-modal-btn');
+  btn.disabled = true;
+  btn.textContent = '...';
+  var r = await _post('reservar-unidades', {
+    item_id: _panelData.item.id,
+    proyecto_id: _reservaSeleccion.id,
+    cantidad: cant,
+  });
+  btn.disabled = false;
+  btn.textContent = 'Reservar';
+  if (!r.ok) { errEl.textContent = r.msg || 'Error'; return; }
+  _closeModal('modal-reserva');
+  _openItemPanel(_panelData.item.id);
+  _reservasLoaded = false; // forzar recarga del tab si se vuelve
+}
+
+// ── Tab Reservas ──
+async function _cargarReservas() {
+  _reservasLoaded = true;
+  var content = document.getElementById('res-content');
+  content.innerHTML = '<div class="placeholder"><div><div style="font-size:14px;color:var(--muted);">Cargando...</div></div></div>';
+  var r = await _get('listar-reservas');
+  if (!r.ok) { content.innerHTML = '<div class="placeholder"><div><div style="font-size:14px;color:var(--red);">' + (r.msg || 'Error') + '</div></div></div>'; return; }
+  _reservasData = r;
+  _renderReservas();
+}
+
+function _filtrarReservas() { _renderReservas(); }
+
+function _renderReservas() {
+  var r = _reservasData;
+  if (!r) return;
+  var content = document.getElementById('res-content');
+  var reservas = r.reservas || [];
+  var proys = r.proyectos || {};
+  var emps = r.empleados || {};
+
+  // Filtros
+  var q = (document.getElementById('res-filter-q').value || '').trim().toLowerCase();
+  var fam = document.getElementById('res-filter-fam').value;
+  if (q || fam) {
+    reservas = reservas.filter(function(rv) {
+      if (fam && rv.item && rv.item.familia !== fam) return false;
+      if (q) {
+        var p = proys[rv.reserva_proyecto_id] || {};
+        var haystack = [rv.codigo, rv.item && rv.item.codigo, rv.item && rv.item.descripcion, p.numero, p.nombre].filter(Boolean).join(' ').toLowerCase();
+        if (haystack.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  // Stats
+  var totalPlacas = reservas.length;
+  var proySet = new Set(reservas.map(function(rv) { return rv.reserva_proyecto_id; }));
+  var totalUsd = reservas.reduce(function(s, rv) { return s + (Number(rv.costo_usd) || 0); }, 0);
+  var ahora = Date.now();
+  var viejas = reservas.filter(function(rv) { return rv.reserva_en && (ahora - new Date(rv.reserva_en).getTime()) > 30 * 86400000; }).length;
+  document.getElementById('res-stats').innerHTML = ''
+    + '<div class="stat-chip">Placas reservadas <b>' + totalPlacas + '</b></div>'
+    + '<div class="stat-chip">Proyectos <b>' + proySet.size + '</b></div>'
+    + '<div class="stat-chip">Inmovilizado <b>USD ' + totalUsd.toFixed(0) + '</b></div>'
+    + '<div class="stat-chip"' + (viejas > 0 ? ' style="color:var(--red);border-color:#5a2020;"' : '') + '>&gt; 30 días <b>' + viejas + '</b></div>';
+  document.getElementById('res-count').textContent = totalPlacas + ' reservas';
+
+  if (!reservas.length) {
+    content.innerHTML = '<div class="placeholder"><div><div style="font-size:14px;color:var(--muted);">No hay placas reservadas.</div></div></div>';
+    return;
+  }
+
+  // Agrupar por proyecto
+  var grupos = {};
+  var ordenProys = [];
+  reservas.forEach(function(rv) {
+    var pid = rv.reserva_proyecto_id;
+    if (!grupos[pid]) { grupos[pid] = []; ordenProys.push(pid); }
+    grupos[pid].push(rv);
+  });
+
+  var esc2 = function(s) { return (s == null ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')); };
+  var html = '<table class="tbl" style="width:100%;"><thead><tr><th>Unidad</th><th>Ítem</th><th>Descripción</th><th>Medida</th><th>Ubicación</th><th>Reservó / desde</th><th></th></tr></thead><tbody>';
+  ordenProys.forEach(function(pid) {
+    var p = proys[pid] || {};
+    var g = grupos[pid];
+    var gUsd = g.reduce(function(s, rv) { return s + (Number(rv.costo_usd) || 0); }, 0);
+    html += '<tr style="background:var(--card2);"><td colspan="7" style="padding:8px 10px;">'
+      + '<div style="display:flex;align-items:center;gap:10px;">'
+      + '<span class="mono" style="font-size:12px;font-weight:700;color:var(--amber);">' + esc2(p.numero || pid) + '</span>'
+      + '<span style="font-size:12px;">' + esc2(p.nombre || '') + '</span>'
+      + '<span class="mono" style="font-size:10px;color:var(--muted);">' + g.length + ' placas · USD ' + gUsd.toFixed(0) + '</span>'
+      + '<span style="margin-left:auto;"><button class="btn" style="font-size:9px;padding:3px 8px;" onclick="_liberarTodasProyecto(\'' + esc2(pid) + '\')">Liberar todas</button></span>'
+      + '</div></td></tr>';
+    g.forEach(function(rv) {
+      var it = rv.item || {};
+      var ubi = rv.ubicacion || {};
+      var empNombre = rv.reserva_por ? (emps[rv.reserva_por] || '—') : '—';
+      var desde = rv.reserva_en ? new Date(rv.reserva_en) : null;
+      var desdeTxt = desde ? (desde.getDate().toString().padStart(2, '0') + '/' + (desde.getMonth() + 1).toString().padStart(2, '0')) : '—';
+      var diasTxt = desde ? Math.floor((ahora - desde.getTime()) / 86400000) + ' d' : '';
+      var attrs = (typeof rv.atributos === 'object' && rv.atributos) || {};
+      var medTxt = '';
+      var medStyle = 'color:var(--muted);';
+      if (attrs.largo_cm && attrs.ancho_cm) {
+        medTxt = attrs.largo_cm + '×' + attrs.ancho_cm;
+        if (it.largo_cm && it.ancho_cm && (Number(attrs.largo_cm) !== Number(it.largo_cm) || Number(attrs.ancho_cm) !== Number(it.ancho_cm))) medStyle = 'color:var(--amber);';
+      } else if (attrs.medida) {
+        medTxt = attrs.medida;
+      }
+      html += '<tr style="font-size:11px;">'
+        + '<td class="mono" style="font-weight:700;color:var(--amber);">' + esc2(rv.codigo) + '</td>'
+        + '<td class="mono" style="font-size:10px;">' + esc2(it.codigo || '') + '</td>'
+        + '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc2(it.nombre_corto || it.descripcion || '') + '</td>'
+        + '<td class="mono" style="font-size:10px;' + medStyle + '">' + esc2(medTxt) + '</td>'
+        + '<td style="color:var(--muted);font-size:10px;">' + esc2(ubi.codigo || '') + '</td>'
+        + '<td style="color:var(--muted);font-size:10px;">' + esc2(empNombre) + ' · ' + desdeTxt + (diasTxt ? ' · ' + diasTxt : '') + '</td>'
+        + '<td><button class="btn" style="font-size:9px;padding:2px 6px;" onclick="_liberarUna(\'' + esc2(rv.codigo) + '\')">Liberar</button></td>'
+        + '</tr>';
+    });
+  });
+  html += '</tbody></table>';
+  content.innerHTML = html;
+}
+
+function _liberarUna(codigo) {
+  if (!confirm('¿Liberar la reserva de ' + codigo + '?')) return;
+  _post('liberar-reserva', { codigo: codigo }).then(function(r) {
+    if (r.ok) _cargarReservas();
+  });
+}
+
+function _liberarTodasProyecto(pid) {
+  if (!_reservasData) return;
+  // Encontrar los items de este proyecto para liberar por (item_id, proyecto_id)
+  var g = (_reservasData.reservas || []).filter(function(rv) { return rv.reserva_proyecto_id === pid; });
+  if (!g.length) return;
+  var p = (_reservasData.proyectos || {})[pid] || {};
+  if (!confirm('¿Liberar las ' + g.length + ' reservas de ' + (p.numero || pid) + '?')) return;
+  // Agrupar por item_id
+  var porItem = {};
+  g.forEach(function(rv) { var iid = rv.item && rv.item.id; if (iid) porItem[iid] = true; });
+  var promesas = Object.keys(porItem).map(function(iid) {
+    return _post('liberar-reserva', { item_id: iid, proyecto_id: pid });
+  });
+  Promise.all(promesas).then(function() { _cargarReservas(); });
 }
 
 // ── Init ──

@@ -1640,7 +1640,7 @@ async function accionDetalleItem(req, res) {
   let unidades = [];
   if (item.familia === 'placa' || item.familia === 'madera') {
     const { data: uRows } = await supabase.from('inv_unidades')
-      .select('id, codigo, estado, ubicacion_id, costo_usd, atributos, inv_ubicaciones:ubicacion_id(codigo, nombre)')
+      .select('id, codigo, estado, ubicacion_id, costo_usd, atributos, reserva_proyecto_id, reserva_en, inv_ubicaciones:ubicacion_id(codigo, nombre)')
       .eq('item_id', itemId)
       .order('estado').order('codigo')
       .limit(200);
@@ -1648,6 +1648,7 @@ async function accionDetalleItem(req, res) {
       id: u.id, codigo: u.codigo, estado: u.estado,
       ubicacion: u.inv_ubicaciones || null,
       costo_usd: u.costo_usd, atributos: u.atributos,
+      reserva_proyecto_id: u.reserva_proyecto_id, reserva_en: u.reserva_en,
     }));
   }
 
@@ -1665,7 +1666,149 @@ async function accionDetalleItem(req, res) {
     empleado_id: m.empleado_id,
   }));
 
-  return ok(res, { item, stock_total: stockTotal, por_ubicacion: porUbicacion, unidades, movimientos });
+  // Resolver nombres de proyecto para unidades reservadas
+  const reservaIds = [...new Set(unidades.map(u => u.reserva_proyecto_id).filter(Boolean))];
+  let reservasProy = {};
+  if (reservaIds.length) {
+    const { data: proys } = await supabase.from('proyectos_cache')
+      .select('id, numero, nombre').in('id', reservaIds);
+    (proys || []).forEach(p => { reservasProy[p.id] = { numero: p.numero, nombre: p.nombre }; });
+  }
+  const stock_reservadas = unidades.filter(u => u.estado === 'activa' && u.reserva_proyecto_id).length;
+
+  return ok(res, { item, stock_total: stockTotal, por_ubicacion: porUbicacion, unidades, movimientos, reservas_proy: reservasProy, stock_reservadas });
+}
+
+// ── Reservas ──────────────────────────────────────────────────────────────
+
+async function accionReservarUnidades(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const sesion = await verificarSesionAdminOficina(req);
+  if (!sesion) return err(res, 'No autorizado', 401);
+
+  const b = req.body || {};
+  const { proyecto_id } = b;
+  if (!proyecto_id) return err(res, 'proyecto_id requerido');
+
+  const { data: proy } = await supabase.from('proyectos_cache')
+    .select('id').eq('id', proyecto_id).maybeSingle();
+  if (!proy) return err(res, 'Proyecto no encontrado', 404);
+
+  const ahora = new Date().toISOString();
+
+  if (b.codigo) {
+    // Reservar unidad puntual
+    const codigo = normCod(b.codigo);
+    const { data: u } = await supabase.from('inv_unidades')
+      .select('id, reserva_proyecto_id').eq('codigo', codigo).eq('estado', 'activa').maybeSingle();
+    if (!u) return err(res, 'Unidad no encontrada o no activa', 404);
+    if (u.reserva_proyecto_id && u.reserva_proyecto_id !== proyecto_id) {
+      return err(res, 'La unidad ya está reservada para otro proyecto');
+    }
+    await supabase.from('inv_unidades')
+      .update({ reserva_proyecto_id: proyecto_id, reserva_por: sesion.id, reserva_en: ahora })
+      .eq('id', u.id);
+    return ok(res, { codigos: [codigo], cantidad: 1 });
+  }
+
+  // Reservar por cantidad
+  const itemId = b.item_id;
+  const cantidad = Math.floor(Number(b.cantidad));
+  if (!itemId) return err(res, 'item_id requerido');
+  if (!cantidad || cantidad <= 0) return err(res, 'cantidad debe ser > 0');
+
+  const { data: libres } = await supabase.from('inv_unidades')
+    .select('id, codigo')
+    .eq('item_id', itemId).eq('estado', 'activa').is('reserva_proyecto_id', null)
+    .order('codigo').limit(cantidad);
+  if (!libres || libres.length < cantidad) {
+    return err(res, 'Solo hay ' + (libres ? libres.length : 0) + ' libres de las ' + cantidad + ' pedidas');
+  }
+
+  const ids = libres.map(u => u.id);
+  const { data: updated } = await supabase.from('inv_unidades')
+    .update({ reserva_proyecto_id: proyecto_id, reserva_por: sesion.id, reserva_en: ahora })
+    .in('id', ids).is('reserva_proyecto_id', null).select('codigo');
+  const codigos = (updated || []).map(u => u.codigo);
+  if (codigos.length < cantidad) {
+    return err(res, 'Se reservaron solo ' + codigos.length + ' — reintentá');
+  }
+  return ok(res, { codigos, cantidad: codigos.length });
+}
+
+async function accionLiberarReserva(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const sesion = await verificarSesionAdminOficina(req);
+  if (!sesion) return err(res, 'No autorizado', 401);
+
+  const b = req.body || {};
+
+  if (b.codigo) {
+    const codigo = normCod(b.codigo);
+    const { data, error } = await supabase.from('inv_unidades')
+      .update({ reserva_proyecto_id: null, reserva_por: null, reserva_en: null })
+      .eq('codigo', codigo).eq('estado', 'activa').not('reserva_proyecto_id', 'is', null)
+      .select('id');
+    return ok(res, { liberadas: (data || []).length });
+  }
+
+  if (b.item_id && b.proyecto_id) {
+    const { data, error } = await supabase.from('inv_unidades')
+      .update({ reserva_proyecto_id: null, reserva_por: null, reserva_en: null })
+      .eq('item_id', b.item_id).eq('reserva_proyecto_id', b.proyecto_id).eq('estado', 'activa')
+      .select('id');
+    return ok(res, { liberadas: (data || []).length });
+  }
+
+  return err(res, 'Se requiere codigo o (item_id + proyecto_id)');
+}
+
+async function accionListarReservas(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const sesion = await verificarSesionAdminOficina(req);
+  if (!sesion) return err(res, 'No autorizado', 401);
+
+  const { data: rows } = await supabase.from('inv_unidades')
+    .select('id, codigo, atributos, costo_usd, reserva_proyecto_id, reserva_por, reserva_en, ' +
+            'inv_items:item_id(id, codigo, descripcion, nombre_corto, familia, largo_cm, ancho_cm, espesor_mm), ' +
+            'inv_ubicaciones:ubicacion_id(codigo, nombre)')
+    .eq('estado', 'activa')
+    .not('reserva_proyecto_id', 'is', null)
+    .order('reserva_en', { ascending: true })
+    .limit(1000);
+
+  const reservas = rows || [];
+
+  // Resolver proyectos
+  const proyIds = [...new Set(reservas.map(r => r.reserva_proyecto_id).filter(Boolean))];
+  let proyectos = {};
+  if (proyIds.length) {
+    const { data: proys } = await supabase.from('proyectos_cache')
+      .select('id, numero, nombre').in('id', proyIds);
+    (proys || []).forEach(p => { proyectos[p.id] = { numero: p.numero, nombre: p.nombre }; });
+  }
+
+  // Resolver empleados
+  const empIds = [...new Set(reservas.map(r => r.reserva_por).filter(Boolean))];
+  let empleados = {};
+  if (empIds.length) {
+    const { data: emps } = await supabase.from('empleados')
+      .select('id, nombre').in('id', empIds);
+    (emps || []).forEach(e => { empleados[e.id] = e.nombre; });
+  }
+
+  const mapped = reservas.map(r => ({
+    codigo: r.codigo,
+    item: r.inv_items || null,
+    ubicacion: r.inv_ubicaciones || null,
+    atributos: r.atributos,
+    costo_usd: r.costo_usd,
+    reserva_proyecto_id: r.reserva_proyecto_id,
+    reserva_por: r.reserva_por,
+    reserva_en: r.reserva_en,
+  }));
+
+  return ok(res, { reservas: mapped, proyectos, empleados });
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────
@@ -1704,6 +1847,9 @@ export default async function handler(req, res) {
     // Carga de stock inicial
     if (action === 'cargar-stock-placa')      return await accionCargarStockPlaca(req, res);
     if (action === 'listar-unidades')         return await accionListarUnidades(req, res);
+    if (action === 'reservar-unidades')      return await accionReservarUnidades(req, res);
+    if (action === 'liberar-reserva')        return await accionLiberarReserva(req, res);
+    if (action === 'listar-reservas')        return await accionListarReservas(req, res);
     return err(res, 'Acción no reconocida');
   } catch (e) {
     console.error('[inventario]', action, e);
