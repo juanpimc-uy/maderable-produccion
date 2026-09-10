@@ -405,6 +405,41 @@ async function accionMarcarImpreso(req, res) {
 }
 
 // ── POST marcar-bulto ─────────────────────────────────────────────────────
+// Chequea si todos los bultos de un envío están escaneados y, si sí,
+// escribe despachos_muebles (puente) y marca fuera_sync_en.
+async function _syncSiEnvioCompleto(bulto) {
+  const { data: hermanos } = await supabase.from('despacho_bultos')
+    .select('escaneado')
+    .eq('proyecto_id', bulto.proyecto_id)
+    .eq('mueble_mf_n', bulto.mueble_mf_n)
+    .eq('envio', bulto.envio);
+  const todosEscaneados = hermanos && hermanos.length > 0 && hermanos.every(h => h.escaneado);
+  if (!todosEscaneados) return false;
+
+  const { data: envio } = await supabase.from('despacho_envios')
+    .select('id, proyecto_id, mf_n')
+    .eq('proyecto_id', bulto.proyecto_id)
+    .eq('mf_n', bulto.mueble_mf_n)
+    .eq('envio', bulto.envio)
+    .maybeSingle();
+  if (envio) {
+    const { data: dp } = await supabase.from('despacho_proyectos')
+      .select('odf_proyecto_id').eq('id', envio.proyecto_id).maybeSingle();
+    if (dp && dp.odf_proyecto_id) {
+      const ahora = new Date().toISOString();
+      await supabase.from('despachos_muebles').upsert({
+        proyecto_id: dp.odf_proyecto_id, mf_n: envio.mf_n, unidad: '',
+        despachado_full: true, fecha_despacho: ahora, origen: 'erp-despacho',
+        actualizado_en: ahora,
+      }, { onConflict: 'proyecto_id,mf_n,unidad' });
+      await supabase.from('despacho_envios')
+        .update({ fuera_sync_en: ahora })
+        .eq('id', envio.id);
+    }
+  }
+  return true;
+}
+
 async function accionMarcarBulto(req, res) {
   if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
   const sesion = await verificarSesionAdminOficina(req);
@@ -419,41 +454,7 @@ async function accionMarcarBulto(req, res) {
   if (bErr) return err(res, bErr.message, 500);
   if (!bulto) return err(res, 'Bulto no encontrado', 404);
 
-  // Chequear si todos los bultos del envío quedaron escaneados
-  const { data: hermanos } = await supabase.from('despacho_bultos')
-    .select('escaneado')
-    .eq('proyecto_id', bulto.proyecto_id)
-    .eq('mueble_mf_n', bulto.mueble_mf_n)
-    .eq('envio', bulto.envio);
-  const todosEscaneados = hermanos && hermanos.length > 0 && hermanos.every(h => h.escaneado);
-
-  if (todosEscaneados) {
-    // Buscar el envío y su proyecto para escribir el puente
-    const { data: envio } = await supabase.from('despacho_envios')
-      .select('id, proyecto_id, mf_n')
-      .eq('proyecto_id', bulto.proyecto_id)
-      .eq('mf_n', bulto.mueble_mf_n)
-      .eq('envio', bulto.envio)
-      .maybeSingle();
-    if (envio) {
-      const { data: dp } = await supabase.from('despacho_proyectos')
-        .select('odf_proyecto_id').eq('id', envio.proyecto_id).maybeSingle();
-      if (dp && dp.odf_proyecto_id) {
-        const ahora = new Date().toISOString();
-        // Escribir en despachos_muebles (puente) — shape exacto de despachos-sync.js
-        await supabase.from('despachos_muebles').upsert({
-          proyecto_id: dp.odf_proyecto_id, mf_n: envio.mf_n, unidad: '',
-          despachado_full: true, fecha_despacho: ahora, origen: 'erp-despacho',
-          actualizado_en: ahora,
-        }, { onConflict: 'proyecto_id,mf_n,unidad' });
-        // Marcar envío como sincronizado
-        await supabase.from('despacho_envios')
-          .update({ fuera_sync_en: ahora })
-          .eq('id', envio.id);
-      }
-    }
-  }
-
+  const todosEscaneados = await _syncSiEnvioCompleto(bulto);
   return ok(res, { bulto, todos_escaneados: todosEscaneados });
 }
 
@@ -572,6 +573,268 @@ async function accionEliminarEnvio(req, res) {
   return ok(res, { eliminado: true });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ESCÁNER DEL CHOFER (auth por sesiones con contexto='despacho')
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function verificarSesionDespacho(req) {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
+  if (!token) return null;
+  const { data: sesion } = await supabase.from('sesiones')
+    .select('token, empleado_id')
+    .eq('token', token)
+    .eq('contexto', 'despacho')
+    .gt('expira_at', new Date().toISOString())
+    .maybeSingle();
+  if (!sesion) return null;
+  await supabase.from('sesiones').update({ ultimo_uso: new Date().toISOString() }).eq('token', token);
+  const { data: emp } = await supabase.from('empleados')
+    .select('id, nombre').eq('id', sesion.empleado_id).maybeSingle();
+  return emp || null;
+}
+
+// ── POST scan-login (pública) ─────────────────────────────────────────────
+async function accionScanLogin(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const b = req.body || {};
+  const { empleado_id, pin, dispositivo } = b;
+  if (!empleado_id || !pin) return err(res, 'empleado_id y pin requeridos', 400);
+
+  const { data: emp } = await supabase.from('empleados')
+    .select('id, nombre, pin')
+    .eq('id', empleado_id)
+    .eq('activo', true)
+    .eq('archivado', false)
+    .maybeSingle();
+  if (!emp || String(emp.pin) !== String(pin)) return err(res, 'PIN incorrecto', 401);
+
+  // Limpiar sesiones vencidas de este empleado
+  await supabase.from('sesiones')
+    .delete()
+    .eq('empleado_id', empleado_id)
+    .eq('contexto', 'despacho')
+    .lt('expira_at', new Date().toISOString());
+
+  // Crear sesión nueva (30 días)
+  const expira = new Date(Date.now() + 30 * 86400000).toISOString();
+  const disp = dispositivo ? String(dispositivo).slice(0, 120) : null;
+  const { data: sesion, error: sErr } = await supabase.from('sesiones')
+    .insert({ empleado_id, contexto: 'despacho', dispositivo: disp, expira_at: expira })
+    .select('token, expira_at')
+    .single();
+  if (sErr) return err(res, sErr.message, 500);
+
+  return ok(res, { token: sesion.token, empleado: { id: emp.id, nombre: emp.nombre }, expira_at: sesion.expira_at });
+}
+
+// ── GET scan-empleados (pública) ──────────────────────────────────────────
+async function accionScanEmpleados(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const { data, error } = await supabase.from('empleados')
+    .select('id, nombre')
+    .eq('activo', true)
+    .eq('archivado', false)
+    .order('nombre');
+  if (error) return err(res, error.message, 500);
+  return ok(res, { empleados: data || [] });
+}
+
+// ── GET scan-obras (sesión despacho) ──────────────────────────────────────
+async function accionScanObras(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const emp = await verificarSesionDespacho(req);
+  if (!emp) return err(res, 'No autorizado', 401);
+
+  // Proyectos de despacho que tienen envíos
+  const { data: envios, error: eErr } = await supabase.from('despacho_envios')
+    .select('proyecto_id, mf_n, envio');
+  if (eErr) return err(res, eErr.message, 500);
+  if (!envios || !envios.length) return ok(res, { obras: [] });
+
+  const dpIds = [...new Set(envios.map(e => e.proyecto_id))];
+
+  // Bultos de esos proyectos (paginado, solo los que tienen mueble_mf_n)
+  const allBultos = [];
+  const PAGE = 500;
+  let bFrom = 0;
+  while (true) {
+    const { data: batch, error: bErr } = await supabase.from('despacho_bultos')
+      .select('proyecto_id, mueble_mf_n, envio, escaneado')
+      .in('proyecto_id', dpIds)
+      .not('mueble_mf_n', 'is', null)
+      .range(bFrom, bFrom + PAGE - 1);
+    if (bErr) return err(res, bErr.message, 500);
+    if (batch && batch.length) allBultos.push(...batch);
+    if (!batch || batch.length < PAGE) break;
+    bFrom += PAGE;
+  }
+
+  // Agregar por proyecto
+  const agg = {}; // dpId → { total, escaneados }
+  allBultos.forEach(function (b) {
+    if (!agg[b.proyecto_id]) agg[b.proyecto_id] = { total: 0, escaneados: 0 };
+    agg[b.proyecto_id].total++;
+    if (b.escaneado) agg[b.proyecto_id].escaneados++;
+  });
+
+  // Solo los que tienen pendientes
+  const dpConPendientes = Object.keys(agg).filter(function (k) { return agg[k].escaneados < agg[k].total; });
+  if (!dpConPendientes.length) return ok(res, { obras: [] });
+
+  const { data: dpRows, error: dpErr } = await supabase.from('despacho_proyectos')
+    .select('id, odf_proyecto_id, odf_numero, nombre')
+    .in('id', dpConPendientes);
+  if (dpErr) return err(res, dpErr.message, 500);
+
+  const erpIds = (dpRows || []).map(function (d) { return d.odf_proyecto_id; }).filter(Boolean);
+  const erpMap = {};
+  if (erpIds.length) {
+    const { data: erpRows, error: erpErr } = await supabase.from('proyectos_cache')
+      .select('id, numero, nombre, obra, cliente, cliente_nombre')
+      .in('id', erpIds);
+    if (erpErr) return err(res, erpErr.message, 500);
+    (erpRows || []).forEach(function (p) { erpMap[p.id] = p; });
+  }
+
+  const obras = (dpRows || []).map(function (dp) {
+    const erp = erpMap[dp.odf_proyecto_id] || {};
+    const a = agg[dp.id] || { total: 0, escaneados: 0 };
+    return {
+      despacho_proyecto_id: dp.id,
+      proyecto_id: dp.odf_proyecto_id || null,
+      odf_numero: dp.odf_numero || erp.numero || '',
+      obra: erp.obra || '',
+      nombre_proyecto: erp.nombre || '',
+      cliente: erp.cliente_nombre || erp.cliente || '',
+      bultos_total: a.total,
+      bultos_escaneados: a.escaneados,
+    };
+  });
+
+  return ok(res, { obras: obras });
+}
+
+// ── GET scan-bultos (sesión despacho) ─────────────────────────────────────
+async function accionScanBultos(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const emp = await verificarSesionDespacho(req);
+  if (!emp) return err(res, 'No autorizado', 401);
+
+  const dpId = req.query.proyecto;
+  if (!dpId) return err(res, 'proyecto requerido (despacho_proyecto_id)', 400);
+
+  // Datos de la obra
+  const { data: dp, error: dpErr } = await supabase.from('despacho_proyectos')
+    .select('id, odf_proyecto_id, odf_numero').eq('id', dpId).maybeSingle();
+  if (dpErr) return err(res, dpErr.message, 500);
+  if (!dp) return err(res, 'Obra no encontrada', 404);
+
+  const { data: erp } = await supabase.from('proyectos_cache')
+    .select('obra, cliente, cliente_nombre').eq('id', dp.odf_proyecto_id).maybeSingle();
+  const obra = {
+    despacho_proyecto_id: dp.id,
+    odf_numero: dp.odf_numero || '',
+    obra: (erp && erp.obra) || '',
+    cliente: (erp && (erp.cliente_nombre || erp.cliente)) || '',
+  };
+
+  // Envíos de este proyecto
+  const { data: envios, error: eErr } = await supabase.from('despacho_envios')
+    .select('mf_n, codigo, nombre, envio')
+    .eq('proyecto_id', dpId)
+    .order('codigo').order('envio');
+  if (eErr) return err(res, eErr.message, 500);
+
+  // Bultos (paginado, solo con mueble_mf_n)
+  const allBultos = [];
+  var bFrom2 = 0;
+  while (true) {
+    const { data: batch, error: bErr2 } = await supabase.from('despacho_bultos')
+      .select('id, numero, descripcion, escaneado, fecha_escaneo, mueble_mf_n, envio')
+      .eq('proyecto_id', dpId)
+      .not('mueble_mf_n', 'is', null)
+      .order('numero')
+      .range(bFrom2, bFrom2 + 499);
+    if (bErr2) return err(res, bErr2.message, 500);
+    if (batch && batch.length) allBultos.push(...batch);
+    if (!batch || batch.length < 500) break;
+    bFrom2 += 500;
+  }
+
+  // Agrupar por (mf_n, envio)
+  const grupos = (envios || []).map(function (e) {
+    var bs = allBultos.filter(function (b) { return b.mueble_mf_n === e.mf_n && b.envio === e.envio; });
+    return {
+      mf_n: e.mf_n,
+      codigo: e.codigo || '',
+      nombre: e.nombre || '',
+      envio: e.envio,
+      bultos: bs.map(function (b) { return { id: b.id, numero: b.numero, descripcion: b.descripcion, escaneado: b.escaneado, fecha_escaneo: b.fecha_escaneo }; }),
+    };
+  });
+
+  return ok(res, { obra: obra, grupos: grupos });
+}
+
+// ── POST scan-marcar (sesión despacho) ────────────────────────────────────
+async function accionScanMarcar(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const emp = await verificarSesionDespacho(req);
+  if (!emp) return err(res, 'No autorizado', 401);
+
+  const b = req.body || {};
+  const { bulto_id, proyecto } = b;
+  if (!bulto_id) return err(res, 'bulto_id requerido', 400);
+
+  const { data: bulto, error: bErr } = await supabase.from('despacho_bultos')
+    .select('id, proyecto_id, mueble_mf_n, envio, escaneado, numero, descripcion, fecha_escaneo')
+    .eq('id', bulto_id).maybeSingle();
+  if (bErr) return err(res, bErr.message, 500);
+  if (!bulto) return err(res, 'Bulto no encontrado', 404);
+
+  // Verificar que es de la obra abierta
+  if (proyecto && bulto.proyecto_id !== proyecto) {
+    return res.status(409).json({ ok: false, motivo: 'otra-obra', msg: 'Este bulto es de otra obra' });
+  }
+
+  // Ya escaneado: devolver sin error
+  if (bulto.escaneado) {
+    return ok(res, { ya: true, bulto: bulto });
+  }
+
+  // Marcar
+  const { data: marcado, error: mErr } = await supabase.from('despacho_bultos')
+    .update({ escaneado: true, fecha_escaneo: new Date().toISOString() })
+    .eq('id', bulto_id).select().single();
+  if (mErr) return err(res, mErr.message, 500);
+
+  const envioCompleto = await _syncSiEnvioCompleto(marcado);
+
+  // Info del grupo para el mensaje del frontend
+  const { data: hermanos } = await supabase.from('despacho_bultos')
+    .select('escaneado')
+    .eq('proyecto_id', marcado.proyecto_id)
+    .eq('mueble_mf_n', marcado.mueble_mf_n)
+    .eq('envio', marcado.envio);
+  const hTotal = (hermanos || []).length;
+  const hEsc = (hermanos || []).filter(function (h) { return h.escaneado; }).length;
+
+  // Buscar codigo del envío para el mensaje
+  const { data: env } = await supabase.from('despacho_envios')
+    .select('codigo, envio')
+    .eq('proyecto_id', marcado.proyecto_id)
+    .eq('mf_n', marcado.mueble_mf_n)
+    .eq('envio', marcado.envio)
+    .maybeSingle();
+
+  return ok(res, {
+    bulto: marcado,
+    envio_completo: envioCompleto,
+    grupo: { codigo: (env && env.codigo) || '', envio: (env && env.envio) || 1, escaneados: hEsc, total: hTotal },
+  });
+}
+
 // ── Handler ────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const action = req.query.action;
@@ -588,6 +851,12 @@ export default async function handler(req, res) {
     if (action === 'editar-envio')       return await accionEditarEnvio(req, res);
     if (action === 'resetear-envio')     return await accionResetearEnvio(req, res);
     if (action === 'eliminar-envio')     return await accionEliminarEnvio(req, res);
+    // Escáner del chofer
+    if (action === 'scan-login')         return await accionScanLogin(req, res);
+    if (action === 'scan-empleados')     return await accionScanEmpleados(req, res);
+    if (action === 'scan-obras')         return await accionScanObras(req, res);
+    if (action === 'scan-bultos')        return await accionScanBultos(req, res);
+    if (action === 'scan-marcar')        return await accionScanMarcar(req, res);
     return err(res, 'Acción no reconocida');
   } catch (e) {
     console.error('[despachos]', action, e);
