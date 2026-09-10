@@ -7,7 +7,7 @@
 <script src="/js/supabase-config.js"></script>
 <script src="/js/buscador.js"></script>
 <script src="/js/kiosco-modo.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="/js/etiquetas.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0f0f0f;--panel:#1e1e1e;--card:#252525;--border:#2a2a2a;--text:#e8e8e8;--muted:#888;
@@ -93,21 +93,6 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
 .toast.show{opacity:1;}
 .toast-ok{background:rgba(74,222,128,.15);color:var(--green);border:1px solid rgba(74,222,128,.3);}
 .toast-err{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3);}
-/* Print */
-@media print{body{background:#fff !important;overflow:visible !important;}
-  body > *:not(#print-area){display:none !important;}
-  #print-area{display:block !important;}
-  @page{size:60mm 30mm;margin:0;}
-  .etiq{width:60mm;height:30mm;display:flex;align-items:stretch;background:#fff;color:#000;font-family:'Space Mono',monospace;page-break-after:always;overflow:hidden;}
-  .etiq-qr{width:26mm;display:flex;align-items:center;justify-content:center;flex:none;padding:2mm;}
-  .etiq-qr canvas,.etiq-qr img{width:22mm !important;height:22mm !important;}
-  .etiq-info{flex:1;padding:2mm 2mm 2mm 1mm;display:flex;flex-direction:column;justify-content:center;gap:1mm;overflow:hidden;}
-  .etiq-proy{font-size:7pt;font-weight:700;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .etiq-bulto{font-size:14pt;font-weight:700;}
-  .etiq-mueble{font-size:7.5pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .etiq-env{position:absolute;top:1mm;right:2mm;font-size:6pt;font-weight:700;background:#000;color:#fff;padding:0.5mm 1.5mm;border-radius:1mm;print-color-adjust:exact;-webkit-print-color-adjust:exact;}
-}
-#print-area{display:none;}
 </style>
 <script src="sidebar.js"></script>
 </head>
@@ -182,7 +167,6 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
   </div>
 </div>
 
-<div id="print-area"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -393,36 +377,24 @@ async function imprimirEnvio(envioId) {
   if (!e) return;
   cerrarDetalle();
 
-  // Build print HTML
-  const area = document.getElementById('print-area');
-  let h = '';
-  (e.bultos || []).forEach((b, i) => {
-    const pos = '#' + String(i + 1).padStart(2, '0');
-    h += '<div class="etiq" style="position:relative;">'
-      + '<div class="etiq-qr"><div id="qr-' + b.id + '"></div></div>'
-      + '<div class="etiq-info">'
-      + '<div class="etiq-proy">' + esc(e.odf_numero) + ' · ' + esc(e.obra || e.cliente) + '</div>'
-      + '<div class="etiq-bulto">' + pos + '</div>'
-      + '<div class="etiq-mueble">' + esc(e.codigo || e.mf_n) + ' · ' + esc(e.nombre) + '</div>'
-      + '</div>'
-      + (e.envio > 1 ? '<div class="etiq-env">ENVÍO ' + e.envio + '</div>' : '')
-      + '</div>';
-  });
-  area.innerHTML = h;
+  if (!window.Etiquetas) { toast('Sistema de etiquetas no disponible', false); return; }
 
-  // Generate QR codes
-  await new Promise(r => setTimeout(r, 50));
-  (e.bultos || []).forEach(b => {
-    const el = document.getElementById('qr-' + b.id);
-    if (el && window.QRCode) {
-      new QRCode(el, { text: JSON.stringify({ pid: e.despacho_proyecto_id, bid: b.id, num: b.numero }), width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
-      // Convert canvas to img for reliable printing
-      var cv = el.querySelector('canvas');
-      if (cv) { var img = document.createElement('img'); img.src = cv.toDataURL('image/png'); el.innerHTML = ''; el.appendChild(img); }
-    }
+  var hoy = new Date();
+  var fechaCorta = String(hoy.getDate()).padStart(2, '0') + '/' + String(hoy.getMonth() + 1).padStart(2, '0');
+  var total = (e.bultos || []).length;
+  var items = (e.bultos || []).map(function (b, i) {
+    var pos = String(i + 1).padStart(2, '0');
+    return {
+      bulto: 'BULTO ' + pos + ' - ' + String(total).padStart(2, '0'),
+      odf: e.odf_numero || '',
+      cliente: e.cliente || '',
+      mueble: (e.codigo || e.mf_n || '') + ' \u00B7 ' + (e.nombre || ''),
+      fecha: fechaCorta,
+      envio_num: e.envio,
+      _qr: JSON.stringify({ pid: e.despacho_proyecto_id, bid: b.id, num: b.numero }),
+    };
   });
-  await new Promise(r => setTimeout(r, 200));
-  window.print();
+  Etiquetas.imprimir('despacho-bulto', items);
 
   // Mark as printed
   if (!e.impreso) {
