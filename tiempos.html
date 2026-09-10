@@ -1906,9 +1906,11 @@ function _tRenderSemana(data, lunes) {
         return;
       }
 
-      // Calculate worked minutes from segmentos (accurate) or entrada→salida (fallback)
+      // Horas netas: el backend las calcula con netoJornadaMin (segmentos + modalidad de descanso)
       let trabMin = 0;
-      if (j.segmentos && j.segmentos.length) {
+      if (typeof j.neto_minutos === 'number') {
+        trabMin = j.neto_minutos;
+      } else if (j.segmentos && j.segmentos.length) {
         var segTotal = 0;
         for (var si = 0; si < j.segmentos.length; si++) {
           var seg = j.segmentos[si];

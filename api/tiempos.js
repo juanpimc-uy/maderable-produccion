@@ -1817,7 +1817,7 @@ export default async function handler(req) {
 
       let jornadasQ = supabase
         .from('jornadas')
-        .select('id, empleado_id, fecha, entrada, salida, descanso_minutos, descanso_excedido_minutos, descanso_editado, editado_por, notas, alerta_15h, tarde, ausente')
+        .select('id, empleado_id, fecha, entrada, salida, descanso_minutos, descanso_excedido_minutos, tomo_descanso, anulada, descanso_editado, editado_por, notas, alerta_15h, tarde, ausente')
         .gte('fecha', desde)
         .lte('fecha', hasta)
         .order('fecha', { ascending: true })
@@ -1862,20 +1862,29 @@ export default async function handler(req) {
         segsMapR[s.jornada_id].push(s);
       });
 
+      const modalidadMap = {};
+      (empleadosData || []).forEach(e => { modalidadMap[e.id] = e.descanso_modalidad || null; });
+
       return ok({
         ok: true,
         rango: { desde, hasta },
         empleados: empleadosData || [],
-        jornadas: jornadasData.map(j => ({
-          id: j.id, empleado_id: j.empleado_id, fecha: j.fecha,
-          entrada: j.entrada, salida: j.salida,
-          descanso_minutos: j.descanso_minutos,
-          descanso_excedido_minutos: j.descanso_excedido_minutos,
-          descanso_editado: j.descanso_editado, editado_por: j.editado_por,
-          notas: j.notas, alerta_15h: j.alerta_15h, tarde: j.tarde, ausente: j.ausente,
-          sesiones: regsMapR[j.id] || [],
-          segmentos: segsMapR[j.id] || [],
-        })),
+        jornadas: jornadasData.map(j => {
+          const neto = netoJornadaMin(j, segsMapR[j.id] || [], modalidadMap[j.empleado_id]);
+          return {
+            id: j.id, empleado_id: j.empleado_id, fecha: j.fecha,
+            entrada: j.entrada, salida: j.salida,
+            descanso_minutos: j.descanso_minutos,
+            descanso_excedido_minutos: j.descanso_excedido_minutos,
+            descanso_editado: j.descanso_editado, editado_por: j.editado_por,
+            notas: j.notas, alerta_15h: j.alerta_15h, tarde: j.tarde, ausente: j.ausente,
+            sesiones: regsMapR[j.id] || [],
+            segmentos: segsMapR[j.id] || [],
+            neto_minutos: neto.excluida ? 0 : neto.min,
+            neto_pendiente: neto.pendiente,
+            neto_excluida: neto.excluida,
+          };
+        }),
       });
     }
 
