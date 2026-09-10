@@ -246,6 +246,8 @@ function _fmtHMuy(ts) {
 function _tardanzaMin(entradaISO, horarioEntrada) {
   if (!entradaISO || !horarioEntrada) return 0;
   const entUY = _toUY(entradaISO);
+  const dowUY = entUY.getUTCDay();
+  if (dowUY === 0 || dowUY === 6) return 0;
   const entMin = entUY.getUTCHours() * 60 + entUY.getUTCMinutes();
   const [hh, mm] = horarioEntrada.split(':').map(Number);
   const horMin = hh * 60 + mm;
@@ -327,8 +329,8 @@ function _calcDescansoOverlapMin(r, ahora) {
   return Math.max(0, (overlapEnd - overlapStart) / 60000);
 }
 
-function _procesarSesiones(sesiones, ahora, descansoModalidad, tomoDescanso) {
-  const aplicarDescanso = descansoModalidad === 'no_paga_60' && (tomoDescanso !== false);
+function _procesarSesiones(sesiones, ahora, descansoModalidad, tomoDescanso, fecha) {
+  const aplicarDescanso = _aplicaDescansoAlmuerzo(fecha, descansoModalidad, tomoDescanso);
   let totalMs = 0;
   const processed = sesiones.map(r => {
     const ini = new Date(r.inicio);
@@ -374,6 +376,16 @@ function _overlapAlmuerzoSegMin(jsegs) {
   return Math.min(60, Math.round(ov));
 }
 
+// El descuento automático de almuerzo (12-13 UY) solo corre de lunes a viernes.
+// Sábado y domingo se pagan enteros salvo descanso REGISTRADO por el operario.
+function _aplicaDescansoAlmuerzo(fecha, modalidad, tomoDescanso) {
+  if (modalidad !== 'no_paga_60') return false;
+  if (tomoDescanso === false) return false;
+  if (!fecha) return true;
+  const dow = new Date(fecha + 'T12:00:00Z').getUTCDay();
+  return dow >= 1 && dow <= 5;
+}
+
 function netoJornadaMin(jornada, jsegs, modalidad) {
   if (jornada.anulada) return { min: 0, pendiente: false, excluida: true };
   let total = 0, pendiente = false;
@@ -388,7 +400,7 @@ function netoJornadaMin(jornada, jsegs, modalidad) {
   let deduccion = (modalidad === 'paga_30')
     ? (jornada.descanso_excedido_minutos || 0)
     : (jornada.descanso_minutos || 0);
-  if (modalidad === 'no_paga_60' && jornada.tomo_descanso !== false) {
+  if (_aplicaDescansoAlmuerzo(jornada.fecha, modalidad, jornada.tomo_descanso)) {
     deduccion = Math.max(deduccion, _overlapAlmuerzoSegMin(jsegs));
   }
   total = Math.max(0, total - deduccion);
@@ -4959,7 +4971,7 @@ export default async function handler(req) {
           const emp = empMapSD[j.empleado_id] || {};
           const raw = regsMapSD[j.id] || [];
           const tomoDescanso = j.tomo_descanso ?? true;
-          const { sesiones, total_minutos } = _procesarSesiones(raw, ahoraSD, emp.descanso_modalidad, tomoDescanso);
+          const { sesiones, total_minutos } = _procesarSesiones(raw, ahoraSD, emp.descanso_modalidad, tomoDescanso, j.fecha);
           // horas netas desde jornada_segmentos
           const neto = netoJornadaMin(j, jsegMapSD[j.id], emp.descanso_modalidad);
           const horas_jornada_min = neto.excluida ? 0 : neto.min;
@@ -5070,7 +5082,7 @@ export default async function handler(req) {
         dias: jornadasSE.map(j => {
           const raw = regsMapSE[j.id] || [];
           const tomoDescanso = j.tomo_descanso ?? true;
-          const { sesiones, total_minutos } = _procesarSesiones(raw, ahoraSE, empDescansoModalidadSE, tomoDescanso);
+          const { sesiones, total_minutos } = _procesarSesiones(raw, ahoraSE, empDescansoModalidadSE, tomoDescanso, j.fecha);
           const tardanza_min = _tardanzaMin(j.entrada, empHorarioEntradaSE);
           // horas netas desde jornada_segmentos
           const neto = netoJornadaMin(j, jsegMapSE[j.id], empDescansoModalidadSE);
@@ -5183,16 +5195,6 @@ export default async function handler(req) {
         d.setUTCDate(d.getUTCDate() + 6);
         return d.toISOString().split('T')[0];
       }
-      function _rhDiasHabiles(mondayStr, sundayStr, desdeStr, hastaStr) {
-        // Lun-Vie dentro del rango [desde, hasta] intersectado con [monday, sunday]
-        const start = new Date(Math.max(new Date(mondayStr + 'T00:00:00Z'), new Date(desdeStr + 'T00:00:00Z')));
-        const end   = new Date(Math.min(new Date(sundayStr + 'T00:00:00Z'), new Date(hastaStr + 'T00:00:00Z')));
-        let count = 0;
-        const d = new Date(start);
-        while (d <= end) { const dow = d.getUTCDay(); if (dow >= 1 && dow <= 5) count++; d.setUTCDate(d.getUTCDate() + 1); }
-        return count;
-      }
-
       // Agrupar jornadas por empleado
       const jorsPorEmpRH = {};
       (jornadasRH || []).forEach(j => {
@@ -5238,13 +5240,19 @@ export default async function handler(req) {
 
             // Generar detalle diario
             const fechasHabiles = _rhFechasHabiles(monday, sunday, desde, hasta);
+            const fechas = Array.from(
+              new Set([...fechasHabiles, ...Array.from(sw.fechasConJornada)])
+            ).sort();
             let entradaMin = null, salidaMax = null;
             let descansoTotalMin = 0, tardanzaTotalMin = 0, horasNetasMin = 0;
             let ausencias = 0;
 
-            const dias = fechasHabiles.map(fecha => {
+            const dias = fechas.map(fecha => {
               const j = jorByFecha[fecha];
               if (!j) {
+                // Sábado/domingo sin jornada: no genera fila ni ausencia
+                const dowF = new Date(fecha + 'T12:00:00Z').getUTCDay();
+                if (dowF === 0 || dowF === 6) return null;
                 if (feriadosSetRH.has(fecha)) return { fecha, feriado: true, ausente: false, entrada: null, salida: null, tarde_min: 0, horas_min: 0 };
                 ausencias++; return { fecha, ausente: true, entrada: null, salida: null, tarde_min: 0, horas_min: 0 };
               }
@@ -5261,7 +5269,7 @@ export default async function handler(req) {
               horasNetasMin += diaMin;
               const extrasDia = esOperario ? Math.max(0, diaMin - 9*60) : 0;
               return { fecha, ausente: false, entrada: entradaHM, salida: salidaHM, tarde_min: tardeMin, horas_min: diaMin, extras_dia_min: extrasDia, pendiente: neto.pendiente };
-            });
+            }).filter(Boolean);
 
             const extrasMin = Math.max(0, horasNetasMin - 45 * 60);
 

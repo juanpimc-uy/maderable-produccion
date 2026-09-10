@@ -1811,12 +1811,12 @@ function _semInitDate() {
 async function _tCargarSemana() {
   _semInitDate();
   const lunes = _semLunes(document.getElementById('sem-fecha').value);
-  const viernes = (() => { const d = new Date(lunes + 'T12:00:00'); d.setDate(d.getDate() + 4); return d.toISOString().split('T')[0]; })();
+  const finSemana = (() => { const d = new Date(lunes + 'T12:00:00'); d.setDate(d.getDate() + 6); return d.toISOString().split('T')[0]; })();
   const result = document.getElementById('semana-result');
   result.innerHTML = '<span class="spinner"></span><span class="mono" style="color:var(--muted);font-size:12px;">Cargando…</span>';
 
   try {
-    const res = await _tFetch(`/api/tiempos?action=jornadas-rango&desde=${lunes}&hasta=${viernes}&caller_id=${CALLER_ID}`);
+    const res = await _tFetch(`/api/tiempos?action=jornadas-rango&desde=${lunes}&hasta=${finSemana}&caller_id=${CALLER_ID}`);
     const json = await res.json();
     if (!json.ok) throw new Error(json.error || 'Error');
     _tRenderSemana(json, lunes);
@@ -1835,6 +1835,7 @@ function _isoToMinutesUY(iso) {
 
 function _esTarde(jornada, empId) {
   if (!jornada.entrada) return false;
+  if (jornada.fecha) { const dow = new Date(jornada.fecha + 'T12:00:00Z').getUTCDay(); if (dow === 0 || dow === 6) return false; }
   const emp = _empListT.find(e => e.id === empId);
   const horario = emp?.horario_entrada || (emp?.rol_app === 'oficina' ? '09:00' : '07:30');
   const [hh, mm] = horario.split(':').map(Number);
@@ -1845,12 +1846,12 @@ function _esTarde(jornada, empId) {
 function _tRenderSemana(data, lunes) {
   const result = document.getElementById('semana-result');
   const dias = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 7; i++) {
     const d = new Date(lunes + 'T12:00:00');
     d.setDate(d.getDate() + i);
     dias.push(d.toISOString().split('T')[0]);
   }
-  const dayLabels = ['LUN','MAR','MIÉ','JUE','VIE'];
+  const dayLabels = ['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'];
   const dayDates = dias.map(d => d.slice(5)); // MM-DD
 
   // Build employee map with rol_app from _empListT
