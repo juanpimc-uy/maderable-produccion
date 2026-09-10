@@ -174,14 +174,14 @@ async function accionAbrirPlaca(req, res) {
 
   // Cerrar placa abierta de este registro (si hay)
   const { data: abiertas } = await supabase.from('registros_cnc')
-    .select('id, unidad_id, registro_trabajo_id')
+    .select('id, unidad_id, registro_trabajo_id, resultado, fin_corte')
     .eq('registro_trabajo_id', b.registro_trabajo_id)
     .is('fin', null);
   for (const ab of (abiertas || [])) {
     await supabase.from('registros_cnc')
-      .update({ fin: new Date().toISOString(), resultado: 'ok' })
+      .update({ fin: new Date().toISOString(), resultado: ab.resultado || 'ok' })
       .eq('id', ab.id);
-    if (ab.unidad_id) {
+    if (ab.unidad_id && (ab.resultado || 'ok') === 'ok') {
       // Resolver proyecto/mueble del registro de trabajo para el consumo
       const { data: reg } = await supabase.from('registros_trabajo')
         .select('proyecto_id, item_id').eq('id', ab.registro_trabajo_id).maybeSingle();
@@ -227,13 +227,15 @@ async function accionCerrarPlaca(req, res) {
   if (!emp) return err(res, 'No autorizado', 401);
 
   if (!b.registro_cnc_id) return err(res, 'registro_cnc_id requerido');
-  const resultado = b.resultado === 'error' ? 'error' : 'ok';
 
   const { data: fila } = await supabase.from('registros_cnc')
-    .select('id, unidad_id, registro_trabajo_id, fin')
+    .select('id, unidad_id, registro_trabajo_id, fin, resultado, fin_corte')
     .eq('id', b.registro_cnc_id).maybeSingle();
   if (!fila) return err(res, 'Registro no encontrado', 404);
   if (fila.fin) return err(res, 'La placa ya estaba cerrada', 409);
+
+  // Respetar resultado ya marcado salvo que el body traiga uno explícito
+  const resultado = b.resultado ? (b.resultado === 'error' ? 'error' : 'ok') : (fila.resultado || 'ok');
 
   await supabase.from('registros_cnc')
     .update({ fin: new Date().toISOString(), resultado })
@@ -271,7 +273,7 @@ async function accionPlacaAbierta(req, res) {
   if (!rtId) return err(res, 'registro_trabajo_id requerido');
 
   const { data: fila } = await supabase.from('registros_cnc')
-    .select('id, unidad_id, item_id, inicio, maquina_codigo, mueble_token, placa_numero')
+    .select('id, unidad_id, item_id, inicio, maquina_codigo, mueble_token, placa_numero, fin_corte, resultado')
     .eq('registro_trabajo_id', rtId)
     .is('fin', null)
     .order('inicio', { ascending: false })
@@ -280,17 +282,57 @@ async function accionPlacaAbierta(req, res) {
 
   if (!fila) return ok(res, { placa: null });
 
-  // Resolver material/medida
-  let material = '', medida = '';
+  // Resolver material/medida y código
+  let material = '', medida = '', codigo = '';
   const itemId = fila.item_id;
-  if (itemId) {
+  if (fila.unidad_id) {
+    const { data: u } = await supabase.from('inv_unidades')
+      .select('codigo, inv_items:item_id(descripcion, nombre_corto, espesor_mm, largo_cm, ancho_cm)')
+      .eq('id', fila.unidad_id).maybeSingle();
+    if (u) {
+      codigo = u.codigo || '';
+      const it = u.inv_items || {};
+      material = _materialFromItem(it);
+      medida = _medidaFromItem(it);
+    }
+  } else if (itemId) {
     const { data: it } = await supabase.from('inv_items')
-      .select('descripcion, nombre_corto, espesor_mm, largo_cm, ancho_cm')
+      .select('codigo, descripcion, nombre_corto, espesor_mm, largo_cm, ancho_cm')
       .eq('id', itemId).maybeSingle();
-    if (it) { material = _materialFromItem(it); medida = _medidaFromItem(it); }
+    if (it) { codigo = it.codigo || ''; material = _materialFromItem(it); medida = _medidaFromItem(it); }
   }
 
-  return ok(res, { placa: { ...fila, material, medida } });
+  return ok(res, { placa: { ...fila, material, medida, codigo } });
+}
+
+async function accionMarcarFinCorte(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
+  const b = req.body || {};
+  const emp = await verificarOperario(b.empleado_id);
+  if (!emp) return err(res, 'No autorizado', 401);
+
+  if (!b.registro_cnc_id) return err(res, 'registro_cnc_id requerido');
+  const resultado = b.resultado === 'error' ? 'error' : 'ok';
+
+  const { data: fila } = await supabase.from('registros_cnc')
+    .select('id, inicio, fin, fin_corte, resultado')
+    .eq('id', b.registro_cnc_id).maybeSingle();
+  if (!fila) return err(res, 'Registro no encontrado', 404);
+  if (fila.fin) return err(res, 'La placa ya está cerrada', 409);
+
+  // Idempotente: si ya tiene fin_corte, devolver lo que hay
+  if (fila.fin_corte) {
+    const segs = Math.floor((new Date(fila.fin_corte).getTime() - new Date(fila.inicio).getTime()) / 1000);
+    return ok(res, { registro_cnc_id: fila.id, fin_corte: fila.fin_corte, resultado: fila.resultado, segundos_corte: segs });
+  }
+
+  const ahora = new Date().toISOString();
+  await supabase.from('registros_cnc')
+    .update({ fin_corte: ahora, resultado })
+    .eq('id', fila.id);
+
+  const segundos_corte = Math.floor((new Date(ahora).getTime() - new Date(fila.inicio).getTime()) / 1000);
+  return ok(res, { registro_cnc_id: fila.id, fin_corte: ahora, resultado, segundos_corte });
 }
 
 async function accionMetricasTv(req, res) {
@@ -338,6 +380,7 @@ export default async function handler(req, res) {
     if (action === 'resolver-placa')     return await accionResolverPlaca(req, res);
     if (action === 'abrir-placa')        return await accionAbrirPlaca(req, res);
     if (action === 'cerrar-placa')       return await accionCerrarPlaca(req, res);
+    if (action === 'marcar-fin-corte')   return await accionMarcarFinCorte(req, res);
     if (action === 'placa-abierta')      return await accionPlacaAbierta(req, res);
     if (action === 'metricas-tv')        return await accionMetricasTv(req, res);
     return err(res, 'Acción no reconocida');

@@ -1569,10 +1569,18 @@ async function autenticar() {
           cnc2RegistroTrabajoId = registroActivo.id;
           cnc2Maquina = _cnc2r.placa.maquina_codigo || null;
           cnc2Mueble = { token: _cnc2r.placa.mueble_token, proyecto_id: registroActivo.proyecto_id, proyecto_numero: '', proyecto_nombre: registroActivo.proyecto_nombre, mf_id: registroActivo.item_id, mueble_codigo: '', mueble_nombre: registroActivo.item_nombre };
-          cnc2Placa = { registro_cnc_id: _cnc2r.placa.id, codigo: '', material: _cnc2r.placa.material || '', medida: _cnc2r.placa.medida || '', costo_usd: null, tipo: 'unidad' };
+          cnc2Placa = { registro_cnc_id: _cnc2r.placa.id, codigo: _cnc2r.placa.codigo || '', material: _cnc2r.placa.material || '', medida: _cnc2r.placa.medida || '', costo_usd: null, tipo: 'unidad' };
           cnc2T0 = new Date(_cnc2r.placa.inicio).getTime();
-          cnc2Estado = 'cortando';
           cnc2Hist = [];
+          if (_cnc2r.placa.fin_corte) {
+            cnc2FinCorte = new Date(_cnc2r.placa.fin_corte).getTime();
+            cnc2ResultadoCorte = _cnc2r.placa.resultado || 'ok';
+            cnc2Estado = 'cortada';
+          } else {
+            cnc2FinCorte = null;
+            cnc2ResultadoCorte = null;
+            cnc2Estado = 'cortando';
+          }
           _iniciarHeartbeat(empleadoActual.id, registroActivo.id);
           iniciarIntervalos();
           renderCnc2();
@@ -2739,14 +2747,17 @@ function finalizarCNC() {
 // ═══════════════════════════════════════════════════════════════════════════
 // FLUJO CNC2 (escaneo QR)
 // ═══════════════════════════════════════════════════════════════════════════
-let cnc2Estado = null; // 'maquina'|'mueble'|'placa'|'cortando'|'cerrado'
+let cnc2Estado = null; // 'maquina'|'mueble'|'placa'|'cortando'|'cortada'|'cerrado'
 let cnc2Maquina = null;
 let cnc2Mueble = null;
 let cnc2Placa = null;
-let cnc2T0 = null;
+let cnc2T0 = null;       // inicio de la placa (ms)
+let cnc2FinCorte = null;  // fin del corte (ms), inicio del cambio
+let cnc2ResultadoCorte = null; // 'ok'|'error' marcado por LISTA/ERROR
 let cnc2Hist = [];
 let cnc2RegistroTrabajoId = null;
-let _intCnc2 = null;
+let _intCnc2Mueble = null; // cronómetro del mueble (header)
+let _intCnc2Body = null;   // cronómetro del cuerpo (placa o cambio)
 let _cnc2Err = '';
 
 function iniciarFlujoCnc() {
@@ -2756,6 +2767,8 @@ function iniciarFlujoCnc() {
   cnc2Mueble = null;
   cnc2Placa = null;
   cnc2T0 = null;
+  cnc2FinCorte = null;
+  cnc2ResultadoCorte = null;
   cnc2Hist = [];
   cnc2RegistroTrabajoId = null;
   _cnc2Err = '';
@@ -2763,8 +2776,40 @@ function iniciarFlujoCnc() {
   ir('pantalla-cnc2');
 }
 
+function _cnc2MuebleBanda() {
+  const m = cnc2Mueble || {};
+  return `<div style="padding:8px 16px;border-bottom:1px solid var(--border);margin-bottom:12px;">
+    <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">${m.proyecto_numero || ''} · ${m.mueble_codigo || ''}</div>
+    <div style="font-size:15px;font-weight:700;">${m.mueble_nombre || ''}</div>
+  </div>`;
+}
+
+function _cnc2PieMueble() {
+  const pie = document.getElementById('cnc2-pie');
+  if (!pie) return;
+  const okN = cnc2Hist.filter(h => h.resultado === 'ok').length;
+  const errN = cnc2Hist.filter(h => h.resultado === 'error').length;
+  const totalSegs = cnc2Hist.reduce((s, h) => s + (h.segundos || 0), 0);
+  pie.innerHTML = cnc2Hist.length
+    ? '✓ ' + okN + ' · ✗ ' + errN + ' · ' + fmtHMS(totalSegs)
+    : '';
+}
+
+function _cnc2IniciarCronoMueble() {
+  clearInterval(_intCnc2Mueble); _intCnc2Mueble = null;
+  if (!registroActivo || !registroActivo.inicio) return;
+  const t0m = new Date(registroActivo.inicio).getTime();
+  const _tick = () => {
+    const el = document.getElementById('cnc2-crono');
+    if (el) el.textContent = fmtHMS(Math.floor((Date.now() - t0m) / 1000));
+  };
+  _tick();
+  _intCnc2Mueble = setInterval(_tick, 1000);
+}
+
 function renderCnc2() {
-  clearInterval(_intCnc2); _intCnc2 = null;
+  clearInterval(_intCnc2Mueble); _intCnc2Mueble = null;
+  clearInterval(_intCnc2Body); _intCnc2Body = null;
   const body = document.getElementById('cnc2-body');
   const pie = document.getElementById('cnc2-pie');
   const crono = document.getElementById('cnc2-crono');
@@ -2772,9 +2817,7 @@ function renderCnc2() {
   if (!body) return;
 
   hdr.textContent = cnc2Maquina ? 'CNC · ' + cnc2Maquina : 'CNC';
-  pie.innerHTML = cnc2Hist.length
-    ? '✓ ' + cnc2Hist.filter(h => h.resultado === 'ok').length + ' ok · ✗ ' + cnc2Hist.filter(h => h.resultado === 'error').length + ' err · Total ' + cnc2Hist.length
-    : '';
+  _cnc2PieMueble();
 
   const errHtml = _cnc2Err ? `<div style="background:rgba(240,92,92,.12);border:1px solid rgba(240,92,92,.3);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--red);">${_cnc2Err}</div>` : '';
   _cnc2Err = '';
@@ -2796,52 +2839,73 @@ function renderCnc2() {
       + '<button class="btn btn-primary" onclick="cnc2Escanear()" style="min-height:70px;width:100%;font-size:14px;">📷 ESCANEAR MUEBLE</button></div>';
 
   } else if (cnc2Estado === 'placa') {
-    const m = cnc2Mueble || {};
-    body.innerHTML = errHtml
-      + `<div class="card" style="margin-bottom:16px;text-align:center;">
-          <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);">${m.proyecto_numero || ''}</div>
-          <div style="font-size:16px;font-weight:700;color:var(--accent);">${m.mueble_codigo || ''}</div>
-          <div style="font-size:13px;">${m.mueble_nombre || ''}</div>
-        </div>`
+    _cnc2IniciarCronoMueble();
+    body.innerHTML = errHtml + _cnc2MuebleBanda()
       + '<div style="text-align:center;">'
-      + '<div style="font-size:14px;font-weight:700;margin-bottom:8px;">Escaneá la placa</div>'
+      + '<div style="font-size:48px;margin-bottom:12px;">◧</div>'
+      + '<div style="font-size:22px;font-weight:700;margin-bottom:8px;">Escaneá la placa</div>'
       + '<div style="font-size:11px;color:var(--muted);margin-bottom:24px;">Si la placa no tiene etiqueta, escaneá el cartel del rack</div>'
-      + '<button class="btn btn-primary" onclick="cnc2Escanear()" style="min-height:70px;width:100%;font-size:14px;">📷 ESCANEAR PLACA</button></div>';
+      + '<button class="btn btn-primary" onclick="cnc2Escanear()" style="min-height:96px;width:100%;font-size:14px;">📷 ESCANEAR</button>'
+      + '<button class="btn btn-ghost" onclick="cnc2Fin()" style="width:100%;min-height:64px;margin-top:12px;font-size:12px;">⏹ TERMINAR MUEBLE</button></div>';
 
   } else if (cnc2Estado === 'cortando') {
-    const m = cnc2Mueble || {};
+    _cnc2IniciarCronoMueble();
     const p = cnc2Placa || {};
-    const costoTxt = p.costo_usd != null ? 'US$ ' + Number(p.costo_usd).toFixed(2) : 'no descuenta stock';
-    body.innerHTML = errHtml
-      + `<div class="card" style="margin-bottom:12px;text-align:center;">
-          <div style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);">${m.proyecto_numero || ''} · ${m.mueble_codigo || ''}</div>
-          <div style="font-size:13px;">${m.mueble_nombre || ''}</div>
+    const costoChip = p.costo_usd != null
+      ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">US$ ${Number(p.costo_usd).toFixed(2)}</div>`
+      : '<div style="display:inline-block;font-size:9px;font-weight:700;color:var(--accent);background:rgba(255,214,0,.12);border:1px solid rgba(255,214,0,.3);border-radius:4px;padding:2px 8px;margin-top:6px;text-transform:uppercase;">NO DESCUENTA STOCK</div>';
+    body.innerHTML = errHtml + _cnc2MuebleBanda()
+      + `<div style="text-align:center;">
+          <div style="font-family:'Space Mono',monospace;font-size:44px;font-weight:700;color:var(--accent);">${p.codigo || ''}</div>
+          <div style="font-size:17px;font-weight:700;margin-top:6px;">${p.material || ''}</div>
+          <div style="font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);">${p.medida || ''}</div>
+          ${costoChip}
         </div>`
-      + `<div class="card" style="margin-bottom:16px;border-color:var(--accent);">
-          <div style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--accent);">${p.codigo || ''}</div>
-          <div style="font-size:13px;margin-top:4px;">${p.material || ''}</div>
-          <div style="font-size:12px;color:var(--muted);">${p.medida || ''}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;">${costoTxt}</div>
-        </div>`
-      + `<div id="cnc2-timer" style="font-family:'Space Mono',monospace;font-size:32px;font-weight:700;text-align:center;margin:16px 0;color:var(--accent);">00:00:00</div>`
+      + `<div id="cnc2-timer" style="font-family:'Space Mono',monospace;font-size:76px;font-weight:700;text-align:center;margin:20px 0 4px;color:var(--accent);">00:00</div>`
+      + '<div style="text-align:center;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:20px;">CORTANDO</div>'
       + '<div style="display:flex;gap:12px;">'
-      + '<button class="btn" onclick="cnc2Cerrar(\'ok\')" style="flex:1;min-height:70px;font-size:14px;background:var(--green);color:#0f0f0f;border:none;">✓ LISTA</button>'
-      + '<button class="btn" onclick="cnc2Cerrar(\'error\')" style="flex:1;min-height:70px;font-size:14px;background:var(--red);color:#fff;border:none;">✗ ERROR</button></div>'
-      + '<div style="text-align:center;margin-top:12px;">'
-      + '<button class="btn btn-ghost" onclick="cnc2Escanear()" style="font-size:10px;">📷 Escanear otra placa (cierra esta como OK)</button></div>';
+      + `<button class="btn" onclick="cnc2Cerrar('ok')" style="flex:1;min-height:96px;font-size:14px;background:var(--green);color:#0f0f0f;border:none;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;"><span style="font-size:16px;">✓ LISTA</span><span style="font-size:9px;font-weight:400;opacity:.7;">terminé de cortar</span></button>`
+      + `<button class="btn" onclick="cnc2Cerrar('error')" style="flex:1;min-height:96px;font-size:14px;background:transparent;color:var(--red);border:2px solid var(--red);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;"><span style="font-size:16px;">✗ ERROR</span><span style="font-size:9px;font-weight:400;opacity:.7;">salió mal</span></button></div>`;
 
-    _intCnc2 = setInterval(() => {
+    _intCnc2Body = setInterval(() => {
       const el = document.getElementById('cnc2-timer');
       if (el && cnc2T0) el.textContent = fmtHMS(Math.floor((Date.now() - cnc2T0) / 1000));
+    }, 1000);
+
+  } else if (cnc2Estado === 'cortada') {
+    _cnc2IniciarCronoMueble();
+    const p = cnc2Placa || {};
+    const esOk = cnc2ResultadoCorte === 'ok';
+    const segsCorte = cnc2FinCorte && cnc2T0 ? Math.floor((cnc2FinCorte - cnc2T0) / 1000) : 0;
+    const bannerColor = esOk ? 'var(--green)' : 'var(--red)';
+    const bannerIcon = esOk ? '✓' : '✗';
+    const bannerTxt = esOk
+      ? `${bannerIcon} ${p.codigo || ''} CORTADA EN ${fmtHMS(segsCorte)}`
+      : `${bannerIcon} ${p.codigo || ''} CON ERROR`;
+    body.innerHTML = errHtml + _cnc2MuebleBanda()
+      + `<div style="background:${esOk ? 'rgba(61,214,140,.12)' : 'rgba(240,92,92,.12)'};border:1px solid ${esOk ? 'rgba(61,214,140,.3)' : 'rgba(240,92,92,.3)'};border-radius:10px;padding:12px 16px;text-align:center;margin-bottom:16px;">
+          <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:${bannerColor};">${bannerTxt}</div>
+        </div>`
+      + `<div id="cnc2-timer" style="font-family:'Space Mono',monospace;font-size:76px;font-weight:700;text-align:center;margin:20px 0 4px;color:#22d3ee;">00:00</div>`
+      + '<div style="text-align:center;font-size:11px;font-weight:700;color:#22d3ee;letter-spacing:2px;text-transform:uppercase;margin-bottom:16px;">CAMBIANDO PLACA</div>'
+      + '<div style="text-align:center;font-size:11px;color:var(--muted);margin-bottom:20px;">Escaneá la placa siguiente o terminá el mueble</div>'
+      + '<button class="btn btn-primary" onclick="cnc2Escanear()" style="min-height:96px;width:100%;font-size:14px;">📷 ESCANEAR SIGUIENTE</button>'
+      + '<button class="btn btn-ghost" onclick="cnc2Fin()" style="width:100%;min-height:64px;margin-top:12px;font-size:12px;">⏹ TERMINAR MUEBLE</button>';
+
+    _intCnc2Body = setInterval(() => {
+      const el = document.getElementById('cnc2-timer');
+      if (el && cnc2FinCorte) el.textContent = fmtHMS(Math.floor((Date.now() - cnc2FinCorte) / 1000));
     }, 1000);
 
   } else if (cnc2Estado === 'cerrado') {
     let listHtml = cnc2Hist.map(h => {
       const col = h.resultado === 'ok' ? 'var(--green)' : 'var(--red)';
       const icon = h.resultado === 'ok' ? '✓' : '✗';
+      const corteTxt = h.segundos_corte != null ? fmtHMS(h.segundos_corte) : fmtHMS(h.segundos || 0);
+      const cambioTxt = h.segundos_cambio != null ? fmtHMS(h.segundos_cambio) : '—';
       return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
         <span><span style="color:${col};">${icon}</span> ${h.codigo}</span>
-        <span class="mono" style="color:var(--muted);">${fmtHMS(h.segundos || 0)}</span></div>`;
+        <span class="mono" style="color:var(--muted);">${corteTxt} <span style="color:#22d3ee;">${cambioTxt}</span></span></div>`;
     }).join('');
     body.innerHTML = '<div style="text-align:center;margin:20px 0;">'
       + '<div style="font-size:48px;margin-bottom:12px;">✓</div>'
@@ -2856,7 +2920,7 @@ function renderCnc2() {
 function cnc2Escanear() {
   if (!empleadoActual) { toast('Se cerró la sesión — volvé a ingresar con tu PIN', 'var(--red)'); irAlMenu(); return; }
   cancelarTimeout30s();
-  const titulos = { maquina: 'Escaneá la máquina', mueble: 'Escaneá el mueble', placa: 'Escaneá la placa', cortando: 'Escaneá la placa' };
+  const titulos = { maquina: 'Escaneá la máquina', mueble: 'Escaneá el mueble', placa: 'Escaneá la placa', cortando: 'Escaneá la placa', cortada: 'Escaneá la placa siguiente' };
   abrirEscaner({
     titulo: titulos[cnc2Estado] || 'Escanear',
     hint: cnc2Estado === 'maquina' ? 'El sticker MAQ-... junto al puesto de carga' : '',
@@ -2899,18 +2963,24 @@ async function _cnc2ProcesarCodigo(cod) {
       _iniciarHeartbeat(empleadoActual.id, registro.id);
       avisarRetrabajosPendientes(() => { cnc2Estado = 'placa'; renderCnc2(); });
 
-    } else if (cnc2Estado === 'placa' || cnc2Estado === 'cortando') {
+    } else if (cnc2Estado === 'placa' || cnc2Estado === 'cortando' || cnc2Estado === 'cortada') {
       // FIN-... cierra la sesión
       if (cod.startsWith('FIN-')) { await cnc2Fin(); return; }
       // MB-... cambia de mueble
       if (cod.startsWith('MB-')) {
-        if (cnc2Placa) await cnc2Cerrar('ok');
         await cnc2Fin();
         cnc2Hist = [];
         cnc2Estado = 'mueble';
         renderCnc2();
         await _cnc2ProcesarCodigo(cod);
         return;
+      }
+      // Empujar placa anterior a hist si estaba cortada (abrir-placa la cierra del lado del server)
+      if (cnc2Estado === 'cortada' && cnc2Placa) {
+        const segsCorte = cnc2FinCorte && cnc2T0 ? Math.floor((cnc2FinCorte - cnc2T0) / 1000) : null;
+        const segsCambio = cnc2FinCorte ? Math.floor((Date.now() - cnc2FinCorte) / 1000) : null;
+        const segsTotal = cnc2T0 ? Math.floor((Date.now() - cnc2T0) / 1000) : 0;
+        cnc2Hist.push({ codigo: cnc2Placa.codigo, resultado: cnc2ResultadoCorte || 'ok', segundos: segsTotal, segundos_corte: segsCorte, segundos_cambio: segsCambio });
       }
       // Abrir placa
       const r = await cncPost('abrir-placa', {
@@ -2922,6 +2992,8 @@ async function _cnc2ProcesarCodigo(cod) {
       });
       cnc2Placa = { registro_cnc_id: r.registro_cnc_id, codigo: r.codigo, material: r.material, medida: r.medida, costo_usd: r.costo_usd, tipo: r.tipo };
       cnc2T0 = Date.now();
+      cnc2FinCorte = null;
+      cnc2ResultadoCorte = null;
       cnc2Estado = 'cortando';
       renderCnc2();
     }
@@ -2935,21 +3007,17 @@ async function cnc2Cerrar(resultado) {
   if (!empleadoActual) { toast('Se cerró la sesión — volvé a ingresar con tu PIN', 'var(--red)'); irAlMenu(); return; }
   if (!cnc2Placa) return;
   try {
-    const r = await cncPost('cerrar-placa', {
+    await cncPost('marcar-fin-corte', {
       empleado_id: empleadoActual.id,
       registro_cnc_id: cnc2Placa.registro_cnc_id,
       resultado,
     });
-    const segs = cnc2T0 ? Math.floor((Date.now() - cnc2T0) / 1000) : 0;
-    cnc2Hist.push({ codigo: cnc2Placa.codigo, resultado, segundos: segs, consumida: r.consumida });
-    if (r.aviso) toast(r.aviso, 'var(--accent)');
-    toast(r.msg || 'OK', resultado === 'ok' ? 'var(--green)' : 'var(--red)');
-    cnc2Placa = null;
-    cnc2T0 = null;
-    cnc2Estado = 'placa';
+    cnc2FinCorte = Date.now();
+    cnc2ResultadoCorte = resultado;
+    cnc2Estado = 'cortada';
     renderCnc2();
   } catch (e) {
-    _cnc2Err = e.message || 'Error al cerrar';
+    _cnc2Err = e.message || 'Error al marcar fin de corte';
     renderCnc2();
   }
 }
@@ -2957,7 +3025,23 @@ async function cnc2Cerrar(resultado) {
 async function cnc2Fin() {
   if (!empleadoActual) { toast('Se cerró la sesión — volvé a ingresar con tu PIN', 'var(--red)'); irAlMenu(); return; }
   try {
-    if (cnc2Placa) await cnc2Cerrar('ok');
+    if (cnc2Placa) {
+      // Cerrar la placa abierta (server-side) respetando resultado ya marcado
+      const r = await cncPost('cerrar-placa', {
+        empleado_id: empleadoActual.id,
+        registro_cnc_id: cnc2Placa.registro_cnc_id,
+        resultado: cnc2ResultadoCorte || undefined,
+      });
+      const segsCorte = cnc2FinCorte && cnc2T0 ? Math.floor((cnc2FinCorte - cnc2T0) / 1000) : null;
+      const segsCambio = cnc2FinCorte ? Math.floor((Date.now() - cnc2FinCorte) / 1000) : null;
+      const segsTotal = cnc2T0 ? Math.floor((Date.now() - cnc2T0) / 1000) : 0;
+      cnc2Hist.push({ codigo: cnc2Placa.codigo, resultado: cnc2ResultadoCorte || 'ok', segundos: segsTotal, segundos_corte: segsCorte, segundos_cambio: segsCambio });
+      if (r.aviso) toast(r.aviso, 'var(--accent)');
+      cnc2Placa = null;
+      cnc2T0 = null;
+      cnc2FinCorte = null;
+      cnc2ResultadoCorte = null;
+    }
     if (registroActivo) {
       await apiPost('finalizar-tarea', {
         registro_id: registroActivo.id,
@@ -2981,7 +3065,7 @@ async function cnc2Fin() {
 }
 
 function cnc2Salir() {
-  if (cnc2Estado === 'cortando' || cnc2Estado === 'placa') {
+  if (cnc2Estado === 'cortando' || cnc2Estado === 'cortada' || cnc2Estado === 'placa') {
     cnc2Fin().then(() => { if (cnc2Estado === 'cerrado') { renderMenuTarea(); ir('pantalla-menu'); } });
   } else {
     irAlMenu();
