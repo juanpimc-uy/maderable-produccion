@@ -102,6 +102,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
   <div class="topbar">
     <h1><b>▤</b> Despacho</h1>
     <span class="spacer"></span>
+    <span id="etiq-sel-wrap"></span>
     <button class="btn" disabled title="Próximo lote">Historial</button>
     <button class="btn btn-accent" onclick="abrirNuevoEnvio()">+ Nuevo envío</button>
   </div>
@@ -583,6 +584,7 @@ async function cargarCatalogo() {
 }
 
 // ═══ BOOT ═══
+if (window.Etiquetas) Etiquetas.montarSelectorTamano(document.getElementById('etiq-sel-wrap'), 'despacho-bulto');
 // Overlay close: gesto debe empezar y terminar en el overlay
 ['ov-nuevo','ov-detalle','ov-editar'].forEach(function(id){
   var fn = id === 'ov-nuevo' ? cerrarNuevo : id === 'ov-detalle' ? cerrarDetalle : cerrarEditar;

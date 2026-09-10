@@ -541,12 +541,59 @@
     });
   }
 
+  var _TAMANOS_VALIDOS = ['60x30', '100x50'];
+
+  function _tamanoDispositivo() {
+    try {
+      var v = localStorage.getItem('mble_etiq_tamano');
+      return (_TAMANOS_VALIDOS.indexOf(v) !== -1) ? v : null;
+    } catch (e) { return null; }
+  }
+
+  function tamanoActual(funcion) {
+    return _tamanoDispositivo()
+      || (funcion && _configCache && _configCache[funcion] && _configCache[funcion].tamano)
+      || '60x30';
+  }
+
+  function setTamano(t) {
+    if (_TAMANOS_VALIDOS.indexOf(t) === -1) return;
+    try { localStorage.setItem('mble_etiq_tamano', t); } catch (e) {}
+  }
+
+  function montarSelectorTamano(contenedor, funcion) {
+    if (!contenedor) return;
+    if (!document.getElementById('mble-etiq-sel-css')) {
+      var st = document.createElement('style'); st.id = 'mble-etiq-sel-css';
+      st.textContent = '.etiq-sel{display:inline-flex;align-items:center;height:32px;font-family:"Space Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#FFD600;background:#0f0f0f;border:1px solid #FFD600;border-radius:6px;padding:0 12px;cursor:pointer;user-select:none;transition:opacity .15s;}'
+        + '.etiq-sel:hover{opacity:.8;}';
+      document.head.appendChild(st);
+    }
+    var btn = document.createElement('button');
+    btn.className = 'etiq-sel';
+    btn.title = 'Tamaño de etiqueta — clic para cambiar';
+    function _actualizar() {
+      var t = tamanoActual(funcion);
+      btn.textContent = t === '100x50' ? '100 \u00D7 50' : '60 \u00D7 30';
+    }
+    btn.addEventListener('click', function () {
+      var next = tamanoActual(funcion) === '60x30' ? '100x50' : '60x30';
+      setTamano(next);
+      _actualizar();
+    });
+    contenedor.appendChild(btn);
+    // Pintar después de que la config llegue para mostrar el valor real
+    cargarConfig().then(_actualizar);
+  }
+
   function _doImprimir(funcion, items, opts) {
     var spec = FUNCIONES[funcion];
     var cfgOverride = opts.config || null;
-    var fmt = opts.tamano || (cfgOverride && cfgOverride._tamano) || '60x30';
-    if (_configCache && _configCache[funcion] && !opts.tamano && !(cfgOverride && cfgOverride._tamano))
-      fmt = _configCache[funcion].tamano || fmt;
+    var fmt = opts.tamano
+      || (cfgOverride && cfgOverride._tamano)
+      || _tamanoDispositivo()
+      || (_configCache && _configCache[funcion] && _configCache[funcion].tamano)
+      || '60x30';
     var med = _med(spec, fmt);
     var camposCfg = resolverCampos(funcion, fmt, cfgOverride);
     var tituloRaw = resolverTitulo(funcion, cfgOverride ? cfgOverride._titulo : undefined);
@@ -937,6 +984,9 @@
     imprimir: imprimir,
     preview: preview,
     cargarConfig: cargarConfig,
+    tamanoActual: tamanoActual,
+    setTamano: setTamano,
+    montarSelectorTamano: montarSelectorTamano,
     FUNCIONES: FUNCIONES
   };
 
