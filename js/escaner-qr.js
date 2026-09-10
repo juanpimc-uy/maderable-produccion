@@ -134,7 +134,12 @@
 
   function _loopQR(video, canvas) {
     if (!_overlay) return;
-    if (video.readyState >= 2 && window.jsQR) {
+    if (!window.jsQR) {
+      var diag = document.getElementById('esc-diag');
+      if (diag) { diag.textContent = 'lector QR no disponible'; diag.style.color = '#ef4444'; }
+      return;
+    }
+    if (video.readyState >= 2) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       var ctx = canvas.getContext('2d');
@@ -143,8 +148,8 @@
       var code = jsQR(imgData.data, imgData.width, imgData.height);
       _scanCount++;
       if (_scanCount % 10 === 0) {
-        var diag = document.getElementById('esc-diag');
-        if (diag) diag.textContent = 'buscando\u2026 ' + _scanCount;
+        var d2 = document.getElementById('esc-diag');
+        if (d2) d2.textContent = 'buscando\u2026 ' + _scanCount;
       }
       if (code && code.data) {
         _entregar(code.data);
