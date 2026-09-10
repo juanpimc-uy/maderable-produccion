@@ -17,7 +17,8 @@
       + '.esc-manual{display:flex;gap:8px;align-items:center;margin-top:8px;}'
       + '.esc-manual input{font-family:"Space Mono",monospace;font-size:14px;background:#252525;border:1px solid #2a2a2a;border-radius:8px;padding:10px 14px;color:#e8e8e8;width:200px;text-align:center;text-transform:uppercase;}'
       + '.esc-manual button{font-family:"Space Mono",monospace;font-size:12px;font-weight:700;background:#FFD600;color:#0f0f0f;border:none;border-radius:8px;padding:10px 18px;cursor:pointer;}'
-      + '.esc-cancelar{font-family:"Space Mono",monospace;font-size:11px;font-weight:700;color:#888;background:transparent;border:1px solid #444;border-radius:8px;padding:14px 28px;cursor:pointer;min-height:56px;margin-top:8px;letter-spacing:1px;text-transform:uppercase;}';
+      + '.esc-cancelar{font-family:"Space Mono",monospace;font-size:11px;font-weight:700;color:#888;background:transparent;border:1px solid #444;border-radius:8px;padding:14px 28px;cursor:pointer;min-height:56px;margin-top:8px;letter-spacing:1px;text-transform:uppercase;}'
+      + '.esc-diag{font-family:"Space Mono",monospace;font-size:9px;color:#555;text-align:center;}';
     document.head.appendChild(s);
   }
 
@@ -28,6 +29,7 @@
   var _onCancelar = null;
   var _ultimoCod = '';
   var _ultimoTs = 0;
+  var _scanCount = 0;
 
   function _pararStream() {
     if (_raf) { cancelAnimationFrame(_raf); _raf = null; }
@@ -69,10 +71,13 @@
     _overlay.innerHTML = ''
       + '<div class="esc-titulo">' + (opts.titulo || 'Escanear') + '</div>'
       + '<div class="esc-visor" id="esc-visor"><video id="esc-video" autoplay playsinline muted></video><div class="esc-corners"></div></div>'
+      + '<div class="esc-diag" id="esc-diag">buscando\u2026 0</div>'
       + (opts.hint ? '<div class="esc-hint">' + opts.hint + '</div>' : '')
       + '<div class="esc-manual"><input id="esc-input" placeholder="o escribí el código"><button id="esc-ok">OK</button></div>'
       + '<button class="esc-cancelar" id="esc-cancel">CANCELAR</button>';
     document.body.appendChild(_overlay);
+
+    _scanCount = 0;
 
     // Canvas oculto para jsQR
     var canvas = document.createElement('canvas');
@@ -91,12 +96,26 @@
     var visor = document.getElementById('esc-visor');
     var video = document.getElementById('esc-video');
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      navigator.mediaDevices.getUserMedia({ video: {
+        facingMode: 'environment',
+        width:  { ideal: 1280 },
+        height: { ideal: 720 }
+      } })
         .then(function (stream) {
           _stream = stream;
           video.srcObject = stream;
           video.play();
           _loopQR(video, canvas);
+        })
+        .catch(function () {
+          // Reintento con constraint simple (tablets que rechazan ideal)
+          return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+            .then(function (stream) {
+              _stream = stream;
+              video.srcObject = stream;
+              video.play();
+              _loopQR(video, canvas);
+            });
         })
         .catch(function () {
           // Sin cámara: ocultar visor, enfocar input
@@ -115,13 +134,18 @@
 
   function _loopQR(video, canvas) {
     if (!_overlay) return;
-    if (video.readyState >= video.HAVE_ENOUGH_DATA && window.jsQR) {
+    if (video.readyState >= 2 && window.jsQR) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       var ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      var code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'dontInvert' });
+      var code = jsQR(imgData.data, imgData.width, imgData.height);
+      _scanCount++;
+      if (_scanCount % 10 === 0) {
+        var diag = document.getElementById('esc-diag');
+        if (diag) diag.textContent = 'buscando\u2026 ' + _scanCount;
+      }
       if (code && code.data) {
         _entregar(code.data);
         return;
