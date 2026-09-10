@@ -2976,7 +2976,7 @@ async function _cnc2ProcesarCodigo(cod) {
         return;
       }
       // Empujar placa anterior a hist si estaba cortada (abrir-placa la cierra del lado del server)
-      if (cnc2Estado === 'cortada' && cnc2Placa) {
+      if ((cnc2Estado === 'cortada' || cnc2Estado === 'cortando') && cnc2Placa) {
         const segsCorte = cnc2FinCorte && cnc2T0 ? Math.floor((cnc2FinCorte - cnc2T0) / 1000) : null;
         const segsCambio = cnc2FinCorte ? Math.floor((Date.now() - cnc2FinCorte) / 1000) : null;
         const segsTotal = cnc2T0 ? Math.floor((Date.now() - cnc2T0) / 1000) : 0;
