@@ -17,13 +17,14 @@
       campos: [
         { id: 'bulto',   label: 'Bulto',   ej: 'BULTO 01 - 04',            fijo: true },
         { id: 'odf',     label: 'ODF',     ej: 'ODF-4515',                 fijo: false },
+        { id: 'proyecto', label: 'Proyecto', ej: 'TORRE PATRIA P12',       fijo: false },
         { id: 'cliente', label: 'Cliente', ej: 'ESTUDIO CINCO',            fijo: false },
         { id: 'mueble',  label: 'Mueble',  ej: 'EQ10 · VESTIDOR PRINCIPAL', fijo: false },
         { id: 'fecha',   label: 'Fecha',   ej: '01/08',                    fijo: false },
       ],
       defaults: {
         '60x30':  [{ id: 'odf', pos: 'M' }, { id: 'mueble', pos: 'M' }, { id: 'bulto', pos: 'XL' }],
-        '100x50': [{ id: 'odf', pos: 'L' }, { id: 'cliente', pos: 'M' }, { id: 'mueble', pos: 'M' }, { id: 'bulto', pos: 'XL' }, { id: 'fecha', pos: 'P' }],
+        '100x50': [{ id: 'odf', pos: 'L' }, { id: 'proyecto', pos: 'M' }, { id: 'cliente', pos: 'M' }, { id: 'mueble', pos: 'M' }, { id: 'bulto', pos: 'XL' }, { id: 'fecha', pos: 'P' }],
       }
     },
     'tercerizado-bulto': {
@@ -330,6 +331,7 @@
       XL: '26pt', L: '16pt', M: '11.5pt', S: '8pt',
       XLw: 800, Lw: 800, Mw: 700, Sw: 600,
       pie: true, piePad: '3mm 4mm', pieSize: '11pt', Pw: 600,
+      qrPieSize: '9mm',
     }
   };
 
@@ -878,8 +880,10 @@
       var pieTop = superH - pieH;
       ctx.fillStyle = '#000';
       ctx.fillRect(0, pieTop, superW, pieBorder);
+      var pieQrReserva = med.qrPieSize ? (_mmPx(med.qrPieSize) + pPad[1]) : 0;
       var pieGap = pPad[1];
-      var pieUsable = superW - pPad[1] * 2;
+      var pieUsable = superW - pPad[1] * 2 - pieQrReserva;
+      var pieCamposL = pPad[1] + pieQrReserva;
 
       if (med.pieDosLineas && pieCampos.length > 1) {
         // ── Línea 1: el primer campo del pie, solo, con autoajuste de tamaño ──
@@ -897,7 +901,7 @@
         ctx.font = '700 ' + px1 + 'px ' + FNT;
         ctx.textBaseline = 'top';
         var y1 = pieTop + pieBorder + _mmPx('2');
-        ctx.fillText(_ellipsis(ctx, v1, pieUsable), pPad[1], y1);
+        ctx.fillText(_ellipsis(ctx, v1, pieUsable), pieCamposL, y1);
 
         // ── Línea 2: el resto de los campos, de extremo a extremo ──
         var resto = pieCampos.slice(1);
@@ -911,7 +915,7 @@
           var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
           var txt = _ellipsis(ctx, val, celda2);
           var tw = ctx.measureText(txt).width;
-          var cx = pPad[1] + idx * (celda2 + pieGap);
+          var cx = pieCamposL + idx * (celda2 + pieGap);
           var x;
           if (idx === 0) x = cx;
           else if (idx === resto.length - 1) x = cx + celda2 - tw;
@@ -932,7 +936,7 @@
           var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
           var txt = _ellipsis(ctx, val, celda);
           var tw = ctx.measureText(txt).width;
-          var celdaX = pPad[1] + idx * (celda + pieGap);
+          var celdaX = pieCamposL + idx * (celda + pieGap);
           var x;
           if (idx === 0) x = celdaX;
           else if (idx === pieCampos.length - 1) x = celdaX + celda - tw;
@@ -961,6 +965,22 @@
         if (qrYout < qrBodyTop) qrYout = qrBodyTop;
         fctx.imageSmoothingEnabled = false;
         fctx.drawImage(qrCv, qrX, qrYout, qrOutPx, qrOutPx);
+        fctx.imageSmoothingEnabled = true;
+      }
+    }
+
+    // ── QR del pie (solo 100×50, si la spec tiene qrPieSize) ──
+    if (spec.qr && med.qrPieSize) {
+      var qrPieOutPx = Math.round(parseFloat(med.qrPieSize) * OUT_PX);
+      var qrPieCv = _genQRCanvas(d._qr, qrPieOutPx);
+      if (qrPieCv) {
+        var pieTopOut = Math.round((superH - pieH) / 2);  // pieTop a escala out
+        var piePadOut = Math.round(pPad[1] / 2);
+        var qrPieX = piePadOut;
+        var qrPieY = pieTopOut + Math.round((pieH / 2 - qrPieOutPx) / 2);
+        if (qrPieY < pieTopOut) qrPieY = pieTopOut;
+        fctx.imageSmoothingEnabled = false;
+        fctx.drawImage(qrPieCv, qrPieX, qrPieY, qrPieOutPx, qrPieOutPx);
         fctx.imageSmoothingEnabled = true;
       }
     }
