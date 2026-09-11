@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="es-UY">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Cargar camión · MBLE</title>
+<meta name="theme-color" content="#0f0f0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script src="/js/escaner-qr.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0f0f0f;--panel:#1a1a1a;--card:#252525;--border:#2a2a2a;--text:#e8e8e8;--muted:#888;
+      --accent:#FFD600;--green:#4ade80;--orange:#ff9d2e;--red:#ef4444;--accent-dim:rgba(255,214,0,.12);}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;min-height:100dvh;}
+.mono{font-family:'Space Mono',monospace;}
+.pantalla{display:none;min-height:100vh;min-height:100dvh;flex-direction:column;}
+.pantalla.activa{display:flex;}
+/* Header */
+.hdr{background:var(--panel);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;gap:12px;}
+.hdr-title{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;flex:1;}
+.hdr-title b{color:var(--accent);}
+.hdr-back{font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);cursor:pointer;border:none;background:none;padding:8px;}
+/* PIN */
+.select-big{width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:16px;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer;}
+.select-big option{background:var(--card);}
+.pin-dots{display:flex;gap:14px;justify-content:center;margin:4px 0 16px;}
+.pin-dot{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);background:transparent;transition:all .15s;}
+.pin-dot.lleno{background:var(--accent);border-color:var(--accent);}
+.pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;max-width:300px;}
+.pin-key{height:70px;min-width:70px;background:var(--card);border:1.5px solid var(--border);border-radius:10px;font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;user-select:none;transition:background .1s,transform .08s,border-color .1s;}
+.pin-key:active{background:var(--accent-dim);border-color:var(--accent);transform:scale(.94);}
+.pin-key.del{font-size:18px;color:var(--muted);}
+.pin-key.clear{font-size:18px;color:var(--red);}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+.shake{animation:shake .35s ease;}
+/* Obra list */
+.obra-item{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);cursor:pointer;min-height:60px;transition:background .1s;}
+.obra-item:active{background:var(--accent-dim);}
+.obra-info{flex:1;min-width:0;}
+.obra-name{font-size:15px;font-weight:600;}
+.obra-sub{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px;}
+.obra-bar{height:4px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden;}
+.obra-bar-fill{height:100%;background:var(--green);border-radius:2px;}
+.obra-pend{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--accent);flex:none;min-width:40px;text-align:right;}
+/* Scan */
+.scan-status{padding:12px 16px;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;text-align:center;min-height:48px;display:flex;align-items:center;justify-content:center;gap:8px;}
+.scan-status.ok{background:rgba(74,222,128,.12);color:var(--green);}
+.scan-status.err{background:rgba(239,68,68,.12);color:var(--red);}
+.scan-status.warn{background:rgba(255,157,46,.12);color:var(--orange);}
+.grupo-head{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:1px;color:var(--muted);padding:10px 16px 4px;display:flex;align-items:center;gap:8px;}
+.grupo-head .env-pill{font-size:9px;background:rgba(255,214,0,.1);color:var(--accent);border:1px solid rgba(255,214,0,.3);border-radius:3px;padding:1px 5px;}
+.bulto-row{display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid #1f1f1f;min-height:48px;}
+.bulto-row.done{opacity:.5;}
+.bulto-pos{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--accent);min-width:32px;}
+.bulto-desc{flex:1;font-size:12px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bulto-btn{font-family:'Space Mono',monospace;font-size:10px;font-weight:700;background:var(--card);border:1px solid var(--border);border-radius:6px;padding:8px 14px;color:var(--text);cursor:pointer;min-height:36px;}
+.bulto-btn:active{border-color:var(--accent);}
+.flash-green{animation:flashG .5s;}
+.flash-red{animation:flashR .5s;}
+@keyframes flashG{0%,100%{background:transparent}50%{background:rgba(74,222,128,.2)}}
+@keyframes flashR{0%,100%{background:transparent}50%{background:rgba(239,68,68,.2)}}
+/* Filter input */
+.filter-input{width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:14px;outline:none;font-family:'DM Sans',sans-serif;}
+.filter-input:focus{border-color:var(--accent);}
+.filter-input::placeholder{color:var(--muted);}
+/* Completa */
+.completa{text-align:center;padding:40px 20px;}
+.completa .icon{font-size:48px;margin-bottom:12px;}
+.btn{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;letter-spacing:.5px;border:1px solid var(--border);border-radius:8px;padding:12px 20px;cursor:pointer;background:var(--card);color:var(--text);min-height:48px;text-transform:uppercase;}
+.btn:active{border-color:var(--accent);}
+.btn-accent{background:var(--accent);color:#000;border-color:var(--accent);}
+.btn-ghost{background:transparent;border-color:var(--border);color:var(--muted);}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="p-login" class="pantalla activa">
+  <div class="hdr"><span class="hdr-title"><b>MBLE</b> Despacho</span></div>
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:16px;">
+    <div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Operario</div>
+    <select id="sel-emp" class="select-big" style="max-width:320px;"></select>
+    <div class="pin-dots" id="pin-dots">
+      <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-grid" id="pin-grid">
+      <button class="pin-key" onclick="pinTap('1')">1</button>
+      <button class="pin-key" onclick="pinTap('2')">2</button>
+      <button class="pin-key" onclick="pinTap('3')">3</button>
+      <button class="pin-key" onclick="pinTap('4')">4</button>
+      <button class="pin-key" onclick="pinTap('5')">5</button>
+      <button class="pin-key" onclick="pinTap('6')">6</button>
+      <button class="pin-key" onclick="pinTap('7')">7</button>
+      <button class="pin-key" onclick="pinTap('8')">8</button>
+      <button class="pin-key" onclick="pinTap('9')">9</button>
+      <button class="pin-key clear" onclick="pinClear()">✕</button>
+      <button class="pin-key" onclick="pinTap('0')">0</button>
+      <button class="pin-key del" onclick="pinDel()">⌫</button>
+    </div>
+    <div id="pin-error" class="mono" style="font-size:11px;color:var(--red);min-height:18px;"></div>
+    <button class="btn btn-accent" style="width:100%;max-width:300px;" onclick="doLogin()">ENTRAR</button>
+  </div>
+</div>
+
+<!-- OBRAS -->
+<div id="p-obras" class="pantalla">
+  <div class="hdr">
+    <span class="hdr-title" id="obras-title">Para cargar</span>
+    <button class="hdr-back" onclick="cerrarSesion()">Salir</button>
+  </div>
+  <div style="padding:10px 16px;"><input class="filter-input" id="obras-filter" placeholder="Buscar obra, cliente, ODF..." oninput="filtrarObras()"></div>
+  <div id="obras-list" style="flex:1;overflow-y:auto;"></div>
+</div>
+
+<!-- SCAN -->
+<div id="p-scan" class="pantalla">
+  <div class="hdr">
+    <button class="hdr-back" onclick="volverAObras()">← Obras</button>
+    <span class="hdr-title" id="scan-title">Escaneando</span>
+  </div>
+  <div id="qr-reader" style="width:100%;max-width:400px;margin:0 auto;"></div>
+  <div id="scan-status" class="scan-status"></div>
+  <div style="padding:8px 16px;">
+    <div class="obra-bar" style="height:6px;"><div class="obra-bar-fill" id="scan-bar" style="width:0%;"></div></div>
+    <div class="mono" style="font-size:10px;color:var(--muted);text-align:center;margin-top:4px;" id="scan-progress"></div>
+  </div>
+  <div id="scan-bultos" style="flex:1;overflow-y:auto;padding-bottom:80px;"></div>
+</div>
+
+<!-- COMPLETA -->
+<div id="p-completa" class="pantalla">
+  <div class="hdr"><span class="hdr-title"><b>MBLE</b> Despacho</span></div>
+  <div class="completa" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+    <div class="icon" style="color:var(--green);">✓</div>
+    <div style="font-size:20px;font-weight:700;color:var(--green);margin-bottom:8px;">Carga completa</div>
+    <div id="completa-obra" class="mono" style="font-size:12px;color:var(--muted);margin-bottom:24px;"></div>
+    <button class="btn btn-accent" style="width:100%;max-width:300px;margin-bottom:10px;" onclick="volverAObras()">Volver a la lista</button>
+    <button class="btn btn-ghost" style="width:100%;max-width:300px;" onclick="recargarObra()">Seguir en esta obra</button>
+  </div>
+</div>
+
+<script>
+var TOKEN = localStorage.getItem('mble_despacho_token') || '';
+var OBRAS = [];
+var OBRA_ACTUAL = null; // despacho_proyecto_id
+var GRUPOS = [];
+var OBRA_INFO = null;
+var _pin = '';
+var _pendingP = new URLSearchParams(location.search).get('p') || null;
+
+function ir(id) {
+  document.querySelectorAll('.pantalla').forEach(function(p){ p.classList.remove('activa'); });
+  document.getElementById(id).classList.add('activa');
+}
+
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ═══ API ═══
+function api(action, opts) {
+  var method = (opts && opts.body) ? 'POST' : 'GET';
+  var headers = { 'Content-Type': 'application/json' };
+  if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+  return fetch('/api/despachos?action=' + action, {
+    method: method, headers: headers,
+    body: (opts && opts.body) ? JSON.stringify(opts.body) : undefined,
+  }).then(function(r) {
+    if (r.status === 401 && action !== 'scan-login') { TOKEN = ''; localStorage.removeItem('mble_despacho_token'); ir('p-login'); cargarEmpleados(); throw new Error('Sesión expirada'); }
+    return r.json();
+  }).then(function(j) {
+    if (!j.ok && !(opts && opts.allowFail)) throw new Error(j.msg || j.error || 'Error');
+    return j;
+  });
+}
+
+// ═══ LOGIN ═══
+function cargarEmpleados() {
+  api('scan-empleados').then(function(r) {
+    var sel = document.getElementById('sel-emp');
+    sel.innerHTML = '<option value="">— Elegir operario —</option>';
+    (r.empleados || []).forEach(function(e) {
+      sel.innerHTML += '<option value="' + e.id + '">' + esc(e.nombre) + '</option>';
+    });
+  }).catch(function(){});
+}
+
+function pinTap(d) {
+  if (_pin.length >= 4) return;
+  _pin += d;
+  renderDots();
+  if (_pin.length === 4) setTimeout(doLogin, 150);
+}
+function pinDel() { _pin = _pin.slice(0, -1); renderDots(); }
+function pinClear() { _pin = ''; renderDots(); }
+function renderDots() {
+  for (var i = 0; i < 4; i++) {
+    document.getElementById('pd' + i).className = 'pin-dot' + (i < _pin.length ? ' lleno' : '');
+  }
+  document.getElementById('pin-error').textContent = '';
+}
+
+function doLogin() {
+  var empId = document.getElementById('sel-emp').value;
+  if (!empId) { document.getElementById('pin-error').textContent = 'Elegí un operario'; return; }
+  if (_pin.length !== 4) { document.getElementById('pin-error').textContent = 'Ingresá el PIN de 4 dígitos'; return; }
+  api('scan-login', { body: { empleado_id: empId, pin: _pin, dispositivo: navigator.userAgent.slice(0, 120) }, allowFail: true })
+    .then(function(r) {
+      if (!r.ok) {
+        _pin = ''; renderDots();
+        document.getElementById('pin-error').textContent = r.msg || 'PIN incorrecto';
+        document.getElementById('pin-dots').classList.add('shake');
+        setTimeout(function(){ document.getElementById('pin-dots').classList.remove('shake'); }, 400);
+        return;
+      }
+      TOKEN = r.token;
+      localStorage.setItem('mble_despacho_token', TOKEN);
+      _pin = ''; renderDots();
+      if (_pendingP) { abrirObra(_pendingP); _pendingP = null; }
+      else cargarObras();
+    })
+    .catch(function(e) {
+      _pin = ''; renderDots();
+      document.getElementById('pin-error').textContent = e.message || 'Error de conexión';
+    });
+}
+
+function cerrarSesion() {
+  TOKEN = ''; localStorage.removeItem('mble_despacho_token');
+  pararScanner();
+  ir('p-login'); cargarEmpleados();
+}
+
+// ═══ OBRAS ═══
+function cargarObras() {
+  ir('p-obras');
+  document.getElementById('obras-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">Cargando...</div>';
+  api('scan-obras').then(function(r) {
+    OBRAS = (r.obras || []).sort(function(a, b) { return (b.bultos_total - b.bultos_escaneados) - (a.bultos_total - a.bultos_escaneados); });
+    renderObras();
+  }).catch(function(e) {
+    document.getElementById('obras-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--red);">' + esc(e.message) + '</div>';
+  });
+}
+
+function renderObras() {
+  var q = (document.getElementById('obras-filter').value || '').toLowerCase();
+  var filtered = OBRAS;
+  if (q) {
+    filtered = OBRAS.filter(function(o) {
+      return (o.obra || '').toLowerCase().indexOf(q) !== -1
+        || (o.cliente || '').toLowerCase().indexOf(q) !== -1
+        || (o.odf_numero || '').toLowerCase().indexOf(q) !== -1;
+    });
+  }
+  document.getElementById('obras-title').innerHTML = 'Para cargar <span style="color:var(--accent);">' + filtered.length + '</span>';
+  if (!filtered.length) {
+    document.getElementById('obras-list').innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);">Sin obras pendientes</div>';
+    return;
+  }
+  var h = '';
+  filtered.forEach(function(o) {
+    var pend = o.bultos_total - o.bultos_escaneados;
+    var pct = o.bultos_total > 0 ? Math.round(o.bultos_escaneados / o.bultos_total * 100) : 0;
+    h += '<div class="obra-item" onclick="abrirObra(\'' + o.despacho_proyecto_id + '\')">'
+      + '<div class="obra-info">'
+      + '<div class="obra-name">' + esc(o.obra || o.nombre_proyecto || o.odf_numero) + '</div>'
+      + '<div class="obra-sub">' + esc(o.cliente) + ' · ' + esc(o.odf_numero) + '</div>'
+      + '<div class="obra-bar"><div class="obra-bar-fill" style="width:' + pct + '%;"></div></div>'
+      + '</div>'
+      + '<div class="obra-pend">' + pend + '</div></div>';
+  });
+  document.getElementById('obras-list').innerHTML = h;
+}
+function filtrarObras() { renderObras(); }
+
+// ═══ SCAN ═══
+function abrirObra(dpId) {
+  OBRA_ACTUAL = dpId;
+  ir('p-scan');
+  document.getElementById('scan-status').className = 'scan-status';
+  document.getElementById('scan-status').textContent = '';
+  document.getElementById('scan-bultos').innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);">Cargando...</div>';
+  api('scan-bultos', { body: null }).catch(function(){ return null; }); // preflight
+  fetch('/api/despachos?action=scan-bultos&proyecto=' + dpId, {
+    headers: { 'Authorization': 'Bearer ' + TOKEN },
+  }).then(function(r){ return r.json(); }).then(function(r) {
+    if (!r.ok) {
+      if (r.msg) document.getElementById('scan-status').textContent = r.msg;
+      document.getElementById('scan-status').className = 'scan-status err';
+      // Fallback to list
+      OBRA_ACTUAL = null; cargarObras();
+      return;
+    }
+    GRUPOS = r.grupos || [];
+    OBRA_INFO = r.obra || {};
+    document.getElementById('scan-title').textContent = esc(OBRA_INFO.obra || OBRA_INFO.odf_numero || 'Obra');
+    renderScanBultos();
+    iniciarScanner();
+  }).catch(function(e) {
+    document.getElementById('scan-bultos').innerHTML = '<div style="text-align:center;padding:20px;color:var(--red);">' + esc(e.message) + '</div>';
+  });
+}
+
+function renderScanBultos() {
+  var totalAll = 0, escAll = 0;
+  var h = '';
+  GRUPOS.forEach(function(g) {
+    var total = g.bultos.length;
+    var esc2 = g.bultos.filter(function(b){ return b.escaneado; }).length;
+    totalAll += total; escAll += esc2;
+    h += '<div class="grupo-head">' + esc(g.codigo) + ' · ' + esc(g.nombre)
+      + (g.envio > 1 ? ' <span class="env-pill">ENVÍO ' + g.envio + '</span>' : '')
+      + ' <span style="margin-left:auto;">' + esc2 + '/' + total + '</span></div>';
+    g.bultos.forEach(function(b, i) {
+      var pos = '#' + String(i + 1).padStart(2, '0');
+      h += '<div class="bulto-row' + (b.escaneado ? ' done' : '') + '" id="br-' + b.id + '">'
+        + '<span class="bulto-pos">' + pos + '</span>'
+        + '<span class="bulto-desc" title="' + esc(b.descripcion) + '">' + esc(b.descripcion) + '</span>'
+        + (b.escaneado
+          ? '<span class="mono" style="font-size:10px;color:var(--green);">✓</span>'
+          : '<button class="bulto-btn" onclick="marcarManual(\'' + b.id + '\')">Marcar</button>')
+        + '</div>';
+    });
+  });
+  document.getElementById('scan-bultos').innerHTML = h || '<div style="text-align:center;padding:20px;color:var(--muted);">Sin bultos</div>';
+  var pct = totalAll > 0 ? Math.round(escAll / totalAll * 100) : 0;
+  document.getElementById('scan-bar').style.width = pct + '%';
+  document.getElementById('scan-progress').textContent = escAll + ' / ' + totalAll + ' (' + pct + '%)';
+}
+
+function iniciarScanner() {
+  cerrarEscaner();
+  abrirEscaner({
+    contenedor: document.getElementById('qr-reader'),
+    continuo: true,
+    onCodigo: procesarCodigo,
+    onError: function() {
+      document.getElementById('qr-reader').innerHTML = '<div style="text-align:center;padding:16px;color:var(--orange);font-size:12px;">No se pudo acceder a la cámara — usá los botones Marcar</div>';
+    }
+  });
+}
+
+function pararScanner() {
+  cerrarEscaner();
+}
+
+function procesarCodigo(text) {
+  var d;
+  try { d = JSON.parse(text); } catch(e) { return; }
+  if (!d.bid) return;
+
+  escanerPausar();
+  api('scan-marcar', { body: { bulto_id: d.bid, proyecto: OBRA_ACTUAL }, allowFail: true })
+    .then(function(r) {
+      var statusEl = document.getElementById('scan-status');
+      if (r.motivo === 'otra-obra') {
+        statusEl.className = 'scan-status err';
+        statusEl.textContent = 'QR de otra obra';
+        flashScan('red');
+        return;
+      }
+      if (r.ya) {
+        var grp = r.bulto ? encontrarGrupo(r.bulto) : null;
+        statusEl.className = 'scan-status warn';
+        statusEl.textContent = (grp ? grp.codigo + ' · ' : '') + 'Ya escaneado';
+        flashScan('red');
+        return;
+      }
+      if (!r.ok) {
+        statusEl.className = 'scan-status err';
+        statusEl.textContent = r.msg || 'Error al registrar';
+        flashScan('red');
+        return;
+      }
+      statusEl.className = 'scan-status ok';
+      statusEl.textContent = '✓ ' + r.grupo.codigo + ' · Bulto ' + String(r.grupo.escaneados).padStart(2,'0') + ' de ' + String(r.grupo.total).padStart(2,'0');
+      flashScan('green');
+      actualizarBultoLocal(d.bid);
+      renderScanBultos();
+      var rowEl = document.getElementById('br-' + d.bid);
+      if (rowEl) rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (r.envio_completo) checkCompleta();
+    })
+    .catch(function() {
+      var statusEl = document.getElementById('scan-status');
+      statusEl.className = 'scan-status err';
+      statusEl.textContent = 'Error al registrar';
+      flashScan('red');
+    })
+    .finally(function() {
+      escanerReanudar();
+    });
+}
+
+function marcarManual(bultoId) {
+  if (!confirm('¿Marcar este bulto como cargado?')) return;
+  escanerPausar();
+  api('scan-marcar', { body: { bulto_id: bultoId, proyecto: OBRA_ACTUAL }, allowFail: true })
+    .then(function(r) {
+      var statusEl = document.getElementById('scan-status');
+      if (r.ya) { statusEl.className = 'scan-status warn'; statusEl.textContent = 'Ya estaba escaneado'; return; }
+      if (!r.ok) { statusEl.className = 'scan-status err'; statusEl.textContent = r.msg || 'Error'; return; }
+      statusEl.className = 'scan-status ok';
+      statusEl.textContent = '✓ ' + r.grupo.codigo + ' · Bulto ' + r.grupo.escaneados + ' de ' + r.grupo.total;
+      actualizarBultoLocal(bultoId);
+      renderScanBultos();
+      if (r.envio_completo) checkCompleta();
+    })
+    .catch(function() {})
+    .finally(function() { escanerReanudar(); });
+}
+
+function actualizarBultoLocal(bid) {
+  GRUPOS.forEach(function(g) {
+    g.bultos.forEach(function(b) {
+      if (b.id === bid) { b.escaneado = true; b.fecha_escaneo = new Date().toISOString(); }
+    });
+  });
+}
+
+function encontrarGrupo(bulto) {
+  for (var i = 0; i < GRUPOS.length; i++) {
+    for (var j = 0; j < GRUPOS[i].bultos.length; j++) {
+      if (GRUPOS[i].bultos[j].id === bulto.id) return GRUPOS[i];
+    }
+  }
+  return null;
+}
+
+function checkCompleta() {
+  var pendiente = false;
+  GRUPOS.forEach(function(g) {
+    g.bultos.forEach(function(b) { if (!b.escaneado) pendiente = true; });
+  });
+  if (!pendiente) {
+    pararScanner();
+    document.getElementById('completa-obra').textContent = (OBRA_INFO && OBRA_INFO.obra) || '';
+    ir('p-completa');
+  }
+}
+
+function flashScan(color) {
+  var el = document.getElementById('qr-reader');
+  el.classList.remove('flash-green', 'flash-red');
+  void el.offsetWidth; // reflow
+  el.classList.add(color === 'green' ? 'flash-green' : 'flash-red');
+}
+
+function volverAObras() {
+  pararScanner();
+  OBRA_ACTUAL = null;
+  cargarObras();
+}
+
+function recargarObra() {
+  if (OBRA_ACTUAL) abrirObra(OBRA_ACTUAL);
+  else cargarObras();
+}
+
+// ═══ BOOT ═══
+if (TOKEN) {
+  if (_pendingP) { abrirObra(_pendingP); _pendingP = null; }
+  else cargarObras();
+} else {
+  cargarEmpleados();
+}
+</script>
+</body>
+</html>
