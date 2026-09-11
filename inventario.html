@@ -322,8 +322,16 @@
     </div>
     <div class="field">
       <label>Cantidad</label>
-      <input class="inp" id="res-cant" type="number" min="1" value="1">
-      <div id="res-cant-hint" class="mono" style="font-size:10px;color:var(--muted);margin-top:2px;"></div>
+      <input class="inp" id="res-cant" type="number" min="1" value="1" oninput="_updateReservaBtn()">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">
+        <div id="res-cant-hint" class="mono" style="font-size:10px;color:var(--muted);"></div>
+        <span id="res-modo-link" onclick="_toggleReservaModo()" style="font-family:'Space Mono',monospace;font-size:10px;color:var(--amber);cursor:pointer;border-bottom:1px dotted rgba(255,214,0,.5);text-transform:uppercase;">◆ Elegir placas</span>
+      </div>
+    </div>
+    <div id="res-lista-wrap" style="display:none;margin-bottom:14px;">
+      <input class="inp" id="res-filtro" placeholder="Filtrar por código, medida o ubicación…" style="font-size:12px;" oninput="_renderListaReserva()">
+      <div id="res-lista" style="border:1px solid var(--border);border-radius:6px;background:var(--card2);max-height:210px;overflow-y:auto;margin-top:8px;"></div>
+      <div id="res-lista-count" class="mono" style="font-size:10px;color:var(--muted);margin-top:4px;"></div>
     </div>
     <div id="res-modal-error" class="err-msg"></div>
     <div class="modal-actions">
@@ -1483,15 +1491,9 @@ async function _openItemPanel(id) {
       var rowStyle = esReservada
         ? 'display:flex;align-items:center;gap:6px;padding:4px 0 4px 7px;border-bottom:1px solid var(--border);border-left:2px solid var(--amber);background:rgba(255,214,0,.045);font-size:11px;'
         : 'display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;';
-      // Medida desde atributos
-      var medTxt = '';
-      var medColor = 'var(--muted)';
-      if (attrs.largo_cm && attrs.ancho_cm) {
-        medTxt = attrs.largo_cm + '×' + attrs.ancho_cm + (attrs.espesor ? ' · ' + attrs.espesor + 'mm' : '');
-        if (it.largo_cm && it.ancho_cm && (Number(attrs.largo_cm) !== Number(it.largo_cm) || Number(attrs.ancho_cm) !== Number(it.ancho_cm))) medColor = 'var(--amber)';
-      } else if (attrs.medida) {
-        medTxt = attrs.medida + (attrs.espesor ? ' · ' + attrs.espesor + 'mm' : '');
-      }
+      var med = _medidaUnidad(attrs, it);
+      var medTxt = med.txt;
+      var medColor = med.dif ? 'var(--amber)' : 'var(--muted)';
       // Ubicación o chip de reserva
       var ubiOrRes = '';
       if (esReservada) {
@@ -1559,6 +1561,19 @@ function _panelPrintUnit(idx) {
   }]);
 }
 
+function _medidaUnidad(attrs, it) {
+  var a = (typeof attrs === 'object' && attrs) || {};
+  var txt = '';
+  var dif = false;
+  if (a.largo_cm && a.ancho_cm) {
+    txt = a.largo_cm + '×' + a.ancho_cm + (a.espesor ? ' · ' + a.espesor + 'mm' : '');
+    if (it && it.largo_cm && it.ancho_cm && (Number(a.largo_cm) !== Number(it.largo_cm) || Number(a.ancho_cm) !== Number(it.ancho_cm))) dif = true;
+  } else if (a.medida) {
+    txt = a.medida + (a.espesor ? ' · ' + a.espesor + 'mm' : '');
+  }
+  return { txt: txt, dif: dif };
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // RESERVAS
 // ═══════════════════════════════════════════════════════════════════
@@ -1567,6 +1582,9 @@ let _reservasData = null;
 let _reservaProyCache = null; // proyectos-activos cacheados
 let _reservaBuscador = null;
 let _reservaSeleccion = null;
+let _reservaModo = 'auto'; // 'auto' | 'manual'
+let _reservaLibres = [];
+let _reservaCodigos = {}; // {codigo: true}
 
 async function _fetchProyectosActivos() {
   if (_reservaProyCache) return _reservaProyCache;
@@ -1587,13 +1605,28 @@ function _openReservar() {
   var it = _panelData.item;
   var activas = (_panelData.unidades || []).filter(function(u) { return u.estado === 'activa'; });
   var libres = activas.filter(function(u) { return !u.reserva_proyecto_id; });
+  // Sort: retazos first, then by codigo
+  _reservaLibres = libres.slice().sort(function(a, b) {
+    var da = _medidaUnidad(a.atributos, it).dif ? 0 : 1;
+    var db = _medidaUnidad(b.atributos, it).dif ? 0 : 1;
+    if (da !== db) return da - db;
+    return (a.codigo || '').localeCompare(b.codigo || '');
+  });
   document.getElementById('res-modal-sub').textContent = it.codigo + ' · ' + libres.length + ' libres de ' + activas.length;
   document.getElementById('res-cant').value = 1;
   document.getElementById('res-cant').max = libres.length;
+  document.getElementById('res-cant').disabled = false;
+  document.getElementById('res-cant').style.opacity = '';
   document.getElementById('res-cant-hint').textContent = 'de ' + libres.length + ' libres';
   document.getElementById('res-modal-error').textContent = '';
   document.getElementById('res-proy-input').value = '';
+  document.getElementById('res-filtro').value = '';
+  document.getElementById('res-lista-wrap').style.display = 'none';
+  document.getElementById('res-modo-link').textContent = '◆ Elegir placas';
   _reservaSeleccion = null;
+  _reservaModo = 'auto';
+  _reservaCodigos = {};
+  _updateReservaBtn();
   _fetchProyectosActivos().then(function(proys) {
     if (!_reservaBuscador) {
       _reservaBuscador = montarBuscador(
@@ -1608,6 +1641,7 @@ function _openReservar() {
           onSelect: function(p) { _reservaSeleccion = p || null; },
         }
       );
+      document.getElementById('res-proy-input').addEventListener('input', function() { _reservaSeleccion = null; });
     } else {
       _reservaBuscador.set(proys);
     }
@@ -1615,26 +1649,104 @@ function _openReservar() {
   _openModal('modal-reserva');
 }
 
+function _toggleReservaModo() {
+  if (_reservaModo === 'auto') {
+    _reservaModo = 'manual';
+    _reservaCodigos = {};
+    document.getElementById('res-lista-wrap').style.display = '';
+    document.getElementById('res-cant').disabled = true;
+    document.getElementById('res-cant').style.opacity = '.5';
+    document.getElementById('res-modo-link').textContent = '↺ Cantidad libre';
+    _renderListaReserva();
+  } else {
+    _reservaModo = 'auto';
+    _reservaCodigos = {};
+    document.getElementById('res-lista-wrap').style.display = 'none';
+    document.getElementById('res-cant').disabled = false;
+    document.getElementById('res-cant').style.opacity = '';
+    document.getElementById('res-modo-link').textContent = '◆ Elegir placas';
+  }
+  _updateReservaBtn();
+}
+
+function _renderListaReserva() {
+  var el = document.getElementById('res-lista');
+  if (!el) return;
+  var it = _panelData ? _panelData.item : {};
+  var q = (document.getElementById('res-filtro').value || '').trim().toLowerCase();
+  var esc3 = function(s) { return (s == null ? '' : String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')); };
+  var filtered = _reservaLibres;
+  if (q) {
+    filtered = _reservaLibres.filter(function(u) {
+      var m = _medidaUnidad(u.atributos, it);
+      var ubi = u.ubicacion || {};
+      var hay = [u.codigo, m.txt, ubi.codigo].filter(Boolean).join(' ').toLowerCase();
+      return hay.indexOf(q) !== -1;
+    });
+  }
+  var html = '';
+  filtered.forEach(function(u) {
+    var m = _medidaUnidad(u.atributos, it);
+    var ubi = u.ubicacion || {};
+    var sel = !!_reservaCodigos[u.codigo];
+    var bg = sel ? 'background:rgba(255,214,0,.07);' : '';
+    var chk = sel
+      ? '<span style="display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:2px;background:var(--amber);color:#0f0f0f;font-size:9px;font-weight:700;flex-shrink:0;">✓</span>'
+      : '<span style="display:inline-block;width:13px;height:13px;border-radius:2px;border:1px solid var(--border);flex-shrink:0;"></span>';
+    html += '<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:1px solid var(--border);cursor:pointer;font-size:11px;' + bg + '" onclick="_toggleReservaPlaca(\'' + esc3(u.codigo) + '\')">'
+      + chk
+      + '<span class="mono" style="font-weight:700;color:var(--amber);">' + esc3(u.codigo) + '</span>'
+      + (m.txt ? '<span class="mono" style="font-size:9px;color:' + (m.dif ? 'var(--amber)' : 'var(--muted)') + ';">' + esc3(m.txt) + '</span>' : '')
+      + '<span style="margin-left:auto;color:var(--muted);font-size:10px;">' + esc3(ubi.codigo || '') + '</span>'
+      + '</div>';
+  });
+  el.innerHTML = html || '<div style="padding:12px;color:var(--muted);font-size:12px;">Sin resultados</div>';
+  var n = Object.keys(_reservaCodigos).length;
+  document.getElementById('res-lista-count').textContent = n + ' de ' + _reservaLibres.length + ' libres';
+  if (_panelData && _panelData.unidades && _panelData.unidades.length >= 200) {
+    document.getElementById('res-lista-count').textContent += ' · Lista parcial — el ítem tiene más de 200 unidades.';
+  }
+  _updateReservaBtn();
+}
+
+function _toggleReservaPlaca(codigo) {
+  if (_reservaCodigos[codigo]) delete _reservaCodigos[codigo];
+  else _reservaCodigos[codigo] = true;
+  _renderListaReserva();
+}
+
+function _updateReservaBtn() {
+  var btn = document.getElementById('res-modal-btn');
+  if (!btn) return;
+  var n = _reservaModo === 'manual' ? Object.keys(_reservaCodigos).length : Math.floor(Number(document.getElementById('res-cant').value)) || 0;
+  btn.textContent = 'Reservar ' + n;
+  btn.disabled = n <= 0;
+}
+
 async function _confirmarReserva() {
   var errEl = document.getElementById('res-modal-error');
   errEl.textContent = '';
   if (!_reservaSeleccion) { errEl.textContent = 'Seleccioná un proyecto'; return; }
-  var cant = Math.floor(Number(document.getElementById('res-cant').value));
-  if (!cant || cant <= 0) { errEl.textContent = 'La cantidad debe ser mayor a 0'; return; }
   var btn = document.getElementById('res-modal-btn');
+  var body;
+  if (_reservaModo === 'manual') {
+    var codigos = Object.keys(_reservaCodigos);
+    if (!codigos.length) { errEl.textContent = 'No elegiste ninguna placa'; return; }
+    body = { proyecto_id: _reservaSeleccion.id, codigos: codigos };
+  } else {
+    var cant = Math.floor(Number(document.getElementById('res-cant').value));
+    if (!cant || cant <= 0) { errEl.textContent = 'La cantidad debe ser mayor a 0'; return; }
+    body = { item_id: _panelData.item.id, proyecto_id: _reservaSeleccion.id, cantidad: cant };
+  }
   btn.disabled = true;
   btn.textContent = '...';
-  var r = await _post('reservar-unidades', {
-    item_id: _panelData.item.id,
-    proyecto_id: _reservaSeleccion.id,
-    cantidad: cant,
-  });
+  var r = await _post('reservar-unidades', body);
   btn.disabled = false;
-  btn.textContent = 'Reservar';
+  _updateReservaBtn();
   if (!r.ok) { errEl.textContent = r.msg || 'Error'; return; }
   _closeModal('modal-reserva');
   _openItemPanel(_panelData.item.id);
-  _reservasLoaded = false; // forzar recarga del tab si se vuelve
+  _reservasLoaded = false;
 }
 
 // ── Tab Reservas ──
@@ -1720,15 +1832,9 @@ function _renderReservas() {
       var desde = rv.reserva_en ? new Date(rv.reserva_en) : null;
       var desdeTxt = desde ? (desde.getDate().toString().padStart(2, '0') + '/' + (desde.getMonth() + 1).toString().padStart(2, '0')) : '—';
       var diasTxt = desde ? Math.floor((ahora - desde.getTime()) / 86400000) + ' d' : '';
-      var attrs = (typeof rv.atributos === 'object' && rv.atributos) || {};
-      var medTxt = '';
-      var medStyle = 'color:var(--muted);';
-      if (attrs.largo_cm && attrs.ancho_cm) {
-        medTxt = attrs.largo_cm + '×' + attrs.ancho_cm;
-        if (it.largo_cm && it.ancho_cm && (Number(attrs.largo_cm) !== Number(it.largo_cm) || Number(attrs.ancho_cm) !== Number(it.ancho_cm))) medStyle = 'color:var(--amber);';
-      } else if (attrs.medida) {
-        medTxt = attrs.medida;
-      }
+      var rMed = _medidaUnidad(rv.atributos, it);
+      var medTxt = rMed.txt;
+      var medStyle = rMed.dif ? 'color:var(--amber);' : 'color:var(--muted);';
       html += '<tr style="font-size:11px;">'
         + '<td class="mono" style="font-weight:700;color:var(--amber);">' + esc2(rv.codigo) + '</td>'
         + '<td class="mono" style="font-size:10px;">' + esc2(it.codigo || '') + '</td>'

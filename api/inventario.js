@@ -1711,6 +1711,39 @@ async function accionReservarUnidades(req, res) {
     return ok(res, { codigos: [codigo], cantidad: 1 });
   }
 
+  // Reservar por lista de códigos
+  if (Array.isArray(b.codigos)) {
+    if (!b.codigos.length) return err(res, 'codigos vacío');
+    if (b.codigos.length > 200) return err(res, 'Máximo 200 códigos por vez');
+    const codigos = [...new Set(b.codigos.map(c => normCod(c)).filter(Boolean))];
+    if (!codigos.length) return err(res, 'Ningún código válido');
+
+    const { data: rows } = await supabase.from('inv_unidades')
+      .select('id, codigo, estado, reserva_proyecto_id').in('codigo', codigos);
+    const byCode = {};
+    (rows || []).forEach(r => { byCode[r.codigo] = r; });
+
+    const problemas = [];
+    const idsOk = [];
+    for (const cod of codigos) {
+      const u = byCode[cod];
+      if (!u) { problemas.push(cod + ' no encontrada'); continue; }
+      if (u.estado !== 'activa') { problemas.push(cod + ' no activa (' + u.estado + ')'); continue; }
+      if (u.reserva_proyecto_id && u.reserva_proyecto_id !== proyecto_id) { problemas.push(cod + ' reservada para otro proyecto'); continue; }
+      idsOk.push(u.id);
+    }
+    if (problemas.length) return err(res, 'No se reservó nada — ' + problemas.join(', '));
+
+    const { data: updated } = await supabase.from('inv_unidades')
+      .update({ reserva_proyecto_id: proyecto_id, reserva_por: sesion.id, reserva_en: ahora })
+      .in('id', idsOk).is('reserva_proyecto_id', null).select('codigo');
+    const codsOk = (updated || []).map(u => u.codigo);
+    if (codsOk.length < idsOk.length) {
+      return err(res, 'Se reservaron solo ' + codsOk.length + ' de ' + idsOk.length + ' — reintentá');
+    }
+    return ok(res, { codigos: codsOk, cantidad: codsOk.length });
+  }
+
   // Reservar por cantidad
   const itemId = b.item_id;
   const cantidad = Math.floor(Number(b.cantidad));
