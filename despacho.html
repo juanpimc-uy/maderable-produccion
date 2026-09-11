@@ -339,6 +339,7 @@ function abrirDetalle(envioId) {
   } else {
     h += '<button class="btn btn-sm" onclick="resetearEnvio(\'' + e.id + '\')">Resetear</button>';
   }
+  h += '<button class="btn btn-sm" onclick="compartirEnvio(\'' + e.id + '\')">Compartir</button>';
   h += '</div>';
 
   // Bultos grid
@@ -388,6 +389,7 @@ async function imprimirEnvio(envioId) {
     return {
       bulto: 'BULTO ' + pos + ' - ' + String(total).padStart(2, '0'),
       odf: e.odf_numero || '',
+      proyecto: e.nombre_proyecto || e.obra || '',
       cliente: e.cliente || '',
       mueble: (e.codigo || e.mf_n || '') + ' \u00B7 ' + (e.nombre || ''),
       fecha: fechaCorta,
@@ -455,6 +457,20 @@ async function eliminarEnvio(envioId) {
     cerrarDetalle();
     await cargarBoard();
   } catch (e) { toast(e.message, false); }
+}
+
+function compartirEnvio(envioId) {
+  var e = [...ENVIOS, ...DESPACHADOS].find(function(x){ return x.id === envioId; });
+  if (!e) return;
+  var pend = e.bultos_total - e.bultos_escaneados;
+  var url = 'https://maderable-produccion.vercel.app/despacho-scan.html?p=' + (e.despacho_proyecto_id || '');
+  var titulo = e.obra || e.nombre_proyecto || e.odf_numero || 'Despacho';
+  var texto = (e.obra || '') + ' \u00B7 ' + (e.odf_numero || '') + ' \u2014 ' + pend + ' bultos para cargar';
+  if (navigator.share) {
+    navigator.share({ title: titulo, text: texto, url: url }).catch(function(){});
+  } else {
+    navigator.clipboard.writeText(url).then(function(){ toast('Link copiado', true); }).catch(function(){ toast('No se pudo copiar', false); });
+  }
 }
 
 // ═══ NUEVO ENVÍO ═══
