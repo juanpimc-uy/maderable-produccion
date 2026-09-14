@@ -290,7 +290,7 @@ async function accionSyncItemsZoho(req, res) {
 // ── GET listar-ubicaciones ────────────────────────────────────────────────
 async function accionListarUbicaciones(req, res) {
   if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
-  const sesion = await verificarSesionAdminOficina(req);
+  const sesion = await verificarSesionAdminOficina(req) || await verificarOperario(req.query.empleado_id);
   if (!sesion) return err(res, 'No autorizado', 401);
 
   const todas = req.query.todas === '1';
@@ -1279,7 +1279,7 @@ async function accionDescontarKitting(req, res) {
 // Lee el PO de Zoho con precio y moneda, matchea con inv_items
 async function accionOcParaInventario(req, res) {
   if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
-  const sesion = await verificarSesionAdminOficina(req);
+  const sesion = await verificarSesionAdminOficina(req) || await verificarOperario(req.query.empleado_id);
   if (!sesion) return err(res, 'No autorizado', 401);
 
   const ocIdZoho = req.query.oc_id_zoho;
@@ -1344,10 +1344,10 @@ async function accionOcParaInventario(req, res) {
 // Congelar costos y crear stock desde líneas de OC
 async function accionRecepcionarInventario(req, res) {
   if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
-  const sesion = await verificarSesionAdminOficina(req);
+  const b = req.body || {};
+  const sesion = await verificarSesionAdminOficina(req) || await verificarOperario(b.empleado_id);
   if (!sesion) return err(res, 'No autorizado', 401);
 
-  const b = req.body || {};
   const { empleado_id, oc_numero, currency_code, ubicacion_placa_id, lineas } = b;
   if (!empleado_id) return err(res, 'empleado_id requerido');
   if (!oc_numero) return err(res, 'oc_numero requerido');

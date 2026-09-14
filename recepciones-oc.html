@@ -679,26 +679,38 @@ async function _abrirInventario(oc) {
   const panel = document.getElementById('modal-inventario');
   document.getElementById('inv-oc').textContent = oc.oc_numero;
   document.getElementById('inv-vendor').textContent = oc.proveedor || '';
-  document.getElementById('inv-lineas').innerHTML = '<span class="mono" style="font-size:11px;color:var(--muted);">Cargando líneas de Zoho...</span>';
   document.getElementById('inv-error').textContent = '';
   document.getElementById('inv-resultado').style.display = 'none';
   document.getElementById('inv-btn').disabled = false;
   document.getElementById('inv-btn').textContent = 'GENERAR INVENTARIO';
   panel.classList.add('open');
 
+  // Guard: sin identidad no se puede generar inventario
+  if (!(_erpSess && (_erpSess.session_token || _erpSess.id))) {
+    document.getElementById('inv-lineas').innerHTML = '<span class="mono" style="font-size:11px;color:var(--red);">No se puede generar inventario sin identificar a la persona. Entrá desde el kiosco de planta o iniciá sesión.</span>';
+    document.getElementById('inv-btn').disabled = true;
+    return;
+  }
+
+  document.getElementById('inv-lineas').innerHTML = '<span class="mono" style="font-size:11px;color:var(--muted);">Cargando líneas de Zoho...</span>';
+
   // Cargar ubicaciones para el selector
   try {
-    const uRes = await fetch('/api/inventario?action=listar-ubicaciones', {
+    const uRes = await fetch('/api/inventario?action=listar-ubicaciones&empleado_id=' + encodeURIComponent((_erpSess && _erpSess.id) || ''), {
       headers: { Authorization: 'Bearer ' + ((_erpSess && _erpSess.session_token) || '') }
     }).then(r => r.json());
     const sel = document.getElementById('inv-ubicacion');
+    if (!uRes.ok) throw new Error(uRes.msg || 'Error cargando ubicaciones');
     sel.innerHTML = '<option value="">— seleccionar —</option>';
-    if (uRes.ok && uRes.ubicaciones) {
+    if (uRes.ubicaciones) {
       for (const u of uRes.ubicaciones) {
         sel.innerHTML += `<option value="${u.id}">${u.codigo} — ${u.nombre || ''}</option>`;
       }
     }
-  } catch {}
+  } catch (e) {
+    const sel = document.getElementById('inv-ubicacion');
+    sel.innerHTML = '<option value="" disabled>— error al cargar ubicaciones: ' + String(e.message || 'desconocido').replace(/[<>&"]/g, '') + ' —</option>';
+  }
 
   // Reserva de proyecto
   _invReserva = null;
@@ -756,7 +768,7 @@ async function _abrirInventario(oc) {
 
   // Cargar líneas con precio desde Zoho
   try {
-    const r = await fetch(`/api/inventario?action=oc-para-inventario&oc_id_zoho=${oc.oc_id_zoho}`, {
+    const r = await fetch(`/api/inventario?action=oc-para-inventario&oc_id_zoho=${oc.oc_id_zoho}&empleado_id=${encodeURIComponent((_erpSess && _erpSess.id) || '')}`, {
       headers: { Authorization: 'Bearer ' + ((_erpSess && _erpSess.session_token) || '') }
     }).then(r => r.json());
     if (!r.ok) throw new Error(r.msg || 'Error cargando OC');
@@ -842,7 +854,7 @@ async function _confirmarInventario() {
         Authorization: 'Bearer ' + ((_erpSess && _erpSess.session_token) || ''),
       },
       body: JSON.stringify({
-        empleado_id: (_erpSess && _erpSess.id) || 1,
+        empleado_id: (_erpSess && _erpSess.id) || null,
         oc_numero: _invData.oc_numero,
         currency_code: _invData.currency_code,
         ubicacion_placa_id: Number(ubicId),
