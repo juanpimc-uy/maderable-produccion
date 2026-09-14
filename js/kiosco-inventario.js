@@ -880,7 +880,7 @@
         if (!cod) return;
         _post('trasladar-unidad', { codigo: _unidad.codigo, ubicacion_destino_codigo: cod }).then(function (r) {
           if (!r.ok) { _fail(r.msg || 'Error'); return; }
-          _ok('Trasladada a ' + cod + ' ✓');
+          _ok(r.sin_cambio ? 'Ya estaba en ' + cod : 'Trasladada a ' + cod + ' ✓');
           // Refresh ficha
           _get('resolver-codigo', { codigo: _unidad.codigo }).then(function (r2) {
             if (r2.ok && r2.tipo === 'unidad') {
@@ -1572,7 +1572,7 @@
       + '<div id="inv-tm-list" style="margin-top:8px;max-height:300px;overflow-y:auto;">';
     _tmMovidos.forEach(function (m) {
       if (m.ok) {
-        html += '<div style="padding:4px 0;font-size:16px;color:#0B8A3E;font-family:\'Space Mono\',monospace;">✓ ' + _esc(m.codigo) + '</div>';
+        html += '<div style="padding:4px 0;font-size:16px;color:#0B8A3E;font-family:\'Space Mono\',monospace;">✓ ' + _esc(m.codigo) + (m.msg ? ' <span style="color:#3D3D3D;font-size:13px;">(' + _esc(m.msg) + ')</span>' : '') + '</div>';
       } else {
         html += '<div style="padding:4px 0;font-size:16px;color:#C41E0F;font-family:\'Space Mono\',monospace;">✗ ' + _esc(m.codigo) + ' — ' + _esc(m.msg) + '</div>';
       }
@@ -1593,6 +1593,9 @@
           if (!r.ok) {
             _tmMovidos.unshift({ codigo: cod, ok: false, msg: r.msg || 'Error' });
             _fail(r.msg || 'Error con ' + cod);
+          } else if (r.sin_cambio) {
+            _tmMovidos.unshift({ codigo: cod, ok: true, msg: 'ya estaba acá' });
+            _ok(cod + ' ya estaba en ' + _tmDestinoUbi.codigo);
           } else {
             _tmMovidos.unshift({ codigo: cod, ok: true });
             _tmTotal++;

@@ -980,41 +980,21 @@ async function accionConsumirUnidad(req, res) {
   if (!codigo) return err(res, 'codigo requerido');
   if (!b.proyecto_id) return err(res, 'proyecto_id requerido');
 
-  const { data: unidad } = await supabase.from('inv_unidades')
-    .select('id, item_id, ubicacion_id, costo_usd, reserva_proyecto_id')
-    .eq('codigo', codigo).eq('estado', 'activa').maybeSingle();
-  if (!unidad) return err(res, 'Unidad no encontrada o no activa', 404);
+  const { data: r, error: rpcErr } = await supabase.rpc('inv_consumir_unidad', {
+    p_codigo: codigo,
+    p_proyecto_id: b.proyecto_id,
+    p_mueble_id: b.mueble_id || null,
+    p_empleado_id: b.empleado_id,
+    p_forzar_reserva: b.forzar_reserva === true,
+  });
+  if (rpcErr) return err(res, rpcErr.message, 500);
 
-  // Guard de reserva
-  if (unidad.reserva_proyecto_id && unidad.reserva_proyecto_id !== b.proyecto_id && !b.forzar_reserva) {
-    let reserva_nombre = unidad.reserva_proyecto_id;
+  if (r && r.requiere_confirmacion) {
+    let reserva_nombre = r.reserva_proyecto_id;
     const { data: proy } = await supabase.from('proyectos_cache')
-      .select('numero, nombre').eq('id', unidad.reserva_proyecto_id).maybeSingle();
+      .select('numero, nombre').eq('id', r.reserva_proyecto_id).maybeSingle();
     if (proy) reserva_nombre = ((proy.numero || '') + ' · ' + (proy.nombre || '')).trim();
     return res.status(200).json({ ok: false, requiere_confirmacion: true, reserva_nombre });
-  }
-
-  // Consumir: actualizar unidad
-  const { error: updErr } = await supabase.from('inv_unidades')
-    .update({ estado: 'consumida', proyecto_consumo_id: b.proyecto_id, mueble_consumo_id: b.mueble_id || null, consumido_en: new Date().toISOString() })
-    .eq('id', unidad.id);
-  if (updErr) return err(res, updErr.message, 500);
-
-  // Movimiento de salida
-  const { data: movId, error: movErr } = await supabase.rpc('inv_registrar_movimiento', {
-    p_tipo: 'salida', p_item_id: unidad.item_id, p_ubicacion_id: unidad.ubicacion_id,
-    p_ubicacion_destino_id: null, p_cantidad: 1,
-    p_proyecto_id: b.proyecto_id, p_mueble_id: b.mueble_id || null,
-    p_motivo: 'consumo_proyecto', p_origen: 'kiosco', p_empleado_id: b.empleado_id,
-    p_nota: 'Placa ' + codigo,
-  });
-  if (movErr) return err(res, movErr.message, 500);
-
-  // Setear costo en el movimiento
-  if (movId && unidad.costo_usd != null) {
-    await supabase.from('inv_movimientos')
-      .update({ costo_unitario_usd: unidad.costo_usd, costo_verificado: true })
-      .eq('id', movId);
   }
 
   return ok(res, { codigo, proyecto_id: b.proyecto_id });
@@ -1032,28 +1012,17 @@ async function accionTrasladarUnidad(req, res) {
   const destCodigo = normCod(b.ubicacion_destino_codigo);
   if (!destCodigo) return err(res, 'ubicacion_destino_codigo requerido');
 
-  const { data: unidad } = await supabase.from('inv_unidades')
-    .select('id, item_id, ubicacion_id')
-    .eq('codigo', codigo).eq('estado', 'activa').maybeSingle();
-  if (!unidad) return err(res, 'Unidad no encontrada o no activa', 404);
-
   const destino = await resolverUbiPorCodigo(destCodigo);
   if (!destino) return err(res, 'Ubicación destino no encontrada: ' + destCodigo, 404);
-  if (destino.id === unidad.ubicacion_id) return err(res, 'La unidad ya está en esa ubicación');
 
-  // Movimiento traslado
-  const { error: movErr } = await supabase.rpc('inv_registrar_movimiento', {
-    p_tipo: 'traslado', p_item_id: unidad.item_id, p_ubicacion_id: unidad.ubicacion_id,
-    p_ubicacion_destino_id: destino.id, p_cantidad: 1,
-    p_proyecto_id: null, p_mueble_id: null, p_motivo: null,
-    p_origen: 'kiosco', p_empleado_id: b.empleado_id, p_nota: 'Placa ' + codigo,
+  const { data: r, error: rpcErr } = await supabase.rpc('inv_trasladar_unidad', {
+    p_codigo: codigo,
+    p_ubicacion_destino_id: destino.id,
+    p_empleado_id: b.empleado_id,
   });
-  if (movErr) return err(res, movErr.message, 500);
+  if (rpcErr) return err(res, rpcErr.message, 500);
 
-  // Actualizar ubicación de la unidad
-  await supabase.from('inv_unidades').update({ ubicacion_id: destino.id }).eq('id', unidad.id);
-
-  return ok(res, { codigo, ubicacion_destino: destCodigo });
+  return ok(res, { codigo, ubicacion_destino: destCodigo, sin_cambio: r && r.sin_cambio === true });
 }
 
 // ── POST descartar-unidad ───────────────────────────────────────────────
@@ -1066,32 +1035,12 @@ async function accionDescartarUnidad(req, res) {
   const codigo = normCod(b.codigo);
   if (!codigo) return err(res, 'codigo requerido');
 
-  const { data: unidad } = await supabase.from('inv_unidades')
-    .select('id, item_id, ubicacion_id, costo_usd')
-    .eq('codigo', codigo).eq('estado', 'activa').maybeSingle();
-  if (!unidad) return err(res, 'Unidad no encontrada o no activa', 404);
-
-  // Actualizar estado
-  const { error: updErr } = await supabase.from('inv_unidades')
-    .update({ estado: 'descartada', consumido_en: new Date().toISOString() })
-    .eq('id', unidad.id);
-  if (updErr) return err(res, updErr.message, 500);
-
-  // Movimiento de salida
-  const { data: movId, error: movErr } = await supabase.rpc('inv_registrar_movimiento', {
-    p_tipo: 'salida', p_item_id: unidad.item_id, p_ubicacion_id: unidad.ubicacion_id,
-    p_ubicacion_destino_id: null, p_cantidad: 1,
-    p_proyecto_id: null, p_mueble_id: null, p_motivo: 'descarte',
-    p_origen: 'kiosco', p_empleado_id: b.empleado_id,
-    p_nota: 'Placa ' + codigo + (b.motivo ? ' — ' + b.motivo : ''),
+  const { data: r, error: rpcErr } = await supabase.rpc('inv_descartar_unidad', {
+    p_codigo: codigo,
+    p_motivo: b.motivo || null,
+    p_empleado_id: b.empleado_id,
   });
-  if (movErr) return err(res, movErr.message, 500);
-
-  if (movId && unidad.costo_usd != null) {
-    await supabase.from('inv_movimientos')
-      .update({ costo_unitario_usd: unidad.costo_usd, costo_verificado: true })
-      .eq('id', movId);
-  }
+  if (rpcErr) return err(res, rpcErr.message, 500);
 
   return ok(res, { codigo });
 }
