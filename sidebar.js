@@ -40,8 +40,7 @@
       roles: ['admin','oficina'],
       children: [
         { id: 'despachos', icon: '⇥', label: 'Despachos',
-          url: 'https://juanpimc-uy.github.io/ctrl-despachos/admin.html?from=erp',
-          external: true, roles: ['admin','oficina'] },
+          page: 'despacho.html', roles: ['admin','oficina'] },
         {
           id: 'tercerizados-group', icon: '🧵', label: 'Tercerizados',
           group: true, collapsible: true, defaultOpen: false,
