@@ -1411,7 +1411,7 @@ async function accionRecepcionarInventario(req, res) {
       p_cantidad: cantidad,
       p_proyecto_id: null,
       p_mueble_id: null,
-      p_motivo: 'recepcion_oc',
+      p_motivo: null,
       p_origen: 'recepcion_oc',
       p_empleado_id: empleado_id,
       p_nota: 'OC ' + (oc_numero || ''),
