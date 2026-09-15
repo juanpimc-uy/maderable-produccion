@@ -332,11 +332,12 @@ function abrirDetalle(envioId) {
   h += '<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">';
   if (!e.impreso) h += '<button class="btn btn-sm btn-accent" onclick="imprimirEnvio(\'' + e.id + '\')">Imprimir</button>';
   else h += '<button class="btn btn-sm" onclick="imprimirEnvio(\'' + e.id + '\')">Reimprimir</button>';
-  if (e.bultos_escaneados === 0) {
+  var _esOficina = SESS.rol_app === 'admin' || SESS.rol_app === 'oficina';
+  if (e.bultos_escaneados === 0 && _esOficina) {
     h += '<button class="btn btn-sm" onclick="editarEnvio(\'' + e.id + '\')">Editar</button>';
     h += '<button class="btn btn-sm" onclick="resetearEnvio(\'' + e.id + '\')">Resetear</button>';
     h += '<button class="btn btn-sm btn-danger" onclick="eliminarEnvio(\'' + e.id + '\')">Eliminar</button>';
-  } else {
+  } else if (_esOficina) {
     h += '<button class="btn btn-sm" onclick="resetearEnvio(\'' + e.id + '\')">Resetear</button>';
   }
   h += '<button class="btn btn-sm" onclick="compartirEnvio(\'' + e.id + '\')">Compartir</button>';

@@ -2,6 +2,7 @@
 // Llamado server-to-server desde ctrl-despachos con header x-internal-secret.
 // IMPORTANTE: el secret NUNCA debe vivir en el browser — ctrl-despachos llama desde su backend.
 import { createClient } from '@supabase/supabase-js';
+import { verificarSesionPlanta, esOficina } from '../lib/auth/sesion.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -108,27 +109,13 @@ async function accionRegistrarDespacho(req, res) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ACCIONES NUEVAS — Módulo de despacho en el ERP (auth por sesión de oficina)
+// ACCIONES NUEVAS — Módulo de despacho en el ERP
 // ═══════════════════════════════════════════════════════════════════════════
-
-async function verificarSesionAdminOficina(req) {
-  const auth = req.headers.authorization || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
-  if (!token) return null;
-  const { data } = await supabase
-    .from('empleados')
-    .select('id, rol_app, nombre')
-    .eq('session_token', token)
-    .gt('session_expires_at', new Date().toISOString())
-    .maybeSingle();
-  if (!data || (data.rol_app !== 'admin' && data.rol_app !== 'oficina')) return null;
-  return data;
-}
 
 // ── GET board ─────────────────────────────────────────────────────────────
 async function accionBoard(req, res) {
   if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
-  const sesion = await verificarSesionAdminOficina(req);
+  const sesion = await verificarSesionPlanta(supabase, req);
   if (!sesion) return err(res, 'No autorizado', 401);
 
   // 1. Todos los envíos con su proyecto de despacho
@@ -268,7 +255,7 @@ async function accionBoard(req, res) {
 // ── GET catalogo ──────────────────────────────────────────────────────────
 async function accionCatalogo(req, res) {
   if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
-  const sesion = await verificarSesionAdminOficina(req);
+  const sesion = await verificarSesionPlanta(supabase, req);
   if (!sesion) return err(res, 'No autorizado', 401);
 
   const { data: proys, error: pErr } = await supabase.from('proyectos_cache')
@@ -311,7 +298,7 @@ async function accionCatalogo(req, res) {
 // ── POST crear-envio ──────────────────────────────────────────────────────
 async function accionCrearEnvio(req, res) {
   if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
-  const sesion = await verificarSesionAdminOficina(req);
+  const sesion = await verificarSesionPlanta(supabase, req);
   if (!sesion) return err(res, 'No autorizado', 401);
 
   const b = req.body || {};
@@ -390,7 +377,7 @@ async function accionCrearEnvio(req, res) {
 // ── POST marcar-impreso ───────────────────────────────────────────────────
 async function accionMarcarImpreso(req, res) {
   if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
-  const sesion = await verificarSesionAdminOficina(req);
+  const sesion = await verificarSesionPlanta(supabase, req);
   if (!sesion) return err(res, 'No autorizado', 401);
 
   const { envio_id } = req.body || {};
@@ -442,7 +429,7 @@ async function _syncSiEnvioCompleto(bulto) {
 
 async function accionMarcarBulto(req, res) {
   if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
-  const sesion = await verificarSesionAdminOficina(req);
+  const sesion = await verificarSesionPlanta(supabase, req);
   if (!sesion) return err(res, 'No autorizado', 401);
 
   const { bulto_id } = req.body || {};
@@ -461,8 +448,9 @@ async function accionMarcarBulto(req, res) {
 // ── POST editar-envio ─────────────────────────────────────────────────────
 async function accionEditarEnvio(req, res) {
   if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
-  const sesion = await verificarSesionAdminOficina(req);
+  const sesion = await verificarSesionPlanta(supabase, req);
   if (!sesion) return err(res, 'No autorizado', 401);
+  if (!esOficina(sesion)) return err(res, 'Esta acción es solo para oficina', 403);
 
   const b = req.body || {};
   const { envio_id } = b;
@@ -526,8 +514,9 @@ async function accionEditarEnvio(req, res) {
 // ── POST resetear-envio ───────────────────────────────────────────────────
 async function accionResetearEnvio(req, res) {
   if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
-  const sesion = await verificarSesionAdminOficina(req);
+  const sesion = await verificarSesionPlanta(supabase, req);
   if (!sesion) return err(res, 'No autorizado', 401);
+  if (!esOficina(sesion)) return err(res, 'Esta acción es solo para oficina', 403);
 
   const { envio_id } = req.body || {};
   if (!envio_id) return err(res, 'envio_id requerido');
@@ -552,8 +541,9 @@ async function accionResetearEnvio(req, res) {
 // ── POST eliminar-envio ───────────────────────────────────────────────────
 async function accionEliminarEnvio(req, res) {
   if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
-  const sesion = await verificarSesionAdminOficina(req);
+  const sesion = await verificarSesionPlanta(supabase, req);
   if (!sesion) return err(res, 'No autorizado', 401);
+  if (!esOficina(sesion)) return err(res, 'Esta acción es solo para oficina', 403);
 
   const { envio_id } = req.body || {};
   if (!envio_id) return err(res, 'envio_id requerido');
