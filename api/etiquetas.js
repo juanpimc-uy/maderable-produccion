@@ -62,12 +62,21 @@ export default async function handler(req) {
 
     // ── POST guardar-config (admin/oficina) ──
     if (action === 'guardar-config' && req.method === 'POST') {
-      const { token, funcion, tamano, titulo, campos } = body;
+      const { token, funcion, tamano, titulo, campos, opciones } = body;
       const caller = await verificarSesion(token);
       if (!caller || !['admin', 'oficina'].includes(caller.rol_app))
         return err('Acceso denegado', 401);
 
       if (!funcion) return err('funcion requerida');
+
+      // Leer opciones existentes siempre; mergear encima solo si vinieron nuevas
+      const { data: existente } = await supabase.from('etiquetas_config')
+        .select('opciones').eq('funcion', funcion).maybeSingle();
+      let opcionesMerged = (existente && existente.opciones && typeof existente.opciones === 'object')
+        ? { ...existente.opciones } : {};
+      if (opciones && typeof opciones === 'object') {
+        for (const k of Object.keys(opciones)) opcionesMerged[k] = opciones[k];
+      }
 
       const { error } = await supabase
         .from('etiquetas_config')
@@ -76,6 +85,7 @@ export default async function handler(req) {
           tamano: tamano || '60x30',
           titulo: titulo || null,
           campos: campos || {},
+          opciones: opcionesMerged,
           actualizado_at: new Date().toISOString(),
           actualizado_por: caller.id,
         }, { onConflict: 'funcion' });

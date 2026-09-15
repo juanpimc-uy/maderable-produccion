@@ -233,6 +233,11 @@
               for (var k in c) { if (c.hasOwnProperty(k)) _configCache[fn].campos[k] = c[k]; }
             }
             if (row.tamano) _configCache[fn].tamano = row.tamano;
+            var optsRow = row.opciones;
+            if (!_configCache[fn].opciones) _configCache[fn].opciones = {};
+            if (optsRow && typeof optsRow === 'object') {
+              for (var opk in optsRow) { if (optsRow.hasOwnProperty(opk)) _configCache[fn].opciones[opk] = optsRow[opk]; }
+            }
           });
           _configTs = Date.now();
         } else {
@@ -306,6 +311,18 @@
     return spec.tituloDefault;
   }
 
+  function resolverOpciones(funcion, fmt, cfgOverride) {
+    var spec = FUNCIONES[funcion];
+    if (!spec) return {};
+    if (cfgOverride && cfgOverride._opciones && cfgOverride._opciones[fmt]) {
+      return cfgOverride._opciones[fmt];
+    }
+    if (_configCache && _configCache[funcion] && _configCache[funcion].opciones && _configCache[funcion].opciones[fmt]) {
+      return _configCache[funcion].opciones[fmt];
+    }
+    return {};
+  }
+
   // ═══════════════════════════════════════════════════════════════════════
   // MEDIDAS POR FORMATO
   // ═══════════════════════════════════════════════════════════════════════
@@ -365,6 +382,7 @@
     var camposCfg = resolverCampos(funcion, fmt, cfgOverride);
     var tituloRaw = resolverTitulo(funcion, cfgOverride ? cfgOverride._titulo : undefined);
     var titulo = interpolarTitulo(tituloRaw, datos || {});
+    var opciones = resolverOpciones(funcion, fmt, cfgOverride);
 
     // Ordenar campos según índice en la spec
     var orden = {};
@@ -417,7 +435,7 @@
     body.style.cssText = 'flex:1;display:flex;padding:' + med.bodyPad + ';gap:' + med.bodyGap + ';overflow:hidden;align-items:center;';
 
     // QR (izquierda)
-    if (spec.qr) {
+    if (spec.qr && opciones.qr !== false) {
       var qrWrap = document.createElement('div');
       qrWrap.style.cssText = 'width:' + med.qrSize + ';height:' + med.qrSize + ';flex-shrink:0;background:#eee;display:flex;align-items:center;justify-content:center;';
       qrWrap.setAttribute('data-qr', d._qr || spec.qrEj || '');
@@ -468,11 +486,25 @@
     // ── PIE (solo 100×50) — auto-shrink + wrap, NUNCA cortar ──
     if (med.pie && pieCampos.length > 0) {
       var pieLat = (med.piePad || '3mm 4mm').split(/\s+/)[1] || '4mm';
+      var showQrPie = spec.qr && opciones.qr !== false && med.qrPieSize && opciones.qrPie !== false;
+
+      var pieOuter = document.createElement('div');
+      pieOuter.style.cssText = 'border-top:.2mm solid #000;display:flex;align-items:stretch;flex-shrink:0;';
+
+      if (showQrPie) {
+        var qrPieWrap = document.createElement('div');
+        qrPieWrap.style.cssText = 'width:' + med.qrPieSize + ';flex-shrink:0;display:flex;align-items:center;justify-content:center;padding-left:' + pieLat + ';';
+        var qrPiePh = document.createElement('span');
+        qrPiePh.style.cssText = 'font-size:4pt;color:#999;background:#eee;padding:1mm;';
+        qrPiePh.textContent = 'QR';
+        qrPieWrap.appendChild(qrPiePh);
+        pieOuter.appendChild(qrPieWrap);
+      }
 
       if (med.pieDosLineas && pieCampos.length > 1) {
         var pie2 = document.createElement('div');
-        pie2.style.cssText = 'border-top:.2mm solid #000;padding:2mm ' + pieLat + ' 0 ' + pieLat +
-          ';height:' + med.pieH + ';box-sizing:border-box;display:flex;flex-direction:column;gap:1mm;flex-shrink:0;';
+        pie2.style.cssText = 'flex:1;padding:2mm ' + pieLat + ' 0 ' + pieLat +
+          ';height:' + med.pieH + ';box-sizing:border-box;display:flex;flex-direction:column;gap:1mm;';
 
         var cp1 = pieCampos[0];
         var vv1 = d[cp1.id] != null ? String(d[cp1.id]).toUpperCase() : '';
@@ -498,10 +530,10 @@
           l2.appendChild(s);
         });
         pie2.appendChild(l2);
-        et.appendChild(pie2);
+        pieOuter.appendChild(pie2);
       } else {
         var pie = document.createElement('div');
-        pie.style.cssText = 'border-top:.2mm solid #000;padding:' + med.piePad + ';display:flex;justify-content:space-between;flex-shrink:0;gap:2mm;';
+        pie.style.cssText = 'flex:1;padding:' + med.piePad + ';display:flex;justify-content:space-between;gap:2mm;';
 
         var basePt = parseFloat(med.pieSize) || 11;
         var minPt2 = 5;
@@ -511,7 +543,6 @@
           if (!specCampo) return;
           var val = d[c.id] != null ? String(d[c.id]).toUpperCase() : '';
           var span = document.createElement('span');
-          // Scale font down based on text length — longer text gets smaller font
           var len = val.length;
           var pt = basePt;
           if (len > 12) pt = Math.max(minPt2, basePt * 12 / len);
@@ -519,8 +550,10 @@
           span.appendChild(document.createTextNode(val));
           pie.appendChild(span);
         });
-        et.appendChild(pie);
+        pieOuter.appendChild(pie);
       }
+
+      et.appendChild(pieOuter);
     }
 
     return et;
@@ -616,12 +649,16 @@
       if (c.pie && med.pie) pieCampos.push(c);
     });
 
+    // Opciones (QR on/off)
+    var opciones = resolverOpciones(funcion, fmt, cfgOverride);
+
     // Cargar dependencias y rasterizar
     var deps = [_ensureFont()];
-    if (spec.qr) deps.push(_ensureQRLib());
+    var needsQR = spec.qr && (opciones.qr !== false || (med.qrPieSize && opciones.qrPie !== false));
+    if (needsQR) deps.push(_ensureQRLib());
     Promise.all(deps)
-      .then(function () { _rasterPrint(spec, items, med, cuerpoCampos, pieCampos, tituloRaw); })
-      .catch(function () { _rasterPrint(spec, items, med, cuerpoCampos, pieCampos, tituloRaw); });
+      .then(function () { _rasterPrint(spec, items, med, cuerpoCampos, pieCampos, tituloRaw, opciones); })
+      .catch(function () { _rasterPrint(spec, items, med, cuerpoCampos, pieCampos, tituloRaw, opciones); });
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -704,7 +741,7 @@
     return t + '\u2026';
   }
 
-  function _rasterPrint(spec, items, med, cuerpoCampos, pieCampos, tituloRaw) {
+  function _rasterPrint(spec, items, med, cuerpoCampos, pieCampos, tituloRaw, opciones) {
     var wMM = parseFloat(med.pageW);
     var hMM = parseFloat(med.pageH);
     var superW = Math.round(wMM * SUPER_PX);
@@ -720,7 +757,7 @@
       d.envio_num = item.envio_num;
       d.envio_total = item.envio_total;
       var titulo = interpolarTitulo(tituloRaw, d);
-      dataUrls.push(_drawEtiqueta(spec, d, med, cuerpoCampos, pieCampos, titulo, superW, superH, outW, outH));
+      dataUrls.push(_drawEtiqueta(spec, d, med, cuerpoCampos, pieCampos, titulo, superW, superH, outW, outH, opciones));
     });
 
     // Ventana de impresión: solo imágenes
@@ -747,7 +784,7 @@
     win.document.close();
   }
 
-  function _drawEtiqueta(spec, d, med, cuerpoCampos, pieCampos, titulo, superW, superH, outW, outH) {
+  function _drawEtiqueta(spec, d, med, cuerpoCampos, pieCampos, titulo, superW, superH, outW, outH, opciones) {
     var cv = document.createElement('canvas');
     cv.width = superW; cv.height = superH;
     var ctx = cv.getContext('2d');
@@ -822,7 +859,7 @@
     // QR: reservar espacio pero no dibujar (se estampa directo en canvas final)
     var camposL = bodyL;
     var qrPxSuper = 0;
-    if (spec.qr) {
+    if (spec.qr && opciones.qr !== false) {
       qrPxSuper = _mmPx(med.qrSize);
       camposL = bodyL + qrPxSuper + bodyGap;
     }
@@ -880,7 +917,7 @@
       var pieTop = superH - pieH;
       ctx.fillStyle = '#000';
       ctx.fillRect(0, pieTop, superW, pieBorder);
-      var pieQrReserva = med.qrPieSize ? (_mmPx(med.qrPieSize) + pPad[1]) : 0;
+      var pieQrReserva = (spec.qr && opciones.qr !== false && med.qrPieSize && opciones.qrPie !== false) ? (_mmPx(med.qrPieSize) + pPad[1]) : 0;
       var pieGap = pPad[1];
       var pieUsable = superW - pPad[1] * 2 - pieQrReserva;
       var pieCamposL = pPad[1] + pieQrReserva;
@@ -953,7 +990,7 @@
     fctx.drawImage(cv, 0, 0, outW, outH);
 
     // ── QR directo al canvas final (sin pasar por sobremuestreo → módulos nítidos) ──
-    if (spec.qr) {
+    if (spec.qr && opciones.qr !== false) {
       var qrOutPx = Math.round(parseFloat(med.qrSize) * OUT_PX);
       var qrCv = _genQRCanvas(d._qr, qrOutPx);
       if (qrCv) {
@@ -970,7 +1007,7 @@
     }
 
     // ── QR del pie (solo 100×50, si la spec tiene qrPieSize) ──
-    if (spec.qr && med.qrPieSize) {
+    if (spec.qr && opciones.qr !== false && med.qrPieSize && opciones.qrPie !== false) {
       var qrPieOutPx = Math.round(parseFloat(med.qrPieSize) * OUT_PX);
       var qrPieCv = _genQRCanvas(d._qr, qrPieOutPx);
       if (qrPieCv) {
@@ -1004,6 +1041,7 @@
     imprimir: imprimir,
     preview: preview,
     cargarConfig: cargarConfig,
+    resolverOpciones: resolverOpciones,
     tamanoActual: tamanoActual,
     setTamano: setTamano,
     montarSelectorTamano: montarSelectorTamano,

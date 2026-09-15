@@ -195,7 +195,13 @@ window.addEventListener('DOMContentLoaded', async function () {
       }
     });
 
-    _states[fn] = { tamano: tamano, titulo: titulo, campos: campos };
+    var opciones = {};
+    ['60x30', '100x50'].forEach(function (fmt) {
+      var savedOpts = saved && saved.opciones && saved.opciones[fmt];
+      opciones[fmt] = savedOpts ? Object.assign({}, savedOpts) : {};
+    });
+
+    _states[fn] = { tamano: tamano, titulo: titulo, campos: campos, opciones: opciones };
   }
 
   // Exponer cache para resolverCampos
@@ -335,6 +341,64 @@ function buildCard(fn) {
   table.appendChild(thead);
 
   var tbody = document.createElement('tbody');
+
+  // Fila QR (solo funciones que soportan QR)
+  if (spec.qr) {
+    var optsForFmt = st.opciones[fmt] || {};
+    var trQr = document.createElement('tr');
+
+    var tdQrChk = document.createElement('td');
+    var qrChk = document.createElement('input');
+    qrChk.type = 'checkbox';
+    qrChk.className = 'campo-check';
+    qrChk.checked = optsForFmt.qr !== false;
+    qrChk.onchange = function () {
+      if (!_states[fn].opciones[fmt]) _states[fn].opciones[fmt] = {};
+      _states[fn].opciones[fmt].qr = qrChk.checked;
+      rebuildCard(fn);
+    };
+    tdQrChk.appendChild(qrChk);
+    trQr.appendChild(tdQrChk);
+
+    var tdQrName = document.createElement('td');
+    var qrNameSpan = document.createElement('span');
+    qrNameSpan.className = 'campo-nombre';
+    qrNameSpan.textContent = 'QR';
+    tdQrName.appendChild(qrNameSpan);
+    var qrFijo = document.createElement('span');
+    qrFijo.className = 'tag-fijo';
+    qrFijo.textContent = 'FIJO';
+    tdQrName.appendChild(qrFijo);
+    trQr.appendChild(tdQrName);
+
+    var tdQrPos = document.createElement('td');
+    trQr.appendChild(tdQrPos);
+
+    if (is100) {
+      var tdQrPie = document.createElement('td');
+      if (optsForFmt.qr !== false) {
+        var qrPieChk = document.createElement('input');
+        qrPieChk.type = 'checkbox';
+        qrPieChk.className = 'pie-check';
+        qrPieChk.checked = optsForFmt.qrPie !== false;
+        qrPieChk.onchange = function () {
+          if (!_states[fn].opciones[fmt]) _states[fn].opciones[fmt] = {};
+          _states[fn].opciones[fmt].qrPie = qrPieChk.checked;
+          refreshPreview(fn);
+        };
+        tdQrPie.appendChild(qrPieChk);
+      } else {
+        var naSpan = document.createElement('span');
+        naSpan.className = 'pie-na';
+        naSpan.textContent = '— QR APAGADO';
+        tdQrPie.appendChild(naSpan);
+      }
+      trQr.appendChild(tdQrPie);
+    }
+
+    tbody.appendChild(trQr);
+  }
+
   spec.campos.forEach(function (campo) {
     var tr = document.createElement('tr');
     var isOn = activeIds[campo.id] !== undefined;
@@ -454,7 +518,7 @@ function refreshPreview(fn) {
 function renderPreview(fn, wrap) {
   wrap.innerHTML = '';
   var st = _states[fn];
-  var cfgOverride = { _titulo: st.titulo, _tamano: st.tamano };
+  var cfgOverride = { _titulo: st.titulo, _tamano: st.tamano, _opciones: st.opciones };
   cfgOverride[st.tamano] = st.campos[st.tamano] || [];
   var datos = {};
   Etiquetas.FUNCIONES[fn].campos.forEach(function (c) { datos[c.id] = c.ej; });
@@ -545,6 +609,7 @@ async function guardar(fn) {
         tamano: st.tamano,
         titulo: st.titulo,
         campos: st.campos,
+        opciones: st.opciones,
       }),
     });
     var json = await resp.json();
@@ -573,7 +638,7 @@ function imprimirPrueba(fn) {
   datos.envio_total = '4';
   datos._qr = spec.qrEj;
 
-  var cfgOverride = { _titulo: st.titulo, _tamano: st.tamano };
+  var cfgOverride = { _titulo: st.titulo, _tamano: st.tamano, _opciones: st.opciones };
   cfgOverride[st.tamano] = st.campos[st.tamano] || [];
 
   Etiquetas.imprimir(fn, [datos], { config: cfgOverride, tamano: st.tamano });
