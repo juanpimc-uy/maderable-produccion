@@ -1,4 +1,5 @@
 // api/inventario.js — Endpoints de inventario (Node.js runtime, NO edge)
+export const config = { maxDuration: 300 };
 import { createClient } from '@supabase/supabase-js';
 import { getZohoToken } from './_zoho-token-cache.js';
 
@@ -168,8 +169,12 @@ async function accionEditarItem(req, res) {
 // ── POST sync-items-zoho ──────────────────────────────────────────────────
 async function accionSyncItemsZoho(req, res) {
   if (req.method !== 'POST') return err(res, 'Method not allowed', 405);
-  const sesion = await verificarSesionAdminOficina(req);
-  if (!sesion) return err(res, 'No autorizado', 401);
+  const interno = process.env.INTERNAL_SECRET
+    && req.headers['x-internal-secret'] === process.env.INTERNAL_SECRET;
+  if (!interno) {
+    const sesion = await verificarSesionAdminOficina(req);
+    if (!sesion) return err(res, 'No autorizado', 401);
+  }
 
   const orgId = process.env.ZOHO_ORG_ID;
   const token = await getZohoToken();
@@ -192,7 +197,7 @@ async function accionSyncItemsZoho(req, res) {
   let offset = 0;
   while (true) {
     const { data, error } = await supabase.from('inv_items')
-      .select('id, codigo, zoho_item_id')
+      .select('id, codigo, zoho_item_id, descripcion, activo, costo_ultimo_usd')
       .not('zoho_item_id', 'is', null)
       .range(offset, offset + 999);
     if (error) return err(res, error.message, 500);
@@ -218,9 +223,10 @@ async function accionSyncItemsZoho(req, res) {
   }
   const codigosUsados = new Set(todosItems.map(i => i.codigo));
 
-  let nuevos = 0, actualizados = 0;
+  let nuevos = 0, actualizados = 0, sin_cambios = 0;
   const colisiones = [];
   const paraInsertar = [];
+  const paraActualizar = []; // { id, upd }
 
   for (const zi of zohoItems) {
     const zohoItemId = String(zi.item_id);
@@ -233,11 +239,16 @@ async function accionSyncItemsZoho(req, res) {
     const existente = mapZoho.get(zohoItemId);
 
     if (existente) {
-      // UPDATE descripcion, activo y costo último (NO tocar costo_promedio_usd)
+      // Comparar antes de actualizar — no escribir si nada cambió
+      const cambioDesc  = existente.descripcion !== descripcion;
+      const cambioAct   = existente.activo !== activo;
+      const cambioCosto = costoUsd != null && Number(existente.costo_ultimo_usd) !== costoUsd;
+      if (!cambioDesc && !cambioAct && !cambioCosto) { sin_cambios++; continue; }
+
+      // UPDATE descripcion, activo y costo último (NO tocar familia ni costo_promedio_usd)
       const upd = { descripcion, activo, actualizado_en: new Date().toISOString() };
       if (costoUsd != null) upd.costo_ultimo_usd = costoUsd;
-      const { error } = await supabase.from('inv_items').update(upd).eq('id', existente.id);
-      if (!error) actualizados++;
+      paraActualizar.push({ id: existente.id, upd });
     } else {
       // INSERT — pero verificar colisión de codigo
       if (codigosUsados.has(codigo)) {
@@ -268,6 +279,15 @@ async function accionSyncItemsZoho(req, res) {
     }
   }
 
+  // Batch updates en tandas de 25
+  for (let i = 0; i < paraActualizar.length; i += 25) {
+    const tanda = paraActualizar.slice(i, i + 25);
+    const resultados = await Promise.all(tanda.map(t =>
+      supabase.from('inv_items').update(t.upd).eq('id', t.id)
+    ));
+    resultados.forEach(r => { if (!r.error) actualizados++; });
+  }
+
   // Batch insert en lotes de 200
   for (let i = 0; i < paraInsertar.length; i += 200) {
     const lote = paraInsertar.slice(i, i + 200);
@@ -283,6 +303,7 @@ async function accionSyncItemsZoho(req, res) {
     total_zoho: zohoItems.length,
     nuevos,
     actualizados,
+    sin_cambios,
     colisiones,
   });
 }

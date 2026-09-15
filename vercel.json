@@ -7,6 +7,10 @@
     {
       "path": "/api/cron-cierre",
       "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron-sync-items",
+      "schedule": "0 9 * * *"
     }
   ]
 }
