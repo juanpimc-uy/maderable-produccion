@@ -867,7 +867,8 @@
       const sesionOficina = {
         id: _sesion.empleado_id,
         nombre: _sesion.nombre,
-        rol_app: 'oficina',
+        rol_app: _sesion.rol_app,
+        origen: 'kiosco',
         session_token: _sesion.session_token,
       };
       localStorage.removeItem('mble_session');

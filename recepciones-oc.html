@@ -271,7 +271,7 @@ let _rateLimitUntil = 0;
 // ── Auth ─────────────────────────────────────────────────────────────────
 // Si tiene sesión ERP como admin u oficina, saltear contraseña
 const _erpSess = (() => { try { return JSON.parse(localStorage.getItem('mble_session')||sessionStorage.getItem('mble_session')||'{}'); } catch(e) { return {}; } })();
-if (_erpSess.rol_app === 'admin' || _erpSess.rol_app === 'oficina') _mostrarApp();
+if (_erpSess.rol_app === 'admin' || _erpSess.rol_app === 'oficina' || _erpSess.origen === 'kiosco') _mostrarApp();
 else if (localStorage.getItem('oc_session') === 'ok') _mostrarApp();
 async function _login() {
   const pw = document.getElementById('pw-input').value.trim();
@@ -818,6 +818,34 @@ function _imprimirEtiquetasRecepcion() {
   Etiquetas.imprimir('inv-placa', _loteRecepcion);
 }
 
+async function _reimprimirPlacasOc(ocNumero) {
+  if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
+  try {
+    const url = '/api/inventario?action=placas-de-oc&oc_numero=' + encodeURIComponent(ocNumero)
+      + '&empleado_id=' + ((_erpSess && _erpSess.id) || '');
+    const r = await fetch(url, {
+      headers: { Authorization: 'Bearer ' + ((_erpSess && _erpSess.session_token) || '') },
+    }).then(r => r.json());
+    if (!r.ok) { alert(r.msg || 'Error al obtener placas'); return; }
+    if (!r.placas || !r.placas.length) { alert('Esta OC no generó placas serializadas'); return; }
+    const items = r.placas.map(function(p) {
+      var desc = (p.inv_items && p.inv_items.descripcion) || '';
+      var a = p.atributos || {};
+      var fb = (!a.espesor && !a.medida) ? _parsePlacaAttrs(desc) : {};
+      return {
+        codigo: p.codigo,
+        descripcion: desc,
+        espesor: a.espesor ? a.espesor + 'mm' : (fb.espesor ? fb.espesor + 'mm' : ''),
+        medida: a.medida || fb.medida || '',
+        _qr: p.codigo,
+      };
+    });
+    Etiquetas.imprimir('inv-placa', items);
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+}
+
 async function _confirmarInventario() {
   const btn = document.getElementById('inv-btn');
   const errEl = document.getElementById('inv-error');
@@ -846,9 +874,12 @@ async function _confirmarInventario() {
     };
   });
 
+  const ac = new AbortController();
+  const tid = setTimeout(() => ac.abort(), 30000);
   try {
     const r = await fetch('/api/inventario?action=recepcionar-inventario', {
       method: 'POST',
+      signal: ac.signal,
       headers: {
         'Content-Type': 'application/json',
         Authorization: 'Bearer ' + ((_erpSess && _erpSess.session_token) || ''),
@@ -861,6 +892,7 @@ async function _confirmarInventario() {
         lineas: lineasBody,
       }),
     }).then(r => r.json());
+    clearTimeout(tid);
     if (!r.ok) throw new Error(r.msg || 'Error');
 
     // Mostrar resultado
@@ -910,7 +942,10 @@ async function _confirmarInventario() {
     html += '<button class="modal-btn modal-btn-cancel" style="margin-top:10px;" onclick="_cerrarInventario()">Cerrar</button>';
     resEl.innerHTML = html;
   } catch (e) {
-    errEl.textContent = e.message;
+    clearTimeout(tid);
+    errEl.textContent = e.name === 'AbortError'
+      ? 'Timeout — el servidor tardó demasiado. Verificá si la OC se procesó antes de reintentar.'
+      : e.message;
     btn.disabled = false;
     btn.textContent = 'GENERAR INVENTARIO';
   }
@@ -928,9 +963,13 @@ function _abrirDetalleOc(ocNumero) {
   const fdEmision = _fmtDate(oc.fecha_original) || '—';
   const fdEntrega = _fmtDate(oc.fecha_efectiva) || '—';
   const ocNum = oc.oc_numero.replace(/'/g, "\\'");
-  const pieBtn = oc.estado !== 'recibida'
-    ? `<button class="login-btn" style="margin-top:12px;" onclick="event.stopPropagation();_cerrarDetalleOc();_abrirRecibir('${ocNum}')">RECIBIR →</button>`
-    : `<button class="login-btn" style="margin-top:12px;" onclick="event.stopPropagation();_cerrarDetalleOc();_abrirInventarioDeOc('${ocNum}')">GENERAR INVENTARIO →</button>`;
+  let pieBtn;
+  if (oc.estado !== 'recibida') {
+    pieBtn = `<button class="login-btn" style="margin-top:12px;" onclick="event.stopPropagation();_cerrarDetalleOc();_abrirRecibir('${ocNum}')">RECIBIR →</button>`;
+  } else {
+    pieBtn = `<button class="login-btn" style="margin-top:12px;" onclick="event.stopPropagation();_cerrarDetalleOc();_abrirInventarioDeOc('${ocNum}')">GENERAR INVENTARIO →</button>`
+      + `<button class="login-btn" style="margin-top:8px;background:transparent;border:1px solid var(--border);color:var(--muted);" onclick="event.stopPropagation();_reimprimirPlacasOc('${ocNum}')">⎙ REIMPRIMIR ETIQUETAS</button>`;
+  }
   const html = `<div id="modal-detalle-oc" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;display:flex;align-items:center;justify-content:center;" onclick="_cerrarDetalleOc()">
     <div onclick="event.stopPropagation()" style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;width:90%;max-width:560px;max-height:85vh;overflow-y:auto;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">

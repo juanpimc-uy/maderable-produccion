@@ -1412,7 +1412,7 @@ async function accionRecepcionarInventario(req, res) {
       p_proyecto_id: null,
       p_mueble_id: null,
       p_motivo: 'recepcion_oc',
-      p_origen: 'recepcion',
+      p_origen: 'recepcion_oc',
       p_empleado_id: empleado_id,
       p_nota: 'OC ' + (oc_numero || ''),
     });
@@ -1793,6 +1793,36 @@ async function accionListarReservas(req, res) {
   return ok(res, { reservas: mapped, proyectos, empleados });
 }
 
+// ── GET placas-de-oc ── devuelve placas serializadas generadas por una OC (para reimprimir etiquetas)
+async function accionPlacasDeOc(req, res) {
+  if (req.method !== 'GET') return err(res, 'Method not allowed', 405);
+  const sesion = await verificarSesionAdminOficina(req) || await verificarOperario(req.query.empleado_id);
+  if (!sesion) return err(res, 'No autorizado', 401);
+
+  const ocNumero = req.query.oc_numero;
+  if (!ocNumero) return err(res, 'oc_numero requerido');
+
+  const { data: movs, error: mErr } = await supabase
+    .from('inv_movimientos')
+    .select('unidad_id')
+    .eq('tipo', 'entrada')
+    .eq('nota', 'OC ' + ocNumero)
+    .not('unidad_id', 'is', null)
+    .limit(500);
+  if (mErr) return err(res, mErr.message, 500);
+  if (!movs || !movs.length) return ok(res, { placas: [] });
+
+  const ids = [...new Set(movs.map(m => m.unidad_id))];
+  const { data: unidades, error: uErr } = await supabase
+    .from('inv_unidades')
+    .select('id, codigo, atributos, item_id, inv_items:item_id(codigo, descripcion)')
+    .in('id', ids)
+    .order('codigo');
+  if (uErr) return err(res, uErr.message, 500);
+
+  return ok(res, { placas: unidades || [] });
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const action = req.query.action;
@@ -1826,6 +1856,7 @@ export default async function handler(req, res) {
     // Recepción OC → inventario
     if (action === 'oc-para-inventario')      return await accionOcParaInventario(req, res);
     if (action === 'recepcionar-inventario')  return await accionRecepcionarInventario(req, res);
+    if (action === 'placas-de-oc')            return await accionPlacasDeOc(req, res);
     // Carga de stock inicial
     if (action === 'cargar-stock-placa')      return await accionCargarStockPlaca(req, res);
     if (action === 'listar-unidades')         return await accionListarUnidades(req, res);
