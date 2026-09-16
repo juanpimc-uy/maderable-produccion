@@ -378,7 +378,7 @@ function buildCard(op) {
     ? [odfStr, muebleStr].filter(Boolean).join('  ·  ')
     : 'Coordinación general';
   const centroDisplay = op.centro_label || label;
-  const kTarea = (op.proyecto?.id && op.mueble?.id && op.centro) ? op.proyecto.id + '|' + op.mueble.id + '|' + op.centro : null;
+  const kTarea = (op.proyecto?.id && op.centro) ? op.proyecto.id + '|' + (op.mueble?.id || '') + '|' + op.centro : null;
   const hTarea = kTarea ? (window._horasTarea || {})[kTarea] : undefined;
   const hrsSpan = (hTarea != null) ? `<span class="chrs">${fmtHorasTarea(hTarea)}</span>` : '';
   return `<div class="card cc-${m.css}">
