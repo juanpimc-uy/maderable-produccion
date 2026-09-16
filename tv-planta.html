@@ -73,6 +73,7 @@
   .cmueble{font-family:'IBM Plex Mono',monospace;font-size:.72em;color:var(--tx3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:.15em;}
   .cr4{display:flex;align-items:center;gap:.3em;}
   .cbadge{font-family:'IBM Plex Mono',monospace;font-size:.45em;font-weight:500;letter-spacing:1px;text-transform:uppercase;padding:.15em .4em;border-radius:3px;background:#1a1a1e;color:var(--tx3);}
+  .chrs{font-family:'IBM Plex Mono',monospace;font-size:.5em;font-weight:500;color:var(--tx2);white-space:nowrap;}
   .bb-col{background:rgba(59,130,246,.12);color:var(--col);} .bb-arm{background:rgba(245,158,11,.12);color:var(--arm);}
   .bb-cor{background:rgba(239,68,68,.12);color:var(--cor);} .bb-mod{background:rgba(139,92,246,.12);color:var(--mod);}
   .bb-cam{background:rgba(6,182,212,.12);color:var(--cam);} .bb-coo{background:rgba(107,114,128,.12);color:var(--coo);}
@@ -246,7 +247,12 @@ async function cargarCncTV() {
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 async function cargarSnapshot() {
   try {
-    const r = await fetch('/api/tiempos?action=dashboard-snapshot').then(res => res.json());
+    const [r, h] = await Promise.all([
+      fetch('/api/tiempos?action=dashboard-snapshot').then(res => res.json()),
+      fetch('/api/tv?action=horas-tarea-centro').then(res => res.json()).catch(() => null)
+    ]);
+    window._horasTarea = {};
+    if (h && h.ok) (h.tareas || []).forEach(t => { window._horasTarea[t.proyecto_id + '|' + t.item_id + '|' + t.centro] = Number(t.horas); });
     if (r.error) throw new Error(r.error);
     document.getElementById('tv-err').style.display = 'none';
     renderSnapshot(r);
@@ -280,6 +286,12 @@ function getCM(centroLabel) {
 function fmtMin(m) {
   const h = Math.floor(m/60), mm = m % 60;
   return h > 0 ? `${h}H ${String(mm).padStart(2,'0')}M` : `${mm}M`;
+}
+
+function fmtHorasTarea(h) {
+  if (h == null || isNaN(h)) return '';
+  if (h < 1) return Math.round(h * 60) + ' min';
+  return h.toFixed(1).replace('.', ',') + ' h';
 }
 
 function cncBadge(c) {
@@ -366,6 +378,9 @@ function buildCard(op) {
     ? [odfStr, muebleStr].filter(Boolean).join('  ·  ')
     : 'Coordinación general';
   const centroDisplay = op.centro_label || label;
+  const kTarea = (op.proyecto?.id && op.mueble?.id && op.centro) ? op.proyecto.id + '|' + op.mueble.id + '|' + op.centro : null;
+  const hTarea = kTarea ? (window._horasTarea || {})[kTarea] : undefined;
+  const hrsSpan = (hTarea != null) ? `<span class="chrs">${fmtHorasTarea(hTarea)}</span>` : '';
   return `<div class="card cc-${m.css}">
     <div class="cr1">
       <div class="cname">${nameLines(op.nombre)}</div>
@@ -376,7 +391,7 @@ function buildCard(op) {
       ${tipo ? `<span class="csep">·</span><div class="ctipo">${tipo}</div>` : ''}
     </div>
     <div class="cmueble">${linea3}</div>
-    <div class="cr4"><span class="cbadge ${m.badge}">${centroDisplay}</span>${op.cnc ? cncBadge(op.cnc) : ''}${fmtEntrada(op.entrada)}</div>
+    <div class="cr4"><span class="cbadge ${m.badge}">${centroDisplay}</span>${op.cnc ? cncBadge(op.cnc) : ''}${hrsSpan}${fmtEntrada(op.entrada)}</div>
   </div>`;
 }
 
