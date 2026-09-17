@@ -132,11 +132,12 @@
       campos: [
         { id: 'codigo',      label: 'Código',      ej: 'BIS-35',                    fijo: true },
         { id: 'descripcion', label: 'Descripción', ej: 'Bisagra codo 35mm Blum',    fijo: false },
+        { id: 'cantidad',    label: 'Cantidad',    ej: '50 u',                      fijo: false },
         { id: 'familia',     label: 'Familia',     ej: 'HERRAJE',                   fijo: false },
       ],
       defaults: {
-        '60x30':  [{ id: 'codigo', pos: 'XL' }, { id: 'descripcion', pos: 'M' }],
-        '100x50': [{ id: 'codigo', pos: 'XL' }, { id: 'descripcion', pos: 'L' }, { id: 'familia', pos: 'M' }],
+        '60x30':  [{ id: 'codigo', pos: 'XL' }, { id: 'descripcion', pos: 'M' }, { id: 'cantidad', pos: 'M' }],
+        '100x50': [{ id: 'codigo', pos: 'XL' }, { id: 'descripcion', pos: 'L' }, { id: 'cantidad', pos: 'L' }, { id: 'familia', pos: 'M' }],
       }
     },
     'inv-placa': {

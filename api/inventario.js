@@ -1451,7 +1451,7 @@ async function accionRecepcionarInventario(req, res) {
 
     // 3. Recalcular promedio ponderado
     const { data: itemRow } = await supabase.from('inv_items')
-      .select('costo_promedio_usd').eq('id', inv_item_id).maybeSingle();
+      .select('costo_promedio_usd, codigo, descripcion, nombre_corto, familia, unidad').eq('id', inv_item_id).maybeSingle();
     const { data: stockRows } = await supabase.from('inv_stock')
       .select('cantidad').eq('item_id', inv_item_id);
     const stockActual = (stockRows || []).reduce((s, r) => s + Number(r.cantidad || 0), 0);
@@ -1469,7 +1469,7 @@ async function accionRecepcionarInventario(req, res) {
       .update({ costo_promedio_usd: nuevoPromedio, costo_ultimo_usd: costoUsd })
       .eq('id', inv_item_id);
 
-    lineasCantidad.push({ inv_item_id, cantidad, nuevo_promedio: nuevoPromedio });
+    lineasCantidad.push({ inv_item_id, cantidad, nuevo_promedio: nuevoPromedio, codigo: itemRow?.codigo || null, nombre: itemRow?.descripcion || null, nombre_corto: itemRow?.nombre_corto || null, familia: itemRow?.familia || null, unidad: itemRow?.unidad || null });
   }
 
   return ok(res, { placas_creadas: placasCreadas, lineas_cantidad: lineasCantidad, errores });

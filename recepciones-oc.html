@@ -649,6 +649,7 @@ async function _abrirEtiquetasOc(ocNumero, ocIdZoho) {
 let _invLineas = [];
 let _invData = null;
 let _loteRecepcion = [];
+let _loteArticulos = [];
 let _invReserva = null;
 let _invBuscador = null;
 
@@ -818,6 +819,12 @@ function _imprimirEtiquetasRecepcion() {
   Etiquetas.imprimir('inv-placa', _loteRecepcion);
 }
 
+function _imprimirEtiquetasArticulos() {
+  if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
+  if (!_loteArticulos.length) { alert('No hay etiquetas de artículos para imprimir'); return; }
+  Etiquetas.imprimir('inv-item', _loteArticulos);
+}
+
 async function _reimprimirPlacasOc(ocNumero) {
   if (!window.Etiquetas) { alert('Sistema de etiquetas no disponible'); return; }
   try {
@@ -922,13 +929,23 @@ async function _confirmarInventario() {
     }
 
     if (r.lineas_cantidad && r.lineas_cantidad.length) {
+      _loteArticulos = [];
       for (const l of r.lineas_cantidad) {
         const item = _invLineas.find(x => x.inv_item_id === l.inv_item_id);
+        const cod = l.codigo || (item ? item.name : 'Item ' + l.inv_item_id);
         html += `<div class="inv-resumen-item">
-          <span>${item ? item.name : 'Item ' + l.inv_item_id}</span>
+          <span><span class="mono" style="color:var(--green);">${cod}</span> ${item ? item.name : ''}</span>
           <span class="mono" style="color:var(--accent);">+${l.cantidad} · prom USD ${l.nuevo_promedio.toFixed(2)}</span>
         </div>`;
+        _loteArticulos.push({
+          codigo: l.codigo || '',
+          descripcion: l.nombre_corto || l.nombre || (item ? item.name : ''),
+          familia: (l.familia || '').toUpperCase(),
+          cantidad: l.cantidad + ' ' + (l.unidad || 'u'),
+          _qr: l.codigo || '',
+        });
       }
+      html += `<button class="modal-btn" style="margin-top:8px;" onclick="_imprimirEtiquetasArticulos()">⎙ IMPRIMIR ETIQUETAS DE ARTÍCULOS (${_loteArticulos.length})</button>`;
     }
 
     if (r.errores && r.errores.length) {
