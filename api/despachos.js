@@ -29,7 +29,7 @@ async function accionBoard(req, res) {
 
   // 1. Todos los envíos con su proyecto de despacho
   const { data: envios, error: eErr } = await supabase.from('despacho_envios')
-    .select('id, proyecto_id, mf_n, codigo, nombre, cant, impreso, impreso_at, creado_en, envio, completado_sync_en, fuera_sync_en')
+    .select('id, proyecto_id, mf_n, codigo, nombre, cant, impreso, impreso_at, creado_en, envio, completado_sync_en, fuera_sync_en, tipo, proveedor')
     .order('creado_en', { ascending: false });
   if (eErr) return err(res, eErr.message, 500);
   if (!envios || !envios.length) return ok(res, { envios: [], despachados_recientes: [] });
@@ -78,8 +78,8 @@ async function accionBoard(req, res) {
     bultoMap[k].push(b);
   });
 
-  // 5. Producción y entregas — buscar solo las combinaciones que necesitamos
-  const combos = envios.map(e => {
+  // 5. Producción y entregas — buscar solo las combinaciones de muebles (no insumos)
+  const combos = envios.filter(e => e.tipo !== 'insumo').map(e => {
     const dp = dpMap[e.proyecto_id];
     return { erpId: dp ? dp.odf_proyecto_id : null, mfn: e.mf_n };
   }).filter(c => c.erpId);
@@ -124,9 +124,10 @@ async function accionBoard(req, res) {
     const escaneados = bs.filter(b => b.escaneado).length;
     const todosEscaneados = bs.length > 0 && escaneados === bs.length;
 
+    const esInsumo = e.tipo === 'insumo';
     const erpKey = (dp.odf_proyecto_id || '') + '|' + (e.mf_n || '');
-    const produccion = compLogMap[erpKey] || null;
-    const fecha_comprometida = entregaMap[erpKey] || null;
+    const produccion = esInsumo ? null : (compLogMap[erpKey] || null);
+    const fecha_comprometida = esInsumo ? null : (entregaMap[erpKey] || null);
 
     // max(fecha_escaneo) de los bultos — fecha real de salida
     let fechaSalida = null;
@@ -149,6 +150,8 @@ async function accionBoard(req, res) {
       produccion,
       fecha_comprometida,
       fecha_salida: fechaSalida,
+      tipo: e.tipo || 'mueble',
+      proveedor: e.proveedor || null,
     };
 
     if (todosEscaneados) {
@@ -212,10 +215,10 @@ async function accionCrearEnvio(req, res) {
 
   const b = req.body || {};
   const proyecto_id = (b.proyecto_id || '').trim();
-  const mf_n = normMf(b.mf_n);
+  const tipo = b.tipo === 'insumo' ? 'insumo' : 'mueble';
   const nombre = (b.nombre || '').trim();
   const cantBultos = parseInt(b.bultos);
-  if (!proyecto_id || !mf_n) return err(res, 'proyecto_id y mf_n requeridos');
+  if (!proyecto_id) return err(res, 'proyecto_id requerido');
   if (!cantBultos || cantBultos < 1) return err(res, 'bultos debe ser >= 1');
 
   // Buscar proyecto en ERP para datos
@@ -224,11 +227,23 @@ async function accionCrearEnvio(req, res) {
     .eq('id', proyecto_id).maybeSingle();
   if (!proy) return err(res, 'Proyecto no encontrado', 404);
 
-  const mubs = Array.isArray(proy.muebles) ? proy.muebles : [];
-  const mueble = mubs.find(m => m.id === mf_n);
-  const codigoMueble = mueble ? (mueble.codigo || mf_n) : mf_n;
-  const cantRaw = mueble ? mueble.cant : null;
-  const cantMueble = (cantRaw != null && !isNaN(Number(cantRaw))) ? Math.trunc(Number(cantRaw)) : null;
+  let mf_n, codigoMueble, cantMueble, proveedor;
+  if (tipo === 'insumo') {
+    if (!nombre) return err(res, 'nombre requerido para insumo');
+    mf_n = 'ins_' + Date.now();
+    codigoMueble = 'INSUMO';
+    cantMueble = null;
+    proveedor = (b.proveedor || '').trim() || null;
+  } else {
+    mf_n = normMf(b.mf_n);
+    if (!mf_n) return err(res, 'mf_n requerido');
+    const mubs = Array.isArray(proy.muebles) ? proy.muebles : [];
+    const mueble = mubs.find(m => m.id === mf_n);
+    codigoMueble = mueble ? (mueble.codigo || mf_n) : mf_n;
+    const cantRaw = mueble ? mueble.cant : null;
+    cantMueble = (cantRaw != null && !isNaN(Number(cantRaw))) ? Math.trunc(Number(cantRaw)) : null;
+    proveedor = null;
+  }
 
   // Asegurar despacho_proyectos
   let { data: dp } = await supabase.from('despacho_proyectos')
@@ -249,11 +264,14 @@ async function accionCrearEnvio(req, res) {
   const envio = (maxEnvRows && maxEnvRows.length) ? (maxEnvRows[0].envio || 0) + 1 : 1;
 
   // Insertar envío
+  const insertEnvio = {
+    proyecto_id: dp.id, mf_n, codigo: codigoMueble,
+    nombre: tipo === 'insumo' ? nombre : (nombre || (proy.muebles && Array.isArray(proy.muebles) ? (proy.muebles.find(m => m.id === mf_n) || {}).nombre : '') || ''),
+    cant: cantMueble, impreso: false, envio, tipo,
+  };
+  if (proveedor) insertEnvio.proveedor = proveedor;
   const { data: nuevoEnvio, error: eErr } = await supabase.from('despacho_envios')
-    .insert({
-      proyecto_id: dp.id, mf_n, codigo: codigoMueble, nombre: nombre || (mueble ? mueble.nombre : ''),
-      cant: cantMueble, impreso: false, envio,
-    })
+    .insert(insertEnvio)
     .select().single();
   if (eErr) return err(res, eErr.message, 500);
 
@@ -313,25 +331,28 @@ async function _syncSiEnvioCompleto(bulto) {
   if (!todosEscaneados) return false;
 
   const { data: envio } = await supabase.from('despacho_envios')
-    .select('id, proyecto_id, mf_n')
+    .select('id, proyecto_id, mf_n, tipo')
     .eq('proyecto_id', bulto.proyecto_id)
     .eq('mf_n', bulto.mueble_mf_n)
     .eq('envio', bulto.envio)
     .maybeSingle();
   if (envio) {
-    const { data: dp } = await supabase.from('despacho_proyectos')
-      .select('odf_proyecto_id').eq('id', envio.proyecto_id).maybeSingle();
-    if (dp && dp.odf_proyecto_id) {
-      const ahora = new Date().toISOString();
-      await supabase.from('despachos_muebles').upsert({
-        proyecto_id: dp.odf_proyecto_id, mf_n: envio.mf_n, unidad: '',
-        despachado_full: true, fecha_despacho: ahora, origen: 'erp-despacho',
-        actualizado_en: ahora,
-      }, { onConflict: 'proyecto_id,mf_n,unidad' });
-      await supabase.from('despacho_envios')
-        .update({ fuera_sync_en: ahora })
-        .eq('id', envio.id);
+    const ahora = new Date().toISOString();
+    // Solo muebles escriben el puente despachos_muebles (insumos no son piezas fabricadas)
+    if (envio.tipo !== 'insumo') {
+      const { data: dp } = await supabase.from('despacho_proyectos')
+        .select('odf_proyecto_id').eq('id', envio.proyecto_id).maybeSingle();
+      if (dp && dp.odf_proyecto_id) {
+        await supabase.from('despachos_muebles').upsert({
+          proyecto_id: dp.odf_proyecto_id, mf_n: envio.mf_n, unidad: '',
+          despachado_full: true, fecha_despacho: ahora, origen: 'erp-despacho',
+          actualizado_en: ahora,
+        }, { onConflict: 'proyecto_id,mf_n,unidad' });
+      }
     }
+    await supabase.from('despacho_envios')
+      .update({ fuera_sync_en: ahora })
+      .eq('id', envio.id);
   }
   return true;
 }
@@ -379,9 +400,10 @@ async function accionEditarEnvio(req, res) {
   const escaneados = (bultosActuales || []).filter(x => x.escaneado).length;
   if (escaneados > 0) return err(res, 'No se puede editar: hay ' + escaneados + ' bulto(s) ya escaneado(s)', 409);
 
-  // Actualizar nombre
+  // Actualizar nombre y proveedor (insumos)
   const campos = {};
   if (b.nombre !== undefined) campos.nombre = b.nombre;
+  if (b.proveedor !== undefined) campos.proveedor = b.proveedor || null;
   if (Object.keys(campos).length) {
     await supabase.from('despacho_envios').update(campos).eq('id', envio_id);
   }
@@ -640,7 +662,7 @@ async function accionScanBultos(req, res) {
 
   // Envíos de este proyecto
   const { data: envios, error: eErr } = await supabase.from('despacho_envios')
-    .select('mf_n, codigo, nombre, envio')
+    .select('mf_n, codigo, nombre, envio, tipo, proveedor')
     .eq('proyecto_id', dpId)
     .order('codigo').order('envio');
   if (eErr) return err(res, eErr.message, 500);
@@ -669,6 +691,8 @@ async function accionScanBultos(req, res) {
       codigo: e.codigo || '',
       nombre: e.nombre || '',
       envio: e.envio,
+      tipo: e.tipo || 'mueble',
+      proveedor: e.proveedor || null,
       bultos: bs.map(function (b) { return { id: b.id, numero: b.numero, descripcion: b.descripcion, escaneado: b.escaneado, fecha_escaneo: b.fecha_escaneo }; }),
     };
   });

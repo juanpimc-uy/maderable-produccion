@@ -119,6 +119,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
 <div class="overlay" id="ov-nuevo">
   <div class="modal" style="max-width:420px;padding:20px;">
     <div class="modal-title">NUEVO ENVÍO</div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;">
+      <button class="btn btn-sm" id="nv-tipo-mueble" onclick="setNvTipo('mueble')" style="flex:1;">Mueble</button>
+      <button class="btn btn-sm" id="nv-tipo-insumo" onclick="setNvTipo('insumo')" style="flex:1;">Insumo</button>
+    </div>
     <div class="field"><label>Proyecto</label>
       <div style="position:relative;">
         <input id="nv-proy-inp" placeholder="Buscar proyecto..." autocomplete="off">
@@ -132,7 +136,13 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;hei
       </div>
     </div>
     <div id="nv-prod-aviso" style="margin-bottom:12px;"></div>
-    <div class="field"><label>Nombre de la etiqueta</label>
+    <div class="field" id="nv-field-desc" style="display:none;"><label>Descripción</label>
+      <input id="nv-desc" placeholder="Marco de aluminio puerta P03">
+    </div>
+    <div class="field" id="nv-field-prov" style="display:none;"><label>Proveedor / de quién es</label>
+      <input id="nv-prov" placeholder="Opcional">
+    </div>
+    <div class="field" id="nv-field-nombre"><label>Nombre de la etiqueta</label>
       <input id="nv-nombre" placeholder="Se autocompleta con el mueble">
     </div>
     <div class="field"><label>Cantidad de bultos</label>
@@ -194,6 +204,7 @@ let _nvProy = null;
 let _nvMueble = null;
 let _nvProyBusc = null;
 let _nvMueBusc = null;
+let _nvTipo = 'mueble';
 
 // ═══ TOAST ═══
 let _tt = null;
@@ -211,6 +222,7 @@ function diasDesde(iso){ if (!iso) return null; return Math.floor((Date.now() - 
 function fmtFecha(iso){ if (!iso) return '—'; return new Date(iso).toLocaleDateString('es-UY',{day:'2-digit',month:'2-digit',year:'2-digit'}); }
 
 function cardClass(e) {
+  if (e.tipo === 'insumo') return 'ok';
   if (e.produccion && e.produccion.evento !== 'completado') return 'err';
   if (!e.produccion) return '';
   const d = diasDesde(e.impreso_at);
@@ -219,6 +231,7 @@ function cardClass(e) {
 }
 
 function prodText(e) {
+  if (e.tipo === 'insumo') return '<span style="color:var(--orange);font-weight:600;">INSUMO</span>' + (e.proveedor ? '<br><span style="color:var(--muted);">' + esc(e.proveedor) + '</span>' : '');
   if (!e.produccion) return '<span style="color:var(--muted);">sin registro</span>';
   if (e.produccion.evento === 'completado') return '<span style="color:var(--green);">terminado ' + fmtFecha(e.produccion.fecha) + '</span>';
   return '<span style="color:var(--red);">NO TERMINADO</span>';
@@ -232,7 +245,7 @@ function render() {
   // KPIs
   const abiertos = ENVIOS.length;
   const impresosSinEsc = ENVIOS.filter(e => e.impreso).reduce((a, e) => a + (e.bultos_total - e.bultos_escaneados), 0);
-  const noTerminados = ENVIOS.filter(e => e.produccion && e.produccion.evento !== 'completado').length;
+  const noTerminados = ENVIOS.filter(e => e.tipo !== 'insumo' && e.produccion && e.produccion.evento !== 'completado').length;
   const viejos = ENVIOS.filter(e => e.impreso_at && diasDesde(e.impreso_at) > 30).length;
   document.getElementById('kpis').innerHTML =
     '<div class="kpi"><div class="kpi-val">' + abiertos + '</div><div class="kpi-lbl">Envíos abiertos</div></div>'
@@ -241,7 +254,7 @@ function render() {
     + '<div class="kpi"><div class="kpi-val" style="color:' + (viejos ? 'var(--orange)' : 'var(--text)') + ';">' + viejos + '</div><div class="kpi-lbl">&gt; 30 días</div></div>';
 
   // Alert band
-  const noTerm = ENVIOS.filter(e => e.produccion && e.produccion.evento !== 'completado');
+  const noTerm = ENVIOS.filter(e => e.tipo !== 'insumo' && e.produccion && e.produccion.evento !== 'completado');
   if (noTerm.length) {
     const oldest = noTerm.reduce((a, e) => { const d = diasDesde(e.impreso_at || e.creado_en); return d > a ? d : a; }, 0);
     document.getElementById('alerta-band').innerHTML = '<div class="alerta-band">⚠ ' + noTerm.length + ' envío' + (noTerm.length > 1 ? 's' : '') + ' sobre muebles NO TERMINADOS en producción (el más viejo: ' + oldest + ' días)</div>';
@@ -321,10 +334,15 @@ function abrirDetalle(envioId) {
     + '<span class="mono" style="font-size:11px;font-weight:700;">' + pct + '%</span></div>';
   if (noTerm) h += '<div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:8px;margin-bottom:10px;font-family:\'Space Mono\',monospace;font-size:10px;color:var(--red);">⚠ Este mueble NO está terminado en producción</div>';
 
-  h += '<div class="det-info">'
-    + '<div class="det-cell"><div class="lbl">Producción</div><div class="val">' + prodText(e) + '</div></div>'
-    + '<div class="det-cell"><div class="lbl">Entrega comprometida</div><div class="val">' + (e.fecha_comprometida ? fmtFecha(e.fecha_comprometida) : '<span style="color:var(--muted);">—</span>') + '</div></div>'
-    + '<div class="det-cell"><div class="lbl">Impreso</div><div class="val">' + (e.impreso ? fmtFecha(e.impreso_at) : '<span style="color:var(--muted);">no</span>') + '</div></div>'
+  h += '<div class="det-info">';
+  if (e.tipo === 'insumo') {
+    h += '<div class="det-cell"><div class="lbl">Tipo</div><div class="val" style="color:var(--orange);font-weight:600;">INSUMO</div></div>'
+      + '<div class="det-cell"><div class="lbl">Proveedor</div><div class="val">' + esc(e.proveedor || '—') + '</div></div>';
+  } else {
+    h += '<div class="det-cell"><div class="lbl">Producción</div><div class="val">' + prodText(e) + '</div></div>'
+      + '<div class="det-cell"><div class="lbl">Entrega comprometida</div><div class="val">' + (e.fecha_comprometida ? fmtFecha(e.fecha_comprometida) : '<span style="color:var(--muted);">—</span>') + '</div></div>';
+  }
+  h += '<div class="det-cell"><div class="lbl">Impreso</div><div class="val">' + (e.impreso ? fmtFecha(e.impreso_at) : '<span style="color:var(--muted);">no</span>') + '</div></div>'
     + '<div class="det-cell"><div class="lbl">Obra</div><div class="val">' + esc(e.obra || '—') + '</div></div>'
     + '</div>';
 
@@ -475,6 +493,19 @@ function compartirEnvio(envioId) {
 }
 
 // ═══ NUEVO ENVÍO ═══
+function setNvTipo(t) {
+  _nvTipo = t;
+  var esMueble = t === 'mueble';
+  document.getElementById('nv-tipo-mueble').className = 'btn btn-sm' + (esMueble ? ' btn-accent' : '');
+  document.getElementById('nv-tipo-insumo').className = 'btn btn-sm' + (!esMueble ? ' btn-accent' : '');
+  // Mueble fields
+  document.getElementById('nv-mueble-inp').parentNode.parentNode.style.display = esMueble ? '' : 'none';
+  document.getElementById('nv-prod-aviso').style.display = esMueble ? '' : 'none';
+  document.getElementById('nv-field-nombre').style.display = esMueble ? '' : 'none';
+  // Insumo fields
+  document.getElementById('nv-field-desc').style.display = esMueble ? 'none' : '';
+  document.getElementById('nv-field-prov').style.display = esMueble ? 'none' : '';
+}
 function abrirNuevoEnvio() {
   _nvProy = null; _nvMueble = null;
   document.getElementById('nv-proy-inp').value = '';
@@ -484,8 +515,11 @@ function abrirNuevoEnvio() {
   document.getElementById('nv-bultos').value = '1';
   document.getElementById('nv-prod-aviso').innerHTML = '';
   document.getElementById('nv-error').textContent = '';
+  document.getElementById('nv-desc').value = '';
+  document.getElementById('nv-prov').value = '';
   document.getElementById('nv-btn').disabled = false;
   document.getElementById('nv-btn').textContent = 'Crear e imprimir';
+  setNvTipo('mueble');
   _initBuscadores();
   document.getElementById('ov-nuevo').classList.add('open');
 }
@@ -553,18 +587,24 @@ async function crearEnvio() {
   const errEl = document.getElementById('nv-error');
   errEl.textContent = '';
   if (!_nvProy) { errEl.textContent = 'Elegí un proyecto'; return; }
-  if (!_nvMueble) { errEl.textContent = 'Elegí un mueble'; return; }
-  const nombre = document.getElementById('nv-nombre').value.trim();
   const bultos = parseInt(document.getElementById('nv-bultos').value);
   if (!bultos || bultos < 1) { errEl.textContent = 'Bultos debe ser >= 1'; return; }
+
+  var bodyEnvio;
+  if (_nvTipo === 'insumo') {
+    var desc = document.getElementById('nv-desc').value.trim();
+    if (!desc) { errEl.textContent = 'Descripción requerida'; return; }
+    bodyEnvio = { proyecto_id: _nvProy.id, tipo: 'insumo', nombre: desc, proveedor: document.getElementById('nv-prov').value.trim(), bultos };
+  } else {
+    if (!_nvMueble) { errEl.textContent = 'Elegí un mueble'; return; }
+    var nombre = document.getElementById('nv-nombre').value.trim();
+    bodyEnvio = { proyecto_id: _nvProy.id, mf_n: _nvMueble.id, nombre: nombre || _nvMueble.nombre || '', bultos };
+  }
 
   const btn = document.getElementById('nv-btn');
   btn.disabled = true; btn.textContent = 'Creando...';
   try {
-    const r = await api('crear-envio', { body: {
-      proyecto_id: _nvProy.id, mf_n: _nvMueble.id,
-      nombre: nombre || _nvMueble.nombre || '', bultos,
-    }});
+    const r = await api('crear-envio', { body: bodyEnvio });
     toast('Envío creado ✓', true);
     cerrarNuevo();
     await cargarBoard();

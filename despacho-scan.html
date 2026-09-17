@@ -310,7 +310,10 @@ function renderScanBultos() {
     var total = g.bultos.length;
     var esc2 = g.bultos.filter(function(b){ return b.escaneado; }).length;
     totalAll += total; escAll += esc2;
-    h += '<div class="grupo-head">' + esc(g.codigo) + ' · ' + esc(g.nombre)
+    var grupoLabel = g.tipo === 'insumo'
+      ? '<span style="color:var(--orange);font-weight:700;">INSUMO</span> · ' + esc(g.nombre) + (g.proveedor ? ' <span style="color:var(--muted);">(' + esc(g.proveedor) + ')</span>' : '')
+      : esc(g.codigo) + ' · ' + esc(g.nombre);
+    h += '<div class="grupo-head">' + grupoLabel
       + (g.envio > 1 ? ' <span class="env-pill">ENVÍO ' + g.envio + '</span>' : '')
       + ' <span style="margin-left:auto;">' + esc2 + '/' + total + '</span></div>';
     g.bultos.forEach(function(b, i) {
