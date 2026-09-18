@@ -742,7 +742,7 @@ function _openCrearItem() {
 }
 
 function _openEditItem(id) {
-  const it = _allItems.find(i => i.id === id);
+  const it = _allItems.find(i => String(i.id) === String(id));
   if (!it) return;
   document.getElementById('modal-item-title').textContent = 'Editar ítem';
   document.getElementById('mi-id').value = it.id;
@@ -817,8 +817,8 @@ async function _saveItem() {
     if (!r.ok) { errEl.textContent = r.msg || 'Error'; return; }
   } else {
     // editar — solo campos modificados
-    const it = _allItems.find(i => i.id === id);
-    if (!it) return;
+    const it = _allItems.find(i => String(i.id) === String(id));
+    if (!it) { document.getElementById('mi-error').textContent = 'No se encontró el ítem — recargá la página'; return; }
     if (!document.getElementById('mi-codigo').disabled && codigo !== (it.codigo || '')) body.codigo = codigo;
     if (desc !== (it.descripcion || '')) body.descripcion = desc;
     const nc = document.getElementById('mi-nombre-corto').value.trim();
