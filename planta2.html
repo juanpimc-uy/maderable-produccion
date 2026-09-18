@@ -1569,7 +1569,7 @@ async function autenticar() {
           cnc2RegistroTrabajoId = registroActivo.id;
           cnc2Maquina = _cnc2r.placa.maquina_codigo || null;
           cnc2Mueble = { token: _cnc2r.placa.mueble_token, proyecto_id: registroActivo.proyecto_id, proyecto_numero: '', proyecto_nombre: registroActivo.proyecto_nombre, mf_id: registroActivo.item_id, mueble_codigo: '', mueble_nombre: registroActivo.item_nombre };
-          cnc2Placa = { registro_cnc_id: _cnc2r.placa.id, codigo: _cnc2r.placa.codigo || '', material: _cnc2r.placa.material || '', medida: _cnc2r.placa.medida || '', costo_usd: null, tipo: 'unidad' };
+          cnc2Placa = { registro_cnc_id: _cnc2r.placa.id, codigo: _cnc2r.placa.codigo || '', material: _cnc2r.placa.material || '', medida: _cnc2r.placa.medida || '', costo_usd: _cnc2r.placa.costo_usd ?? null, tipo: _cnc2r.placa.tipo || (_cnc2r.placa.unidad_id ? 'unidad' : 'item') };
           cnc2T0 = new Date(_cnc2r.placa.inicio).getTime();
           cnc2Hist = [];
           if (_cnc2r.placa.fin_corte) {
@@ -2851,9 +2851,9 @@ function renderCnc2() {
   } else if (cnc2Estado === 'cortando') {
     _cnc2IniciarCronoMueble();
     const p = cnc2Placa || {};
-    const costoChip = p.costo_usd != null
-      ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">US$ ${Number(p.costo_usd).toFixed(2)}</div>`
-      : '<div style="display:inline-block;font-size:9px;font-weight:700;color:var(--accent);background:rgba(255,214,0,.12);border:1px solid rgba(255,214,0,.3);border-radius:4px;padding:2px 8px;margin-top:6px;text-transform:uppercase;">NO DESCUENTA STOCK</div>';
+    const costoChip = p.tipo === 'unidad'
+      ? '<div style="display:inline-block;font-size:9px;font-weight:700;color:var(--accent);background:rgba(255,214,0,.12);border:1px solid rgba(255,214,0,.3);border-radius:4px;padding:2px 8px;margin-top:6px;text-transform:uppercase;">DESCUENTA STOCK</div>'
+      : '<div style="display:inline-block;font-size:9px;font-weight:700;color:#666;background:rgba(255,255,255,.06);border:1px solid #333;border-radius:4px;padding:2px 8px;margin-top:6px;text-transform:uppercase;">NO DESCUENTA STOCK</div>';
     body.innerHTML = errHtml + _cnc2MuebleBanda()
       + `<div style="text-align:center;">
           <div style="font-family:'Space Mono',monospace;font-size:44px;font-weight:700;color:var(--accent);">${p.codigo || ''}</div>

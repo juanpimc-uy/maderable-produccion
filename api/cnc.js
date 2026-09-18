@@ -283,14 +283,15 @@ async function accionPlacaAbierta(req, res) {
   if (!fila) return ok(res, { placa: null });
 
   // Resolver material/medida y código
-  let material = '', medida = '', codigo = '';
+  let material = '', medida = '', codigo = '', costo_usd = null;
   const itemId = fila.item_id;
   if (fila.unidad_id) {
     const { data: u } = await supabase.from('inv_unidades')
-      .select('codigo, inv_items:item_id(descripcion, nombre_corto, espesor_mm, largo_cm, ancho_cm)')
+      .select('codigo, costo_usd, inv_items:item_id(descripcion, nombre_corto, espesor_mm, largo_cm, ancho_cm)')
       .eq('id', fila.unidad_id).maybeSingle();
     if (u) {
       codigo = u.codigo || '';
+      costo_usd = u.costo_usd ?? null;
       const it = u.inv_items || {};
       material = _materialFromItem(it);
       medida = _medidaFromItem(it);
@@ -302,7 +303,7 @@ async function accionPlacaAbierta(req, res) {
     if (it) { codigo = it.codigo || ''; material = _materialFromItem(it); medida = _medidaFromItem(it); }
   }
 
-  return ok(res, { placa: { ...fila, material, medida, codigo } });
+  return ok(res, { placa: { ...fila, material, medida, codigo, costo_usd, tipo: fila.unidad_id ? 'unidad' : 'item' } });
 }
 
 async function accionMarcarFinCorte(req, res) {
