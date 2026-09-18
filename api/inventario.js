@@ -1096,14 +1096,13 @@ async function accionItemsReposicion(req, res) {
 
   const CHUNK = 1000;
 
-  // 1. Traer ítems inventariables por cantidad (no placa/madera)
+  // 1. Traer ítems inventariables (placa/madera incluidas: entran solo por bajo_minimo, ver paso 4)
   let items = [];
   let from = 0;
   while (true) {
     const { data } = await supabase.from('inv_items')
       .select('id, codigo, descripcion, nombre_corto, familia, espesor_mm, largo_cm, ancho_cm, stock_min, costo_promedio_usd')
       .eq('inventariable', true).eq('activo', true)
-      .not('familia', 'in', '("placa","madera")')
       .range(from, from + CHUNK - 1);
     if (!data || !data.length) break;
     items = items.concat(data);
@@ -1142,7 +1141,7 @@ async function accionItemsReposicion(req, res) {
     if (minDef && stockActual < Number(it.stock_min)) {
       incluir = true;
       motivo = 'bajo_minimo';
-    } else if (stockActual <= 0 && tuvoStock.has(it.id)) {
+    } else if (stockActual <= 0 && tuvoStock.has(it.id) && it.familia !== 'placa' && it.familia !== 'madera') {
       incluir = true;
       motivo = 'sin_stock';
     }
