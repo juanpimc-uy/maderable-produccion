@@ -62,12 +62,14 @@
   function _entregar(codigo) {
     var cod = (codigo || '').trim();
     if (!cod) return;
-    if (_pausado) return;
+    if (_pausado) { _diag('LEÍDO, esperando respuesta del servidor\u2026', false); return; }
     // Antirrebote
     var ahora = Date.now();
     if (cod === _ultimoCod && ahora - _ultimoTs < 1500) return;
     _ultimoCod = cod;
     _ultimoTs = ahora;
+    _diag('QR LEÍDO \u2713', false);
+    if (typeof _onCodigo !== 'function') { _diag('ERROR: QR leído pero nadie lo procesa (' + cod.slice(0, 40) + ')', true); return; }
     var cb = _onCodigo;
     if (_continuo) {
       // No cerrar: invocar y seguir escaneando
@@ -111,19 +113,19 @@
         // Sin cámara: ocultar visor, enfocar input
         if (visor) visor.style.display = 'none';
         if (inp) inp.focus();
+        _diag('SIN CÁMARA O SIN PERMISO', true);
         if (typeof _onError === 'function') _onError('sin-permiso');
       });
   }
 
   window.abrirEscaner = function (opts) {
     opts = opts || {};
+    if (_overlay || _contenedor) _cerrar(false);
     _onCodigo = opts.onCodigo;
     _onCancelar = opts.onCancelar;
     _onError = opts.onError || null;
     _continuo = !!opts.continuo;
     _pausado = false;
-
-    if (_overlay || _contenedor) _cerrar(false);
 
     _scanCount = 0;
 
@@ -142,6 +144,12 @@
       visor.appendChild(video);
       visor.appendChild(canvas);
       _contenedor.appendChild(visor);
+
+      var diagEmbed = document.createElement('div');
+      diagEmbed.className = 'esc-diag';
+      diagEmbed.id = 'esc-diag';
+      diagEmbed.textContent = 'buscando\u2026 0';
+      _contenedor.appendChild(diagEmbed);
 
       // Input manual debajo del video
       var manualDiv = document.createElement('div');
@@ -187,29 +195,35 @@
     if (e.key === 'Escape' && _overlay) { _cerrar(true); }
   }
 
+  function _diag(texto, esError) {
+    var el = document.getElementById('esc-diag');
+    if (!el) return;
+    el.textContent = texto;
+    el.style.color = esError ? '#ef4444' : '#555';
+  }
+
   function _loopQR(video, canvas) {
     if (!_overlay && !_contenedor) return;
-    if (!window.jsQR) {
-      var diag = document.getElementById('esc-diag');
-      if (diag) { diag.textContent = 'lector QR no disponible'; diag.style.color = '#ef4444'; }
-      return;
-    }
-    if (video.readyState >= 2) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      var ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      var code = jsQR(imgData.data, imgData.width, imgData.height);
-      _scanCount++;
-      if (_scanCount % 10 === 0) {
-        var d2 = document.getElementById('esc-diag');
-        if (d2) d2.textContent = 'buscando\u2026 ' + _scanCount;
+    if (!window.jsQR) { _diag('LECTOR QR NO CARGÓ \u2014 recargá la página', true); return; }
+    try {
+      if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var code = jsQR(imgData.data, imgData.width, imgData.height);
+        _scanCount++;
+        if (_scanCount % 10 === 0) _diag('buscando\u2026 ' + _scanCount + ' \u00B7 ' + canvas.width + 'x' + canvas.height, false);
+        if (code && code.data) {
+          _entregar(code.data);
+          if (!_continuo) return;
+        }
+      } else if (_scanCount === 0) {
+        _diag('esperando cámara\u2026 (' + video.readyState + ')', false);
       }
-      if (code && code.data) {
-        _entregar(code.data);
-        if (!_continuo) return; // modo original: el loop para después de entregar
-      }
+    } catch (e) {
+      _diag('ERROR LECTOR: ' + (e && e.message ? e.message : e), true);
     }
     _raf = requestAnimationFrame(function () { _loopQR(video, canvas); });
   }
