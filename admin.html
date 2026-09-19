@@ -4816,7 +4816,7 @@ function abrirModalOperario(opId) {
       ${op ? `<div style="border-top:1px solid #1a1a1a;padding-top:12px;margin-bottom:12px;">
         <label style="${_labelStyle}">PIN DE ACCESO</label>
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#FFD600;background:#111;border:1px solid #242424;border-radius:4px;padding:4px 10px;">${op.pin||'1234'}</span>
+          <span id="mod-pin-actual" style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#FFD600;background:#111;border:1px solid #242424;border-radius:4px;padding:4px 10px;">${op.pin||'1234'}</span>
           <input id="mod-op-pin-new" type="password" maxlength="4" placeholder="Nuevo PIN 4 dígitos" style="background:#111;border:1px solid #242424;border-radius:4px;padding:6px 9px;color:#ccc;font-family:'JetBrains Mono',monospace;font-size:12px;width:140px;text-align:center;letter-spacing:.3em;outline:none;" onfocus="this.style.borderColor='#FFD600'" onblur="this.style.borderColor='#242424'">
           <button onclick="_modalCambiarPin('${op.id}')" style="padding:4px 10px;border:1px solid var(--border);border-radius:4px;background:var(--faint);color:var(--muted);cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace;">Cambiar</button>
           <span id="mod-op-pin-msg" style="font-size:10px;color:var(--muted);"></span>
@@ -4935,10 +4935,10 @@ async function _modalCambiarPin(opId) {
   try {
     const res = await fetch('/api/tiempos?action=cambiar-pin', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ admin_id: u.id, empleado_id: opId, nuevo_pin: pin })
+      body: JSON.stringify({ admin_id: u.id, empleado_id: opId, pin_nuevo: pin, session_token: u.session_token || window.AUTH.getSessionToken() })
     });
     const data = await res.json();
-    if (data.ok) { if(msg) msg.textContent='✓ PIN cambiado'; if(inp) inp.value=''; }
+    if (data.ok) { if(msg) msg.textContent='✓ PIN cambiado'; if(inp) inp.value=''; var pinSpan = document.getElementById('mod-pin-actual'); if(pinSpan) pinSpan.textContent = pin; }
     else { if(msg) msg.textContent = data.error || 'Error'; }
   } catch(e) { if(msg) msg.textContent='Error: '+e.message; }
 }

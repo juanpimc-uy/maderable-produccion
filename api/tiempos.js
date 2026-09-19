@@ -2840,11 +2840,27 @@ export default async function handler(req) {
       return ok({ ok: true, usuario: { id: data.id, nombre: data.nombre, email: data.email, rol_app: data.rol_app, categoria: data.categoria, acceso_tiempos: data.acceso_tiempos ?? false, centros_autorizados: data.centros_autorizados || [], session_token: sessionToken } });
     }
 
-    // ── POST cambiar PIN propio ───────────────────────────────────────────
+    // ── POST cambiar PIN (propio con pin_actual, o ajeno con admin_id + session_token) ──
     if (action === 'cambiar-pin' && req.method === 'POST') {
-      const { empleado_id, pin_actual, pin_nuevo } = body;
-      if (!empleado_id || !pin_actual || !pin_nuevo) return err('empleado_id, pin_actual y pin_nuevo requeridos', 400);
+      const { empleado_id, pin_actual, pin_nuevo, admin_id } = body;
+      if (!empleado_id || !pin_nuevo) return err('empleado_id y pin_nuevo requeridos', 400);
       if (!/^\d{4}$/.test(pin_nuevo)) return new Response(JSON.stringify({ ok: false, error: 'PIN debe ser 4 dígitos' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+
+      if (admin_id) {
+        // Cambio ajeno: verificar sesión + rol + identidad del caller
+        const caller = await verificarSesion(body.session_token);
+        if (!caller) return err('Sesión inválida o expirada', 401);
+        if (caller.rol_app !== 'admin' && caller.rol_app !== 'oficina') return err('No autorizado', 403);
+        if (caller.id !== admin_id) return err('No autorizado', 403);
+        const { data: target } = await supabase.from('empleados').select('id').eq('id', empleado_id).maybeSingle();
+        if (!target) return err('Empleado no encontrado', 404);
+        const { error: uErr } = await supabase.from('empleados').update({ pin: pin_nuevo }).eq('id', empleado_id);
+        if (uErr) throw uErr;
+        return ok({ ok: true });
+      }
+
+      // Autoservicio: exigir pin_actual
+      if (!pin_actual) return err('pin_actual requerido', 400);
       const { data: emp, error: eErr } = await supabase
         .from('empleados').select('pin').eq('id', empleado_id).maybeSingle();
       if (eErr) throw eErr;
