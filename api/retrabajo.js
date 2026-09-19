@@ -1,6 +1,7 @@
 // api/retrabajo.js — Cola de piezas de retrabajo (CAM→CNC)
 // Edge runtime, session-based (browser). Estados: solicitada → pronta → cortada.
 import { createClient } from '@supabase/supabase-js';
+import { buscarSesion } from '../lib/auth/sesion.js';
 export const config = { runtime: 'edge' };
 
 const supabase = createClient(
@@ -32,6 +33,12 @@ class ApiError extends Error {
 
 async function verificarSesion(token) {
   if (!token) return null;
+  const s = await buscarSesion(supabase, token);
+  if (s) {
+    const { data: emp } = await supabase.from('empleados')
+      .select('id, rol_app, nombre').eq('id', s.empleado_id).eq('activo', true).maybeSingle();
+    return emp || null;
+  }
   const { data } = await supabase
     .from('empleados')
     .select('id, rol_app, nombre')

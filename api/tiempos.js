@@ -62,6 +62,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { getZohoToken } from './_zoho-token-cache.js';
 import { buscarJornadaNocturna } from '../lib/jornadas/nocturna.js';
+import { crearSesion, buscarSesion, tocarSesion } from '../lib/auth/sesion.js';
 export const config = { runtime: 'edge' };
 
 const supabase = createClient(
@@ -117,6 +118,20 @@ class ApiError extends Error {
 // ── Verificar sesión (token en body o query) ──────────────────────────────
 async function verificarSesion(token) {
   if (!token) return null;
+  // 1) Buscar en tabla `sesiones` (multi-dispositivo)
+  const s = await buscarSesion(supabase, token);
+  if (s) {
+    const { data: emp } = await supabase
+      .from('empleados')
+      .select('id, rol_app, nombre')
+      .eq('id', s.empleado_id)
+      .eq('activo', true)
+      .maybeSingle();
+    if (!emp) return null;
+    emp._sesion = s;
+    return emp;
+  }
+  // 2) Fallback: columna session_token en empleados (migración gradual)
   const { data } = await supabase
     .from('empleados')
     .select('id, rol_app, nombre')
@@ -124,7 +139,25 @@ async function verificarSesion(token) {
     .gt('session_expires_at', new Date().toISOString())
     .eq('activo', true)
     .maybeSingle();
-  return data || null;
+  if (!data) return null;
+  data._sesion = null;
+  return data;
+}
+
+// Migración transparente: copia el token de la columna vieja a tabla sesiones.
+async function crearSesionMigrada(supabase, token, empleado_id, req) {
+  try {
+    const ahora = new Date();
+    await supabase.from('sesiones').upsert({
+      token,
+      empleado_id,
+      contexto: 'oficina',
+      dispositivo: (req.headers.get('user-agent') || '').slice(0, 200),
+      creado_en: ahora.toISOString(),
+      ultimo_uso: ahora.toISOString(),
+      expira_at: new Date(ahora.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    }, { onConflict: 'token', ignoreDuplicates: true });
+  } catch (_) { /* error no-fatal: la sesión vieja sigue válida por fallback */ }
 }
 
 // ── Helper: push segmento CNC con split en descanso ──────────────────────
@@ -863,12 +896,12 @@ export default async function handler(req) {
       const token = url.searchParams.get('session_token');
       const user = await verificarSesion(token);
       if (!user) return err('Sesión inválida o expirada', 401);
-      // Renovación deslizante: cada visita de oficina/admin extiende la sesión 30 días.
-      // Gateado por rol para no extender tokens de kiosco (10 min) de operarios.
-      if (user.rol_app === 'admin' || user.rol_app === 'oficina') {
-        await supabase.from('empleados')
-          .update({ session_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() })
-          .eq('id', user.id);
+      if (user._sesion) {
+        // Renovación deslizante vía tabla sesiones
+        await tocarSesion(supabase, user._sesion);
+      } else if (user.rol_app === 'admin' || user.rol_app === 'oficina') {
+        // Migración transparente: insertar en tabla sesiones con el mismo token
+        await crearSesionMigrada(supabase, token, user.id, req);
       }
       return ok({ ok: true, user: { id: user.id, nombre: user.nombre, rol_app: user.rol_app } });
     }
@@ -2797,7 +2830,7 @@ export default async function handler(req) {
       if (!email || !credential) return err('email y credencial requeridos', 400);
       const { data, error } = await supabase
         .from('empleados')
-        .select('id, nombre, email, categoria, rol_app, pin, password_hash, acceso_tiempos, centros_autorizados, session_token, session_expires_at')
+        .select('id, nombre, email, categoria, rol_app, pin, password_hash, acceso_tiempos, centros_autorizados')
         .eq('email', email)
         .eq('archivado', false)
         .in('rol_app', ['admin', 'oficina'])
@@ -2827,16 +2860,13 @@ export default async function handler(req) {
       }
       if (!valid) { recordFailedAttempt(rateKey); return new Response(JSON.stringify({ ok: false, error: 'Credenciales incorrectas' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } }); }
       clearRateLimit(rateKey);
-      // Sesión de 30 días. Si ya hay token vigente, reusarlo (multi-dispositivo:
-      // loguearse en otra máquina no mata la sesión anterior) y extender vencimiento.
-      const SESION_MS = 30 * 24 * 60 * 60 * 1000;
-      const tokenVigente = data.session_token && data.session_expires_at
-        && new Date(data.session_expires_at) > new Date();
-      const sessionToken = tokenVigente ? data.session_token : crypto.randomUUID();
-      const sessionExpiry = new Date(Date.now() + SESION_MS).toISOString();
-      await supabase.from('empleados')
-        .update({ session_token: sessionToken, session_expires_at: sessionExpiry })
-        .eq('id', data.id);
+      // Sesión multi-dispositivo: una fila por login, cada dispositivo la suya.
+      const { token: sessionToken } = await crearSesion(supabase, {
+        empleado_id: data.id,
+        contexto: 'oficina',
+        minutos: 30 * 24 * 60,
+        userAgent: req.headers.get('user-agent'),
+      });
       return ok({ ok: true, usuario: { id: data.id, nombre: data.nombre, email: data.email, rol_app: data.rol_app, categoria: data.categoria, acceso_tiempos: data.acceso_tiempos ?? false, centros_autorizados: data.centros_autorizados || [], session_token: sessionToken } });
     }
 
@@ -2934,11 +2964,12 @@ export default async function handler(req) {
       // operario abra ventanas de oficina desde el piso. SOLO si viene
       // kiosco:true — la llamada de planta2 (sin flag) queda byte-idéntica.
       if (body.kiosco === true) {
-        const sessionToken = crypto.randomUUID();
-        const sessionExpiry = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-        await supabase.from('empleados')
-          .update({ session_token: sessionToken, session_expires_at: sessionExpiry })
-          .eq('id', data.id);
+        const { token: sessionToken } = await crearSesion(supabase, {
+          empleado_id: data.id,
+          contexto: 'kiosco',
+          minutos: 10,
+          userAgent: req.headers.get('user-agent'),
+        });
         return ok({ ok: true, empleado: data, session_token: sessionToken });
       }
 
@@ -2958,13 +2989,14 @@ export default async function handler(req) {
       return ok({ ok: true });
     }
 
-    // ── POST cerrar-sesion-kiosco (vence el token de oficina del kiosco) ──
+    // ── POST cerrar-sesion-kiosco (borra sesiones kiosco del empleado) ──
     if (action === 'cerrar-sesion-kiosco' && req.method === 'POST') {
       const { empleado_id } = body;
       if (!empleado_id) return err('empleado_id requerido', 400);
-      const { error } = await supabase.from('empleados')
-        .update({ session_token: null, session_expires_at: null })
-        .eq('id', String(empleado_id));
+      const { error } = await supabase.from('sesiones')
+        .delete()
+        .eq('empleado_id', String(empleado_id))
+        .eq('contexto', 'kiosco');
       if (error) throw error;
       return ok({ ok: true });
     }

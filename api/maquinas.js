@@ -1,5 +1,6 @@
 // api/maquinas.js — Catálogo de máquinas y sus partes (Edge runtime)
 import { createClient } from '@supabase/supabase-js';
+import { buscarSesion } from '../lib/auth/sesion.js';
 export const config = { runtime: 'edge' };
 
 const supabase = createClient(
@@ -28,6 +29,12 @@ function err(msg, status = 400) {
 
 async function verificarSesion(token) {
   if (!token) return null;
+  const s = await buscarSesion(supabase, token);
+  if (s) {
+    const { data: emp } = await supabase.from('empleados')
+      .select('id, rol_app, nombre').eq('id', s.empleado_id).eq('activo', true).maybeSingle();
+    return emp || null;
+  }
   const { data } = await supabase
     .from('empleados')
     .select('id, rol_app, nombre')

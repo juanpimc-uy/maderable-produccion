@@ -2,6 +2,7 @@
 export const config = { maxDuration: 300 };
 import { createClient } from '@supabase/supabase-js';
 import { getZohoToken } from './_zoho-token-cache.js';
+import { buscarSesion } from '../lib/auth/sesion.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -15,6 +16,13 @@ async function verificarSesionAdminOficina(req) {
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
   if (!token) return null;
+  const s = await buscarSesion(supabase, token);
+  if (s) {
+    const { data: emp } = await supabase.from('empleados')
+      .select('id, rol_app, nombre').eq('id', s.empleado_id).maybeSingle();
+    if (!emp || (emp.rol_app !== 'admin' && emp.rol_app !== 'oficina')) return null;
+    return emp;
+  }
   const { data } = await supabase
     .from('empleados')
     .select('id, rol_app, nombre')

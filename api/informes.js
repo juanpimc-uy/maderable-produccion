@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { getZohoToken } from './_zoho-token-cache.js';
+import { buscarSesion } from '../lib/auth/sesion.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -49,16 +50,27 @@ function verificarAccesoSeccion(req) {
   return verificarTokenSeccion(token);
 }
 
-async function verificarSesionAdmin(req) {
-  const auth = req.headers.authorization || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
+async function _resolverSesion(token) {
   if (!token) return null;
+  const s = await buscarSesion(supabase, token);
+  if (s) {
+    const { data: emp } = await supabase.from('empleados')
+      .select('id, rol_app, nombre').eq('id', s.empleado_id).maybeSingle();
+    return emp || null;
+  }
   const { data } = await supabase
     .from('empleados')
     .select('id, rol_app, nombre')
     .eq('session_token', token)
     .gt('session_expires_at', new Date().toISOString())
     .maybeSingle();
+  return data || null;
+}
+
+async function verificarSesionAdmin(req) {
+  const auth = req.headers.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
+  const data = await _resolverSesion(token);
   if (!data || data.rol_app !== 'admin') return null;
   return data;
 }
@@ -66,13 +78,7 @@ async function verificarSesionAdmin(req) {
 async function verificarSesionAdminOficina(req) {
   const auth = req.headers.authorization || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : auth;
-  if (!token) return null;
-  const { data } = await supabase
-    .from('empleados')
-    .select('id, rol_app, nombre')
-    .eq('session_token', token)
-    .gt('session_expires_at', new Date().toISOString())
-    .maybeSingle();
+  const data = await _resolverSesion(token);
   if (!data || (data.rol_app !== 'admin' && data.rol_app !== 'oficina')) return null;
   return data;
 }
